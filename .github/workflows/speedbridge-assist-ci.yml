@@ -23,40 +23,35 @@ jobs:
     name: Java 25 Fabric milestone verification
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
-      - name: Check out coordination workspace
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Validate agent workspace
+      - name: Validate coordination workspace
         run: |
           set -euo pipefail
           python -m unittest discover -s tests -v
           python agentctl.py validate
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "25"
 
-      - name: Configure Gradle cache
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
 
-      - name: Reconstruct source and apply milestone patch
+      - name: Reconstruct source and exact milestone patch
         id: source
         shell: bash
         run: |
           set -euo pipefail
           SOURCE_DIR="$GITHUB_WORKSPACE/$SOURCE_TASK_DIR/artifacts/source"
           PATCH_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/patches"
-          MOD_DIR="$RUNNER_TEMP/speedbridge-assist"
           RESULTS_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/ci-results"
+          MOD_DIR="$RUNNER_TEMP/speedbridge-assist"
           ARCHIVE="$RUNNER_TEMP/source.tar.xz"
           PATCH="$RUNNER_TEMP/milestone-1-5.patch"
           mkdir -p "$MOD_DIR" "$RESULTS_DIR"
@@ -70,18 +65,33 @@ jobs:
             | tee "$RESULTS_DIR/source-checksum.log"
           tar -xJf "$ARCHIVE" -C "$MOD_DIR"
 
-          cat "$PATCH_DIR"/milestone-1-5.patch.part-* > "$PATCH"
+          decode_corrected() {
+            base64 --decode "$PATCH_DIR/corrected/part-$1.gz.b64" | gzip -dc
+          }
+          {
+            cat "$PATCH_DIR/milestone-1-5.patch.part-00"
+            cat "$PATCH_DIR/milestone-1-5.patch.part-01"
+            cat "$PATCH_DIR/milestone-1-5.patch.part-02"
+            decode_corrected 03
+            cat "$PATCH_DIR/milestone-1-5.patch.part-04"
+            cat "$PATCH_DIR/milestone-1-5.patch.part-05"
+            cat "$PATCH_DIR/milestone-1-5.patch.part-06"
+            decode_corrected 07
+            decode_corrected 08
+            decode_corrected 09
+            decode_corrected 10
+            cat "$PATCH_DIR/milestone-1-5.patch.part-11"
+          } > "$PATCH"
           printf '%s  %s\n' "$PATCH_SHA256" "$PATCH" | sha256sum --check \
             | tee "$RESULTS_DIR/patch-checksum.log"
           (cd "$MOD_DIR" && git apply --check "$PATCH")
           (cd "$MOD_DIR" && git apply "$PATCH")
           git apply --numstat "$PATCH" | tee "$RESULTS_DIR/patch-numstat.log"
-          find "$MOD_DIR" -maxdepth 5 -type f | sort > "$RESULTS_DIR/source-file-list.txt"
 
           echo "mod_dir=$MOD_DIR" >> "$GITHUB_OUTPUT"
           echo "results_dir=$RESULTS_DIR" >> "$GITHUB_OUTPUT"
 
-      - name: Verify toolchains
+      - name: Verify Java and Gradle
         working-directory: ${{ steps.source.outputs.mod_dir }}
         run: |
           set -euo pipefail
@@ -89,58 +99,42 @@ jobs:
           java -version 2>&1 | tee "${{ steps.source.outputs.results_dir }}/java-version.log"
           ./gradlew --version --no-daemon | tee "${{ steps.source.outputs.results_dir }}/gradle-version.log"
 
-      - name: Run standalone domain tests
+      - name: Run deterministic and source-guard tests
         working-directory: ${{ steps.source.outputs.mod_dir }}
         run: |
           set -euo pipefail
           ./tools/run-standalone-tests.sh | tee "${{ steps.source.outputs.results_dir }}/standalone-tests.log"
-
-      - name: Run Minecraft 26.2 source guard
-        working-directory: ${{ steps.source.outputs.mod_dir }}
-        run: |
-          set -euo pipefail
           ./tools/check-26.2-api.sh | tee "${{ steps.source.outputs.results_dir }}/source-guard.log"
 
-      - name: Run Gradle tests
+      - name: Run Java 25 Gradle tests
         working-directory: ${{ steps.source.outputs.mod_dir }}
         run: |
           set -euo pipefail
           ./gradlew clean test --stacktrace --no-daemon 2>&1 \
             | tee "${{ steps.source.outputs.results_dir }}/gradle-test.log"
 
-      - name: Build production mod
-        working-directory: ${{ steps.source.outputs.mod_dir }}
-        run: |
-          set -euo pipefail
-          ./gradlew clean build --stacktrace --no-daemon 2>&1 \
-            | tee "${{ steps.source.outputs.results_dir }}/gradle-build.log"
-
-      - name: Inspect production JAR
+      - name: Build and inspect production mod
         working-directory: ${{ steps.source.outputs.mod_dir }}
         shell: bash
         run: |
           set -euo pipefail
           RESULTS_DIR="${{ steps.source.outputs.results_dir }}"
+          ./gradlew clean build --stacktrace --no-daemon 2>&1 | tee "$RESULTS_DIR/gradle-build.log"
           mapfile -t JARS < <(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | sort)
-          if [ "${#JARS[@]}" -ne 1 ]; then
-            echo "Expected exactly one production JAR, found ${#JARS[@]}" >&2
-            printf '%s\n' "${JARS[@]}" >&2
-            exit 1
-          fi
-          JAR="${JARS[0]}"
+          test "${#JARS[@]}" -eq 1
           mkdir -p "$RESULTS_DIR/jar"
-          cp "$JAR" "$RESULTS_DIR/jar/"
-          sha256sum "$JAR" | tee "$RESULTS_DIR/jar.sha256"
-          unzip -p "$JAR" fabric.mod.json | tee "$RESULTS_DIR/fabric.mod.json"
-          unzip -l "$JAR" > "$RESULTS_DIR/jar-contents.txt"
+          cp "${JARS[0]}" "$RESULTS_DIR/jar/"
+          sha256sum "${JARS[0]}" | tee "$RESULTS_DIR/jar.sha256"
+          unzip -p "${JARS[0]}" fabric.mod.json | tee "$RESULTS_DIR/fabric.mod.json"
+          unzip -l "${JARS[0]}" > "$RESULTS_DIR/jar-contents.txt"
 
       - name: Install virtual display
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends xvfb xauth
 
-      - name: Attempt headless development-client startup
-        id: client_smoke
+      - name: Confirm headless development-client startup
+        id: smoke
         working-directory: ${{ steps.source.outputs.mod_dir }}
         shell: bash
         run: |
@@ -152,29 +146,18 @@ jobs:
             ./gradlew runClient --stacktrace --no-daemon >"$LOG" 2>&1
           STATUS=$?
           set -e
-          RESULT=failed
           if [ "$STATUS" -eq 0 ]; then
             RESULT=exited-cleanly
-          elif [ "$STATUS" -eq 124 ] || [ "$STATUS" -eq 137 ]; then
-            if grep -Eiq 'Backend library: LWJGL|Reloading ResourceManager|Created: [0-9]+x[0-9]+|Created texture atlas|Sound engine started' "$LOG"; then
-              RESULT=started-and-survived-timeout
-            else
-              RESULT=timeout-before-confirmed-startup
-            fi
+          elif { [ "$STATUS" -eq 124 ] || [ "$STATUS" -eq 137 ]; } \
+            && grep -Eiq 'Backend library: LWJGL|Reloading ResourceManager|Created: [0-9]+x[0-9]+|Created texture atlas|Sound engine started' "$LOG"; then
+            RESULT=started-and-survived-timeout
+          else
+            RESULT=unconfirmed
           fi
-          printf 'exit_code=%s\nresult=%s\n' "$STATUS" "$RESULT" \
-            | tee "$RESULTS_DIR/run-client-status.txt"
-          echo "exit_code=$STATUS" >> "$GITHUB_OUTPUT"
-          echo "result=$RESULT" >> "$GITHUB_OUTPUT"
-          case "$RESULT" in
-            exited-cleanly|started-and-survived-timeout) ;;
-            *)
-              echo "Development client startup was not confirmed: $RESULT (exit code $STATUS)" >&2
-              exit 1
-              ;;
-          esac
+          printf 'exit_code=%s\nresult=%s\n' "$STATUS" "$RESULT" | tee "$RESULTS_DIR/run-client-status.txt"
+          test "$RESULT" != unconfirmed
 
-      - name: Collect verification evidence
+      - name: Collect evidence
         if: always()
         shell: bash
         run: |
@@ -186,16 +169,6 @@ jobs:
           [ ! -d "$MOD_DIR/build/test-results" ] || cp -R "$MOD_DIR/build/test-results" "$RESULTS_DIR/gradle-reports/"
           [ ! -d "$MOD_DIR/run/logs" ] || cp -R "$MOD_DIR/run/logs" "$RESULTS_DIR/runtime/"
           [ ! -d "$MOD_DIR/run/crash-reports" ] || cp -R "$MOD_DIR/run/crash-reports" "$RESULTS_DIR/runtime/"
-          {
-            echo "# SpeedBridge milestone 1-5 CI summary"
-            echo
-            echo "- Commit: $GITHUB_SHA"
-            echo "- Java: 25"
-            echo "- Baseline source SHA-256: 59e6411915ec06b2cc9d26a6c30bf1b6da5dcd53f0ef8f830dbf61424654aa22"
-            echo "- Milestone patch SHA-256: $PATCH_SHA256"
-            echo "- Development-client smoke result: ${{ steps.client_smoke.outputs.result }}"
-            echo "- Development-client exit code: ${{ steps.client_smoke.outputs.exit_code }}"
-          } > "$RESULTS_DIR/summary.md"
 
       - name: Upload production JAR
         if: success()
@@ -206,14 +179,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload complete verification evidence
+      - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: speedbridge-assist-milestone-1-5-verification
           path: |
             ${{ env.TASK_DIR }}/artifacts/ci-results/**
-            ${{ env.TASK_DIR }}/artifacts/patches/milestone-1-5.patch.part-*
+            ${{ env.TASK_DIR }}/artifacts/patches/corrected/**
             ${{ env.SOURCE_TASK_DIR }}/artifacts/source/README.md
             ${{ env.SOURCE_TASK_DIR }}/artifacts/source/source.tar.xz.sha256
           if-no-files-found: warn
