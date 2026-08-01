@@ -5,6 +5,8 @@ from typing import Any, Iterable
 
 from .storage import PROTOCOL_VERSION, WorkspaceError, ensure_scope, iso, read_json, write_json
 
+AGENT_STATES = {"available", "busy", "offline", "retired"}
+
 
 class RegistryMixin:
     root: Path
@@ -23,12 +25,10 @@ class RegistryMixin:
 
     def agent_path(self, agent_id: str) -> Path:
         from .storage import ensure_identifier
-
         return self.agents_dir / ensure_identifier(agent_id, "agent id")
 
     def task_path(self, task_id: str) -> Path:
         from .storage import ensure_identifier
-
         return self.tasks_dir / ensure_identifier(task_id, "task id")
 
     def require_agent(self, agent_id: str) -> dict[str, Any]:
@@ -54,6 +54,7 @@ class RegistryMixin:
             path.mkdir(parents=True, exist_ok=False)
         except FileExistsError as exc:
             raise WorkspaceError(f"Agent {agent_id!r} already exists") from exc
+        registered_at = iso()
         profile = {
             "schema_version": 1,
             "protocol_version": PROTOCOL_VERSION,
@@ -62,8 +63,10 @@ class RegistryMixin:
             "model": model.strip(),
             "description": description.strip(),
             "capabilities": sorted({item.strip() for item in capabilities if item.strip()}),
-            "registered_at": iso(),
+            "registered_at": registered_at,
             "state": "available",
+            "state_updated_at": registered_at,
+            "state_reason": "registered",
         }
         write_json(profile_path, profile)
         (path / "inbox").mkdir()
@@ -75,6 +78,46 @@ class RegistryMixin:
             "- `notes/` contains agent-owned scratch notes only.\n",
             encoding="utf-8",
         )
+        return profile
+
+    def active_leases_for_agent(self, agent_id: str) -> list[dict[str, Any]]:
+        self.require_agent(agent_id)
+        leases: list[dict[str, Any]] = []
+        if not self.tasks_dir.is_dir():
+            return leases
+        for directory in sorted(self.tasks_dir.iterdir()):
+            if not directory.is_dir() or not (directory / "task.json").is_file():
+                continue
+            for lease in self.active_leases(directory.name):
+                if lease.get("owner") == agent_id:
+                    leases.append(lease)
+        return leases
+
+    def set_agent_state(self, agent_id: str, state: str, reason: str = "") -> dict[str, Any]:
+        state = state.strip().lower()
+        if state not in AGENT_STATES:
+            raise WorkspaceError(
+                f"Invalid agent state {state!r}; choose from {', '.join(sorted(AGENT_STATES))}"
+            )
+        profile_path = self.agent_path(agent_id) / "profile.json"
+        profile = read_json(profile_path)
+        previous = profile.get("state", "available")
+        if previous == "retired" and state != "retired":
+            raise WorkspaceError(f"Agent {agent_id!r} is retired and cannot be reactivated")
+        if state in {"offline", "retired"}:
+            active = self.active_leases_for_agent(agent_id)
+            if active:
+                scopes = ", ".join(sorted(str(item.get("scope")) for item in active))
+                raise WorkspaceError(
+                    f"Agent {agent_id!r} still owns an active lease: {scopes}; release it first"
+                )
+        now = iso()
+        profile["state"] = state
+        profile["state_updated_at"] = now
+        profile["state_reason"] = reason.strip() or f"state changed from {previous} to {state}"
+        if state == "retired":
+            profile["retired_at"] = now
+        write_json(profile_path, profile)
         return profile
 
     def create_task(
@@ -134,9 +177,19 @@ class RegistryMixin:
         if not self.agents_dir.is_dir():
             return agents
         for directory in sorted(self.agents_dir.iterdir()):
-            profile = directory / "profile.json"
-            if directory.is_dir() and profile.is_file():
-                agents.append(read_json(profile))
+            profile_path = directory / "profile.json"
+            if not directory.is_dir() or not profile_path.is_file():
+                continue
+            profile = read_json(profile_path)
+            declared_state = profile.get("state", "available")
+            active = self.active_leases_for_agent(directory.name)
+            summary = dict(profile)
+            summary["declared_state"] = declared_state
+            summary["effective_state"] = "busy" if active else (
+                "idle" if declared_state == "available" else declared_state
+            )
+            summary["active_lease_count"] = len(active)
+            agents.append(summary)
         return agents
 
     def list_tasks(self) -> list[dict[str, Any]]:
