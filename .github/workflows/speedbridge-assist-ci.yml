@@ -1,0 +1,187 @@
+name: SpeedBridge Assist CI
+
+on:
+  push:
+    branches: [ci/speedbridge-assist-1.1.0]
+  pull_request:
+    paths:
+      - ".github/workflows/speedbridge-assist-ci.yml"
+      - "tasks/verify-speedbridge-assist-1-1-0/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TASK_DIR: tasks/verify-speedbridge-assist-1-1-0
+
+jobs:
+  verify-mod:
+    name: Java 25 Fabric verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out coordination workspace
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate agent workspace
+        run: |
+          python -m unittest discover -s tests -v
+          python agentctl.py validate
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Configure Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Reconstruct and verify source
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/source"
+          MOD_DIR="$RUNNER_TEMP/speedbridge-assist"
+          RESULTS_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/ci-results"
+          mkdir -p "$MOD_DIR" "$RESULTS_DIR"
+          cd "$SOURCE_DIR"
+          cat source.tar.xz.b64.00 source.tar.xz.b64.01.part.* source.tar.xz.b64.02 source.tar.xz.b64.03 | base64 --decode > source.tar.xz
+          sha256sum --check source.tar.xz.sha256 | tee "$RESULTS_DIR/source-checksum.log"
+          tar -xJf source.tar.xz -C "$MOD_DIR"
+          find "$MOD_DIR" -maxdepth 4 -type f | sort > "$RESULTS_DIR/source-file-list.txt"
+          echo "mod_dir=$MOD_DIR" >> "$GITHUB_OUTPUT"
+          echo "results_dir=$RESULTS_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Verify toolchains
+        working-directory: ${{ steps.source.outputs.mod_dir }}
+        run: |
+          set -euo pipefail
+          chmod +x gradlew tools/*.sh
+          java -version 2>&1 | tee "${{ steps.source.outputs.results_dir }}/java-version.log"
+          ./gradlew --version --no-daemon | tee "${{ steps.source.outputs.results_dir }}/gradle-version.log"
+
+      - name: Run standalone domain tests
+        working-directory: ${{ steps.source.outputs.mod_dir }}
+        run: |
+          set -euo pipefail
+          ./tools/run-standalone-tests.sh | tee "${{ steps.source.outputs.results_dir }}/standalone-tests.log"
+
+      - name: Run Minecraft 26.2 source guard
+        working-directory: ${{ steps.source.outputs.mod_dir }}
+        run: |
+          set -euo pipefail
+          ./tools/check-26.2-api.sh | tee "${{ steps.source.outputs.results_dir }}/source-guard.log"
+
+      - name: Run Gradle tests
+        working-directory: ${{ steps.source.outputs.mod_dir }}
+        run: |
+          set -euo pipefail
+          ./gradlew clean test --stacktrace --no-daemon 2>&1 | tee "${{ steps.source.outputs.results_dir }}/gradle-test.log"
+
+      - name: Build production mod
+        working-directory: ${{ steps.source.outputs.mod_dir }}
+        run: |
+          set -euo pipefail
+          ./gradlew clean build --stacktrace --no-daemon 2>&1 | tee "${{ steps.source.outputs.results_dir }}/gradle-build.log"
+
+      - name: Inspect production JAR
+        working-directory: ${{ steps.source.outputs.mod_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULTS_DIR="${{ steps.source.outputs.results_dir }}"
+          mapfile -t JARS < <(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | sort)
+          if [ "${#JARS[@]}" -ne 1 ]; then
+            echo "Expected exactly one production JAR, found ${#JARS[@]}" >&2
+            printf '%s\n' "${JARS[@]}" >&2
+            exit 1
+          fi
+          JAR="${JARS[0]}"
+          mkdir -p "$RESULTS_DIR/jar"
+          cp "$JAR" "$RESULTS_DIR/jar/"
+          sha256sum "$JAR" | tee "$RESULTS_DIR/jar.sha256"
+          unzip -p "$JAR" fabric.mod.json | tee "$RESULTS_DIR/fabric.mod.json"
+          unzip -l "$JAR" > "$RESULTS_DIR/jar-contents.txt"
+
+      - name: Install virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends xvfb xauth
+
+      - name: Attempt headless development-client startup
+        id: client_smoke
+        working-directory: ${{ steps.source.outputs.mod_dir }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          RESULTS_DIR="${{ steps.source.outputs.results_dir }}"
+          LOG="$RESULTS_DIR/run-client.log"
+          set +e
+          timeout --signal=TERM --kill-after=15s 120s xvfb-run -a ./gradlew runClient --stacktrace --no-daemon >"$LOG" 2>&1
+          STATUS=$?
+          set -e
+          RESULT=failed
+          if [ "$STATUS" -eq 0 ]; then
+            RESULT=exited-cleanly
+          elif [ "$STATUS" -eq 124 ] || [ "$STATUS" -eq 137 ]; then
+            if grep -Eiq 'Setting user:|Backend library: LWJGL|OpenAL initialized|Sound engine started|Created: [0-9]+x[0-9]+' "$LOG"; then
+              RESULT=started-and-survived-timeout
+            else
+              RESULT=timeout-before-confirmed-startup
+            fi
+          fi
+          printf 'exit_code=%s\nresult=%s\n' "$STATUS" "$RESULT" | tee "$RESULTS_DIR/run-client-status.txt"
+          echo "exit_code=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "result=$RESULT" >> "$GITHUB_OUTPUT"
+
+      - name: Collect verification evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOD_DIR="$RUNNER_TEMP/speedbridge-assist"
+          RESULTS_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/ci-results"
+          mkdir -p "$RESULTS_DIR/gradle-reports" "$RESULTS_DIR/runtime"
+          [ ! -d "$MOD_DIR/build/reports/tests" ] || cp -R "$MOD_DIR/build/reports/tests" "$RESULTS_DIR/gradle-reports/"
+          [ ! -d "$MOD_DIR/build/test-results" ] || cp -R "$MOD_DIR/build/test-results" "$RESULTS_DIR/gradle-reports/"
+          [ ! -d "$MOD_DIR/run/logs" ] || cp -R "$MOD_DIR/run/logs" "$RESULTS_DIR/runtime/"
+          [ ! -d "$MOD_DIR/run/crash-reports" ] || cp -R "$MOD_DIR/run/crash-reports" "$RESULTS_DIR/runtime/"
+          {
+            echo "# SpeedBridge Assist CI summary"
+            echo
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Java: 25"
+            echo "- Source archive SHA-256: 59e6411915ec06b2cc9d26a6c30bf1b6da5dcd53f0ef8f830dbf61424654aa22"
+            echo "- Development-client smoke result: ${{ steps.client_smoke.outputs.result }}"
+            echo "- Development-client exit code: ${{ steps.client_smoke.outputs.exit_code }}"
+          } > "$RESULTS_DIR/summary.md"
+
+      - name: Upload production JAR
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: speedbridge-assist-1.1.0-jar
+          path: ${{ env.TASK_DIR }}/artifacts/ci-results/jar/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload complete verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: speedbridge-assist-1.1.0-verification
+          path: |
+            ${{ env.TASK_DIR }}/artifacts/ci-results/**
+            ${{ env.TASK_DIR }}/artifacts/source/README.md
+            ${{ env.TASK_DIR }}/artifacts/source/source.tar.xz.sha256
+          if-no-files-found: warn
+          retention-days: 14
