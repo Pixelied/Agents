@@ -1,0 +1,11 @@
+{
+  "agent_id": "openai-speedbridge-ci-a7f3",
+  "created_at": "2026-08-01T14:22:54+00:00",
+  "data": {},
+  "event_id": "5c86c367e97d465e88328d5cd1577a3d",
+  "message": "Created task: Verify SpeedBridge Assist 1.1.0",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "verify-speedbridge-assist-1-1-0",
+  "type": "task_created"
+}

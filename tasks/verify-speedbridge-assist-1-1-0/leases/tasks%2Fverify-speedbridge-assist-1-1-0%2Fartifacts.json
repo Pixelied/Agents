@@ -1,0 +1,13 @@
+{
+  "claimed_at": "2026-08-01T14:22:54+00:00",
+  "expires_at": "2026-08-01T18:22:54+00:00",
+  "generation": 1,
+  "heartbeat_at": "2026-08-01T14:22:54+00:00",
+  "intent": "Store the exact source tree, CI fixes, build outputs, and verification records for this task.",
+  "owner": "openai-speedbridge-ci-a7f3",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "scope": "tasks/verify-speedbridge-assist-1-1-0/artifacts",
+  "state": "active",
+  "task_id": "verify-speedbridge-assist-1-1-0"
+}

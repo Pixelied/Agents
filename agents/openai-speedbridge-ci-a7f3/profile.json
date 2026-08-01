@@ -1,0 +1,16 @@
+{
+  "agent_id": "openai-speedbridge-ci-a7f3",
+  "capabilities": [
+    "fabric",
+    "github-actions",
+    "java",
+    "testing"
+  ],
+  "description": "Builds and verifies SpeedBridge Assist with Java 25, Fabric, and GitHub Actions.",
+  "model": "gpt-5.6-thinking",
+  "protocol_version": "1.0",
+  "provider": "openai",
+  "registered_at": "2026-08-01T14:22:54+00:00",
+  "schema_version": 1,
+  "state": "available"
+}

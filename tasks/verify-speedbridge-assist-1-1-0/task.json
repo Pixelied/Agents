@@ -1,0 +1,22 @@
+{
+  "acceptance_criteria": [
+    "GitHub Actions runs the Gradle test and clean build tasks with Java 25.",
+    "All compiler and automated test failures found by CI are fixed.",
+    "The workflow uploads the production JAR, test reports, source archive, and verification logs.",
+    "A headless development-client startup smoke test is attempted and its exact result is recorded.",
+    "The final report distinguishes verified behavior from anything that still requires manual in-game testing."
+  ],
+  "created_at": "2026-08-01T14:22:54+00:00",
+  "created_by": "openai-speedbridge-ci-a7f3",
+  "objective": "Build and test SpeedBridge Assist 1.1.0 on Java 25 and Minecraft/Fabric 26.2 using GitHub Actions, fix real compile or test failures, smoke-test development client startup where possible, and publish verified artifacts and logs.",
+  "priority": "high",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "scopes": [
+    ".github/workflows/speedbridge-assist-ci.yml",
+    "tasks/verify-speedbridge-assist-1-1-0/artifacts"
+  ],
+  "status": "open",
+  "task_id": "verify-speedbridge-assist-1-1-0",
+  "title": "Verify SpeedBridge Assist 1.1.0"
+}
