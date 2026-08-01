@@ -1,0 +1,220 @@
+         }
+ 
+@@ -325,51 +376,56 @@ public final class SpeedBridgeController {
+         return false;
+     }
+ 
+-    private PlacementFailure processPendingPlacement(LocalPlayer player, long tick) {
+-        if (pendingPlacement == null) return PlacementFailure.NONE;
+-        if (isConfirmedBlock(player, pendingPlacement.position())) {
+-            PendingPlacement confirmed = pendingPlacement;
+-            pendingPlacement = null;
+-            if (confirmed.kind() == AssistedPlacementKind.LEVEL) {
+-                pathPlanner.commit(confirmed.step(), PathCommit.LEVEL);
+-                movementPlanner.recordPlacement(center(confirmed.step().lower()));
+-                stateMachine.placed(0);
+-            }
+-            return PlacementFailure.NONE;
+-        }
+-        if (tick - pendingPlacement.requestedTick() <= PLACEMENT_CONFIRM_TIMEOUT) {
+-            return PlacementFailure.WAITING_CONFIRMATION;
+-        }
+-        AssistedPlacementKind kind = pendingPlacement.kind();
+-        pendingPlacement = null;
+-        if (kind == AssistedPlacementKind.STAIR_LOWER) {
+-            staircase.lowerFailed();
+-            return PlacementFailure.LOWER_PLACEMENT_FAILED;
+-        }
+-        if (kind == AssistedPlacementKind.STAIR_UPPER) {
+-            staircase.upperFailed();
+-            return PlacementFailure.UPPER_PLACEMENT_FAILED;
++    private PlacementResult pollPlacement(Minecraft client, long tick) {
++        PlacementRequest pending = placementPipeline.pendingRequest();
++        if (pending == null) return PlacementResult.NOT_REQUESTED;
++
++        PlacementOwner expected;
++        if (pending.kind().isStair()) {
++            long operation = staircase.active() && staircase.step() != null
++                    ? staircase.generation()
++                    : nextGeneration(pending.owner().operationGeneration());
++            expected = new PlacementOwner(sessionGeneration, TechniqueId.STANDARD, operation);
++        } else {
++            long operation = placementOperationGeneration > 0
++                    ? placementOperationGeneration
++                    : nextGeneration(pending.owner().operationGeneration());
++            expected = new PlacementOwner(sessionGeneration, TechniqueId.STANDARD, operation);
+         }
+-        return PlacementFailure.INTERACTION_REJECTED;
++        return placementPipeline.poll(
++                expected, tick, MinecraftPlacementPort.forConfirmation(client));
+     }
+ 
+-    private PlacementFailure requestPlacement(Minecraft client, InputSnapshot physical,
+-                                              PlacementTarget target, BlockSelection selection,
+-                                              AssistedPlacementKind kind, PathStep step, long tick) {
+-        if (pendingPlacement != null) return PlacementFailure.WAITING_CONFIRMATION;
+-        if (!placementCadence.mayAttempt(tick, config.placementDelayTicks)) {
++    private PlacementFailure handlePlacementResult(PlacementResult result) {
++        if (result == null || result.status() == PlacementResult.Status.NOT_REQUESTED
++                || result.status() == PlacementResult.Status.STALE_IGNORED) {
++            return PlacementFailure.NONE;
++        }
++        if (result.status() == PlacementResult.Status.WAITING_ROTATION) {
+             return PlacementFailure.PLACEMENT_DELAY;
+         }
+-        if (physical.use()) return PlacementFailure.PHYSICAL_USE_HELD;
+-
+-        PlacementValidationResult validation = placementValidator.validate(client, target, selection.stack());
+-        if (!validation.valid()) return validation.failure();
+-        if (!inputController.pulse(client, client.options.keyUse, tick, "use")) {
+-            return PlacementFailure.PHYSICAL_USE_HELD;
++        if (result.status() == PlacementResult.Status.WAITING_CONFIRMATION) {
++            return PlacementFailure.WAITING_CONFIRMATION;
+         }
+-        placementCadence.markAttempt(tick);
+-        pendingPlacement = new PendingPlacement(target.replacePos(), kind, tick, step);
+-        return PlacementFailure.NONE;
++        if (result.status() == PlacementResult.Status.CONFIRMED) {
++            PlacementRequest request = result.request();
++            if (request.kind() == AssistedPlacementKind.LEVEL) {
++                pathPlanner.commit(request.pathStep(), PathCommit.LEVEL);
++                movementPlanner.recordPlacement(center(request.pathStep().lower()));
++                stateMachine.placed(0);
++            }
++            return PlacementFailure.NONE;
++        }
++        PlacementFailure failure = result.failure();
++        if (result.status() == PlacementResult.Status.TERMINAL_FAILURE) {
++            PlacementRequest request = result.request();
++            if (request.kind() == AssistedPlacementKind.STAIR_LOWER) {
++                staircase.lowerFailed(request.owner().operationGeneration());
++            } else if (request.kind() == AssistedPlacementKind.STAIR_UPPER) {
++                staircase.upperFailed(request.owner().operationGeneration());
++            }
++        }
++        return failure;
+     }
+ 
+     private void updateActivationToggle() {
+@@ -402,12 +458,13 @@ public final class SpeedBridgeController {
+ 
+     private void begin(LocalPlayer player) {
+         running = true;
++        sessionGeneration = nextGeneration(sessionGeneration);
++        placementOperationGeneration = 0;
+         cleanupPlan.clear();
+         cleanupPlan.capturePreviousSlot(player.getInventory().getSelectedSlot());
+         startingDimension = player.level().dimension();
+-        placementCadence.reset();
++        placementPipeline.reset();
+         forcedSneakTicks = 0;
+-        pendingPlacement = null;
+         pendingFailure = PlacementFailure.NONE;
+         movementPlanner.reset();
+         headingTracker.reset();
+@@ -433,22 +490,20 @@ public final class SpeedBridgeController {
+     }
+ 
+     private void applyMovement(Minecraft client, InputSnapshot physical, Vec2d plannedDirection) {
+-        if (physical.hasMovement()) {
+-            setMovementKeys(client, MovementKeyPlan.NONE, false);
+-            return;
+-        }
+-        boolean pulse = inputController.movementPulse(config.movementSpeed);
+-        MovementKeyPlan plan = pulse
+-                ? movementKeyPlanner.plan(plannedDirection, client.player.getYRot())
+-                : MovementKeyPlan.NONE;
+-        setMovementKeys(client, plan, true);
++        clearLegacyMovementKeys(client);
++        MovementFrame frame = MovementFrame.fromReferenceYaw(movementReferenceYaw);
++        boolean moveThisTick = physical.hasMovement() || inputController.movementPulse(config.movementSpeed);
++        MovementCommand command = moveThisTick
++                ? MovementFrameAdapter.relativeToFrame(plannedDirection, frame)
++                : MovementCommand.NONE;
++        MovementOverrideState.publish(frame, command, client.player.getYRot());
+     }
+ 
+-    private void setMovementKeys(Minecraft client, MovementKeyPlan plan, boolean automated) {
+-        inputController.setAutomated(client, client.options.keyUp, automated && plan.forward(), "forward");
+-        inputController.setAutomated(client, client.options.keyDown, automated && plan.backward(), "backward");
+-        inputController.setAutomated(client, client.options.keyLeft, automated && plan.left(), "left");
+-        inputController.setAutomated(client, client.options.keyRight, automated && plan.right(), "right");
++    private void clearLegacyMovementKeys(Minecraft client) {
++        inputController.setAutomated(client, client.options.keyUp, false, "forward");
++        inputController.setAutomated(client, client.options.keyDown, false, "backward");
++        inputController.setAutomated(client, client.options.keyLeft, false, "left");
++        inputController.setAutomated(client, client.options.keyRight, false, "right");
+     }
+ 
+     private void applyEdgeSafety(Minecraft client, InputSnapshot physical, boolean edgeUnsafe) {
+@@ -461,7 +516,8 @@ public final class SpeedBridgeController {
+     }
+ 
+     private BlockPos desiredStairTarget(StaircaseCommand command, BlockPos lower, BlockPos upper) {
+-        if (pendingPlacement != null) return pendingPlacement.position();
++        PlacementRequest pending = placementPipeline.pendingRequest();
++        if (pending != null) return toBlockPos(pending.replacePos());
+         StaircasePhase phase = staircase.phase();
+         if (command.placeLower() || phase == StaircasePhase.LOWER_READY || phase == StaircasePhase.WAIT_LOWER) return lower;
+         if (command.placeUpper() || phase == StaircasePhase.UPPER_READY || phase == StaircasePhase.WAIT_UPPER) return upper;
+@@ -526,16 +582,30 @@ public final class SpeedBridgeController {
+                 blockCount, selected, targetText, failure, debug);
+     }
+ 
++    private void resetStaircaseAndCancelOwnedPlacement() {
++        long staircaseGeneration = staircase.generation();
++        PlacementRequest pending = placementPipeline.pendingRequest();
++        if (pending != null && pending.kind().isStair()) {
++            placementPipeline.cancelOwner(new PlacementOwner(
++                    sessionGeneration, TechniqueId.STANDARD, staircaseGeneration));
++        }
++        staircase.reset();
++    }
++
++    private static long nextGeneration(long current) {
++        return current == Long.MAX_VALUE ? 1 : current + 1;
++    }
++
+     private void releaseMotion(Minecraft client) {
++        MovementOverrideState.clear();
+         inputController.releaseAutomated(client);
+         rotationController.reset();
+     }
+ 
+     private void stop(Minecraft client, StopReason reason) {
+         releaseMotion(client);
+-        pendingPlacement = null;
+-        placementCadence.reset();
+-        staircase.reset();
++        resetStaircaseAndCancelOwnedPlacement();
++        placementPipeline.reset();
+         if (!running) {
+             stateMachine.idle();
+             hudSnapshot = new HudSnapshot(config.enabled, false, stateMachine.state(), reason,
+diff --git a/src/client/java/dev/adrien/speedbridge/input/InputController.java b/src/client/java/dev/adrien/speedbridge/input/InputController.java
+index fa37aff2805c6f0d0c1a56b5c4085a17ccb5a197..490bba0e9a98b5dbe1e95c02162dc442acdb997b 100644
+--- a/src/client/java/dev/adrien/speedbridge/input/InputController.java
++++ b/src/client/java/dev/adrien/speedbridge/input/InputController.java
+@@ -79,6 +79,7 @@ public final class InputController {
+         automated.clear();
+         oneTickPulses.clear();
+         movementAccumulator = 0.0;
++        MovementOverrideState.clear();
+     }
+ 
+     public boolean physical(Minecraft client, KeyMapping mapping) {
+diff --git a/src/client/java/dev/adrien/speedbridge/input/MovementCommand.java b/src/client/java/dev/adrien/speedbridge/input/MovementCommand.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..3ecbd65e76c47d68ad6f83e1b664bdf107456b2f
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/input/MovementCommand.java
+@@ -0,0 +1,18 @@
++package dev.adrien.speedbridge.input;
++
++public record MovementCommand(double forward, double strafe) {
++    public static final MovementCommand NONE = new MovementCommand(0.0, 0.0);
++
++    public MovementCommand {
++        forward = clamp(forward);
++        strafe = clamp(strafe);
++    }
