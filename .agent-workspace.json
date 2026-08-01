@@ -1,0 +1,42 @@
+{
+  "name": "agents-workspace",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "entrypoint": "AGENTS.md",
+  "cli": "python agentctl.py",
+  "python": ">=3.11",
+  "paths": {
+    "agents": "agents",
+    "tasks": "tasks",
+    "schemas": "schemas",
+    "templates": "templates",
+    "protocol_docs": "docs/protocols"
+  },
+  "coordination": {
+    "ownership": "exclusive-expiring-lease-per-task-scope",
+    "events": "append-only",
+    "handoffs": "append-only",
+    "status": "derived",
+    "default_lease_minutes": 60,
+    "minimum_lease_minutes": 5,
+    "maximum_lease_minutes": 1440
+  },
+  "verification": [
+    "python -m unittest discover -s tests -v",
+    "python agentctl.py validate"
+  ],
+  "commands": {
+    "register": "python agentctl.py register",
+    "list_agents": "python agentctl.py agent-list",
+    "create_task": "python agentctl.py task-create",
+    "list_tasks": "python agentctl.py task-list",
+    "inspect_task": "python agentctl.py status",
+    "claim_scope": "python agentctl.py claim",
+    "heartbeat": "python agentctl.py heartbeat",
+    "record_event": "python agentctl.py event",
+    "handoff": "python agentctl.py handoff",
+    "set_task_state": "python agentctl.py task-state",
+    "release_scope": "python agentctl.py release",
+    "validate": "python agentctl.py validate"
+  }
+}

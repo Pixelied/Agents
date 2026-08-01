@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agents/lease.schema.json",
+  "title": "Exclusive scope lease",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "task_id", "scope", "owner", "state", "claimed_at", "heartbeat_at", "expires_at", "generation"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "protocol_version": {"const": "1.0"},
+    "task_id": {"type": "string"},
+    "scope": {"type": "string"},
+    "owner": {"type": "string"},
+    "state": {"enum": ["active", "released"]},
+    "intent": {"type": "string"},
+    "claimed_at": {"type": "string", "format": "date-time"},
+    "heartbeat_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "generation": {"type": "integer", "minimum": 1},
+    "released_at": {"type": "string", "format": "date-time"},
+    "release_reason": {"type": "string"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "example-task",
+  "scope": "docs",
+  "owner": "example-agent-a1b2",
+  "state": "active",
+  "intent": "Write onboarding documentation",
+  "claimed_at": "2026-08-01T12:00:00+00:00",
+  "heartbeat_at": "2026-08-01T12:00:00+00:00",
+  "expires_at": "2026-08-01T13:00:00+00:00",
+  "generation": 1
+}
