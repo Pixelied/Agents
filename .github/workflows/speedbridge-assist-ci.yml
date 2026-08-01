@@ -133,7 +133,7 @@ jobs:
           if [ "$STATUS" -eq 0 ]; then
             RESULT=exited-cleanly
           elif [ "$STATUS" -eq 124 ] || [ "$STATUS" -eq 137 ]; then
-            if grep -Eiq 'Setting user:|Backend library: LWJGL|OpenAL initialized|Sound engine started|Created: [0-9]+x[0-9]+' "$LOG"; then
+            if grep -Eiq 'Backend library: LWJGL|Reloading ResourceManager|Created: [0-9]+x[0-9]+|Created texture atlas|Sound engine started' "$LOG"; then
               RESULT=started-and-survived-timeout
             else
               RESULT=timeout-before-confirmed-startup
@@ -142,6 +142,14 @@ jobs:
           printf 'exit_code=%s\nresult=%s\n' "$STATUS" "$RESULT" | tee "$RESULTS_DIR/run-client-status.txt"
           echo "exit_code=$STATUS" >> "$GITHUB_OUTPUT"
           echo "result=$RESULT" >> "$GITHUB_OUTPUT"
+          case "$RESULT" in
+            exited-cleanly|started-and-survived-timeout)
+              ;;
+            *)
+              echo "Development client startup was not confirmed: $RESULT (exit code $STATUS)" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Collect verification evidence
         if: always()

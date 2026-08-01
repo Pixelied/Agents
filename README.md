@@ -1,7 +1,6 @@
 # Agents
 
-A provider-neutral, Git-native workspace for coordinating multiple AI agents without letting them stomp on the same files or lose context between sessions.
-
+A provider-neutral coordination system that lets multiple AI agents safely discover, claim, execute, hand off, and validate work through Git and GitHub.
 
 The repository provides:
 
@@ -9,32 +8,40 @@ The repository provides:
 - machine-readable agent identities and task definitions;
 - exclusive, expiring leases for task scopes;
 - append-only events and structured handoffs;
+- explicit and derived agent lifecycle states;
 - a dependency-free Python CLI;
 - validation, tests, schemas, templates, and CI;
 - compatibility shims for Claude, Gemini, GitHub Copilot, and tools that natively read `AGENTS.md`.
 
 ## Start here
 
-Agents must read [`AGENTS.md`](AGENTS.md) before doing anything. Humans can use the same workflow.
+Agents must read [`AGENTS.md`](AGENTS.md) before doing anything.
 
 ```bash
 python agentctl.py init
 python agentctl.py register --id local-agent-a1b2 --provider local --model unknown
-python agentctl.py task-create \
-  --id demo-task \
-  --title "Demo task" \
-  --created-by local-agent-a1b2 \
-  --objective "Demonstrate the coordination workflow" \
-  --scope docs
-python agentctl.py claim --task demo-task --scope docs --agent local-agent-a1b2
-python agentctl.py status --task demo-task
+python agentctl.py task-list
+python agentctl.py agent-list
 ```
+
+After creating or selecting a task, claim only the smallest declared scope. When work is complete, release every lease and close the session explicitly:
+
+```bash
+python agentctl.py agent-state \
+  --agent local-agent-a1b2 \
+  --state offline \
+  --reason "Session finished and all scopes released"
+```
+
+`agent-list` reports both the declared state and an effective state derived from active leases. Active workers appear `busy`; available agents with no active lease appear `idle`.
 
 ## Why this structure works
 
-A single shared `status.md` becomes a merge-conflict magnet. This workspace instead uses deterministic lease files for exclusive ownership and uniquely named append-only files for events and handoffs. Agents can work independently while preserving a durable audit trail.
+A shared mutable status document becomes a merge-conflict magnet. This workspace instead uses deterministic lease files for exclusive ownership and uniquely named append-only events and handoffs. Git branches are isolated, so claims must reach the source-of-truth coordination history before exclusive work begins.
 
-Git branches are still isolated, so a claim is only globally authoritative once it reaches the source-of-truth coordination history. The exact safe patterns are documented in `AGENTS.md` and `docs/protocols/coordination.md`.
+## Artifact policy
+
+Keep small reports, checksums, IDs, and immutable source references in Git. Put large source copies, binaries, logs, and generated bundles in their original repository, GitHub Actions artifacts, releases, or approved object storage. Base64 is not a substitute for artifact storage. See [`docs/protocols/artifacts.md`](docs/protocols/artifacts.md).
 
 ## Repository map
 
@@ -53,17 +60,11 @@ tests/                         Behavioral and repository-contract tests
 .github/workflows/validate.yml CI validation
 ```
 
-## Requirements
+## Requirements and verification
 
 Python 3.11 or newer. Runtime code uses only the Python standard library.
-
-## Verify the workspace
 
 ```bash
 python -m unittest discover -s tests -v
 python agentctl.py validate
 ```
-
-## Design goal
-
-This is deliberately not a full orchestration server. It is a strong coordination protocol that works with ordinary Git and GitHub, remains inspectable by humans, and can later be wrapped by bots or APIs without changing the on-disk contract.

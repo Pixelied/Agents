@@ -18,7 +18,7 @@ def parser() -> argparse.ArgumentParser:
     commands = root.add_subparsers(dest="command", required=True)
 
     commands.add_parser("init", help="Create runtime directories")
-    commands.add_parser("agent-list", help="List registered agent instances")
+    commands.add_parser("agent-list", help="List registered agent instances with derived state")
     commands.add_parser("task-list", help="List tasks with derived state")
 
     register = commands.add_parser("register", help="Register a unique agent instance")
@@ -27,6 +27,11 @@ def parser() -> argparse.ArgumentParser:
     register.add_argument("--model", required=True)
     register.add_argument("--description", default="")
     register.add_argument("--capability", action="append", default=[])
+
+    agent_state = commands.add_parser("agent-state", help="Change a registered agent's declared lifecycle state")
+    agent_state.add_argument("--agent", required=True)
+    agent_state.add_argument("--state", choices=["available", "busy", "offline", "retired"], required=True)
+    agent_state.add_argument("--reason", default="")
 
     task = commands.add_parser("task-create", help="Create a task workspace")
     task.add_argument("--id", required=True)
@@ -101,6 +106,8 @@ def main(argv: list[str] | None = None) -> int:
             print_json(ws.list_tasks())
         elif args.command == "register":
             print_json(ws.register_agent(args.id, args.provider, args.model, args.capability, args.description))
+        elif args.command == "agent-state":
+            print_json(ws.set_agent_state(args.agent, args.state, args.reason))
         elif args.command == "task-create":
             print_json(
                 ws.create_task(
