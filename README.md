@@ -1,6 +1,6 @@
 # Agents
 
-A provider-neutral, Git-native workspace for coordinating multiple AI agents without letting them stomp on the same files or lose context between sessions.
+A provider-neutral coordination system that lets multiple AI agents safely discover, claim, execute, hand off, and validate work through Git and GitHub.
 
 The repository provides:
 
