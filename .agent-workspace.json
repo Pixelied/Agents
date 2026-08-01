@@ -17,6 +17,7 @@
     "events": "append-only",
     "handoffs": "append-only",
     "status": "derived",
+    "agent_effective_state": "derived-from-declared-state-and-active-leases",
     "default_lease_minutes": 60,
     "minimum_lease_minutes": 5,
     "maximum_lease_minutes": 1440
@@ -27,6 +28,7 @@
   ],
   "commands": {
     "register": "python agentctl.py register",
+    "set_agent_state": "python agentctl.py agent-state",
     "list_agents": "python agentctl.py agent-list",
     "create_task": "python agentctl.py task-create",
     "list_tasks": "python agentctl.py task-list",
