@@ -1,0 +1,220 @@
+diff --git a/src/client/java/dev/adrien/speedbridge/aim/AimMode.java b/src/client/java/dev/adrien/speedbridge/aim/AimMode.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..6107c192885505c05873b2c908db0f1d98e08b06
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/aim/AimMode.java
+@@ -0,0 +1,6 @@
++package dev.adrien.speedbridge.aim;
++
++public enum AimMode {
++    VISIBLE,
++    SILENT_PACKET
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/aim/LogicalRotationRequest.java b/src/client/java/dev/adrien/speedbridge/aim/LogicalRotationRequest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..2c4c39d9751ae26e9a60c05cddd4bf8986392fd8
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/aim/LogicalRotationRequest.java
+@@ -0,0 +1,19 @@
++package dev.adrien.speedbridge.aim;
++
++import dev.adrien.speedbridge.placement.PlacementOwner;
++import dev.adrien.speedbridge.placement.Rotation;
++
++public record LogicalRotationRequest(
++        PlacementOwner owner,
++        Rotation rotation,
++        float toleranceDegrees
++) {
++    public LogicalRotationRequest {
++        if (owner == null || rotation == null) {
++            throw new IllegalArgumentException("rotation owner and value are required");
++        }
++        if (!Float.isFinite(toleranceDegrees) || toleranceDegrees <= 0.0f || toleranceDegrees > 180.0f) {
++            throw new IllegalArgumentException("rotation tolerance must be in (0, 180]");
++        }
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/controller/BridgeContext.java b/src/client/java/dev/adrien/speedbridge/controller/BridgeContext.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..2cf7cab9465cc780c90c08ecdc9d57523d2a6914
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/controller/BridgeContext.java
+@@ -0,0 +1,102 @@
++package dev.adrien.speedbridge.controller;
++
++import dev.adrien.speedbridge.aim.AimMode;
++import dev.adrien.speedbridge.input.MovementFrame;
++import dev.adrien.speedbridge.input.RawInputIntent;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.HeadingDecision;
++import dev.adrien.speedbridge.placement.PlacementResult;
++import dev.adrien.speedbridge.support.SupportSnapshot;
++import dev.adrien.speedbridge.util.Vec2d;
++
++import java.util.List;
++
++public record BridgeContext(
++        BridgeSession session,
++        PlayerSnapshot player,
++        RawInputIntent physicalInput,
++        MovementFrame movementFrame,
++        HeadingDecision headingDecision,
++        SupportSnapshot support,
++        GridPos pathAnchor,
++        SelectedBlockSnapshot selectedBlock,
++        int blockCount,
++        long tick,
++        boolean screenOpen,
++        boolean focused,
++        String dimensionId,
++        boolean dimensionChanged,
++        boolean serverCorrection,
++        AimMode aimMode,
++        PlacementResult placementResult
++) {
++    public BridgeContext {
++        if (session == null || player == null || physicalInput == null || movementFrame == null
++                || headingDecision == null || support == null || pathAnchor == null
++                || selectedBlock == null || aimMode == null || placementResult == null) {
++            throw new IllegalArgumentException("bridge context fields are required");
++        }
++        if (blockCount < 0 || tick < 0) throw new IllegalArgumentException("counts and tick must be non-negative");
++        if (dimensionId == null || dimensionId.isBlank()) {
++            throw new IllegalArgumentException("dimensionId is required");
++        }
++        support = new SupportSnapshot(
++                support.supportCenter(), support.playerOffset(), List.copyOf(support.shapes()), support.feetY());
++    }
++
++    public record PlayerSnapshot(
++            Vec2d position,
++            Bounds3d bounds,
++            Vec2d horizontalVelocity,
++            double verticalVelocity,
++            boolean alive,
++            boolean grounded,
++            boolean flying,
++            boolean gliding,
++            boolean swimming,
++            boolean climbing,
++            boolean riding
++    ) {
++        public PlayerSnapshot {
++            if (position == null || bounds == null || horizontalVelocity == null) {
++                throw new IllegalArgumentException("player snapshot vectors are required");
++            }
++            if (!Double.isFinite(verticalVelocity)) {
++                throw new IllegalArgumentException("vertical velocity must be finite");
++            }
++        }
++    }
++
++    public record Bounds3d(
++            double minX,
++            double minY,
++            double minZ,
++            double maxX,
++            double maxY,
++            double maxZ
++    ) {
++        public Bounds3d {
++            if (!(minX <= maxX && minY <= maxY && minZ <= maxZ)) {
++                throw new IllegalArgumentException("invalid player bounds");
++            }
++            if (!(Double.isFinite(minX) && Double.isFinite(minY) && Double.isFinite(minZ)
++                    && Double.isFinite(maxX) && Double.isFinite(maxY) && Double.isFinite(maxZ))) {
++                throw new IllegalArgumentException("player bounds must be finite");
++            }
++        }
++    }
++
++    public record SelectedBlockSnapshot(int slot, String itemId, boolean present) {
++        public SelectedBlockSnapshot {
++            if (slot < -1 || slot > 8) throw new IllegalArgumentException("slot must be -1 or a hotbar slot");
++            itemId = itemId == null ? "" : itemId.trim();
++            if (present && (slot < 0 || itemId.isBlank())) {
++                throw new IllegalArgumentException("present block selection requires slot and item id");
++            }
++        }
++
++        public static SelectedBlockSnapshot none() {
++            return new SelectedBlockSnapshot(-1, "", false);
++        }
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/controller/BridgeContextBuilder.java b/src/client/java/dev/adrien/speedbridge/controller/BridgeContextBuilder.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..bf0f005d15d0e8a2fd09133e5d8ea97a7d709b0d
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/controller/BridgeContextBuilder.java
+@@ -0,0 +1,58 @@
++package dev.adrien.speedbridge.controller;
++
++import dev.adrien.speedbridge.aim.AimMode;
++import dev.adrien.speedbridge.input.MovementFrame;
++import dev.adrien.speedbridge.input.RawInputIntent;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.HeadingDecision;
++import dev.adrien.speedbridge.placement.PlacementResult;
++import dev.adrien.speedbridge.support.SupportSnapshot;
++
++public final class BridgeContextBuilder {
++    private final BridgeSession session;
++    private BridgeContext.PlayerSnapshot player;
++    private RawInputIntent physicalInput;
++    private MovementFrame movementFrame;
++    private HeadingDecision headingDecision;
++    private SupportSnapshot support;
++    private GridPos pathAnchor;
++    private BridgeContext.SelectedBlockSnapshot selectedBlock = BridgeContext.SelectedBlockSnapshot.none();
++    private int blockCount;
++    private long tick;
++    private boolean screenOpen;
++    private boolean focused = true;
++    private String dimensionId;
++    private boolean dimensionChanged;
++    private boolean serverCorrection;
++    private AimMode aimMode = AimMode.VISIBLE;
++    private PlacementResult placementResult = PlacementResult.NOT_REQUESTED;
++
++    public BridgeContextBuilder(BridgeSession session) {
++        if (session == null) throw new IllegalArgumentException("session is required");
++        this.session = session;
++    }
++
++    public BridgeContextBuilder player(BridgeContext.PlayerSnapshot value) { player = value; return this; }
++    public BridgeContextBuilder physicalInput(RawInputIntent value) { physicalInput = value; return this; }
++    public BridgeContextBuilder movementFrame(MovementFrame value) { movementFrame = value; return this; }
++    public BridgeContextBuilder headingDecision(HeadingDecision value) { headingDecision = value; return this; }
++    public BridgeContextBuilder support(SupportSnapshot value) { support = value; return this; }
++    public BridgeContextBuilder pathAnchor(GridPos value) { pathAnchor = value; return this; }
++    public BridgeContextBuilder selectedBlock(BridgeContext.SelectedBlockSnapshot value) { selectedBlock = value; return this; }
++    public BridgeContextBuilder blockCount(int value) { blockCount = value; return this; }
++    public BridgeContextBuilder tick(long value) { tick = value; return this; }
++    public BridgeContextBuilder screenOpen(boolean value) { screenOpen = value; return this; }
++    public BridgeContextBuilder focused(boolean value) { focused = value; return this; }
++    public BridgeContextBuilder dimensionId(String value) { dimensionId = value; return this; }
++    public BridgeContextBuilder dimensionChanged(boolean value) { dimensionChanged = value; return this; }
++    public BridgeContextBuilder serverCorrection(boolean value) { serverCorrection = value; return this; }
++    public BridgeContextBuilder aimMode(AimMode value) { aimMode = value; return this; }
++    public BridgeContextBuilder placementResult(PlacementResult value) { placementResult = value; return this; }
++
++    public BridgeContext build() {
++        return new BridgeContext(
++                session, player, physicalInput, movementFrame, headingDecision, support, pathAnchor,
++                selectedBlock, blockCount, tick, screenOpen, focused, dimensionId,
++                dimensionChanged, serverCorrection, aimMode, placementResult);
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/controller/BridgeSession.java b/src/client/java/dev/adrien/speedbridge/controller/BridgeSession.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..a1cee6111c72526847a5ceb1357d346d1b9fdd93
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/controller/BridgeSession.java
+@@ -0,0 +1,24 @@
++package dev.adrien.speedbridge.controller;
++
++import dev.adrien.speedbridge.placement.PlacementOwner;
++import dev.adrien.speedbridge.technique.TechniqueId;
++
