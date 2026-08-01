@@ -13,7 +13,10 @@
     "description": {"type": "string"},
     "capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "registered_at": {"type": "string", "format": "date-time"},
-    "state": {"enum": ["available", "busy", "offline"]}
+    "state": {"enum": ["available", "busy", "offline", "retired"]},
+    "state_updated_at": {"type": "string", "format": "date-time"},
+    "state_reason": {"type": "string"},
+    "retired_at": {"type": "string", "format": "date-time"}
   },
   "additionalProperties": false
 }
