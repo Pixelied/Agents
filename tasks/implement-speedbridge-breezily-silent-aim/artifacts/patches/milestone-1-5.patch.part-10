@@ -1,0 +1,218 @@
++        close(projection.leftImpulse(), -0.6, 1.0e-6);
++        close(projection.forwardImpulse(), -0.8, 1.0e-6);
++
++        MovementOverrideState.publish(
++                MovementFrame.fromReferenceYaw(0), new MovementCommand(-1, 0), 180);
++        check(MovementOverrideState.active());
++        check(!MovementOverrideState.relativeCommand().equals(MovementCommand.NONE));
++        MovementOverrideState.clear();
++        check(!MovementOverrideState.active());
++        equal(MovementOverrideState.relativeCommand(), MovementCommand.NONE);
++    }
++
++    private static void testTechniqueContracts() {
++        equal(TechniqueId.STANDARD.value(), "standard");
++        equal(TechniqueId.BREEZILY.value(), "breezily");
++        expectIllegalArgument(() -> new TechniqueId(" "));
++        expectIllegalArgument(() -> new TechniqueCapabilities(
++                true, false, true, false, false, true, true, true, false, false, true, -0.01, 0.5));
++
++        BridgeSession session = new BridgeSession(1, TechniqueId.STANDARD, 20);
++        BridgeContext context = new BridgeContextBuilder(session)
++                .player(new BridgeContext.PlayerSnapshot(
++                        new Vec2d(1.5, 2.5),
++                        new BridgeContext.Bounds3d(1.2, 5, 2.2, 1.8, 6.8, 2.8),
++                        Vec2d.ZERO, 0, true, true, false, false, false, false, false))
++                .physicalInput(new RawInputIntent(false, true, false, false, false, false, false))
++                .movementFrame(MovementFrame.fromReferenceYaw(0))
++                .headingDecision(new HeadingDecision(new BridgeHeading(0, -1), false))
++                .support(SupportSnapshot.empty(new Vec2d(1.5, 2.5), 5))
++                .pathAnchor(new GridPos(1, 4, 2))
++                .selectedBlock(new BridgeContext.SelectedBlockSnapshot(2, "minecraft:stone", true))
++                .blockCount(64).tick(40).screenOpen(false).focused(true)
++                .dimensionId("minecraft:overworld").dimensionChanged(false)
++                .serverCorrection(false).aimMode(AimMode.VISIBLE)
++                .placementResult(PlacementResult.NOT_REQUESTED).build();
++        equal(context.tick(), 40L);
++        equal(context.aimMode(), AimMode.VISIBLE);
++        equal(context.placementResult(), PlacementResult.NOT_REQUESTED);
++        check(context.player().alive());
++        check(new TechniqueId.BREEZILY.equals(TechniqueId.BREEZILY));
++        check(new TechniqueCapabilities(true, false, true, false, false,
++                true, true, true, false, false, true, 0.2, 0.7).supports(AimMode.SILENT_PACKET));
++
++        ArrayList<SupportShape> mutableShapes = new ArrayList<>();
++        BridgeContext copied = new BridgeContextBuilder(session)
++                .player(context.player()).physicalInput(context.physicalInput())
++                .movementFrame(context.movementFrame()).headingDecision(context.headingDecision())
++                .support(new SupportSnapshot(Vec2d.ZERO, Vec2d.ZERO, List.copyOf(mutableShapes), 5))
++                .pathAnchor(context.pathAnchor()).selectedBlock(context.selectedBlock())
++                .blockCount(1).tick(41).dimensionId("minecraft:overworld").build();
++        mutableShapes.add(new SupportShape(new Rect2d(0, 0, 1, 1), 5));
++        check(copied.support().shapes().isEmpty());
++        TechniqueTick idle = TechniqueTick.idle("waiting");
++        equal(idle.movement(), MovementCommand.NONE);
++        equal(idle.abortReason(), TechniqueAbortReason.NONE);
++        check(idle.rotation() == null && idle.placement() == null);
++
++        BridgeTechnique fake = new BridgeTechnique() {
++            private boolean begun;
++            public TechniqueId id() { return TechniqueId.STANDARD; }
++            public TechniqueCapabilities capabilities() {
++                return new TechniqueCapabilities(true, true, true, true, false,
++                        true, true, true, true, true, true, 0.2, 0.5);
++            }
++            public TechniqueEvaluation evaluate(BridgeContext supplied) {
++                return TechniqueEvaluation.compatible(1, 1, 0.5, supplied.player().grounded());
++            }
++            public void begin(BridgeContext supplied) { begun = supplied.player().alive(); }
++            public TechniqueTick tick(BridgeContext supplied) {
++                if (!begun) throw new IllegalStateException("not begun");
++                return new TechniqueTick(new MovementCommand(-1, 0), false, false,
++                        null, null, TechniqueAbortReason.NONE, true, "tick=" + supplied.tick());
++            }
++            public boolean canTransitionSafely(BridgeContext supplied) { return supplied.player().grounded(); }
++            public void abort(TechniqueAbortReason reason) { begun = false; }
++            public void reset() { begun = false; }
++        };
++        check(fake.evaluate(context).compatible());
++        fake.begin(context);
++        equal(fake.tick(context).debugState(), "tick=40");
++        check(fake.canTransitionSafely(context));
++    }
++
++    private static void expectIllegalArgument(Runnable action) {
++        assertions++;
++        try {
++            action.run();
++        } catch (IllegalArgumentException expected) {
++            return;
++        }
++        throw new AssertionError("assertion " + assertions + ": expected IllegalArgumentException");
++    }
++
++    private static void testPlacementPipeline() {
++        class FakePort implements PlacementAttemptPort, PlacementConfirmationPort {
++            int validations;
++            int pulses;
++            boolean confirmed;
++            public PlacementValidationResult validate() { validations++; return PlacementValidationResult.ok(); }
++            public boolean pulseUse(long tick) { pulses++; return true; }
++            public boolean confirmed(GridPos position) { return confirmed; }
++        }
++        FakePort port = new FakePort();
++        PlacementPipeline pipeline = new PlacementPipeline();
++        PlacementOwner owner = new PlacementOwner(1, "standard", 1);
++        GridPos pos = new GridPos(0, 4, -1);
++        PathStep step = PathStep.level(pos, new BridgeHeading(0, -1));
++        LogicalRotationRequest rotation = new LogicalRotationRequest(owner, new Rotation(180, 78), 2);
++        PlacementRequest request = new PlacementRequest(
++                owner, pos, AssistedPlacementKind.LEVEL, step, rotation, 10, 16);
++        equal(pipeline.attempt(request, owner, false, false, 10, 0, port).status(),
++                PlacementResult.Status.WAITING_ROTATION);
++        check(port.validations == 0 && port.pulses == 0);
++        equal(pipeline.attempt(request, owner, true, false, 10, 0, port).status(),
++                PlacementResult.Status.WAITING_CONFIRMATION);
++        equal(pipeline.attempt(request, owner, true, false, 10, 0, port).status(),
++                PlacementResult.Status.WAITING_CONFIRMATION);
++        check(port.validations == 1 && port.pulses == 1);
++        equal(pipeline.poll(owner, 11, port).status(), PlacementResult.Status.WAITING_CONFIRMATION);
++        port.confirmed = true;
++        equal(pipeline.poll(owner, 12, port).status(), PlacementResult.Status.CONFIRMED);
++        check(!pipeline.hasPending());
++
++        PlacementRequest lower = new PlacementRequest(
++                new PlacementOwner(1, "standard", 2), pos, AssistedPlacementKind.STAIR_LOWER,
++                step, new LogicalRotationRequest(new PlacementOwner(1, "standard", 2),
++                        new Rotation(180, 78), 2), 20, 21);
++        port.confirmed = false;
++        pipeline.attempt(lower, lower.owner(), true, false, 20, 0, port);
++        PlacementResult stale = pipeline.poll(new PlacementOwner(2, "standard", 2), 21, port);
++        equal(stale.status(), PlacementResult.Status.STALE_IGNORED);
++        check(!pipeline.hasPending());
++        pipeline.reset();
++        pipeline.attempt(lower, lower.owner(), true, false, 20, 0, port);
++        PlacementResult timeout = pipeline.poll(lower.owner(), 22, port);
++        equal(timeout.status(), PlacementResult.Status.TERMINAL_FAILURE);
++        equal(timeout.failure(), PlacementFailure.LOWER_PLACEMENT_FAILED);
++    }
++
+     private static void testStateMachine() {
+         BridgeStateMachine state = new BridgeStateMachine();
+         state.begin();
+diff --git a/tools/check-26.2-api.sh b/tools/check-26.2-api.sh
+index 03da66b4934b10345f6e39dceddfc9233a36a101..f030c8566793185a1d1d216ccfe63bbfa5bbb6c2 100755
+--- a/tools/check-26.2-api.sh
++++ b/tools/check-26.2-api.sh
+@@ -27,6 +27,11 @@ INPUT=src/client/java/dev/adrien/speedbridge/input/InputController.java
+ VALIDATOR=src/client/java/dev/adrien/speedbridge/placement/PlacementValidator.java
+ PATH_PLANNER=src/client/java/dev/adrien/speedbridge/path/BridgePathPlanner.java
+ STAIR=src/client/java/dev/adrien/speedbridge/stair/StaircaseCycle.java
++MIXIN_JSON=src/main/resources/speedbridge.mixins.json
++KEYBOARD_MIXIN=src/client/java/dev/adrien/speedbridge/mixin/KeyboardInputMixin.java
++MOVEMENT_OVERRIDE=src/client/java/dev/adrien/speedbridge/input/MovementOverrideState.java
++PLACEMENT_PIPELINE=src/client/java/dev/adrien/speedbridge/placement/PlacementPipeline.java
++PLACEMENT_PORT=src/client/java/dev/adrien/speedbridge/placement/MinecraftPlacementPort.java
+ 
+ require_text "$CONFIG" 'this.minecraft.gui.setScreen(' '26.2 Gui owns screen changes'
+ require_text "$CONTROLLER" 'client.gui.screen()' '26.2 Gui exposes current screen'
+@@ -39,8 +44,17 @@ require_text src/client/java/dev/adrien/speedbridge/path/PlacementLayerResolver.
+ require_text "$STAIR" 'WAIT_LOWER' 'stair lower confirmation is stateful'
+ require_text "$STAIR" 'WAIT_UPPER' 'stair upper confirmation is stateful'
+ require_text "$CONTROLLER" 'client.options.keyJump' 'controller owns synthetic Jump'
+-require_text "$CONTROLLER" 'client.options.keyUse' 'controller uses logical Use Item input'
+-require_text "$CONTROLLER" 'retryableDuringStairArc' 'temporary airborne failures are retried'
++require_text "$PLACEMENT_PORT" 'client.options.keyUse' 'placement adapter uses logical Use Item input'
++require_text "$PLACEMENT_PIPELINE" 'retryableDuringStairArc' 'temporary airborne failures are retried by shared pipeline'
++require_text "$PLACEMENT_PIPELINE" 'PlacementCadence' 'one-attempt-per-tick cadence is centralized'
++require_text "$CONTROLLER" 'placementPipeline.attempt' 'controller delegates placement lifecycle'
++require_text "$MIXIN_JSON" 'KeyboardInputMixin' 'movement-frame input hook is registered'
++require_text "$KEYBOARD_MIXIN" '@Inject(method = "tick", at = @At("RETURN"))' 'movement override runs after vanilla keyboard polling'
++require_text "$KEYBOARD_MIXIN" 'current.jump()' 'movement override preserves Jump'
++require_text "$KEYBOARD_MIXIN" 'current.shift()' 'movement override preserves Sneak'
++require_text "$KEYBOARD_MIXIN" 'current.sprint()' 'movement override preserves Sprint'
++require_text "$MOVEMENT_OVERRIDE" 'relativeToYaw' 'world-space movement is converted through logical yaw'
++require_text "$CONTROLLER" 'MovementOverrideState.clear()' 'controller cleanup clears movement override'
+ 
+ forbid_tree_text 'BridgeDirection' 'selectable bridge modes were removed'
+ forbid_tree_text 'ReplacementPattern' 'nearby diagonal candidate pattern was removed'
+@@ -50,5 +64,14 @@ forbid_tree_text 'ServerboundUseItemOnPacket' 'direct placement packets are forb
+ forbid_tree_text 'client.screen' 'legacy direct screen field is forbidden'
+ forbid_tree_text 'client.options.hideGui' 'legacy HUD visibility field is forbidden'
+ 
++if grep -Fq 'placementValidator.validate' "$CONTROLLER"; then
++  echo 'FAIL: controller must not validate placements directly' >&2
++  fail=1
++fi
++if grep -Fq 'inputController.pulse' "$CONTROLLER"; then
++  echo 'FAIL: controller must not pulse Use Item directly' >&2
++  fail=1
++fi
++
+ if [ "$fail" -ne 0 ]; then exit 1; fi
+ echo 'Minecraft 26.2 and automatic-bridge source guard passed.'
+diff --git a/tools/run-standalone-tests.sh b/tools/run-standalone-tests.sh
+index a519309072fb9c378369ff46d31662045833ed8e..7f1d93eb1e3a0dbe0bfc8538ee95a4d9e7246b6e 100755
+--- a/tools/run-standalone-tests.sh
++++ b/tools/run-standalone-tests.sh
+@@ -13,6 +13,7 @@ javac -d "$OUT" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/bridge/BridgeLine.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/bridge/MovementPlanner.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/bridge/SupportShape.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/support/SupportSnapshot.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/bridge/EdgeDetector.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/path/BridgeHeading.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/path/HeadingDecision.java" \
+@@ -24,11 +25,38 @@ javac -d "$OUT" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/path/VerticalIntentTracker.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/path/PlacementLayerResolver.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/input/SyntheticInputPlan.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/input/MovementFrame.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/input/MovementCommand.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/input/MovementFrameAdapter.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/input/MovementOverrideState.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/input/MovementInputProjection.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/input/InputSnapshot.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/input/RawInputIntent.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/aim/AimMode.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/aim/LogicalRotationRequest.java" \

@@ -1,0 +1,123 @@
++        cycle.start(STEP, 3);
++        cycle.upperAttempted(4);
++        assertInvariant(cycle);
++        cycle.upperFailed();
++        assertInvariant(cycle);
++        cycle.reset();
++        assertInvariant(cycle);
++    }
++
++    private static void assertInvariant(StaircaseCycle cycle) {
++        assertTrue(!cycle.active() || cycle.step() != null,
++                "an active staircase cycle must always own a path step");
++    }
++}
+diff --git a/src/test/java/dev/adrien/speedbridge/technique/TechniqueContractTest.java b/src/test/java/dev/adrien/speedbridge/technique/TechniqueContractTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..01761b41f97b15694e10cc19678c805a67237b67
+--- /dev/null
++++ b/src/test/java/dev/adrien/speedbridge/technique/TechniqueContractTest.java
+@@ -0,0 +1,122 @@
++package dev.adrien.speedbridge.technique;
++
++import dev.adrien.speedbridge.aim.AimMode;
++import dev.adrien.speedbridge.controller.BridgeContext;
++import dev.adrien.speedbridge.controller.BridgeContextBuilder;
++import dev.adrien.speedbridge.controller.BridgeSession;
++import dev.adrien.speedbridge.input.MovementCommand;
++import dev.adrien.speedbridge.input.MovementFrame;
++import dev.adrien.speedbridge.input.RawInputIntent;
++import dev.adrien.speedbridge.path.BridgeHeading;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.HeadingDecision;
++import dev.adrien.speedbridge.placement.PlacementResult;
++import dev.adrien.speedbridge.support.SupportSnapshot;
++import dev.adrien.speedbridge.util.Vec2d;
++import org.junit.jupiter.api.Test;
++
++import java.util.ArrayList;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++final class TechniqueContractTest {
++    @Test
++    void techniqueIdsAreStableAndRejectBlankValues() {
++        assertEquals("standard", TechniqueId.STANDARD.value());
++        assertEquals("breezily", TechniqueId.BREEZILY.value());
++        assertThrows(IllegalArgumentException.class, () -> new TechniqueId(" "));
++    }
++
++    @Test
++    void capabilityScoresMustStayNormalized() {
++        assertThrows(IllegalArgumentException.class, () -> new TechniqueCapabilities(
++                true, false, true, false, false, true, true, true, false, false, true, -0.01, 0.5));
++        assertThrows(IllegalArgumentException.class, () -> new TechniqueCapabilities(
++                true, false, true, false, false, true, true, true, false, false, true, 0.5, 1.01));
++    }
++
++    @Test
++    void contextDefensivelyCopiesSupportShapesAndSuppliesAllState() {
++        var shapes = new ArrayList<dev.adrien.speedbridge.bridge.SupportShape>();
++        BridgeContext context = contextBuilder().support(new SupportSnapshot(
++                Vec2d.ZERO, Vec2d.ZERO, shapes, 5.0)).build();
++        shapes.add(new dev.adrien.speedbridge.bridge.SupportShape(
++                new dev.adrien.speedbridge.util.Rect2d(0, 0, 1, 1), 5.0));
++
++        assertTrue(context.support().shapes().isEmpty());
++        assertThrows(UnsupportedOperationException.class,
++                () -> context.support().shapes().add(null));
++        assertEquals(AimMode.VISIBLE, context.aimMode());
++        assertEquals(PlacementResult.NOT_REQUESTED, context.placementResult());
++    }
++
++    @Test
++    void idleTickNeverContainsNullControlState() {
++        TechniqueTick tick = TechniqueTick.idle("waiting");
++        assertEquals(MovementCommand.NONE, tick.movement());
++        assertEquals(TechniqueAbortReason.NONE, tick.abortReason());
++        assertNull(tick.rotation());
++        assertNull(tick.placement());
++    }
++
++    @Test
++    void fakeTechniqueCanRunOnlyFromSuppliedContext() {
++        BridgeTechnique technique = new FakeTechnique();
++        BridgeContext context = contextBuilder().build();
++        assertTrue(technique.evaluate(context).compatible());
++        technique.begin(context);
++        TechniqueTick tick = technique.tick(context);
++        assertEquals(new MovementComand(-1.0, 0.0), tick.movement());
++        assertEquals("tick=40", tick.debugState());
++        assertTrue(technique.canTransitionSafely(context));
++    }
++
++    private static BridgeContextBuilder contextBuilder() {
++        BridgeSession session = new BridgeSession(1, TechniqueId.STANDARD, 20);
++        return new BridgeContextBuilder(session)
++                .player(new BridgeContext.PlayerSnapshot(
++                        new Vec2d(1.5, 2.5),
++                        new BridgeContext.Bounds3d(1.2, 5.0, 2.2, 1.8, 6.8, 2.8),
++                        Vec2d.ZERO, 0.0,
++                        true, true, false, false, false, false, false))
++                .physicalInput(new RawInputIntent(false, true, false, false, false, false, false))
++                .movementFrame(MovementFrame.fromReferenceYaw(0))
++                .headingDecision(new HeadingDecision(new BridgeHeading(0, -1), false))
++                .support(SupportSnapshot.empty(new Vec2d(1.5, 2.5), 5.0))
++                .pathAnchor(new GridPos(1, 4, 2))
++                .selectedBlock(new BridgeContext.SelectedBlockSnapshot(2, "minecraft:stone", true))
++                .blockCount(64)
++                .tick(40)
++                .screenOpen(false)
++                .focused(true)
++                .dimensionId("minecraft:overworld")
++                .dimensionChanged(false)
++                .serverCorrection(false)
++                .aimMode(AimMode.VISIBLE)
++                .placementResult(PlacementResult.NOT_REQUESTED);
++    }
++
++    private static final class FakeTechnique implements BridgeTechnique {
++        private boolean begun;
++        @Override public TechniqueId id() { return TechniqueId.STANDARD; }
++        @Override public TechniqueCapabilities capabilities() {
++            return new TechniqueCapabilities(true, true, true, true, false,
