@@ -1,0 +1,16 @@
+{
+  "agent_id": "openai-workspace-maint-b7e2",
+  "created_at": "2026-08-01T16:18:13+00:00",
+  "data": {
+    "merge_commit": "2525066da263f02d26cc8f5a68c60a9429ef6d7b",
+    "pr": 3,
+    "speedbridge_run_id": 30707545961,
+    "workspace_run_id": 30707545966
+  },
+  "event_id": "1bcb79d12fa24455ab45573bb764bb78",
+  "message": "Verified lifecycle hardening, workspace validation, production build, and strict Minecraft startup gate",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "harden-agent-workspace-after-first-run",
+  "type": "verification_completed"
+}

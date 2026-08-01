@@ -6,8 +6,10 @@
   "intent": "Implement and verify post-first-run hardening only within this declared scope.",
   "owner": "openai-workspace-maint-b7e2",
   "protocol_version": "1.0",
+  "release_reason": "Hardening merged and CI verified",
+  "released_at": "2026-08-01T16:18:13+00:00",
   "schema_version": 1,
   "scope": "src/agent_workspace",
-  "state": "active",
+  "state": "released",
   "task_id": "harden-agent-workspace-after-first-run"
 }

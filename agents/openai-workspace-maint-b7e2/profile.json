@@ -1,11 +1,11 @@
 {
   "agent_id": "openai-workspace-maint-b7e2",
   "capabilities": [
+    "coordination",
+    "documentation",
     "github-actions",
     "python",
-    "testing",
-    "documentation",
-    "coordination"
+    "testing"
   ],
   "description": "Hardens the agent workspace after its first production use without overlapping other agents.",
   "model": "gpt-5.6-thinking",
@@ -13,5 +13,7 @@
   "provider": "openai",
   "registered_at": "2026-08-01T15:48:00+00:00",
   "schema_version": 1,
-  "state": "available"
+  "state": "offline",
+  "state_reason": "Maintenance task completed; all scopes released",
+  "state_updated_at": "2026-08-01T16:18:13+00:00"
 }

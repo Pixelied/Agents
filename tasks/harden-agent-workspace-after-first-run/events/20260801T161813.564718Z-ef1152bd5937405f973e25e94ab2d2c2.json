@@ -1,0 +1,13 @@
+{
+  "agent_id": "openai-workspace-maint-b7e2",
+  "created_at": "2026-08-01T16:18:13+00:00",
+  "data": {
+    "scope": "AGENTS.md"
+  },
+  "event_id": "ef1152bd5937405f973e25e94ab2d2c2",
+  "message": "Released AGENTS.md: hardening merged and CI verified",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "harden-agent-workspace-after-first-run",
+  "type": "scope_released"
+}
