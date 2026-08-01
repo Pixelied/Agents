@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agents/handoff.schema.json",
+  "title": "Structured agent handoff",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "handoff_id", "task_id", "from_agent", "to_agent", "summary", "completed", "remaining", "next_action", "files_changed", "verification", "risks", "created_at"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "protocol_version": {"const": "1.0"},
+    "handoff_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "from_agent": {"type": "string"},
+    "to_agent": {"type": "string"},
+    "summary": {"type": "string", "minLength": 1},
+    "completed": {"type": "array", "items": {"type": "string"}},
+    "remaining": {"type": "array", "items": {"type": "string"}},
+    "next_action": {"type": "string", "minLength": 1},
+    "files_changed": {"type": "array", "items": {"type": "string"}},
+    "verification": {"type": "array", "items": {"type": "string"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "example-task",
+  "title": "Example task",
+  "objective": "Demonstrate a well-scoped task definition.",
+  "created_by": "example-agent-a1b2",
+  "created_at": "2026-08-01T12:00:00+00:00",
+  "priority": "normal",
+  "status": "open",
+  "scopes": ["docs", "tests"],
+  "acceptance_criteria": ["The documented workflow is executable"]
+}

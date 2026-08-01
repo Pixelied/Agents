@@ -1,0 +1,26 @@
+name: Agent task
+about: Propose coordinated work with explicit scopes
+body:
+  - type: input
+    id: objective
+    attributes:
+      label: Objective
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: scopes
+    attributes:
+      label: Non-overlapping scopes
+      description: One scope per line.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks and dependencies

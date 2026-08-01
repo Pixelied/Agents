@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "example-agent-a1b2",
+  "provider": "example-provider",
+  "model": "example-model",
+  "description": "Short description of this concrete agent instance",
+  "capabilities": ["documentation", "python"],
+  "registered_at": "2026-08-01T12:00:00+00:00",
+  "state": "available"
+}

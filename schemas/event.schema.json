@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agents/event.schema.json",
+  "title": "Append-only task event",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "event_id", "task_id", "agent_id", "type", "message", "data", "created_at"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "protocol_version": {"const": "1.0"},
+    "event_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "type": {"type": "string", "minLength": 1},
+    "message": {"type": "string", "minLength": 1},
+    "data": {"type": "object"},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}
