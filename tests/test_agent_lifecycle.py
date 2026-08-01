@@ -41,6 +41,12 @@ class AgentLifecycleTests(unittest.TestCase):
         self.assertEqual(agent["effective_state"], "busy")
         self.assertEqual(agent["active_lease_count"], 1)
 
+    def test_offline_agent_cannot_claim_new_work(self):
+        self.ws.create_task("task-1", "Task", "agent-a", "Do work", ["src"])
+        self.ws.set_agent_state("agent-a", "offline", "session paused")
+        with self.assertRaisesRegex(WorkspaceError, "cannot claim new work"):
+            self.ws.claim_scope("task-1", "src", "agent-a", ttl_minutes=30)
+
     def test_retired_agent_cannot_be_reactivated(self):
         self.ws.set_agent_state("agent-a", "retired", "one-shot agent complete")
         with self.assertRaisesRegex(WorkspaceError, "cannot be reactivated"):
