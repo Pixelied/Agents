@@ -2,24 +2,27 @@ name: SpeedBridge Assist CI
 
 on:
   push:
-    branches: [ci/speedbridge-assist-1.1.0]
+    branches: [ci/speedbridge-breezily-milestone-1-5]
   pull_request:
     paths:
       - ".github/workflows/speedbridge-assist-ci.yml"
-      - "tasks/verify-speedbridge-assist-1-1-0/**"
+      - "tasks/implement-speedbridge-breezily-silent-aim/**"
+      - "tasks/verify-speedbridge-assist-1-1-0/artifacts/source/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  TASK_DIR: tasks/verify-speedbridge-assist-1-1-0
+  SOURCE_TASK_DIR: tasks/verify-speedbridge-assist-1-1-0
+  TASK_DIR: tasks/implement-speedbridge-breezily-silent-aim
+  PATCH_SHA256: 88befbd52d06f0d0ddf332a462ee058fd9e1fdfe5b0c8173f2b05a0f1a5ff56b
 
 jobs:
   verify-mod:
-    name: Java 25 Fabric verification
+    name: Java 25 Fabric milestone verification
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Check out coordination workspace
@@ -32,6 +35,7 @@ jobs:
 
       - name: Validate agent workspace
         run: |
+          set -euo pipefail
           python -m unittest discover -s tests -v
           python agentctl.py validate
 
@@ -44,20 +48,36 @@ jobs:
       - name: Configure Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Reconstruct and verify source
+      - name: Reconstruct source and apply milestone patch
         id: source
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/source"
+          SOURCE_DIR="$GITHUB_WORKSPACE/$SOURCE_TASK_DIR/artifacts/source"
+          PATCH_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/patches"
           MOD_DIR="$RUNNER_TEMP/speedbridge-assist"
           RESULTS_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/ci-results"
+          ARCHIVE="$RUNNER_TEMP/source.tar.xz"
+          PATCH="$RUNNER_TEMP/milestone-1-5.patch"
           mkdir -p "$MOD_DIR" "$RESULTS_DIR"
-          cd "$SOURCE_DIR"
-          cat source.tar.xz.b64.00 source.tar.xz.b64.01.part.* source.tar.xz.b64.02 source.tar.xz.b64.03 | base64 --decode > source.tar.xz
-          sha256sum --check source.tar.xz.sha256 | tee "$RESULTS_DIR/source-checksum.log"
-          tar -xJf source.tar.xz -C "$MOD_DIR"
-          find "$MOD_DIR" -maxdepth 4 -type f | sort > "$RESULTS_DIR/source-file-list.txt"
+
+          cat "$SOURCE_DIR/source.tar.xz.b64.00" \
+              "$SOURCE_DIR"/source.tar.xz.b64.01.part.* \
+              "$SOURCE_DIR/source.tar.xz.b64.02" \
+              "$SOURCE_DIR/source.tar.xz.b64.03" \
+            | base64 --decode > "$ARCHIVE"
+          (cd "$RUNNER_TEMP" && sha256sum --check "$SOURCE_DIR/source.tar.xz.sha256") \
+            | tee "$RESULTS_DIR/source-checksum.log"
+          tar -xJf "$ARCHIVE" -C "$MOD_DIR"
+
+          cat "$PATCH_DIR"/milestone-1-5.patch.part-* > "$PATCH"
+          printf '%s  %s\n' "$PATCH_SHA256" "$PATCH" | sha256sum --check \
+            | tee "$RESULTS_DIR/patch-checksum.log"
+          (cd "$MOD_DIR" && git apply --check "$PATCH")
+          (cd "$MOD_DIR" && git apply "$PATCH")
+          git apply --numstat "$PATCH" | tee "$RESULTS_DIR/patch-numstat.log"
+          find "$MOD_DIR" -maxdepth 5 -type f | sort > "$RESULTS_DIR/source-file-list.txt"
+
           echo "mod_dir=$MOD_DIR" >> "$GITHUB_OUTPUT"
           echo "results_dir=$RESULTS_DIR" >> "$GITHUB_OUTPUT"
 
@@ -85,13 +105,15 @@ jobs:
         working-directory: ${{ steps.source.outputs.mod_dir }}
         run: |
           set -euo pipefail
-          ./gradlew clean test --stacktrace --no-daemon 2>&1 | tee "${{ steps.source.outputs.results_dir }}/gradle-test.log"
+          ./gradlew clean test --stacktrace --no-daemon 2>&1 \
+            | tee "${{ steps.source.outputs.results_dir }}/gradle-test.log"
 
       - name: Build production mod
         working-directory: ${{ steps.source.outputs.mod_dir }}
         run: |
           set -euo pipefail
-          ./gradlew clean build --stacktrace --no-daemon 2>&1 | tee "${{ steps.source.outputs.results_dir }}/gradle-build.log"
+          ./gradlew clean build --stacktrace --no-daemon 2>&1 \
+            | tee "${{ steps.source.outputs.results_dir }}/gradle-build.log"
 
       - name: Inspect production JAR
         working-directory: ${{ steps.source.outputs.mod_dir }}
@@ -126,7 +148,8 @@ jobs:
           RESULTS_DIR="${{ steps.source.outputs.results_dir }}"
           LOG="$RESULTS_DIR/run-client.log"
           set +e
-          timeout --signal=TERM --kill-after=15s 120s xvfb-run -a ./gradlew runClient --stacktrace --no-daemon >"$LOG" 2>&1
+          timeout --signal=TERM --kill-after=15s 120s xvfb-run -a \
+            ./gradlew runClient --stacktrace --no-daemon >"$LOG" 2>&1
           STATUS=$?
           set -e
           RESULT=failed
@@ -139,12 +162,12 @@ jobs:
               RESULT=timeout-before-confirmed-startup
             fi
           fi
-          printf 'exit_code=%s\nresult=%s\n' "$STATUS" "$RESULT" | tee "$RESULTS_DIR/run-client-status.txt"
+          printf 'exit_code=%s\nresult=%s\n' "$STATUS" "$RESULT" \
+            | tee "$RESULTS_DIR/run-client-status.txt"
           echo "exit_code=$STATUS" >> "$GITHUB_OUTPUT"
           echo "result=$RESULT" >> "$GITHUB_OUTPUT"
           case "$RESULT" in
-            exited-cleanly|started-and-survived-timeout)
-              ;;
+            exited-cleanly|started-and-survived-timeout) ;;
             *)
               echo "Development client startup was not confirmed: $RESULT (exit code $STATUS)" >&2
               exit 1
@@ -164,11 +187,12 @@ jobs:
           [ ! -d "$MOD_DIR/run/logs" ] || cp -R "$MOD_DIR/run/logs" "$RESULTS_DIR/runtime/"
           [ ! -d "$MOD_DIR/run/crash-reports" ] || cp -R "$MOD_DIR/run/crash-reports" "$RESULTS_DIR/runtime/"
           {
-            echo "# SpeedBridge Assist CI summary"
+            echo "# SpeedBridge milestone 1-5 CI summary"
             echo
             echo "- Commit: $GITHUB_SHA"
             echo "- Java: 25"
-            echo "- Source archive SHA-256: 59e6411915ec06b2cc9d26a6c30bf1b6da5dcd53f0ef8f830dbf61424654aa22"
+            echo "- Baseline source SHA-256: 59e6411915ec06b2cc9d26a6c30bf1b6da5dcd53f0ef8f830dbf61424654aa22"
+            echo "- Milestone patch SHA-256: $PATCH_SHA256"
             echo "- Development-client smoke result: ${{ steps.client_smoke.outputs.result }}"
             echo "- Development-client exit code: ${{ steps.client_smoke.outputs.exit_code }}"
           } > "$RESULTS_DIR/summary.md"
@@ -177,7 +201,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: speedbridge-assist-1.1.0-jar
+          name: speedbridge-assist-milestone-1-5-jar
           path: ${{ env.TASK_DIR }}/artifacts/ci-results/jar/*.jar
           if-no-files-found: error
           retention-days: 14
@@ -186,10 +210,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: speedbridge-assist-1.1.0-verification
+          name: speedbridge-assist-milestone-1-5-verification
           path: |
             ${{ env.TASK_DIR }}/artifacts/ci-results/**
-            ${{ env.TASK_DIR }}/artifacts/source/README.md
-            ${{ env.TASK_DIR }}/artifacts/source/source.tar.xz.sha256
+            ${{ env.TASK_DIR }}/artifacts/patches/milestone-1-5.patch.part-*
+            ${{ env.SOURCE_TASK_DIR }}/artifacts/source/README.md
+            ${{ env.SOURCE_TASK_DIR }}/artifacts/source/source.tar.xz.sha256
           if-no-files-found: warn
           retention-days: 14
