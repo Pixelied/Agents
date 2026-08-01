@@ -1,0 +1,32 @@
+name: Create repository snapshot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 0"
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create dated backup branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="backup/weekly-$(date -u +%Y-%m-%d)"
+
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "Snapshot $branch already exists."
+            exit 0
+          fi
+
+          git push origin "HEAD:refs/heads/$branch"
+          echo "Created snapshot $branch at $(git rev-parse HEAD)."
