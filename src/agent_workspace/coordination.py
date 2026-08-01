@@ -34,7 +34,11 @@ class CoordinationMixin:
         intent: str = "",
     ) -> dict[str, Any]:
         task = self.require_task(task_id)
-        self.require_agent(agent_id)
+        agent = self.require_agent(agent_id)
+        if agent.get("state", "available") in {"offline", "retired"}:
+            raise WorkspaceError(
+                f"Agent {agent_id!r} is {agent.get('state')!r} and cannot claim new work"
+            )
         scope = ensure_scope(scope)
         if scope not in task["scopes"]:
             raise WorkspaceError(f"Scope {scope!r} is not declared by task {task_id!r}")
