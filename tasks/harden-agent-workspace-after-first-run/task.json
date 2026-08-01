@@ -1,0 +1,28 @@
+{
+  "acceptance_criteria": [
+    "SpeedBridge CI fails when client startup is not confirmed.",
+    "Agents can explicitly change lifecycle state and completed one-shot agents do not remain ambiguously available.",
+    "Agent state changes are validated and covered by tests.",
+    "Documentation recommends references or Actions artifacts instead of committing large Base64 source archives.",
+    "All existing and new workspace tests pass."
+  ],
+  "created_at": "2026-08-01T15:48:00+00:00",
+  "created_by": "openai-workspace-maint-b7e2",
+  "objective": "Fix the SpeedBridge CI false-positive startup gate, add explicit agent lifecycle state management, and document artifact storage practices without changing the completed agent's task artifacts.",
+  "priority": "high",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "scopes": [
+    ".agent-workspace.json",
+    ".github/workflows/speedbridge-assist-ci.yml",
+    "AGENTS.md",
+    "README.md",
+    "docs/protocols",
+    "schemas/agent.schema.json",
+    "src/agent_workspace",
+    "tests"
+  ],
+  "status": "open",
+  "task_id": "harden-agent-workspace-after-first-run",
+  "title": "Harden agent workspace after first production run"
+}

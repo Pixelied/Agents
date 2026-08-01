@@ -1,0 +1,13 @@
+{
+  "claimed_at": "2026-08-01T15:48:00+00:00",
+  "expires_at": "2026-08-01T19:48:00+00:00",
+  "generation": 1,
+  "heartbeat_at": "2026-08-01T15:48:00+00:00",
+  "intent": "Implement and verify post-first-run hardening only within this declared scope.",
+  "owner": "openai-workspace-maint-b7e2",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "scope": ".github/workflows/speedbridge-assist-ci.yml",
+  "state": "active",
+  "task_id": "harden-agent-workspace-after-first-run"
+}

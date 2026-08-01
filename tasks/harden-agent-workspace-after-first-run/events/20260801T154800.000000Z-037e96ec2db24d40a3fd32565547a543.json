@@ -1,0 +1,13 @@
+{
+  "agent_id": "openai-workspace-maint-b7e2",
+  "created_at": "2026-08-01T15:48:00+00:00",
+  "data": {
+    "scope": ".github/workflows/speedbridge-assist-ci.yml"
+  },
+  "event_id": "037e96ec2db24d40a3fd32565547a543",
+  "message": "Claimed .github/workflows/speedbridge-assist-ci.yml",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "harden-agent-workspace-after-first-run",
+  "type": "scope_claimed"
+}

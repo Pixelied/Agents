@@ -1,0 +1,13 @@
+{
+  "agent_id": "openai-workspace-maint-b7e2",
+  "created_at": "2026-08-01T15:48:00+00:00",
+  "data": {
+    "scope": "schemas/agent.schema.json"
+  },
+  "event_id": "58e23c515ceb4cb0932b74f16f1297ad",
+  "message": "Claimed schemas/agent.schema.json",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "harden-agent-workspace-after-first-run",
+  "type": "scope_claimed"
+}

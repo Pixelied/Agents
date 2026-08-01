@@ -1,0 +1,11 @@
+{
+  "agent_id": "openai-workspace-maint-b7e2",
+  "created_at": "2026-08-01T15:48:00+00:00",
+  "data": {},
+  "event_id": "8fd3943fb000451288c1e13de06e8603",
+  "message": "Created task: Harden agent workspace after first production run",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "harden-agent-workspace-after-first-run",
+  "type": "task_created"
+}
