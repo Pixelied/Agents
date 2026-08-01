@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "design-speedbridge-breezily-silent-aim",
+  "title": "Design Breezily and silent aim architecture",
+  "objective": "Produce an implementation-ready design for a reusable bridging-technique framework, authentic Breezily bridging, Automatic technique selection, forced-technique abort behavior, and global visible or silent-packet aim delivery for SpeedBridge Assist.",
+  "created_by": "openai-breezily-design-c4e9",
+  "created_at": "2026-08-01T17:30:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "tasks/design-speedbridge-breezily-silent-aim/artifacts/docs"
+  ],
+  "acceptance_criteria": [
+    "The written design records all user-approved behavior without adding separate diagonal or staircase Breezily variants",
+    "The design distinguishes Automatic, Standard, Breezily, and future techniques through a reusable technique contract",
+    "Forced Breezily aborts safely and never falls back to another technique",
+    "Visible and silent-packet aim delivery are specified as shared infrastructure for every technique",
+    "The design maps proposed components onto the actual SpeedBridge Assist 1.1.0 classes and identifies migration boundaries",
+    "Movement, placement, packet, cleanup, testing, compatibility, and manual gameplay verification requirements are explicit",
+    "The design is self-reviewed for placeholders, contradictions, scope drift, and ambiguous requirements"
+  ]
+}
