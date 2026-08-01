@@ -54,7 +54,7 @@ jobs:
           RESULTS_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/ci-results"
           mkdir -p "$MOD_DIR" "$RESULTS_DIR"
           cd "$SOURCE_DIR"
-          cat source.tar.xz.b64.* | base64 --decode > source.tar.xz
+          cat source.tar.xz.b64.00 source.tar.xz.b64.01.part.* source.tar.xz.b64.02 source.tar.xz.b64.03 | base64 --decode > source.tar.xz
           sha256sum --check source.tar.xz.sha256 | tee "$RESULTS_DIR/source-checksum.log"
           tar -xJf source.tar.xz -C "$MOD_DIR"
           find "$MOD_DIR" -maxdepth 4 -type f | sort > "$RESULTS_DIR/source-file-list.txt"
@@ -148,8 +148,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          MOD_DIR="${{ steps.source.outputs.mod_dir }}"
-          RESULTS_DIR="${{ steps.source.outputs.results_dir }}"
+          MOD_DIR="$RUNNER_TEMP/speedbridge-assist"
+          RESULTS_DIR="$GITHUB_WORKSPACE/$TASK_DIR/artifacts/ci-results"
           mkdir -p "$RESULTS_DIR/gradle-reports" "$RESULTS_DIR/runtime"
           [ ! -d "$MOD_DIR/build/reports/tests" ] || cp -R "$MOD_DIR/build/reports/tests" "$RESULTS_DIR/gradle-reports/"
           [ ! -d "$MOD_DIR/build/test-results" ] || cp -R "$MOD_DIR/build/test-results" "$RESULTS_DIR/gradle-reports/"
