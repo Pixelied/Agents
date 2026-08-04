@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "7f2a1984c4b14c699d486d4d833491a1",
+  "task_id": "build-hypershot-26-2",
+  "agent_id": "openai-hypershot-7c4e",
+  "type": "scope_claimed",
+  "message": "Claimed hypershot-source",
+  "data": {
+    "scope": "hypershot-source"
+  },
+  "created_at": "2026-08-04T18:00:00+00:00"
+}
