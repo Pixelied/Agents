@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-hypershot-26-2",
+  "title": "Build and verify HyperShot for Minecraft 26.2",
+  "objective": "Turn the existing HyperShot alpha source into a polished, production-quality client-side Minecraft 26.2 Fabric screenshot mod with real extreme-resolution tiled rendering, robust state restoration, bounded-memory encoding, a usable gallery and notification experience, complete documentation, and verified Java 25 CI artifacts.",
+  "created_by": "openai-hypershot-7c4e",
+  "created_at": "2026-08-04T18:00:00+00:00",
+  "priority": "critical",
+  "status": "open",
+  "scopes": [
+    "hypershot-source",
+    "hypershot-ci",
+    "tasks/build-hypershot-26-2/artifacts"
+  ],
+  "acceptance_criteria": [
+    "The source repository branch contains a complete Minecraft 26.2 Fabric project using Java 25, official Mojang names, Loader 0.19.3, Fabric API 0.156.0+26.2, Loom 1.17.17, and Gradle 9.5.1 or a documented confirmed-compatible 9.5.x release",
+    "The project compiles and ./gradlew clean build succeeds in GitHub Actions",
+    "Native, scaled off-screen, and tiled captures produce valid PNG output through backend-independent Blaze3D APIs without raw OpenGL calls",
+    "A synthetic 10000x10000 tiled capture path is verified without retaining the full final image in Java heap",
+    "HUD and renderer state are restored on success, failure, and cancellation",
+    "A real clickable thumbnail, preview screen, indexed gallery, settings, diagnostics, metadata, recovery, and progress systems are functional",
+    "No visible UI control represents an unimplemented feature as finished",
+    "Unit tests, source guards, JAR inspection, and a headless OpenGL development-client startup smoke test pass",
+    "The final JAR and complete verification evidence are uploaded as GitHub Actions artifacts",
+    "Remaining Vulkan, shader-pack, codec, HDR, panorama, and advanced-pass limitations are documented honestly"
+  ]
+}

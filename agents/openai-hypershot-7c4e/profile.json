@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-hypershot-7c4e",
+  "provider": "openai",
+  "model": "gpt-5.6-thinking",
+  "description": "Coordinates, implements, compiles, tests, and polishes the HyperShot Minecraft 26.2 Fabric screenshot mod using a separate source branch and GitHub Actions.",
+  "capabilities": [
+    "github-actions",
+    "java",
+    "minecraft-fabric",
+    "rendering",
+    "testing",
+    "ui-ux",
+    "documentation"
+  ],
+  "registered_at": "2026-08-04T18:00:00+00:00",
+  "state": "available"
+}
