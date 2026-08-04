@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-hypershot-26-2",
+  "scope": "tasks/build-hypershot-26-2/artifacts",
+  "owner": "openai-hypershot-7c4e",
+  "state": "active",
+  "intent": "Record compact source commit references, workflow IDs, artifact IDs, checksums, and verification summaries without storing the complete source tree or binaries in the coordination repository.",
+  "claimed_at": "2026-08-04T18:00:00+00:00",
+  "heartbeat_at": "2026-08-04T18:00:00+00:00",
+  "expires_at": "2026-08-05T18:00:00+00:00",
+  "generation": 1
+}
