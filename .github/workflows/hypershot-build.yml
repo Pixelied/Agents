@@ -1,0 +1,99 @@
+name: HyperShot Build
+
+on:
+  push:
+    branches:
+      - feat/hypershot-26-2-production
+    paths:
+      - 'incoming/hypershot-source.b64.part*'
+      - 'projects/hypershot/**'
+      - '.github/workflows/hypershot-build.yml'
+  pull_request:
+    paths:
+      - 'projects/hypershot/**'
+      - '.github/workflows/hypershot-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Materialize uploaded source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          parts=(incoming/hypershot-source.b64.part*)
+          if (( ${#parts[@]} > 0 )); then
+            test "${#parts[@]}" -eq 8
+            cat "${parts[@]}" | base64 --decode > /tmp/hypershot-source.tar.gz
+            actual_sha="$(sha256sum /tmp/hypershot-source.tar.gz | awk '{print $1}')"
+            expected_sha="10ebcf4b7caac57b07bec6eb91b4de406658257444812d598306de1904fc6fe5"
+            test "$actual_sha" = "$expected_sha"
+
+            rm -rf projects/hypershot
+            mkdir -p projects/hypershot
+            tar -xzf /tmp/hypershot-source.tar.gz -C projects/hypershot
+            rm -f "${parts[@]}"
+            rmdir incoming 2>/dev/null || true
+
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -A projects/hypershot incoming
+            git commit -m 'feat(hypershot): materialize source [skip ci]'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        working-directory: projects/hypershot
+        run: chmod +x gradlew tools/*.sh
+
+      - name: Run project verification
+        working-directory: projects/hypershot
+        run: ./tools/verify-project.sh
+
+      - name: Build HyperShot
+        working-directory: projects/hypershot
+        run: ./gradlew --no-daemon clean build --stacktrace
+
+      - name: Inspect production JAR
+        working-directory: projects/hypershot
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar_path="$(find build/libs -maxdepth 1 -type f -name 'hypershot-*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)"
+          test -n "$jar_path"
+          jar tf "$jar_path" > build/jar-contents.txt
+          grep -qx 'fabric.mod.json' build/jar-contents.txt
+          grep -qx 'dev/hypershot/HyperShotClient.class' build/jar-contents.txt
+          sha256sum "$jar_path" | tee build/hypershot-sha256.txt
+
+      - name: Upload HyperShot artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: HyperShot-26.2
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            projects/hypershot/build/libs/*.jar
+            projects/hypershot/build/reports/**
+            projects/hypershot/build/jar-contents.txt
+            projects/hypershot/build/hypershot-sha256.txt
+            projects/hypershot/verification/**
