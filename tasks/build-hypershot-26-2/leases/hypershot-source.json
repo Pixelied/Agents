@@ -5,9 +5,9 @@
   "scope": "hypershot-source",
   "owner": "openai-hypershot-7c4e",
   "state": "active",
-  "intent": "Audit and implement the complete HyperShot source project on an isolated source branch.",
+  "intent": "Audit, polish, compile, and verify the complete HyperShot source project on an isolated source branch.",
   "claimed_at": "2026-08-04T18:00:00+00:00",
-  "heartbeat_at": "2026-08-04T18:00:00+00:00",
-  "expires_at": "2026-08-05T18:00:00+00:00",
-  "generation": 1
+  "heartbeat_at": "2026-08-05T09:46:00+00:00",
+  "expires_at": "2026-08-06T09:46:00+00:00",
+  "generation": 2
 }
