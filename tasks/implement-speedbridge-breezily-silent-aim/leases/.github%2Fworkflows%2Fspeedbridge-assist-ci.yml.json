@@ -7,7 +7,7 @@
   "state": "active",
   "intent": "Resume the isolated Java 25 Fabric workflow, apply the preserved implementation patches, and verify subsequent milestones.",
   "claimed_at": "2026-08-05T12:11:00+00:00",
-  "heartbeat_at": "2026-08-05T12:11:00+00:00",
-  "expires_at": "2026-08-05T16:11:00+00:00",
+  "heartbeat_at": "2026-08-05T12:23:00+00:00",
+  "expires_at": "2026-08-05T16:23:00+00:00",
   "generation": 2
 }
