@@ -5,9 +5,9 @@
   "scope": "tasks/implement-speedbridge-breezily-silent-aim/artifacts",
   "owner": "openai-speedbridge-inline-f91c",
   "state": "active",
-  "intent": "Store compact milestone patches, checksums, workflow IDs, and verification summaries without copying the source tree or binaries into Git.",
-  "claimed_at": "2026-08-01T22:03:06+00:00",
-  "heartbeat_at": "2026-08-01T22:03:06+00:00",
-  "expires_at": "2026-08-02T02:03:06+00:00",
-  "generation": 1
+  "intent": "Resume storing compact patches, checksums, workflow evidence, and reconstructed-source artifacts for the implementation task.",
+  "claimed_at": "2026-08-05T12:11:00+00:00",
+  "heartbeat_at": "2026-08-05T12:11:00+00:00",
+  "expires_at": "2026-08-05T16:11:00+00:00",
+  "generation": 2
 }
