@@ -5,9 +5,9 @@
   "scope": ".github/workflows/speedbridge-assist-ci.yml",
   "owner": "openai-speedbridge-inline-f91c",
   "state": "active",
-  "intent": "Extend the existing isolated Java 25 Fabric workflow to apply and verify implementation milestone patches.",
-  "claimed_at": "2026-08-01T22:03:06+00:00",
-  "heartbeat_at": "2026-08-01T22:03:06+00:00",
-  "expires_at": "2026-08-02T02:03:06+00:00",
-  "generation": 1
+  "intent": "Resume the isolated Java 25 Fabric workflow, apply the preserved implementation patches, and verify subsequent milestones.",
+  "claimed_at": "2026-08-05T12:11:00+00:00",
+  "heartbeat_at": "2026-08-05T12:11:00+00:00",
+  "expires_at": "2026-08-05T16:11:00+00:00",
+  "generation": 2
 }
