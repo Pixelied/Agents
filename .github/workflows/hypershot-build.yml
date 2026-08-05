@@ -10,6 +10,7 @@ on:
       - '.github/workflows/hypershot-build.yml'
   pull_request:
     paths:
+      - 'incoming/hypershot-source.b64.part*'
       - 'projects/hypershot/**'
       - '.github/workflows/hypershot-build.yml'
   workflow_dispatch:
@@ -21,11 +22,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      TARGET_BRANCH: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
 
     steps:
-      - name: Check out repository
+      - name: Check out repository branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
 
       - name: Materialize uploaded source archive
@@ -49,9 +53,9 @@ jobs:
 
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add -A projects/hypershot incoming
+            git add -A
             git commit -m 'feat(hypershot): materialize source [skip ci]'
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+            git push origin "HEAD:${TARGET_BRANCH}"
           fi
 
       - name: Set up Java 25
@@ -60,6 +64,7 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: gradle
+          cache-dependency-path: projects/hypershot/**/*.gradle*
 
       - name: Make Gradle wrapper executable
         working-directory: projects/hypershot
