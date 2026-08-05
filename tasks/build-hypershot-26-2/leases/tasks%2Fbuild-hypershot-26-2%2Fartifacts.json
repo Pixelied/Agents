@@ -7,7 +7,7 @@
   "state": "active",
   "intent": "Record compact source commit references, workflow IDs, artifact IDs, checksums, and verification summaries without storing the complete source tree or binaries in the coordination repository.",
   "claimed_at": "2026-08-04T18:00:00+00:00",
-  "heartbeat_at": "2026-08-04T18:00:00+00:00",
-  "expires_at": "2026-08-05T18:00:00+00:00",
+  "heartbeat_at": "2026-08-05T09:48:00+00:00",
+  "expires_at": "2026-08-06T09:48:00+00:00",
   "generation": 1
 }
