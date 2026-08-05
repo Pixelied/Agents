@@ -7,7 +7,7 @@
   "state": "active",
   "intent": "Audit and implement the complete HyperShot source project on an isolated source branch.",
   "claimed_at": "2026-08-04T18:00:00+00:00",
-  "heartbeat_at": "2026-08-04T18:00:00+00:00",
-  "expires_at": "2026-08-05T18:00:00+00:00",
+  "heartbeat_at": "2026-08-05T09:48:00+00:00",
+  "expires_at": "2026-08-06T09:48:00+00:00",
   "generation": 1
 }
