@@ -17,10 +17,11 @@ env:
   SOURCE_TASK_DIR: tasks/verify-speedbridge-assist-1-1-0
   TASK_DIR: tasks/implement-speedbridge-breezily-silent-aim
   PATCH_SHA256: 88befbd52d06f0d0ddf332a462ee058fd9e1fdfe5b0c8173f2b05a0f1a5ff56b
+  TASK6_PATCH_SHA256: 87386975fc3c6c76140c17205df8acb745a35408dffdb8ab002b2f9e39309da5
 
 jobs:
   verify-mod:
-    name: Java 25 Fabric milestone verification
+    name: Java 25 Fabric Task 6 verification
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -43,7 +44,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Reconstruct source and exact milestone patch
+      - name: Reconstruct source and apply Tasks 1-6
         id: source
         shell: bash
         run: |
@@ -54,7 +55,8 @@ jobs:
           MOD_DIR="$RUNNER_TEMP/speedbridge-assist"
           ARCHIVE="$RUNNER_TEMP/source.tar.xz"
           PATCH="$RUNNER_TEMP/milestone-1-5.patch"
-          mkdir -p "$MOD_DIR" "$RESULTS_DIR"
+          TASK6_PATCH="$RUNNER_TEMP/task6-standard.patch"
+          mkdir -p "$MOD_DIR" "$RESULTS_DIR/source"
 
           cat "$SOURCE_DIR/source.tar.xz.b64.00" \
               "$SOURCE_DIR"/source.tar.xz.b64.01.part.* \
@@ -83,10 +85,24 @@ jobs:
             cat "$PATCH_DIR/milestone-1-5.patch.part-11"
           } > "$PATCH"
           printf '%s  %s\n' "$PATCH_SHA256" "$PATCH" | sha256sum --check \
-            | tee "$RESULTS_DIR/patch-checksum.log"
+            | tee "$RESULTS_DIR/milestone-1-5-checksum.log"
           (cd "$MOD_DIR" && git apply --check "$PATCH")
           (cd "$MOD_DIR" && git apply "$PATCH")
-          git apply --numstat "$PATCH" | tee "$RESULTS_DIR/patch-numstat.log"
+          git apply --numstat "$PATCH" | tee "$RESULTS_DIR/milestone-1-5-numstat.log"
+
+          cat "$PATCH_DIR"/task6-standard.patch.gz.b64.* \
+            | base64 --decode | gzip -dc > "$TASK6_PATCH"
+          printf '%s  %s\n' "$TASK6_PATCH_SHA256" "$TASK6_PATCH" | sha256sum --check \
+            | tee "$RESULTS_DIR/task6-checksum.log"
+          (cd "$MOD_DIR" && git apply --check "$TASK6_PATCH")
+          (cd "$MOD_DIR" && git apply "$TASK6_PATCH")
+          git apply --numstat "$TASK6_PATCH" | tee "$RESULTS_DIR/task6-numstat.log"
+
+          tar --exclude='./.gradle' --exclude='./build' --exclude='./run' \
+            -cJf "$RESULTS_DIR/source/speedbridge-assist-task6-source.tar.xz" \
+            -C "$MOD_DIR" .
+          sha256sum "$RESULTS_DIR/source/speedbridge-assist-task6-source.tar.xz" \
+            | tee "$RESULTS_DIR/source/speedbridge-assist-task6-source.tar.xz.sha256"
 
           echo "mod_dir=$MOD_DIR" >> "$GITHUB_OUTPUT"
           echo "results_dir=$RESULTS_DIR" >> "$GITHUB_OUTPUT"
@@ -183,8 +199,19 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: speedbridge-assist-milestone-1-5-jar
+          name: speedbridge-assist-task6-jar
           path: ${{ env.TASK_DIR }}/artifacts/ci-results/jar/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload reconstructed Task 6 source
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: speedbridge-assist-task6-source
+          path: |
+            ${{ env.TASK_DIR }}/artifacts/ci-results/source/speedbridge-assist-task6-source.tar.xz
+            ${{ env.TASK_DIR }}/artifacts/ci-results/source/speedbridge-assist-task6-source.tar.xz.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -192,10 +219,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: speedbridge-assist-milestone-1-5-verification
+          name: speedbridge-assist-task6-verification
           path: |
             ${{ env.TASK_DIR }}/artifacts/ci-results/**
             ${{ env.TASK_DIR }}/artifacts/patches/corrected/**
+            ${{ env.TASK_DIR }}/artifacts/patches/task6-standard.patch.sha256
             ${{ env.SOURCE_TASK_DIR }}/artifacts/source/README.md
             ${{ env.SOURCE_TASK_DIR }}/artifacts/source/source.tar.xz.sha256
           if-no-files-found: warn
