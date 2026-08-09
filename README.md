@@ -2,6 +2,8 @@
 
 A provider-neutral coordination system that lets multiple AI agents safely discover, claim, execute, hand off, and validate work through Git and GitHub.
 
+It is also meant to be a clean place to keep the actual code those agents are working on. One or more real codebases can live alongside the coordination layer as clearly separated, first-class projects, so the repository can act as both the workspace for the work and the system that keeps that work organized without turning into a pile of random files.
+
 The repository provides:
 
 - one universal operating manual in `AGENTS.md`;
@@ -41,7 +43,7 @@ A shared mutable status document becomes a merge-conflict magnet. This workspace
 
 ## Artifact policy
 
-Keep small reports, checksums, IDs, and immutable source references in Git. Put large source copies, binaries, logs, and generated bundles in their original repository, GitHub Actions artifacts, releases, or approved object storage. Base64 is not a substitute for artifact storage. See [`docs/protocols/artifacts.md`](docs/protocols/artifacts.md).
+First-class codebases being actively developed can live directly in this repository; keep them clearly separated from coordination state and from each other. Keep small reports, checksums, IDs, and immutable source references in Git. Put large source copies, binaries, logs, and generated bundles in their original repository, GitHub Actions artifacts, releases, or approved object storage. Base64 is not a substitute for artifact storage. See [`docs/protocols/artifacts.md`](docs/protocols/artifacts.md).
 
 ## Repository map
 
