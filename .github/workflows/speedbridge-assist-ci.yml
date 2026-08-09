@@ -3,6 +3,10 @@ name: SpeedBridge Assist CI
 on:
   push:
     branches: [ci/speedbridge-breezily-milestone-1-5]
+  pull_request:
+    paths:
+      - ".github/workflows/speedbridge-assist-ci.yml"
+      - "tasks/verify-speedbridge-assist-1-1-0/artifacts/source/**"
   workflow_dispatch:
 
 permissions:
