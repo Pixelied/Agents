@@ -5,9 +5,9 @@
   "scope": ".github/workflows/speedbridge-assist-ci.yml",
   "owner": "openai-speedbridge-inline-f91c",
   "state": "active",
-  "intent": "Resume the isolated Java 25 Fabric workflow, apply the preserved implementation patches, and verify subsequent milestones.",
-  "claimed_at": "2026-08-05T12:11:00+00:00",
-  "heartbeat_at": "2026-08-05T12:23:00+00:00",
-  "expires_at": "2026-08-05T16:23:00+00:00",
-  "generation": 2
+  "intent": "Verify exact Minecraft 26.2 silent-aim hooks and continue Java 25 Fabric milestone verification.",
+  "claimed_at": "2026-08-09T13:51:00+00:00",
+  "heartbeat_at": "2026-08-09T13:51:00+00:00",
+  "expires_at": "2026-08-09T17:51:00+00:00",
+  "generation": 3
 }
