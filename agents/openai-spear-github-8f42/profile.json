@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-spear-github-8f42",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Implements and verifies the approved Minecraft 26.1.2 Spear Client Fabric mod through GitHub branches and Java 25 GitHub Actions.",
+  "capabilities": [
+    "github-actions",
+    "java",
+    "minecraft-fabric",
+    "networking",
+    "testing",
+    "documentation"
+  ],
+  "registered_at": "2026-08-14T17:56:30+00:00",
+  "state": "available"
+}
