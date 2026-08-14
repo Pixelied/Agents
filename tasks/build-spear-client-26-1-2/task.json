@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-spear-client-26-1-2",
+  "title": "Build and verify Spear Client for Minecraft 26.1.2",
+  "objective": "Implement the approved client-side Fabric mod for Minecraft 26.1.2 that researches and exercises server-authoritative spear STAB, kinetic damage, Lunge, and movement-envelope behavior while clearly separating source-theoretical behavior from runtime-verified behavior.",
+  "created_by": "openai-spear-github-8f42",
+  "created_at": "2026-08-14T21:50:30+00:00",
+  "priority": "critical",
+  "status": "open",
+  "scopes": [
+    "projects/spear-client",
+    ".github/workflows/spear-client-ci.yml",
+    "tasks/build-spear-client-26-1-2/artifacts"
+  ],
+  "acceptance_criteria": [
+    "The repository contains a complete client-side Fabric project targeting Minecraft 26.1.2 and Java 25 with dependency versions pinned rather than guessed",
+    "A GitHub Actions Java 25 build compiles the project and runs its automated tests",
+    "One-Tap, Lunge Boost, and Infinite Reach are implemented around server-authoritative packet/state behavior rather than client-only visual spoofing",
+    "Movement-envelope calculations and packet sequences have deterministic unit tests for conservative and aggressive staging bounds",
+    "Targeting and attack sequencing use explicit state transitions and restore temporary movement/rotation state after each attempt",
+    "Runtime verification distinguishes confirmed vanilla-server behavior from source-level theoretical behavior and never reports an attack as successful without server-observable evidence",
+    "The UI exposes only implemented controls and keeps experimental/aggressive modes clearly labeled",
+    "The final build, test results, and any runtime verification limitations are documented honestly"
+  ]
+}
