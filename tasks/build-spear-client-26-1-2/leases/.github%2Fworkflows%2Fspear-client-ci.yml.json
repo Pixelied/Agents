@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-spear-client-26-1-2",
+  "scope": ".github/workflows/spear-client-ci.yml",
+  "owner": "openai-spear-github-8f42",
+  "state": "active",
+  "intent": "Add Java 25 GitHub Actions verification for the spear client project.",
+  "claimed_at": "2026-08-14T21:50:30+00:00",
+  "heartbeat_at": "2026-08-14T21:50:30+00:00",
+  "expires_at": "2026-08-15T21:50:30+00:00",
+  "generation": 1
+}
