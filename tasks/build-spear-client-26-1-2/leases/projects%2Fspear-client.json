@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-spear-client-26-1-2",
+  "scope": "projects/spear-client",
+  "owner": "openai-spear-github-8f42",
+  "state": "active",
+  "intent": "Implement and verify the approved Minecraft 26.1.2 Spear Client project on an isolated GitHub branch.",
+  "claimed_at": "2026-08-14T21:50:30+00:00",
+  "heartbeat_at": "2026-08-14T21:50:30+00:00",
+  "expires_at": "2026-08-15T21:50:30+00:00",
+  "generation": 1
+}
