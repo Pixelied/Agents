@@ -15,6 +15,10 @@ public final class ServerStateTracker {
     private Vec3 lastCorrectedPosition;
     private String phase = "IDLE";
     private int targetId = -1;
+    private String kind = "NONE";
+    private double expectedForwardKnownMovement = Double.NaN;
+    private double predictedRawDamage = Double.NaN;
+    private double predictedSourceModelReach = Double.NaN;
 
     public static ServerStateTracker shared() {
         return SHARED;
@@ -31,6 +35,10 @@ public final class ServerStateTracker {
         this.lastCorrectedPosition = null;
         this.phase = "PREPARE";
         this.targetId = -1;
+        this.kind = "NONE";
+        this.expectedForwardKnownMovement = Double.NaN;
+        this.predictedRawDamage = Double.NaN;
+        this.predictedSourceModelReach = Double.NaN;
     }
 
     public void setPhase(String phase) {
@@ -43,6 +51,21 @@ public final class ServerStateTracker {
         if (active) {
             this.targetId = targetId;
         }
+    }
+
+    public void setSourceModelTelemetry(
+        String kind,
+        double expectedForwardKnownMovement,
+        double predictedRawDamage,
+        double predictedSourceModelReach
+    ) {
+        if (!active) {
+            return;
+        }
+        this.kind = kind == null ? "NONE" : kind;
+        this.expectedForwardKnownMovement = expectedForwardKnownMovement;
+        this.predictedRawDamage = predictedRawDamage;
+        this.predictedSourceModelReach = predictedSourceModelReach;
     }
 
     public void endSequence(String finalPhase) {
@@ -83,7 +106,11 @@ public final class ServerStateTracker {
             phase,
             targetId,
             lastRequestedPosition,
-            lastCorrectedPosition
+            lastCorrectedPosition,
+            kind,
+            expectedForwardKnownMovement,
+            predictedRawDamage,
+            predictedSourceModelReach
         );
     }
 
@@ -97,6 +124,10 @@ public final class ServerStateTracker {
         String phase,
         int targetId,
         Vec3 lastRequestedPosition,
-        Vec3 lastCorrectedPosition
+        Vec3 lastCorrectedPosition,
+        String kind,
+        double expectedForwardKnownMovement,
+        double predictedRawDamage,
+        double predictedSourceModelReach
     ) {}
 }
