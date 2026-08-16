@@ -101,6 +101,11 @@ public final class SpearController {
     }
 
     public void tick(Minecraft client) {
+        if (client != null && client.player != null && !client.player.isAlive()) {
+            reset(ResetReason.DEATH);
+            return;
+        }
+
         if (sequencer.isActive()) {
             sequencer.tick(client);
             if (!sequencer.isActive()) {
@@ -117,7 +122,7 @@ public final class SpearController {
             return;
         }
         if (!config.get().sanitized().oneTap().enabled()) {
-            clearPending(client);
+            reset(ResetReason.CONFIG_DISABLED);
             return;
         }
         if (++pendingUseTicks > PENDING_USE_TIMEOUT_TICKS) {
@@ -127,13 +132,13 @@ public final class SpearController {
 
         Entity entity = client.level.getEntity(pendingOneTapTargetId);
         if (!(entity instanceof Player target) || !target.isAlive()) {
-            clearPending(client);
+            reset(ResetReason.TARGET_LOST);
             return;
         }
 
         SpearContext context = SpearContext.capture(client, target);
         if (context == null || context.kinetic() == null) {
-            clearPending(client);
+            reset(ResetReason.LOST_SPEAR);
             return;
         }
         if (!client.player.isUsingItem()
@@ -164,6 +169,20 @@ public final class SpearController {
             return;
         }
         sequencer.tick(client);
+    }
+
+    public void reset(ResetReason reason) {
+        pendingOneTapTargetId = -1;
+        pendingUseTicks = 0;
+        releaseUseOnFinish = false;
+
+        if (reason == ResetReason.CORRECTION
+            || reason == ResetReason.DISCONNECT
+            || reason == ResetReason.LEVEL_CHANGE) {
+            sequencer.abortWithoutPackets(reason.name());
+        } else {
+            sequencer.abort(reason.name());
+        }
     }
 
     private boolean beginOneTapUse(Minecraft client, Player target) {
