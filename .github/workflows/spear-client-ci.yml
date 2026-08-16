@@ -29,5 +29,7 @@ jobs:
           gradle-version: "9.4.1"
       - name: Scaffold contract tests
         run: python -m unittest discover -s tests -v
-      - name: Build
-        run: gradle --no-daemon build
+      - name: Verify pinned Gradle entrypoint
+        run: ./gradlew --version
+      - name: Clean, test, and build
+        run: ./gradlew --no-daemon clean test build
