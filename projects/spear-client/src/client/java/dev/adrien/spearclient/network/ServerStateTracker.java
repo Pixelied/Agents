@@ -45,6 +45,16 @@ public final class ServerStateTracker {
         }
     }
 
+    public void endSequence(String finalPhase) {
+        if (!active) {
+            return;
+        }
+        if (finalPhase != null) {
+            this.phase = finalPhase;
+        }
+        this.active = false;
+    }
+
     public void onMovementPacket(Vec3 requestedPosition) {
         if (!active) {
             return;
