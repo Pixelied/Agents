@@ -6,8 +6,8 @@
   "owner": "openai-spear-github-8f42",
   "state": "active",
   "intent": "Implement and verify the approved Minecraft 26.1.2 Spear Client project on an isolated GitHub branch.",
-  "claimed_at": "2026-08-14T21:50:30+00:00",
-  "heartbeat_at": "2026-08-15T09:40:00+00:00",
-  "expires_at": "2026-08-16T09:40:00+00:00",
-  "generation": 1
+  "claimed_at": "2026-08-16T17:31:00+00:00",
+  "heartbeat_at": "2026-08-16T17:31:00+00:00",
+  "expires_at": "2026-08-17T17:31:00+00:00",
+  "generation": 2
 }
