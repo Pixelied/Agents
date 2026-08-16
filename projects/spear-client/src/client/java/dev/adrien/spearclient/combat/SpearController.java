@@ -2,6 +2,7 @@ package dev.adrien.spearclient.combat;
 
 import dev.adrien.spearclient.config.SpearConfig;
 import dev.adrien.spearclient.modules.InfiniteReachModule;
+import dev.adrien.spearclient.modules.LungeBoostModule;
 import dev.adrien.spearclient.modules.OneTapModule;
 import dev.adrien.spearclient.network.CollisionProbe;
 import dev.adrien.spearclient.network.MovementPath;
@@ -23,6 +24,7 @@ public final class SpearController {
     private final Supplier<SpearConfig> config;
     private final AttackSequencer sequencer;
     private final OneTapModule oneTap;
+    private final LungeBoostModule lungeBoost;
     private final InfiniteReachModule infiniteReach;
 
     private int pendingOneTapTargetId = -1;
@@ -33,17 +35,21 @@ public final class SpearController {
         Supplier<SpearConfig> config,
         AttackSequencer sequencer,
         OneTapModule oneTap,
+        LungeBoostModule lungeBoost,
         InfiniteReachModule infiniteReach
     ) {
         this.config = config;
         this.sequencer = sequencer;
         this.oneTap = oneTap;
+        this.lungeBoost = lungeBoost;
         this.infiniteReach = infiniteReach;
     }
 
     public boolean onAttackPressed(Minecraft client) {
         SpearConfig current = config.get().sanitized();
-        if (!current.oneTap().enabled() && !current.infiniteReach().enabled()) {
+        if (!current.oneTap().enabled()
+            && !current.lungeBoost().enabled()
+            && !current.infiniteReach().enabled()) {
             return false;
         }
         if (client == null || client.player == null || client.level == null || client.gameMode == null) {
@@ -65,14 +71,28 @@ public final class SpearController {
                     || client.player.getUsedItemHand() == InteractionHand.MAIN_HAND);
         }
 
+        SpearContext lungeContext = null;
+        boolean lungeAvailable = false;
+        if (current.lungeBoost().enabled()) {
+            lungeContext = SpearContext.capture(client, client.player);
+            lungeAvailable = lungeContext != null
+                && lungeContext.vanillaLungeEligible()
+                && !client.player.cannotAttackWithItem(client.player.getMainHandItem(), 5);
+        }
+
         SpearControllerPolicy.Action action = SpearControllerPolicy.choose(
             current.oneTap().enabled(),
+            current.lungeBoost().enabled(),
             current.infiniteReach().enabled(),
-            oneTapAvailable
+            oneTapAvailable,
+            lungeAvailable
         );
 
         if (action == SpearControllerPolicy.Action.ONE_TAP) {
             return beginOneTapUse(client, oneTapTarget);
+        }
+        if (action == SpearControllerPolicy.Action.LUNGE) {
+            return tryStartLunge(client, lungeContext);
         }
         if (action == SpearControllerPolicy.Action.REACH) {
             return tryStartReach(client, current);
@@ -164,6 +184,18 @@ public final class SpearController {
         pendingOneTapTargetId = target.getId();
         pendingUseTicks = 0;
         return true;
+    }
+
+    private boolean tryStartLunge(Minecraft client, SpearContext context) {
+        Optional<AttackSequence> prepared = lungeBoost.afterStab(context);
+        if (prepared.isEmpty()) {
+            return false;
+        }
+        AttackSequence sequence = prepared.get();
+        if (!isPathClear(client.player, sequence.movementPath())) {
+            return false;
+        }
+        return sequencer.tryStartAfterStab(sequence);
     }
 
     private boolean tryStartReach(Minecraft client, SpearConfig current) {

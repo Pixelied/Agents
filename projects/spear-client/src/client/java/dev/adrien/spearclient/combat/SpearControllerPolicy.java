@@ -5,11 +5,16 @@ public final class SpearControllerPolicy {
 
     public static Action choose(
         boolean oneTapEnabled,
+        boolean lungeEnabled,
         boolean reachEnabled,
-        boolean oneTapAvailable
+        boolean oneTapAvailable,
+        boolean lungeAvailable
     ) {
         if (oneTapEnabled && oneTapAvailable) {
             return Action.ONE_TAP;
+        }
+        if (lungeEnabled && lungeAvailable) {
+            return Action.LUNGE;
         }
         if (reachEnabled) {
             return Action.REACH;
@@ -19,6 +24,7 @@ public final class SpearControllerPolicy {
 
     public enum Action {
         ONE_TAP,
+        LUNGE,
         REACH,
         VANILLA
     }
