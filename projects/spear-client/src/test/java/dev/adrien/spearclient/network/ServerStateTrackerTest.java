@@ -61,6 +61,18 @@ class ServerStateTrackerTest {
     }
 
     @Test
+    void sourceModelTelemetryIsStoredWithoutCallingItVerified() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        tracker.beginSequence(12L, Vec3.ZERO);
+        tracker.setSourceModelTelemetry("REACH", 18.0, Double.NaN, 31.5);
+
+        assertEquals("REACH", tracker.snapshot().kind());
+        assertEquals(18.0, tracker.snapshot().expectedForwardKnownMovement(), 1e-9);
+        assertTrue(Double.isNaN(tracker.snapshot().predictedRawDamage()));
+        assertEquals(31.5, tracker.snapshot().predictedSourceModelReach(), 1e-9);
+    }
+
+    @Test
     void endingSequenceStopsAttributingLaterCorrections() {
         ServerStateTracker tracker = new ServerStateTracker();
         tracker.beginSequence(11L, Vec3.ZERO);
