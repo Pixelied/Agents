@@ -6,6 +6,7 @@ import dev.adrien.spearclient.combat.SpearContext;
 import dev.adrien.spearclient.network.MovementPath;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import net.minecraft.world.phys.Vec3;
 
 public final class InfiniteReachModule {
     private static final double CONSERVATIVE_STAGE_DISTANCE = 9.0;
@@ -26,9 +27,15 @@ public final class InfiniteReachModule {
             return Optional.empty();
         }
 
+        Vec3 targetDirection = context.targetPosition().subtract(context.eye());
+        if (targetDirection.lengthSqr() == 0.0) {
+            return Optional.empty();
+        }
+        targetDirection = targetDirection.normalize();
+
         MovementPath path = MovementPath.conservativeReach(
             context.origin(),
-            context.look(),
+            targetDirection,
             CONSERVATIVE_STAGE_DISTANCE
         );
         RotationPlan rotation = RotationPlan.toTarget(context.eye(), context.targetPosition());
