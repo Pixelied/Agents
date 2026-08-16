@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "8f42task12-20260816",
+  "task_id": "build-spear-client-26-1-2",
+  "agent_id": "openai-spear-github-8f42",
+  "type": "progress",
+  "message": "Implemented Task 12 config persistence, O-key config screen, and honest source-model debug telemetry on feat/spear-client-26-1-2.",
+  "data": {
+    "verified": [
+      "Config malformed-file fallback and exact toggle round-trip in local Java harness",
+      "DebugSnapshot source-model/n-a formatting in local Java harness",
+      "26.1.2 screen/button extractor source-shape compile",
+      "26.1.2 KeyMappingHelper O-key source-shape compile"
+    ],
+    "fixed_during_task": "Off-crosshair Reach staging now follows the same target direction as server rotation; reproduced old knownMovement projection as 0 and verified fixed projection as 18.",
+    "pending": [
+      "Real Java 25 Loom build",
+      "runClient UI smoke test",
+      "Mixin target resolution",
+      "Vanilla dedicated-server runtime verification"
+    ]
+  },
+  "created_at": "2026-08-16T22:52:55+00:00"
+}
