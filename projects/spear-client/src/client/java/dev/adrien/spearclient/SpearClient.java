@@ -3,6 +3,7 @@ package dev.adrien.spearclient;
 import dev.adrien.spearclient.combat.AttackSequencer;
 import dev.adrien.spearclient.combat.SpearController;
 import dev.adrien.spearclient.config.SpearConfig;
+import dev.adrien.spearclient.modules.InfiniteReachModule;
 import dev.adrien.spearclient.modules.OneTapModule;
 import dev.adrien.spearclient.network.PacketSender;
 import dev.adrien.spearclient.network.ServerStateTracker;
@@ -23,7 +24,13 @@ public final class SpearClient implements ClientModInitializer {
     private final PacketSender packets = new PacketSender(tracker);
     private final AttackSequencer sequencer = new AttackSequencer(packets, tracker);
     private final OneTapModule oneTap = new OneTapModule(true);
-    private final SpearController controller = new SpearController(() -> config, sequencer, oneTap);
+    private final InfiniteReachModule infiniteReach = new InfiniteReachModule(true);
+    private final SpearController controller = new SpearController(
+        () -> config,
+        sequencer,
+        oneTap,
+        infiniteReach
+    );
 
     @Override
     public void onInitializeClient() {
