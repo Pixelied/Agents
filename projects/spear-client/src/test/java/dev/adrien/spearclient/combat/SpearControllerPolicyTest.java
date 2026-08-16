@@ -9,15 +9,23 @@ class SpearControllerPolicyTest {
     void kineticOneTapTakesPriorityWhenAvailable() {
         assertEquals(
             SpearControllerPolicy.Action.ONE_TAP,
-            SpearControllerPolicy.choose(true, true, true)
+            SpearControllerPolicy.choose(true, true, true, true, true)
         );
     }
 
     @Test
-    void reachIsFallbackWhenOneTapCannotRun() {
+    void legitimateLungeBeatsReachWhenOneTapCannotRun() {
+        assertEquals(
+            SpearControllerPolicy.Action.LUNGE,
+            SpearControllerPolicy.choose(true, true, true, false, true)
+        );
+    }
+
+    @Test
+    void reachIsFallbackWhenOneTapAndLungeCannotRun() {
         assertEquals(
             SpearControllerPolicy.Action.REACH,
-            SpearControllerPolicy.choose(true, true, false)
+            SpearControllerPolicy.choose(true, true, true, false, false)
         );
     }
 
@@ -25,7 +33,7 @@ class SpearControllerPolicyTest {
     void disabledModulesPreserveVanillaAttack() {
         assertEquals(
             SpearControllerPolicy.Action.VANILLA,
-            SpearControllerPolicy.choose(false, false, false)
+            SpearControllerPolicy.choose(false, false, false, false, false)
         );
     }
 }
