@@ -185,6 +185,19 @@ public final class SpearController {
         }
     }
 
+    public void onConfigChanged(SpearConfig previous, SpearConfig current) {
+        SpearConfig next = current == null ? SpearConfig.defaults() : current.sanitized();
+        if (pendingOneTapTargetId >= 0 && !next.oneTap().enabled()) {
+            reset(ResetReason.CONFIG_DISABLED);
+            return;
+        }
+
+        AttackSequence.Kind activeKind = sequencer.activeKind();
+        if (activeKind != null && !isModuleEnabled(activeKind, next)) {
+            reset(ResetReason.CONFIG_DISABLED);
+        }
+    }
+
     private boolean beginOneTapUse(Minecraft client, Player target) {
         if (target == null) {
             return false;
@@ -238,6 +251,14 @@ public final class SpearController {
             return false;
         }
         return sequencer.tryStart(sequence);
+    }
+
+    private static boolean isModuleEnabled(AttackSequence.Kind kind, SpearConfig config) {
+        return switch (kind) {
+            case ONE_TAP -> config.oneTap().enabled();
+            case LUNGE -> config.lungeBoost().enabled();
+            case REACH -> config.infiniteReach().enabled();
+        };
     }
 
     private boolean isPathClear(LocalPlayer player, MovementPath path) {
