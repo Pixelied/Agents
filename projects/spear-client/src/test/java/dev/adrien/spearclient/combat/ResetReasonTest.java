@@ -14,11 +14,23 @@ class ResetReasonTest {
     }
 
     @Test
-    void transportAndPlayerReplacementResetsStayPacketSilent() {
+    void transportAndPlayerReplacementResetsDoNotReleaseOwnedUse() {
         assertFalse(ResetReason.CORRECTION.shouldReleaseOwnedUse());
         assertFalse(ResetReason.DISCONNECT.shouldReleaseOwnedUse());
         assertFalse(ResetReason.LEVEL_CHANGE.shouldReleaseOwnedUse());
         assertFalse(ResetReason.RESPAWN.shouldReleaseOwnedUse());
         assertFalse(ResetReason.DEATH.shouldReleaseOwnedUse());
+    }
+
+    @Test
+    void transportAndPlayerReplacementResetsAbortWithoutCleanupPackets() {
+        assertTrue(ResetReason.CORRECTION.shouldAbortWithoutPackets());
+        assertTrue(ResetReason.DISCONNECT.shouldAbortWithoutPackets());
+        assertTrue(ResetReason.LEVEL_CHANGE.shouldAbortWithoutPackets());
+        assertTrue(ResetReason.RESPAWN.shouldAbortWithoutPackets());
+        assertTrue(ResetReason.DEATH.shouldAbortWithoutPackets());
+        assertFalse(ResetReason.CONFIG_DISABLED.shouldAbortWithoutPackets());
+        assertFalse(ResetReason.TARGET_LOST.shouldAbortWithoutPackets());
+        assertFalse(ResetReason.LOST_SPEAR.shouldAbortWithoutPackets());
     }
 }
