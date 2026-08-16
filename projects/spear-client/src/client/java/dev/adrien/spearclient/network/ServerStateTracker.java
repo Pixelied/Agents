@@ -33,6 +33,18 @@ public final class ServerStateTracker {
         this.targetId = -1;
     }
 
+    public void setPhase(String phase) {
+        if (active && phase != null) {
+            this.phase = phase;
+        }
+    }
+
+    public void setTargetId(int targetId) {
+        if (active) {
+            this.targetId = targetId;
+        }
+    }
+
     public void onMovementPacket(Vec3 requestedPosition) {
         if (!active) {
             return;
