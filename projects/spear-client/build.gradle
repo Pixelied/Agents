@@ -30,6 +30,15 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"
 }
 
+sourceSets {
+    test {
+        compileClasspath += sourceSets.client.output
+        compileClasspath += sourceSets.client.compileClasspath
+        runtimeClasspath += sourceSets.client.output
+        runtimeClasspath += sourceSets.client.runtimeClasspath
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.release = 25
 }
