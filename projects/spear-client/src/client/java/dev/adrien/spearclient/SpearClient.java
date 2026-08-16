@@ -115,14 +115,17 @@ public final class SpearClient implements ClientModInitializer {
     }
 
     public void setConfig(SpearConfig config) {
-        this.config = config == null ? SpearConfig.defaults() : config.sanitized();
+        SpearConfig previous = this.config;
+        SpearConfig next = config == null ? SpearConfig.defaults() : config.sanitized();
+        this.config = next;
+        controller.onConfigChanged(previous, next);
     }
 
     public boolean saveConfig(SpearConfig config) {
         SpearConfig sanitized = config == null ? SpearConfig.defaults() : config.sanitized();
         try {
             configStore().save(sanitized);
-            this.config = sanitized;
+            setConfig(sanitized);
             return true;
         } catch (IOException failure) {
             LOGGER.error("Failed to save Spear Client config", failure);
