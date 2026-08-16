@@ -185,6 +185,10 @@ public final class AttackSequencer {
         return active == null ? -1L : active.sequenceId();
     }
 
+    public AttackSequence.Kind activeKind() {
+        return active == null ? null : active.kind();
+    }
+
     public boolean isActive() {
         return active != null;
     }
