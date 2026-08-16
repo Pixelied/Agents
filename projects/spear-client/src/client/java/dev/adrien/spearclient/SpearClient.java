@@ -2,6 +2,7 @@ package dev.adrien.spearclient;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.adrien.spearclient.combat.AttackSequencer;
+import dev.adrien.spearclient.combat.ResetReason;
 import dev.adrien.spearclient.combat.SpearController;
 import dev.adrien.spearclient.config.ConfigStore;
 import dev.adrien.spearclient.config.SpearConfig;
@@ -14,11 +15,14 @@ import dev.adrien.spearclient.ui.SpearConfigScreen;
 import java.io.IOException;
 import java.nio.file.Path;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLevelEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +36,7 @@ public final class SpearClient implements ClientModInitializer {
     private SpearConfig config = SpearConfig.defaults();
     private ConfigStore configStore;
     private KeyMapping openConfigKey;
+    private LocalPlayer lastPlayer;
     private final ServerStateTracker tracker = ServerStateTracker.shared();
     private final PacketSender packets = new PacketSender(tracker);
     private final AttackSequencer sequencer = new AttackSequencer(packets, tracker);
@@ -63,11 +68,26 @@ public final class SpearClient implements ClientModInitializer {
             category
         ));
 
-        ClientTickEvents.END_LEVEL_TICK.register(level -> controller.tick(Minecraft.getInstance()));
+        ClientTickEvents.END_LEVEL_TICK.register(level -> {
+            Minecraft client = Minecraft.getInstance();
+            if (lastPlayer != null && client.player != null && client.player != lastPlayer) {
+                controller.reset(ResetReason.RESPAWN);
+            }
+            lastPlayer = client.player;
+            controller.tick(client);
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openConfigKey.consumeClick()) {
                 client.setScreen(new SpearConfigScreen(client.screen, configStore(), config));
             }
+        });
+        ClientLevelEvents.AFTER_CLIENT_LEVEL_CHANGE.register((client, level) -> {
+            controller.reset(ResetReason.LEVEL_CHANGE);
+            lastPlayer = client.player;
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((listener, client) -> {
+            controller.reset(ResetReason.DISCONNECT);
+            lastPlayer = null;
         });
         LOGGER.info("Spear Client initialized for Minecraft 26.1.2");
     }
