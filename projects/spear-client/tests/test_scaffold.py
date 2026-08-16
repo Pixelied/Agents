@@ -57,6 +57,17 @@ class ScaffoldContractTest(unittest.TestCase):
         self.assertIn('implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"', build)
         self.assertIn('testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"', build)
 
+    def test_launchers_have_pinned_system_gradle_fallback_when_wrapper_jar_is_missing(self):
+        unix = (ROOT / "gradlew").read_text()
+        windows = (ROOT / "gradlew.bat").read_text()
+
+        self.assertIn("GRADLE_VERSION=9.4.1", unix)
+        self.assertIn('command -v gradle', unix)
+        self.assertIn('exec gradle "$@"', unix)
+        self.assertIn("set GRADLE_VERSION=9.4.1", windows)
+        self.assertIn("where gradle", windows.lower())
+        self.assertIn("gradle %*", windows.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
