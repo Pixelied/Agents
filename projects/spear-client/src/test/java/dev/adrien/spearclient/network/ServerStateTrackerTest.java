@@ -59,4 +59,16 @@ class ServerStateTrackerTest {
         assertEquals("ATTACK", tracker.snapshot().phase());
         assertEquals(42, tracker.snapshot().targetId());
     }
+
+    @Test
+    void endingSequenceStopsAttributingLaterCorrections() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        tracker.beginSequence(11L, Vec3.ZERO);
+        tracker.endSequence("DONE");
+        tracker.onCorrection(new Vec3(4, 5, 6));
+
+        assertFalse(tracker.snapshot().active());
+        assertFalse(tracker.snapshot().corrected());
+        assertEquals("DONE", tracker.snapshot().phase());
+    }
 }
