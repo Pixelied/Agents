@@ -8,6 +8,8 @@ import net.minecraft.world.phys.Vec3;
 
 public final class AttackSequencer {
     private static final int MAX_PHASE_TRANSITIONS_PER_TICK = 8;
+    private static final double BASE_SPEAR_REACH = 4.5;
+    private static final double BASE_PLAYER_ATTACK_DAMAGE = 1.0;
 
     private final PacketSender packets;
     private final ServerStateTracker tracker;
@@ -39,6 +41,7 @@ public final class AttackSequencer {
         tracker.beginSequence(sequence.sequenceId(), sequence.context().origin());
         tracker.setTargetId(sequence.context().targetId());
         tracker.setPhase(phase.name());
+        publishSourceModelTelemetry(sequence);
         return true;
     }
 
@@ -187,6 +190,36 @@ public final class AttackSequencer {
 
     public boolean isActive() {
         return active != null;
+    }
+
+    private void publishSourceModelTelemetry(AttackSequence sequence) {
+        double predictedRawDamage = Double.NaN;
+        if (sequence.kind() == AttackSequence.Kind.ONE_TAP && sequence.context().kinetic() != null) {
+            double relativeSpeed = KineticDamageModel.relativeSpeed(
+                sequence.expectedForwardKnownMovement(),
+                0.0
+            );
+            predictedRawDamage = KineticDamageModel.rawDamage(
+                BASE_PLAYER_ATTACK_DAMAGE,
+                sequence.context().kinetic().damageMultiplier(),
+                relativeSpeed
+            );
+        }
+
+        double predictedReach = Double.NaN;
+        if (sequence.kind() == AttackSequence.Kind.REACH && sequence.sendStab()) {
+            Vec3 attackPosition = sequence.movementPath().positions().get(sequence.attackMovementIndex());
+            predictedReach = sequence.context().origin().distanceTo(attackPosition)
+                + BASE_SPEAR_REACH
+                + Math.max(0.0, sequence.expectedForwardKnownMovement());
+        }
+
+        tracker.setSourceModelTelemetry(
+            sequence.kind().name(),
+            sequence.expectedForwardKnownMovement(),
+            predictedRawDamage,
+            predictedReach
+        );
     }
 
     private boolean sendRange(int startInclusive, int endInclusive) {
