@@ -83,6 +83,23 @@ class AttackSequencerTest {
         assertEquals(AttackSequence.Phase.FAILED, sequencer.phase());
     }
 
+    @Test
+    void packetLungeSendsStabThenWaitsOneFullTickBeforeMovement() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        CountingPacketSender packets = new CountingPacketSender(tracker);
+        AttackSequencer sequencer = fixture(packets, tracker);
+
+        assertTrue(sequencer.tryStartAfterStab(lungeSequence()));
+        assertEquals(List.of("stab"), packets.events);
+
+        sequencer.advanceReadySequence();
+        assertEquals(List.of("stab"), packets.events);
+
+        sequencer.advanceReadySequence();
+        assertEquals(List.of("stab", "pos:8.5"), packets.events);
+        assertEquals(AttackSequence.Phase.VERIFY, sequencer.phase());
+    }
+
     private static AttackSequencer fixture(PacketSender packets, ServerStateTracker tracker) {
         return new AttackSequencer(packets, tracker);
     }
@@ -122,6 +139,21 @@ class AttackSequencerTest {
             20,
             new RotationPlan(-90.0f, 0.0f),
             true
+        );
+    }
+
+    private static AttackSequence lungeSequence() {
+        MovementPath path = MovementPath.of(Vec3.ZERO, List.of(new Vec3(8.5, 0, 0)));
+        return new AttackSequence(
+            44L,
+            AttackSequence.Kind.LUNGE,
+            context(),
+            path,
+            false,
+            -1,
+            8.5,
+            1,
+            20
         );
     }
 
