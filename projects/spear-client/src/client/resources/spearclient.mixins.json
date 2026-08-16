@@ -2,7 +2,9 @@
   "required": true,
   "package": "dev.adrien.spearclient.mixin",
   "compatibilityLevel": "JAVA_25",
-  "client": [],
+  "client": [
+    "ClientPacketListenerMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
