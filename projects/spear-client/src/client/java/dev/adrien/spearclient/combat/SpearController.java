@@ -109,7 +109,11 @@ public final class SpearController {
         if (sequencer.isActive()) {
             sequencer.tick(client);
             if (!sequencer.isActive()) {
-                releaseOwnedUse(client);
+                if (sequencer.lastTerminationAllowsCleanupPackets()) {
+                    releaseOwnedUse(client);
+                } else {
+                    releaseUseOnFinish = false;
+                }
             }
             return;
         }
