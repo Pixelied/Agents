@@ -1,11 +1,14 @@
 package dev.adrien.spearclient.combat;
 
 import dev.adrien.spearclient.config.SpearConfig;
+import dev.adrien.spearclient.modules.InfiniteReachModule;
 import dev.adrien.spearclient.modules.OneTapModule;
 import dev.adrien.spearclient.network.CollisionProbe;
+import dev.adrien.spearclient.network.MovementPath;
 import java.util.Optional;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -13,12 +16,14 @@ import net.minecraft.world.phys.Vec3;
 
 public final class SpearController {
     private static final double ONE_TAP_ACQUISITION_RANGE = 12.5;
+    private static final double REACH_ACQUISITION_RANGE = 31.5;
     private static final double COLLISION_SAMPLE_STEP = 0.25;
     private static final int PENDING_USE_TIMEOUT_TICKS = 40;
 
     private final Supplier<SpearConfig> config;
     private final AttackSequencer sequencer;
     private final OneTapModule oneTap;
+    private final InfiniteReachModule infiniteReach;
 
     private int pendingOneTapTargetId = -1;
     private int pendingUseTicks;
@@ -27,16 +32,18 @@ public final class SpearController {
     public SpearController(
         Supplier<SpearConfig> config,
         AttackSequencer sequencer,
-        OneTapModule oneTap
+        OneTapModule oneTap,
+        InfiniteReachModule infiniteReach
     ) {
         this.config = config;
         this.sequencer = sequencer;
         this.oneTap = oneTap;
+        this.infiniteReach = infiniteReach;
     }
 
     public boolean onAttackPressed(Minecraft client) {
         SpearConfig current = config.get().sanitized();
-        if (!current.oneTap().enabled()) {
+        if (!current.oneTap().enabled() && !current.infiniteReach().enabled()) {
             return false;
         }
         if (client == null || client.player == null || client.level == null || client.gameMode == null) {
@@ -46,32 +53,37 @@ public final class SpearController {
             return true;
         }
 
-        Player target = SpearTargeting.findTarget(client, ONE_TAP_ACQUISITION_RANGE, true);
-        SpearContext context = SpearContext.capture(client, target);
-        if (context == null || context.kinetic() == null) {
-            return false;
+        Player oneTapTarget = null;
+        SpearContext oneTapContext = null;
+        boolean oneTapAvailable = false;
+        if (current.oneTap().enabled()) {
+            oneTapTarget = SpearTargeting.findTarget(client, ONE_TAP_ACQUISITION_RANGE, true);
+            oneTapContext = SpearContext.capture(client, oneTapTarget);
+            oneTapAvailable = oneTapContext != null
+                && oneTapContext.kinetic() != null
+                && (!client.player.isUsingItem()
+                    || client.player.getUsedItemHand() == InteractionHand.MAIN_HAND);
         }
 
-        if (client.player.isUsingItem()) {
-            if (client.player.getUsedItemHand() != InteractionHand.MAIN_HAND) {
-                return false;
-            }
-            releaseUseOnFinish = false;
-        } else {
-            client.gameMode.useItem(client.player, InteractionHand.MAIN_HAND);
-            releaseUseOnFinish = true;
-        }
+        SpearControllerPolicy.Action action = SpearControllerPolicy.choose(
+            current.oneTap().enabled(),
+            current.infiniteReach().enabled(),
+            oneTapAvailable
+        );
 
-        pendingOneTapTargetId = target.getId();
-        pendingUseTicks = 0;
-        return true;
+        if (action == SpearControllerPolicy.Action.ONE_TAP) {
+            return beginOneTapUse(client, oneTapTarget);
+        }
+        if (action == SpearControllerPolicy.Action.REACH) {
+            return tryStartReach(client, current);
+        }
+        return false;
     }
 
     public void tick(Minecraft client) {
         if (sequencer.isActive()) {
-            boolean wasActive = true;
             sequencer.tick(client);
-            if (wasActive && !sequencer.isActive()) {
+            if (!sequencer.isActive()) {
                 releaseOwnedUse(client);
             }
             return;
@@ -120,14 +132,7 @@ public final class SpearController {
         }
 
         AttackSequence sequence = prepared.get();
-        Vec3 backPosition = sequence.movementPath().positions().getFirst();
-        if (!CollisionProbe.isPositionClear(client.player, backPosition)
-            || !CollisionProbe.isSegmentClear(
-                client.player,
-                context.origin(),
-                backPosition,
-                COLLISION_SAMPLE_STEP
-            )) {
+        if (!isPathClear(client.player, sequence.movementPath())) {
             clearPending(client);
             return;
         }
@@ -139,6 +144,66 @@ public final class SpearController {
             return;
         }
         sequencer.tick(client);
+    }
+
+    private boolean beginOneTapUse(Minecraft client, Player target) {
+        if (target == null) {
+            return false;
+        }
+
+        if (client.player.isUsingItem()) {
+            if (client.player.getUsedItemHand() != InteractionHand.MAIN_HAND) {
+                return false;
+            }
+            releaseUseOnFinish = false;
+        } else {
+            client.gameMode.useItem(client.player, InteractionHand.MAIN_HAND);
+            releaseUseOnFinish = true;
+        }
+
+        pendingOneTapTargetId = target.getId();
+        pendingUseTicks = 0;
+        return true;
+    }
+
+    private boolean tryStartReach(Minecraft client, SpearConfig current) {
+        Player target = SpearTargeting.findTarget(
+            client,
+            REACH_ACQUISITION_RANGE,
+            current.infiniteReach().teamCheck()
+        );
+        SpearContext context = SpearContext.capture(client, target);
+        if (context == null) {
+            return false;
+        }
+
+        Optional<AttackSequence> prepared = infiniteReach.prepare(context);
+        if (prepared.isEmpty()) {
+            return false;
+        }
+
+        AttackSequence sequence = prepared.get();
+        if (!isPathClear(client.player, sequence.movementPath())) {
+            return false;
+        }
+        return sequencer.tryStart(sequence);
+    }
+
+    private boolean isPathClear(LocalPlayer player, MovementPath path) {
+        Vec3 previous = path.origin();
+        for (Vec3 position : path.positions()) {
+            if (!CollisionProbe.isPositionClear(player, position)
+                || !CollisionProbe.isSegmentClear(
+                    player,
+                    previous,
+                    position,
+                    COLLISION_SAMPLE_STEP
+                )) {
+                return false;
+            }
+            previous = position;
+        }
+        return true;
     }
 
     private void clearPending(Minecraft client) {
