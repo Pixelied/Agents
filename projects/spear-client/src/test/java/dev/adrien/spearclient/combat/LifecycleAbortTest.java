@@ -47,6 +47,23 @@ class LifecycleAbortTest {
         assertEquals(List.of("rot:-90.0:0.0", "rot:30.0:10.0"), packets.events);
     }
 
+    @Test
+    void disablingOnlyActiveReachModuleAbortsEvenWhenOneTapRemainsEnabled() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        CountingPacketSender packets = new CountingPacketSender(tracker);
+        AttackSequencer sequencer = new AttackSequencer(packets, tracker);
+        SpearController controller = controller(sequencer);
+        sequencer.tryStart(rotatedReachSequence());
+        sequencer.advanceReadySequence();
+
+        SpearConfig previous = config(false, false, true);
+        SpearConfig next = config(true, false, false);
+        controller.onConfigChanged(previous, next);
+
+        assertFalse(sequencer.isActive());
+        assertEquals(List.of("rot:-90.0:0.0", "rot:30.0:10.0"), packets.events);
+    }
+
     private static SpearController controller(AttackSequencer sequencer) {
         return new SpearController(
             SpearConfig::defaults,
@@ -54,6 +71,15 @@ class LifecycleAbortTest {
             new OneTapModule(true),
             new LungeBoostModule(true),
             new InfiniteReachModule(true)
+        );
+    }
+
+    private static SpearConfig config(boolean oneTap, boolean lunge, boolean reach) {
+        return new SpearConfig(
+            new SpearConfig.OneTapConfig(oneTap, SpearConfig.OneTapMode.SMART),
+            new SpearConfig.LungeConfig(lunge, SpearConfig.LungeMode.SMART),
+            new SpearConfig.ReachConfig(reach, SpearConfig.ReachMode.SMART, true),
+            false
         );
     }
 
