@@ -2,14 +2,18 @@ package dev.adrien.spearclient;
 
 import dev.adrien.spearclient.combat.AttackSequencer;
 import dev.adrien.spearclient.combat.SpearController;
+import dev.adrien.spearclient.config.ConfigStore;
 import dev.adrien.spearclient.config.SpearConfig;
 import dev.adrien.spearclient.modules.InfiniteReachModule;
 import dev.adrien.spearclient.modules.LungeBoostModule;
 import dev.adrien.spearclient.modules.OneTapModule;
 import dev.adrien.spearclient.network.PacketSender;
 import dev.adrien.spearclient.network.ServerStateTracker;
+import java.io.IOException;
+import java.nio.file.Path;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +25,7 @@ public final class SpearClient implements ClientModInitializer {
     private static SpearClient instance;
 
     private SpearConfig config = SpearConfig.defaults();
+    private ConfigStore configStore;
     private final ServerStateTracker tracker = ServerStateTracker.shared();
     private final PacketSender packets = new PacketSender(tracker);
     private final AttackSequencer sequencer = new AttackSequencer(packets, tracker);
@@ -38,6 +43,10 @@ public final class SpearClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         instance = this;
+        Path configPath = FabricLoader.getInstance().getConfigDir().resolve("spearclient.json");
+        configStore = new ConfigStore(configPath);
+        config = configStore.load();
+
         ClientTickEvents.END_LEVEL_TICK.register(level -> controller.tick(Minecraft.getInstance()));
         LOGGER.info("Spear Client initialized for Minecraft 26.1.2");
     }
@@ -57,7 +66,26 @@ public final class SpearClient implements ClientModInitializer {
         return config;
     }
 
+    public ConfigStore configStore() {
+        if (configStore == null) {
+            throw new IllegalStateException("Spear Client config store is not initialized");
+        }
+        return configStore;
+    }
+
     public void setConfig(SpearConfig config) {
         this.config = config == null ? SpearConfig.defaults() : config.sanitized();
+    }
+
+    public boolean saveConfig(SpearConfig config) {
+        SpearConfig sanitized = config == null ? SpearConfig.defaults() : config.sanitized();
+        try {
+            configStore().save(sanitized);
+            this.config = sanitized;
+            return true;
+        } catch (IOException failure) {
+            LOGGER.error("Failed to save Spear Client config", failure);
+            return false;
+        }
     }
 }
