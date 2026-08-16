@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "8f42task6-20260816",
+  "task_id": "build-spear-client-26-1-2",
+  "agent_id": "openai-spear-github-8f42",
+  "type": "progress",
+  "message": "Completed deterministic targeting, bounded movement paths, and vanilla packet/correction instrumentation through Task 6 on feat/spear-client-26-1-2.",
+  "data": {
+    "head": "51d7df91cf0ed4cbb35ecb8d010508e97e00177e",
+    "verified": [
+      "TargetScore local Java tests",
+      "MovementPath local Java tests",
+      "ServerStateTracker local Java tests",
+      "Minecraft-facing source-signature stub compiles"
+    ],
+    "pending": [
+      "Real Java 25 Loom build and Mixin target resolution",
+      "Vanilla dedicated-server runtime verification"
+    ],
+    "decision": "Observe handleMovePlayer immediately after PacketUtils.ensureRunningOnSameThread rather than literal HEAD to avoid duplicate network-thread/client-thread correction observations."
+  },
+  "created_at": "2026-08-16T17:47:00+00:00"
+}
