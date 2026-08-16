@@ -73,6 +73,35 @@ class ServerStateTrackerTest {
     }
 
     @Test
+    void maxRequestedDeltaUsesDistanceFromSequenceOrigin() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        tracker.beginSequence(13L, Vec3.ZERO);
+        tracker.onMovementPacket(new Vec3(3, 4, 0));
+        tracker.onMovementPacket(new Vec3(2, 0, 0));
+
+        assertEquals(5.0, tracker.snapshot().maxRequestedDelta(), 1e-9);
+    }
+
+    @Test
+    void terminalResultDistinguishesDoneCorrectedAndAborted() {
+        ServerStateTracker done = new ServerStateTracker();
+        done.beginSequence(14L, Vec3.ZERO);
+        done.endSequence("DONE");
+        assertEquals("done", done.snapshot().lastResult());
+
+        ServerStateTracker corrected = new ServerStateTracker();
+        corrected.beginSequence(15L, Vec3.ZERO);
+        corrected.onCorrection(Vec3.ZERO);
+        corrected.endSequence("FAILED");
+        assertEquals("corrected", corrected.snapshot().lastResult());
+
+        ServerStateTracker aborted = new ServerStateTracker();
+        aborted.beginSequence(16L, Vec3.ZERO);
+        aborted.endSequence("FAILED");
+        assertEquals("aborted", aborted.snapshot().lastResult());
+    }
+
+    @Test
     void endingSequenceStopsAttributingLaterCorrections() {
         ServerStateTracker tracker = new ServerStateTracker();
         tracker.beginSequence(11L, Vec3.ZERO);
