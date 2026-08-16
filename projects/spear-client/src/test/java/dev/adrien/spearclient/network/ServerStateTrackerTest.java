@@ -2,6 +2,7 @@ package dev.adrien.spearclient.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.minecraft.world.phys.Vec3;
@@ -41,5 +42,10 @@ class ServerStateTrackerTest {
 
         assertFalse(tracker.snapshot().corrected());
         assertEquals(0, tracker.snapshot().correctionCount());
+    }
+
+    @Test
+    void productionSharedTrackerIsStable() {
+        assertSame(ServerStateTracker.shared(), ServerStateTracker.shared());
     }
 }
