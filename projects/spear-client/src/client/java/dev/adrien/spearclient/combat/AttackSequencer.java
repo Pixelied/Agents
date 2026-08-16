@@ -1,0 +1,178 @@
+package dev.adrien.spearclient.combat;
+
+import dev.adrien.spearclient.network.PacketSender;
+import dev.adrien.spearclient.network.ServerStateTracker;
+import java.util.Objects;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.Vec3;
+
+public final class AttackSequencer {
+    private static final int MAX_PHASE_TRANSITIONS_PER_TICK = 8;
+
+    private final PacketSender packets;
+    private final ServerStateTracker tracker;
+
+    private AttackSequence active;
+    private AttackSequence.Phase phase = AttackSequence.Phase.DONE;
+    private int ticksAlive;
+    private int movementPacketsSent;
+
+    public AttackSequencer(PacketSender packets, ServerStateTracker tracker) {
+        this.packets = Objects.requireNonNull(packets, "packets");
+        this.tracker = Objects.requireNonNull(tracker, "tracker");
+    }
+
+    public boolean tryStart(AttackSequence sequence) {
+        Objects.requireNonNull(sequence, "sequence");
+        if (active != null) {
+            return false;
+        }
+
+        active = sequence;
+        phase = AttackSequence.Phase.PREPARE;
+        ticksAlive = 0;
+        movementPacketsSent = 0;
+        tracker.beginSequence(sequence.sequenceId(), sequence.context().origin());
+        tracker.setTargetId(sequence.context().targetId());
+        tracker.setPhase(phase.name());
+        return true;
+    }
+
+    public void tick(Minecraft client) {
+        if (active == null) {
+            return;
+        }
+
+        ticksAlive++;
+        if (tracker.snapshot().corrected()) {
+            abort("server correction");
+            return;
+        }
+        if (client == null || client.player == null || client.level == null) {
+            abort("client world unavailable");
+            return;
+        }
+        if (!client.player.isAlive()) {
+            abort("player not alive");
+            return;
+        }
+        if (active.targetMissing(client.level)) {
+            abort("target missing");
+            return;
+        }
+        if (!active.stillHasRequiredSpear(client.player)) {
+            abort("required spear changed");
+            return;
+        }
+        if (ticksAlive > active.timeoutTicks()) {
+            abort("sequence timeout");
+            return;
+        }
+
+        if (phase == AttackSequence.Phase.VERIFY) {
+            setPhase(AttackSequence.Phase.CLEANUP);
+            finishDone();
+            return;
+        }
+
+        for (int transitions = 0;
+             active != null && transitions < MAX_PHASE_TRANSITIONS_PER_TICK;
+             transitions++) {
+            switch (phase) {
+                case PREPARE -> setPhase(AttackSequence.Phase.STAGE);
+                case STAGE -> {
+                    int lastStageIndex = active.sendStab()
+                        ? active.attackMovementIndex()
+                        : active.movementPath().positions().size() - 1;
+                    if (!sendRange(0, lastStageIndex)) {
+                        return;
+                    }
+                    setPhase(AttackSequence.Phase.ATTACK);
+                }
+                case ROTATE -> setPhase(AttackSequence.Phase.ATTACK);
+                case ATTACK -> {
+                    if (active.sendStab()) {
+                        packets.stab();
+                    }
+                    setPhase(AttackSequence.Phase.RETURN);
+                }
+                case RETURN -> {
+                    if (active.sendStab()
+                        && !sendRange(active.attackMovementIndex() + 1,
+                            active.movementPath().positions().size() - 1)) {
+                        return;
+                    }
+                    setPhase(AttackSequence.Phase.RESTORE);
+                }
+                case RESTORE -> {
+                    setPhase(AttackSequence.Phase.VERIFY);
+                    return;
+                }
+                case VERIFY -> {
+                    return;
+                }
+                case CLEANUP -> {
+                    finishDone();
+                    return;
+                }
+                case DONE, FAILED -> {
+                    return;
+                }
+            }
+        }
+    }
+
+    public void abort(String reason) {
+        if (active == null) {
+            return;
+        }
+        phase = AttackSequence.Phase.FAILED;
+        tracker.setPhase(phase.name());
+        tracker.endSequence(phase.name());
+        active = null;
+    }
+
+    public AttackSequence.Phase phase() {
+        return phase;
+    }
+
+    public long activeSequenceId() {
+        return active == null ? -1L : active.sequenceId();
+    }
+
+    public boolean isActive() {
+        return active != null;
+    }
+
+    private boolean sendRange(int startInclusive, int endInclusive) {
+        if (startInclusive > endInclusive) {
+            return true;
+        }
+        for (int index = startInclusive; index <= endInclusive; index++) {
+            if (movementPacketsSent >= active.maxMovementPackets()) {
+                abort("movement packet budget exhausted");
+                return false;
+            }
+            Vec3 position = active.movementPath().positions().get(index);
+            packets.move(
+                position,
+                active.context().onGround(),
+                active.context().horizontalCollision()
+            );
+            movementPacketsSent++;
+        }
+        return true;
+    }
+
+    private void setPhase(AttackSequence.Phase next) {
+        phase = next;
+        tracker.setPhase(next.name());
+    }
+
+    private void finishDone() {
+        phase = AttackSequence.Phase.DONE;
+        tracker.setPhase(phase.name());
+        tracker.endSequence(phase.name());
+        active = null;
+    }
+}
