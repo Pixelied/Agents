@@ -57,6 +57,13 @@ class ScaffoldContractTest(unittest.TestCase):
         self.assertIn('implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"', build)
         self.assertIn('testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"', build)
 
+    def test_split_client_sources_are_explicitly_visible_to_junit(self):
+        build = (ROOT / "build.gradle").read_text()
+        self.assertIn("compileClasspath += sourceSets.client.output", build)
+        self.assertIn("compileClasspath += sourceSets.client.compileClasspath", build)
+        self.assertIn("runtimeClasspath += sourceSets.client.output", build)
+        self.assertIn("runtimeClasspath += sourceSets.client.runtimeClasspath", build)
+
     def test_launchers_have_pinned_system_gradle_fallback_when_wrapper_jar_is_missing(self):
         unix = (ROOT / "gradlew").read_text()
         windows = (ROOT / "gradlew.bat").read_text()
