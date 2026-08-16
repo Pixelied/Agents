@@ -20,6 +20,7 @@ public final class AttackSequencer {
     private int movementPacketsSent;
     private int postStabDelayTicks;
     private boolean serverRotationStaged;
+    private boolean lastTerminationAllowsCleanupPackets;
 
     public AttackSequencer(PacketSender packets, ServerStateTracker tracker) {
         this.packets = Objects.requireNonNull(packets, "packets");
@@ -38,6 +39,7 @@ public final class AttackSequencer {
         movementPacketsSent = 0;
         postStabDelayTicks = 0;
         serverRotationStaged = false;
+        lastTerminationAllowsCleanupPackets = false;
         tracker.beginSequence(sequence.sequenceId(), sequence.context().origin());
         tracker.setTargetId(sequence.context().targetId());
         tracker.setPhase(phase.name());
@@ -193,6 +195,10 @@ public final class AttackSequencer {
         return active != null;
     }
 
+    public boolean lastTerminationAllowsCleanupPackets() {
+        return lastTerminationAllowsCleanupPackets;
+    }
+
     private void abortInternal(String reason, boolean allowCleanupPackets) {
         if (active == null) {
             return;
@@ -202,6 +208,7 @@ public final class AttackSequencer {
         } else {
             serverRotationStaged = false;
         }
+        lastTerminationAllowsCleanupPackets = allowCleanupPackets;
         phase = AttackSequence.Phase.FAILED;
         tracker.setPhase(phase.name());
         tracker.endSequence(phase.name());
@@ -289,6 +296,7 @@ public final class AttackSequencer {
 
     private void finishDone() {
         restoreServerRotation();
+        lastTerminationAllowsCleanupPackets = true;
         phase = AttackSequence.Phase.DONE;
         tracker.setPhase(phase.name());
         tracker.endSequence(phase.name());
