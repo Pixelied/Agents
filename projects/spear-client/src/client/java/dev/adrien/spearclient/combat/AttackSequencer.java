@@ -65,7 +65,7 @@ public final class AttackSequencer {
 
         ticksAlive++;
         if (tracker.snapshot().corrected()) {
-            abort("server correction");
+            abortWithoutPackets("server correction");
             return;
         }
         if (client == null || client.player == null || client.level == null) {
@@ -170,14 +170,11 @@ public final class AttackSequencer {
     }
 
     public void abort(String reason) {
-        if (active == null) {
-            return;
-        }
-        restoreServerRotation();
-        phase = AttackSequence.Phase.FAILED;
-        tracker.setPhase(phase.name());
-        tracker.endSequence(phase.name());
-        active = null;
+        abortInternal(reason, true);
+    }
+
+    public void abortWithoutPackets(String reason) {
+        abortInternal(reason, false);
     }
 
     public AttackSequence.Phase phase() {
@@ -190,6 +187,21 @@ public final class AttackSequencer {
 
     public boolean isActive() {
         return active != null;
+    }
+
+    private void abortInternal(String reason, boolean allowCleanupPackets) {
+        if (active == null) {
+            return;
+        }
+        if (allowCleanupPackets) {
+            restoreServerRotation();
+        } else {
+            serverRotationStaged = false;
+        }
+        phase = AttackSequence.Phase.FAILED;
+        tracker.setPhase(phase.name());
+        tracker.endSequence(phase.name());
+        active = null;
     }
 
     private void publishSourceModelTelemetry(AttackSequence sequence) {
