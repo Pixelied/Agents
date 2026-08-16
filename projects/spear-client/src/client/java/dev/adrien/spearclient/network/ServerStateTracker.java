@@ -3,6 +3,8 @@ package dev.adrien.spearclient.network;
 import net.minecraft.world.phys.Vec3;
 
 public final class ServerStateTracker {
+    private static final ServerStateTracker SHARED = new ServerStateTracker();
+
     private long sequenceId = -1L;
     private Vec3 origin;
     private boolean active;
@@ -13,6 +15,10 @@ public final class ServerStateTracker {
     private Vec3 lastCorrectedPosition;
     private String phase = "IDLE";
     private int targetId = -1;
+
+    public static ServerStateTracker shared() {
+        return SHARED;
+    }
 
     public void beginSequence(long sequenceId, Vec3 origin) {
         this.sequenceId = sequenceId;
