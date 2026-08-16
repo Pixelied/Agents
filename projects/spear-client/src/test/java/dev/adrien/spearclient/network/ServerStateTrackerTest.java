@@ -1,0 +1,45 @@
+package dev.adrien.spearclient.network;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import net.minecraft.world.phys.Vec3;
+import org.junit.jupiter.api.Test;
+
+class ServerStateTrackerTest {
+    @Test
+    void correctionMarksActiveSequenceRejected() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        tracker.beginSequence(7L, Vec3.ZERO);
+        tracker.onMovementPacket(new Vec3(6, 64, 0));
+        tracker.onCorrection(new Vec3(0, 64, 0));
+
+        assertTrue(tracker.snapshot().corrected());
+        assertEquals(1, tracker.snapshot().correctionCount());
+        assertEquals(1, tracker.snapshot().movementPacketsSent());
+        assertEquals(new Vec3(6, 64, 0), tracker.snapshot().lastRequestedPosition());
+    }
+
+    @Test
+    void newSequenceClearsPriorCorrectionState() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        tracker.beginSequence(7L, Vec3.ZERO);
+        tracker.onCorrection(new Vec3(1, 2, 3));
+        tracker.beginSequence(8L, new Vec3(4, 5, 6));
+
+        assertFalse(tracker.snapshot().corrected());
+        assertEquals(0, tracker.snapshot().correctionCount());
+        assertEquals(8L, tracker.snapshot().sequenceId());
+        assertEquals(new Vec3(4, 5, 6), tracker.snapshot().origin());
+    }
+
+    @Test
+    void correctionOutsideSequenceIsIgnored() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        tracker.onCorrection(new Vec3(1, 2, 3));
+
+        assertFalse(tracker.snapshot().corrected());
+        assertEquals(0, tracker.snapshot().correctionCount());
+    }
+}
