@@ -16,6 +16,7 @@ public final class AttackSequencer {
     private AttackSequence.Phase phase = AttackSequence.Phase.DONE;
     private int ticksAlive;
     private int movementPacketsSent;
+    private int postStabDelayTicks;
     private boolean serverRotationStaged;
 
     public AttackSequencer(PacketSender packets, ServerStateTracker tracker) {
@@ -33,10 +34,24 @@ public final class AttackSequencer {
         phase = AttackSequence.Phase.PREPARE;
         ticksAlive = 0;
         movementPacketsSent = 0;
+        postStabDelayTicks = 0;
         serverRotationStaged = false;
         tracker.beginSequence(sequence.sequenceId(), sequence.context().origin());
         tracker.setTargetId(sequence.context().targetId());
         tracker.setPhase(phase.name());
+        return true;
+    }
+
+    public boolean tryStartAfterStab(AttackSequence sequence) {
+        Objects.requireNonNull(sequence, "sequence");
+        if (sequence.kind() != AttackSequence.Kind.LUNGE || active != null) {
+            return false;
+        }
+        if (!tryStart(sequence)) {
+            return false;
+        }
+        packets.stab();
+        postStabDelayTicks = 1;
         return true;
     }
 
@@ -76,6 +91,10 @@ public final class AttackSequencer {
 
     void advanceReadySequence() {
         if (active == null) {
+            return;
+        }
+        if (postStabDelayTicks > 0) {
+            postStabDelayTicks--;
             return;
         }
 
