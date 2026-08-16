@@ -36,6 +36,7 @@ class AttackSequencerTest {
 
         assertEquals(AttackSequence.Phase.FAILED, sequencer.phase());
         assertEquals(0, packets.events.size());
+        assertFalse(sequencer.lastTerminationAllowsCleanupPackets());
     }
 
     @Test
@@ -51,6 +52,7 @@ class AttackSequencerTest {
 
         assertEquals(List.of("rot:-90.0:0.0"), packets.events);
         assertEquals(AttackSequence.Phase.FAILED, sequencer.phase());
+        assertFalse(sequencer.lastTerminationAllowsCleanupPackets());
     }
 
     @Test
@@ -96,6 +98,22 @@ class AttackSequencerTest {
 
         assertEquals(List.of("rot:-90.0:0.0", "rot:30.0:10.0"), packets.events);
         assertEquals(AttackSequence.Phase.FAILED, sequencer.phase());
+        assertTrue(sequencer.lastTerminationAllowsCleanupPackets());
+    }
+
+    @Test
+    void normalCompletionAllowsControllerOwnedUseCleanup() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        CountingPacketSender packets = new CountingPacketSender(tracker);
+        AttackSequencer sequencer = fixture(packets, tracker);
+        sequencer.tryStart(sequence(55L, AttackSequence.Kind.ONE_TAP, 0));
+
+        sequencer.advanceReadySequence();
+        sequencer.advanceReadySequence();
+
+        assertFalse(sequencer.isActive());
+        assertEquals(AttackSequence.Phase.DONE, sequencer.phase());
+        assertTrue(sequencer.lastTerminationAllowsCleanupPackets());
     }
 
     @Test
