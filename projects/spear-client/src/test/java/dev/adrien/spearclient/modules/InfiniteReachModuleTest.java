@@ -26,6 +26,8 @@ class InfiniteReachModuleTest {
         ), sequence.movementPath().positions());
         assertTrue(sequence.sendStabAtMovementIndex(1));
         assertEquals(18.0, sequence.expectedForwardKnownMovement(), 1e-9);
+        assertTrue(sequence.preRotateForOneServerTick());
+        assertEquals(0.0f, sequence.rotationPlan().yaw(), 1e-4f);
     }
 
     @Test
@@ -47,7 +49,7 @@ class InfiniteReachModuleTest {
             null,
             0,
             4,
-            new Vec3(0, 65, 20)
+            new Vec3(0, 65.62, 20)
         );
     }
 }
