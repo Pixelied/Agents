@@ -31,6 +31,32 @@ class InfiniteReachModuleTest {
     }
 
     @Test
+    void offCrosshairReachStagesAlongTargetDirectionNotOldCameraLook() {
+        InfiniteReachModule module = new InfiniteReachModule(true);
+        SpearContext context = new SpearContext(
+            new Vec3(0, 64, 0),
+            new Vec3(0, 65.62, 0),
+            new Vec3(0, 0, 1),
+            0.0f,
+            0.0f,
+            true,
+            false,
+            ItemStack.EMPTY,
+            new PiercingWeapon(true, false, Optional.empty(), Optional.empty()),
+            null,
+            0,
+            4,
+            new Vec3(20, 65.62, 0)
+        );
+
+        AttackSequence sequence = module.prepare(context).orElseThrow();
+
+        assertEquals(new Vec3(-9, 64, 0), sequence.movementPath().positions().get(0));
+        assertEquals(new Vec3(9, 64, 0), sequence.movementPath().positions().get(1));
+        assertEquals(-90.0f, sequence.rotationPlan().yaw(), 1e-4f);
+    }
+
+    @Test
     void disabledReachDoesNotPrepareSequence() {
         assertTrue(new InfiniteReachModule(false).prepare(contextFacingPositiveZ()).isEmpty());
     }
