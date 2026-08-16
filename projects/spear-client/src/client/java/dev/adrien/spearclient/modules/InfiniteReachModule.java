@@ -1,6 +1,7 @@
 package dev.adrien.spearclient.modules;
 
 import dev.adrien.spearclient.combat.AttackSequence;
+import dev.adrien.spearclient.combat.RotationPlan;
 import dev.adrien.spearclient.combat.SpearContext;
 import dev.adrien.spearclient.network.MovementPath;
 import java.util.Optional;
@@ -30,6 +31,7 @@ public final class InfiniteReachModule {
             context.look(),
             CONSERVATIVE_STAGE_DISTANCE
         );
+        RotationPlan rotation = RotationPlan.toTarget(context.eye(), context.targetPosition());
 
         return Optional.of(new AttackSequence(
             SEQUENCE_IDS.incrementAndGet(),
@@ -40,7 +42,9 @@ public final class InfiniteReachModule {
             1,
             CONSERVATIVE_STAGE_DISTANCE * 2.0,
             path.positions().size(),
-            20
+            20,
+            rotation,
+            true
         ));
     }
 }

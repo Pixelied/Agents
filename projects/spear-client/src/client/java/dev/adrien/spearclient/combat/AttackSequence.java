@@ -17,9 +17,37 @@ public record AttackSequence(
     int attackMovementIndex,
     double expectedForwardKnownMovement,
     int maxMovementPackets,
-    int timeoutTicks
+    int timeoutTicks,
+    RotationPlan rotationPlan,
+    boolean preRotateForOneServerTick
 ) {
     public static final int HARD_MAX_MOVEMENT_PACKETS = 8;
+
+    public AttackSequence(
+        long sequenceId,
+        Kind kind,
+        SpearContext context,
+        MovementPath movementPath,
+        boolean sendStab,
+        int attackMovementIndex,
+        double expectedForwardKnownMovement,
+        int maxMovementPackets,
+        int timeoutTicks
+    ) {
+        this(
+            sequenceId,
+            kind,
+            context,
+            movementPath,
+            sendStab,
+            attackMovementIndex,
+            expectedForwardKnownMovement,
+            maxMovementPackets,
+            timeoutTicks,
+            null,
+            false
+        );
+    }
 
     public AttackSequence {
         Objects.requireNonNull(kind, "kind");
@@ -43,6 +71,16 @@ public record AttackSequence(
             }
         } else if (attackMovementIndex != -1) {
             throw new IllegalArgumentException("non-STAB sequences use attackMovementIndex = -1");
+        }
+        if (preRotateForOneServerTick && rotationPlan == null) {
+            throw new IllegalArgumentException("pre-rotation requires a rotation plan");
+        }
+        if (!preRotateForOneServerTick && rotationPlan != null) {
+            throw new IllegalArgumentException("rotation plan requires pre-rotation staging");
+        }
+        if (rotationPlan != null
+            && (!Float.isFinite(rotationPlan.yaw()) || !Float.isFinite(rotationPlan.pitch()))) {
+            throw new IllegalArgumentException("rotation plan must be finite");
         }
     }
 

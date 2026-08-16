@@ -16,6 +16,7 @@ public final class AttackSequencer {
     private AttackSequence.Phase phase = AttackSequence.Phase.DONE;
     private int ticksAlive;
     private int movementPacketsSent;
+    private boolean serverRotationStaged;
 
     public AttackSequencer(PacketSender packets, ServerStateTracker tracker) {
         this.packets = Objects.requireNonNull(packets, "packets");
@@ -32,6 +33,7 @@ public final class AttackSequencer {
         phase = AttackSequence.Phase.PREPARE;
         ticksAlive = 0;
         movementPacketsSent = 0;
+        serverRotationStaged = false;
         tracker.beginSequence(sequence.sequenceId(), sequence.context().origin());
         tracker.setTargetId(sequence.context().targetId());
         tracker.setPhase(phase.name());
@@ -69,6 +71,14 @@ public final class AttackSequencer {
             return;
         }
 
+        advanceReadySequence();
+    }
+
+    void advanceReadySequence() {
+        if (active == null) {
+            return;
+        }
+
         if (phase == AttackSequence.Phase.VERIFY) {
             setPhase(AttackSequence.Phase.CLEANUP);
             finishDone();
@@ -79,7 +89,22 @@ public final class AttackSequencer {
              active != null && transitions < MAX_PHASE_TRANSITIONS_PER_TICK;
              transitions++) {
             switch (phase) {
-                case PREPARE -> setPhase(AttackSequence.Phase.STAGE);
+                case PREPARE -> {
+                    if (active.preRotateForOneServerTick()) {
+                        RotationPlan rotation = active.rotationPlan();
+                        packets.rotate(
+                            rotation.yaw(),
+                            rotation.pitch(),
+                            active.context().onGround(),
+                            active.context().horizontalCollision()
+                        );
+                        serverRotationStaged = true;
+                        setPhase(AttackSequence.Phase.ROTATE);
+                        return;
+                    }
+                    setPhase(AttackSequence.Phase.STAGE);
+                }
+                case ROTATE -> setPhase(AttackSequence.Phase.STAGE);
                 case STAGE -> {
                     int lastStageIndex = active.sendStab()
                         ? active.attackMovementIndex()
@@ -89,7 +114,6 @@ public final class AttackSequencer {
                     }
                     setPhase(AttackSequence.Phase.ATTACK);
                 }
-                case ROTATE -> setPhase(AttackSequence.Phase.ATTACK);
                 case ATTACK -> {
                     if (active.sendStab()) {
                         packets.stab();
@@ -105,6 +129,7 @@ public final class AttackSequencer {
                     setPhase(AttackSequence.Phase.RESTORE);
                 }
                 case RESTORE -> {
+                    restoreServerRotation();
                     setPhase(AttackSequence.Phase.VERIFY);
                     return;
                 }
@@ -126,6 +151,7 @@ public final class AttackSequencer {
         if (active == null) {
             return;
         }
+        restoreServerRotation();
         phase = AttackSequence.Phase.FAILED;
         tracker.setPhase(phase.name());
         tracker.endSequence(phase.name());
@@ -154,14 +180,38 @@ public final class AttackSequencer {
                 return false;
             }
             Vec3 position = active.movementPath().positions().get(index);
-            packets.move(
-                position,
-                active.context().onGround(),
-                active.context().horizontalCollision()
-            );
+            if (serverRotationStaged) {
+                RotationPlan rotation = active.rotationPlan();
+                packets.moveAndRotate(
+                    position,
+                    rotation.yaw(),
+                    rotation.pitch(),
+                    active.context().onGround(),
+                    active.context().horizontalCollision()
+                );
+            } else {
+                packets.move(
+                    position,
+                    active.context().onGround(),
+                    active.context().horizontalCollision()
+                );
+            }
             movementPacketsSent++;
         }
         return true;
+    }
+
+    private void restoreServerRotation() {
+        if (!serverRotationStaged || active == null) {
+            return;
+        }
+        packets.rotate(
+            active.context().yaw(),
+            active.context().pitch(),
+            active.context().onGround(),
+            active.context().horizontalCollision()
+        );
+        serverRotationStaged = false;
     }
 
     private void setPhase(AttackSequence.Phase next) {
@@ -170,6 +220,7 @@ public final class AttackSequencer {
     }
 
     private void finishDone() {
+        restoreServerRotation();
         phase = AttackSequence.Phase.DONE;
         tracker.setPhase(phase.name());
         tracker.endSequence(phase.name());
