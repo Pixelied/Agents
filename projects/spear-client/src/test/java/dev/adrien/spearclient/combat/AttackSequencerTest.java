@@ -39,6 +39,21 @@ class AttackSequencerTest {
     }
 
     @Test
+    void correctionAfterPreRotationSendsNoRestorePacket() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        CountingPacketSender packets = new CountingPacketSender(tracker);
+        AttackSequencer sequencer = fixture(packets, tracker);
+        sequencer.tryStart(rotatedReachSequence());
+        sequencer.advanceReadySequence();
+        tracker.onCorrection(Vec3.ZERO);
+
+        sequencer.tick(null);
+
+        assertEquals(List.of("rot:-90.0:0.0"), packets.events);
+        assertEquals(AttackSequence.Phase.FAILED, sequencer.phase());
+    }
+
+    @Test
     void sequenceRejectsMovementBudgetAboveEight() {
         assertThrows(IllegalArgumentException.class,
             () -> sequence(9L, AttackSequence.Kind.REACH, 9));
