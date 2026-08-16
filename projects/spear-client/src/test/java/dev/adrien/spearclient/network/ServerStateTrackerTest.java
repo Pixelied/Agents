@@ -48,4 +48,15 @@ class ServerStateTrackerTest {
     void productionSharedTrackerIsStable() {
         assertSame(ServerStateTracker.shared(), ServerStateTracker.shared());
     }
+
+    @Test
+    void activeSequenceMetadataCanBeUpdated() {
+        ServerStateTracker tracker = new ServerStateTracker();
+        tracker.beginSequence(10L, Vec3.ZERO);
+        tracker.setPhase("ATTACK");
+        tracker.setTargetId(42);
+
+        assertEquals("ATTACK", tracker.snapshot().phase());
+        assertEquals(42, tracker.snapshot().targetId());
+    }
 }
