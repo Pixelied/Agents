@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "8f42reclaim-20260816",
+  "task_id": "build-spear-client-26-1-2",
+  "agent_id": "openai-spear-github-8f42",
+  "type": "scope_claimed",
+  "message": "Reclaimed expired spear client and CI scopes as lease generation 2 before continuing implementation.",
+  "data": {
+    "scopes": [
+      "projects/spear-client",
+      ".github/workflows/spear-client-ci.yml"
+    ],
+    "generation": 2
+  },
+  "created_at": "2026-08-16T17:31:00+00:00"
+}
