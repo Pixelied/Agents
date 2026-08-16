@@ -172,13 +172,15 @@ public final class SpearController {
     }
 
     public void reset(ResetReason reason) {
+        if (reason.shouldReleaseOwnedUse()) {
+            releaseOwnedUse(Minecraft.getInstance());
+        } else {
+            releaseUseOnFinish = false;
+        }
         pendingOneTapTargetId = -1;
         pendingUseTicks = 0;
-        releaseUseOnFinish = false;
 
-        if (reason == ResetReason.CORRECTION
-            || reason == ResetReason.DISCONNECT
-            || reason == ResetReason.LEVEL_CHANGE) {
+        if (reason.shouldAbortWithoutPackets()) {
             sequencer.abortWithoutPackets(reason.name());
         } else {
             sequencer.abort(reason.name());
