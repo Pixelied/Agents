@@ -1,9 +1,13 @@
 package dev.adrien.spearclient.network;
 
+import dev.adrien.spearclient.debug.SequenceEvidence;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class ServerStateTracker {
     private static final ServerStateTracker SHARED = new ServerStateTracker();
+    private static final Logger EVIDENCE_LOGGER = LoggerFactory.getLogger("spearclient-evidence");
 
     private long sequenceId = -1L;
     private Vec3 origin;
@@ -19,6 +23,8 @@ public final class ServerStateTracker {
     private double expectedForwardKnownMovement = Double.NaN;
     private double predictedRawDamage = Double.NaN;
     private double predictedSourceModelReach = Double.NaN;
+    private double maxRequestedDelta;
+    private String lastResult = "none";
 
     public static ServerStateTracker shared() {
         return SHARED;
@@ -39,6 +45,8 @@ public final class ServerStateTracker {
         this.expectedForwardKnownMovement = Double.NaN;
         this.predictedRawDamage = Double.NaN;
         this.predictedSourceModelReach = Double.NaN;
+        this.maxRequestedDelta = 0.0;
+        this.lastResult = "active";
     }
 
     public void setPhase(String phase) {
@@ -75,7 +83,23 @@ public final class ServerStateTracker {
         if (finalPhase != null) {
             this.phase = finalPhase;
         }
+        this.lastResult = corrected
+            ? "corrected"
+            : "DONE".equals(this.phase) ? "done" : "aborted";
         this.active = false;
+        EVIDENCE_LOGGER.info(new SequenceEvidence(
+            sequenceId,
+            kind,
+            lastResult,
+            targetId,
+            movementPacketsSent,
+            origin,
+            maxRequestedDelta,
+            expectedForwardKnownMovement,
+            predictedRawDamage,
+            predictedSourceModelReach,
+            correctionCount
+        ).format());
     }
 
     public void onMovementPacket(Vec3 requestedPosition) {
@@ -84,6 +108,9 @@ public final class ServerStateTracker {
         }
         movementPacketsSent++;
         lastRequestedPosition = requestedPosition;
+        if (origin != null && requestedPosition != null) {
+            maxRequestedDelta = Math.max(maxRequestedDelta, origin.distanceTo(requestedPosition));
+        }
     }
 
     public void onCorrection(Vec3 correctedPosition) {
@@ -110,7 +137,9 @@ public final class ServerStateTracker {
             kind,
             expectedForwardKnownMovement,
             predictedRawDamage,
-            predictedSourceModelReach
+            predictedSourceModelReach,
+            maxRequestedDelta,
+            lastResult
         );
     }
 
@@ -128,6 +157,8 @@ public final class ServerStateTracker {
         String kind,
         double expectedForwardKnownMovement,
         double predictedRawDamage,
-        double predictedSourceModelReach
+        double predictedSourceModelReach,
+        double maxRequestedDelta,
+        String lastResult
     ) {}
 }
