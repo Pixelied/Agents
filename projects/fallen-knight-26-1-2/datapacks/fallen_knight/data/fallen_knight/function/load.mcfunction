@@ -1,0 +1,36 @@
+scoreboard objectives add fk_aid dummy
+scoreboard objectives add fk_eid dummy
+scoreboard objectives add fk_result dummy
+scoreboard objectives add fk_state dummy
+scoreboard objectives add fk_clear dummy
+scoreboard objectives add fk_phase dummy
+scoreboard objectives add fk_attack dummy
+scoreboard objectives add fk_timer dummy
+scoreboard objectives add fk_prev dummy
+scoreboard objectives add fk_hp dummy
+scoreboard objectives add fk_maxhp dummy
+scoreboard objectives add fk_halfhp dummy
+scoreboard objectives add fk_joinhp dummy
+scoreboard objectives add fk_count dummy
+scoreboard objectives add fk_join dummy
+scoreboard objectives add fk_reset dummy
+scoreboard objectives add fk_ptime dummy
+scoreboard objectives add fk_alive health
+scoreboard objectives add fk_first dummy
+scoreboard objectives add fk_swing dummy
+scoreboard objectives add fk_cleave dummy
+scoreboard objectives add fk_roll dummy
+scoreboard objectives add fk_tmp dummy
+scoreboard objectives add fk_cd_guard dummy
+scoreboard objectives add fk_cd_bash dummy
+scoreboard objectives add fk_cd_combo dummy
+scoreboard objectives add fk_cd_over dummy
+scoreboard objectives add fk_cd_charge dummy
+scoreboard objectives add fk_cd_sweep dummy
+scoreboard objectives add fk_cd_lunge dummy
+scoreboard objectives add fk_cd_slash dummy
+scoreboard objectives add fk_cd_hcombo dummy
+scoreboard objectives add fk_cd_slam dummy
+scoreboard objectives add fk_cd_blades dummy
+scoreboard players add $next fk_aid 0
+scoreboard players add $nextenc fk_eid 0
