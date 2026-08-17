@@ -8,6 +8,7 @@ import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.EnumSet;
@@ -28,18 +29,24 @@ public final class MinecraftDamageAdapter {
             ? 5f
             : 1f;
         Vec3 sourcePosition = source.getSourcePosition();
+        boolean piercingProjectile = source.getDirectEntity() instanceof AbstractArrow arrow
+            && piercingProjectile(true, arrow.getPierceLevel());
 
         return new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
             flags,
             source.scalesWithDifficulty(),
             freezingMultiplier,
-            false,
+            piercingProjectile,
             sourcePosition == null
                 ? Optional.empty()
                 : Optional.of(new Vec3Snapshot(sourcePosition.x(), sourcePosition.y(), sourcePosition.z())),
             source.typeHolder().getRegisteredName()
         );
+    }
+
+    static boolean piercingProjectile(boolean directEntityIsArrow, int pierceLevel) {
+        return directEntityIsArrow && pierceLevel > 0;
     }
 
     public static TagKey<DamageType> tagFor(DamageFlag flag) {
