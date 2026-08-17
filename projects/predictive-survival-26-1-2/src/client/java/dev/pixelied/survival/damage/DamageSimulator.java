@@ -18,6 +18,9 @@ public final class DamageSimulator {
         if (working.deadOrDying()) {
             return rejected(working, trace);
         }
+        if (working.health() <= source.applicationHealthThresholdExclusive()) {
+            return rejected(working, trace);
+        }
 
         float before = damage;
         if (source.scalesWithDifficulty()) {
