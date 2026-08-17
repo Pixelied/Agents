@@ -1,10 +1,13 @@
 package dev.adrien.crystaloptimizer.sim.damage;
 
 import dev.adrien.crystaloptimizer.sim.model.ArmorPieceState;
+import dev.adrien.crystaloptimizer.sim.model.BlockingState;
 import dev.adrien.crystaloptimizer.sim.model.EffectState;
 import dev.adrien.crystaloptimizer.sim.model.SimCombatant;
 import dev.adrien.crystaloptimizer.sim.model.TotemState;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,5 +40,95 @@ class VanillaDamageSimulatorTest {
         assertEquals(8.0f, result.target().absorption(), 0.0001f);
         assertFalse(result.target().effects().hasResistance());
         assertEquals(result.trace().incoming(), result.target().hurtWindow().lastHurt(), 0.0001f);
+    }
+
+    @Test
+    void hardDifficultyScalesIncomingBeforeTheHurtWindow() {
+        var result = VanillaDamageSimulator.apply(
+            SimCombatant.testPlayer(20.0f),
+            DamageRequest.explosion(10.0f).withDifficulty(Difficulty.HARD)
+        );
+
+        assertEquals(15.0f, result.trace().difficultyScaled(), 0.0001f);
+        assertEquals(15.0f, result.trace().incoming(), 0.0001f);
+    }
+
+    @Test
+    void easyDifficultyUsesVanillaHalfPlusOneScaling() {
+        var result = VanillaDamageSimulator.apply(
+            SimCombatant.testPlayer(20.0f),
+            DamageRequest.explosion(10.0f).withDifficulty(Difficulty.EASY)
+        );
+
+        assertEquals(6.0f, result.trace().difficultyScaled(), 0.0001f);
+        assertEquals(6.0f, result.trace().incoming(), 0.0001f);
+    }
+
+    @Test
+    void resistanceReducesPostArmorDamageBeforeEnchantProtection() {
+        var target = SimCombatant.testPlayer(20.0f)
+            .withEffects(EffectState.resistance(0, 200));
+
+        var result = VanillaDamageSimulator.apply(target, DamageRequest.explosion(10.0f));
+
+        assertEquals(8.0f, result.trace().postMagic(), 0.0001f);
+        assertEquals(12.0f, result.target().health(), 0.0001f);
+    }
+
+    @Test
+    void absorptionIsConsumedBeforeHealth() {
+        var target = SimCombatant.testPlayer(20.0f).withAbsorption(5.0f);
+
+        var result = VanillaDamageSimulator.apply(target, DamageRequest.explosion(10.0f));
+
+        assertEquals(5.0f, result.trace().absorptionConsumed(), 0.0001f);
+        assertEquals(5.0f, result.trace().healthDamage(), 0.0001f);
+        assertEquals(0.0f, result.target().absorption(), 0.0001f);
+        assertEquals(15.0f, result.target().health(), 0.0001f);
+    }
+
+    @Test
+    void enchantmentProtectionUsesVanillaMagicProtectionClamp() {
+        var chest = ArmorPieceState.testPiece(0.0f, 0.0f, 100, 10.0f);
+        var target = SimCombatant.testPlayer(20.0f).withChest(chest);
+
+        var result = VanillaDamageSimulator.apply(target, DamageRequest.explosion(10.0f));
+
+        assertEquals(6.0f, result.trace().postMagic(), 0.0001f);
+    }
+
+    @Test
+    void shieldBlocksFrontExplosionButNotRearExplosion() {
+        var target = SimCombatant.testPlayer(20.0f)
+            .withBlocking(BlockingState.shield(new Vec3(0.0, 0.0, 0.0), 0.0f));
+
+        var front = VanillaDamageSimulator.apply(
+            target,
+            DamageRequest.explosion(10.0f).withSourcePosition(new Vec3(0.0, 0.0, 4.0))
+        );
+        var rear = VanillaDamageSimulator.apply(
+            target,
+            DamageRequest.explosion(10.0f).withSourcePosition(new Vec3(0.0, 0.0, -4.0))
+        );
+
+        assertEquals(10.0f, front.trace().blockedDamage(), 0.0001f);
+        assertEquals(20.0f, front.target().health(), 0.0001f);
+        assertEquals(0.0f, rear.trace().blockedDamage(), 0.0001f);
+        assertEquals(10.0f, rear.target().health(), 0.0001f);
+    }
+
+    @Test
+    void strongerSecondHitAfterTotemOnlyMitigatesTheHurtWindowDelta() {
+        var first = VanillaDamageSimulator.apply(
+            SimCombatant.testPlayer(5.0f).withTotem(TotemState.OFFHAND),
+            DamageRequest.explosion(10.0f)
+        );
+
+        var second = VanillaDamageSimulator.apply(first.target(), DamageRequest.explosion(20.0f));
+
+        assertTrue(first.trace().totemTriggered());
+        assertEquals(10.0f, first.target().hurtWindow().lastHurt(), 0.0001f);
+        assertEquals(10.0f, second.trace().acceptedIncoming(), 0.0001f);
+        assertTrue(second.trace().dead());
     }
 }
