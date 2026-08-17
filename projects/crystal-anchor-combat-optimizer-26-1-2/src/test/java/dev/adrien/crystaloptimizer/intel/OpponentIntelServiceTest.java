@@ -63,4 +63,31 @@ class OpponentIntelServiceTest {
                 && observation.kind() == EvidenceKind.EXACT
         ));
     }
+
+    @Test
+    void popToVisibleTotemRefillProducesSamplesInsteadOfInventingAnExactSetting() {
+        service.onProtectedFromDeath(OPPONENT, 10_000L);
+        service.onVisibleEquipment(
+            OPPONENT,
+            EquipmentSlot.OFFHAND,
+            Items.TOTEM_OF_UNDYING,
+            1,
+            10_070L
+        );
+        service.onProtectedFromDeath(OPPONENT, 20_000L);
+        service.onVisibleEquipment(
+            OPPONENT,
+            EquipmentSlot.MAINHAND,
+            Items.TOTEM_OF_UNDYING,
+            1,
+            20_090L
+        );
+
+        OpponentResponseProfile profile = service.snapshot(OPPONENT).responseProfile();
+
+        assertEquals(2, profile.refillLatencyNanos().size());
+        assertEquals(70L, profile.refillLatencyNanos().get(0));
+        assertEquals(90L, profile.refillLatencyNanos().get(1));
+        assertEquals(80L, profile.medianRefillLatencyNanos());
+    }
 }
