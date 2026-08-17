@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.action;
 
+import dev.adrien.crystaloptimizer.sim.damage.ExplosionKind;
 import dev.adrien.crystaloptimizer.sim.model.AnchorState;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import dev.adrien.crystaloptimizer.sim.model.InventoryState;
@@ -133,6 +134,24 @@ class ActionLegalityTest {
     }
 
     @Test
+    void attackingKnownCrystalRemovesItAndSchedulesExactlyOneCrystalExplosion() {
+        var crystal = new KnownCrystal(73, new Vec3(0.5, 65.0, 1.5));
+        var initial = state(
+            CombatRegion.empty(),
+            List.of(crystal),
+            Map.of(),
+            inventory(Map.of()),
+            legality(false, List.of())
+        );
+
+        var outcome = new AttackKnownCrystal(73).simulate(initial, SimulationServices.defaults());
+
+        assertTrue(outcome.state().crystals().isEmpty());
+        assertEquals(1, outcome.scheduledExplosions().size());
+        assertEquals(ExplosionKind.CRYSTAL, outcome.scheduledExplosions().getFirst().kind());
+    }
+
+    @Test
     void placeCrystalSimulationNeverFabricatesAClientEntityId() {
         var action = new PlaceCrystal(BASE);
         var initial = state(
@@ -148,6 +167,31 @@ class ActionLegalityTest {
         assertTrue(outcome.state().crystals().isEmpty());
         assertTrue(outcome.expectsNewEntityFeedback());
         assertEquals(1, outcome.state().inventory().count(Items.END_CRYSTAL));
+    }
+
+    @Test
+    void predictedAnchorSetupMutatesOnlyTheBranchAndNeedsNoNewEntityId() {
+        var initial = state(
+            CombatRegion.empty(),
+            List.of(),
+            Map.of(),
+            inventory(Map.of(Items.RESPAWN_ANCHOR, 1, Items.GLOWSTONE, 1)),
+            legality(false, List.of())
+        );
+
+        var placed = new PlaceAnchor(BASE).simulate(initial, SimulationServices.defaults());
+        var charged = new ChargeAnchor(BASE).simulate(placed.state(), SimulationServices.defaults());
+        var detonated = new DetonateAnchor(BASE).simulate(charged.state(), SimulationServices.defaults());
+
+        assertFalse(initial.anchors().containsKey(BASE));
+        assertTrue(placed.state().geometry().getBlockState(BASE).is(Blocks.RESPAWN_ANCHOR));
+        assertEquals(0, placed.state().anchors().get(BASE).charges());
+        assertEquals(1, charged.state().anchors().get(BASE).charges());
+        assertFalse(detonated.state().anchors().containsKey(BASE));
+        assertTrue(detonated.state().geometry().getBlockState(BASE).isAir());
+        assertFalse(detonated.expectsNewEntityFeedback());
+        assertEquals(1, detonated.scheduledExplosions().size());
+        assertEquals(ExplosionKind.ANCHOR, detonated.scheduledExplosions().getFirst().kind());
     }
 
     @Test
