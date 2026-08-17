@@ -13,6 +13,10 @@ public final class DamageTrace {
         this.after = Collections.unmodifiableMap(new EnumMap<>(after));
     }
 
+    public boolean has(DamageStage stage) {
+        return after.containsKey(stage);
+    }
+
     public float before(DamageStage stage) {
         Float value = before.get(stage);
         if (value == null) throw new IllegalArgumentException("stage not recorded: " + stage);
