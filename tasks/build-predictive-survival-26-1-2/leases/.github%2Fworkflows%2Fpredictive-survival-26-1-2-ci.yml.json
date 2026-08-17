@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-predictive-survival-26-1-2",
+  "scope": ".github/workflows/predictive-survival-26-1-2-ci.yml",
+  "owner": "openai-survival-exec-9b42",
+  "state": "active",
+  "intent": "Own the dedicated Java 25 Fabric build/test workflow for predictive survival.",
+  "claimed_at": "2026-08-17T17:58:30+00:00",
+  "heartbeat_at": "2026-08-17T17:58:30+00:00",
+  "expires_at": "2026-08-18T17:58:30+00:00",
+  "generation": 1
+}
