@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d216bf8e334403aef734e84ab06b16",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 6 GREEN: legal crystal/anchor/support/hotbar/rotation/wait primitives, exact 26.1.2 crystal placement AABB, anchor dimension and held-glowstone behavior, explicit packet dependencies, no fabricated crystal IDs, and no crystal chain explosion behavior pass the full Java 25 gate.",
+  "data": {
+    "red_run_id": 32061221870,
+    "green_run_id": 32061918437,
+    "green_head": "f20d2d12512d7fbec29ea5842ee3a4824e2a4782"
+  },
+  "created_at": "2026-08-17T19:47:00+00:00"
+}
