@@ -6,6 +6,8 @@ import dev.adrien.crystaloptimizer.action.SimulationServices;
 import dev.adrien.crystaloptimizer.candidate.CandidateFeatureEstimator;
 import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
 import dev.adrien.crystaloptimizer.candidate.CandidatePruner;
+import dev.adrien.crystaloptimizer.prediction.PositionHypothesis;
+import dev.adrien.crystaloptimizer.prediction.PredictionSet;
 import dev.adrien.crystaloptimizer.sim.model.AnchorState;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import dev.adrien.crystaloptimizer.sim.model.CombatantSpatialState;
@@ -49,6 +51,39 @@ class BeamPlannerTest {
         assertTrue(plan.lethal());
         assertTrue(plan.score().targetDeathProbability() > 0.9);
         assertTrue(plan.dependencyGraph().zeroFeedbackCriticalPath());
+    }
+
+    @Test
+    void plannerPrefersExplosiveThatRemainsLethalAcrossMovementHypotheses() {
+        PredictionSet predictions = new PredictionSet(
+            List.of(
+                new PositionHypothesis(
+                    PositionHypothesis.Kind.LIKELY,
+                    new Vec3(0.5, 64.0, 1.0),
+                    Vec3.ZERO,
+                    0.5
+                ),
+                new PositionHypothesis(
+                    PositionHypothesis.Kind.CONSERVATIVE_BOUND,
+                    new Vec3(8.5, 64.0, 1.0),
+                    Vec3.ZERO,
+                    0.5
+                )
+            ),
+            0.80
+        );
+
+        CombatPlan plan = planner(RiskBudget.adaptive()).plan(
+            predictionRobustnessFixture(),
+            new PlannerBudget(16, 1, 50_000_000),
+            predictions
+        );
+
+        assertEquals(1, plan.actions().size());
+        assertEquals(AttackKnownCrystal.class, plan.actions().get(0).getClass());
+        assertEquals(202, ((AttackKnownCrystal) plan.actions().get(0)).entityId());
+        assertTrue(plan.lethal());
+        assertTrue(plan.robustness() > 0.75);
     }
 
     @Test
@@ -112,6 +147,41 @@ class BeamPlannerTest {
             SimulationServices.defaults(),
             risk
         );
+    }
+
+    private static CombatState predictionRobustnessFixture() {
+        KnownCrystal narrow = new KnownCrystal(201, new Vec3(0.5, 65.0, 1.0));
+        KnownCrystal robust = new KnownCrystal(202, new Vec3(4.5, 65.0, 1.0));
+        SimCombatant self = SimCombatant.testPlayer(20.0f);
+        SimCombatant target = SimCombatant.testPlayer(20.0f).withAbsorption(5.0f);
+        Map<UUID, CombatantSpatialState> spatial = Map.of(
+            SELF,
+            new CombatantSpatialState(
+                new Vec3(0.5, 64.0, -20.0),
+                new AABB(0.2, 64.0, -20.3, 0.8, 65.8, -19.7),
+                Vec3.ZERO
+            ),
+            TARGET,
+            new CombatantSpatialState(
+                new Vec3(0.5, 64.0, 1.0),
+                new AABB(0.2, 64.0, 0.7, 0.8, 65.8, 1.3),
+                Vec3.ZERO
+            )
+        );
+        var snapshot = new CombatSnapshot(
+            78L,
+            SELF,
+            CombatRegion.empty(),
+            Map.of(SELF, self, TARGET, target),
+            List.of(narrow, robust),
+            Map.of(),
+            InventoryState.empty(),
+            TimingState.unknown(),
+            new LegalitySnapshot(new Vec3(0.5, 65.5, -20.0), 30.0, 30.0, List.of(), false),
+            spatial,
+            Difficulty.NORMAL
+        );
+        return CombatState.fromSnapshot(snapshot, TARGET);
     }
 
     private static CombatState popLockFixture() {
