@@ -126,6 +126,32 @@ class DamageSimulatorMitigationTest {
         assertEquals(0, result.after().mitigation().helmetDurability());
     }
 
+    @Test
+    void simulationPreservesPlayerStateProperties() {
+        PlayerSnapshot stateful = new PlayerSnapshot(
+            20f,
+            0f,
+            false,
+            false,
+            false,
+            DifficultySnapshot.NORMAL,
+            MitigationSnapshot.none(),
+            StatusEffectsSnapshot.none(),
+            BlockingSnapshot.none(),
+            HurtState.unknown(),
+            DeathProtectionSnapshot.none(),
+            new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
+            new Vec3Snapshot(0, 0, 0),
+            new Vec3Snapshot(0, 0, 0),
+            Map.of(),
+            Map.of("remaining_fire_ticks", "22")
+        );
+
+        DamageResult result = simulator.simulate(stateful, source(1f));
+
+        assertEquals("22", result.after().state("remaining_fire_ticks"));
+    }
+
     private static DamageSourceSnapshot source(float raw, DamageFlag... flags) {
         return new DamageSourceSnapshot(DamageRange.exact(raw), Set.of(flags), false, 1f, false, Optional.empty(), "test");
     }
@@ -161,7 +187,7 @@ class DamageSimulatorMitigationTest {
         return new PlayerSnapshot(
             player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(), player.deadOrDying(),
             player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(), hurtState, player.deathProtection(),
-            player.boundingBox(), player.position(), player.velocity(), player.equipmentItemKeys()
+            player.boundingBox(), player.position(), player.velocity(), player.equipmentItemKeys(), player.stateProperties()
         );
     }
 }
