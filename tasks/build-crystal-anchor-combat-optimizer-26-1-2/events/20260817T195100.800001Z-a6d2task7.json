@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d227a2e2cf4f18a935f6354ce5213d",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 7 GREEN: tactical candidate generation/pruning now preserves damage-staircase and damage-shaping opportunities, removes dominated candidates, enforces per-category quotas, and emits only legal existing crystal/anchor/wait candidates. Full Java 25 test/build/GameTest gate passed.",
+  "data": {
+    "red_run_id": 32062155769,
+    "green_run_id": 32062419716,
+    "green_head": "ab9685c5d64808b350d464df277938c9776b295f",
+    "tactical_preservation": [
+      "damage staircase",
+      "damage shaping",
+      "zero-feedback finisher"
+    ]
+  },
+  "created_at": "2026-08-17T19:51:00+00:00"
+}
