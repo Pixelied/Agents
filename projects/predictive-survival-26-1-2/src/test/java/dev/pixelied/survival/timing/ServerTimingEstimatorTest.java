@@ -37,6 +37,22 @@ class ServerTimingEstimatorTest {
     }
 
     @Test
+    void slowClientTickNeverShrinksServerArrivalBudget() {
+        ServerTimingEstimator normal = new ServerTimingEstimator();
+        normal.observeRttMillis(200);
+        normal.observeClientTickNanos(50_000_000L);
+
+        ServerTimingEstimator stalled = new ServerTimingEstimator();
+        stalled.observeRttMillis(200);
+        stalled.observeClientTickNanos(100_000_000L);
+
+        assertTrue(
+            stalled.snapshot(100).nextPacketProcessingWindow().latest()
+                >= normal.snapshot(100).nextPacketProcessingWindow().latest()
+        );
+    }
+
+    @Test
     void deadlineUsesSameMechanismForAnyRequiredServerTicks() {
         TimingSnapshot snapshot = new TimingSnapshot(100, 100, 10, new TickWindow(102, 103));
 
