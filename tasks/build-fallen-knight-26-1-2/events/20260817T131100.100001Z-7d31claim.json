@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "7d31claim-20260817",
+  "task_id": "build-fallen-knight-26-1-2",
+  "agent_id": "openai-fallen-knight-inline-7d31",
+  "type": "scope_claimed",
+  "message": "Claimed Fallen Knight project and CI workflow scopes after confirming the uploaded server.jar is exactly Minecraft 26.1.2.",
+  "data": {
+    "scopes": [
+      "projects/fallen-knight-26-1-2",
+      ".github/workflows/fallen-knight-26-1-2-ci.yml"
+    ],
+    "server_jar": {
+      "version": "26.1.2",
+      "protocol_version": 775,
+      "data_pack_format": "101.1",
+      "resource_pack_format": "84.0",
+      "java_version": 25
+    }
+  },
+  "created_at": "2026-08-17T13:11:00+00:00"
+}
