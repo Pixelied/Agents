@@ -2,7 +2,7 @@ name: Fallen Knight 26.1.2 CI
 
 on:
   push:
-    branches: ["feat/fallen-knight-26-1-2"]
+    branches: ["main", "feat/fallen-knight-26-1-2"]
     paths:
       - "projects/fallen-knight-26-1-2/**"
       - ".github/workflows/fallen-knight-26-1-2-ci.yml"
@@ -82,3 +82,21 @@ jobs:
           } | timeout 90s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
           grep -q 'Done (' server.log
           ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs' server.log
+
+  package:
+    needs: [static-contracts, exact-runtime]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build distributable ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd projects/fallen-knight-26-1-2
+          zip -qr "$GITHUB_WORKSPACE/fallen-knight-26.1.2-latest.zip" . \
+            -x 'run/*' 'tools/server/*' '__pycache__/*' '*.pyc' '.DS_Store'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fallen-knight-26.1.2-latest
+          path: fallen-knight-26.1.2-latest.zip
+          if-no-files-found: error
