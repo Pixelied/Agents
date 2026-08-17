@@ -73,7 +73,7 @@ class DeathProtectionTest {
         DamageResult result = simulator.simulate(
             DamageSimulatorMitigationTest.player(4f, 0f, MitigationSnapshot.none(), new StatusEffectsSnapshot(false, 3),
                 DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.vanillaTotem()), HurtState.unknown()),
-            source(8f)
+            source(25f)
         );
 
         assertEquals(1f, result.after().health(), 0.0001f);
