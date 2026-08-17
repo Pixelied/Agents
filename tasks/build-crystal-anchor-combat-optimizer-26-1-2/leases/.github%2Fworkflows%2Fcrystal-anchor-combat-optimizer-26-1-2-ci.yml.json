@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "scope": ".github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml",
+  "owner": "openai-crystal-github-a6d2",
+  "state": "active",
+  "intent": "Create the Java 25 GitHub Actions verification workflow for the crystal optimizer project.",
+  "claimed_at": "2026-08-17T18:50:15+00:00",
+  "heartbeat_at": "2026-08-17T18:50:15+00:00",
+  "expires_at": "2026-08-18T18:50:15+00:00",
+  "generation": 1
+}
