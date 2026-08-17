@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "scope": "projects/crystal-anchor-combat-optimizer-26-1-2",
+  "owner": "openai-crystal-github-a6d2",
+  "state": "active",
+  "intent": "Implement and verify the approved Minecraft 26.1.2 Crystal + Anchor Combat Optimizer on an isolated GitHub branch.",
+  "claimed_at": "2026-08-17T18:50:00+00:00",
+  "heartbeat_at": "2026-08-17T18:50:00+00:00",
+  "expires_at": "2026-08-18T18:50:00+00:00",
+  "generation": 1
+}
