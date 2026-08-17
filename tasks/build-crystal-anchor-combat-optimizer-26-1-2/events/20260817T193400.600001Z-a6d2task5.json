@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d205acfe3b4e83888555b03d605d5f",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 5 GREEN: immutable CombatSnapshot/CombatState, copy-on-write BlockDeltaOverlay geometry, known-server-ID crystal state, bounded anchor state, inventory/timing snapshots, and explicitly non-exact unobserved explosion terrain outcomes pass the Java 25 full gate.",
+  "data": {
+    "red_run_id": 32060440919,
+    "green_run_id": 32060821055,
+    "green_head": "42f1b9d49a64fab7c9c3d42eb23eaf934ddbe39b",
+    "world_revision_tested": true,
+    "branch_isolation_tested": true,
+    "server_rng_not_fabricated": true
+  },
+  "created_at": "2026-08-17T19:34:00+00:00"
+}
