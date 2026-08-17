@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "design-predictive-survival-26-1-2",
+  "scope": "docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md",
+  "owner": "openai-survival-design-3a7d",
+  "state": "active",
+  "intent": "Write and self-review the approved Minecraft 26.1.2 predictive survival engine design before implementation planning.",
+  "claimed_at": "2026-08-17T17:18:00+00:00",
+  "heartbeat_at": "2026-08-17T17:18:00+00:00",
+  "expires_at": "2026-08-18T17:18:00+00:00",
+  "generation": 1
+}
