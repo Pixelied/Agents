@@ -28,9 +28,9 @@ public final class FallPredictor implements ThreatPredictor {
         List<ThreatEvent> events = new ArrayList<>();
 
         Optional<LandingPrediction> landing = landingSolver.solve(context);
-        Optional<ThreatEvent> voidThreat = predictVoid(context, landing.map(LandingPrediction::tick));
-        if (voidThreat.isPresent()) {
-            events.add(voidThreat.get());
+        List<ThreatEvent> voidThreats = predictVoidTicks(context, landing.map(LandingPrediction::tick));
+        if (!voidThreats.isEmpty()) {
+            events.addAll(voidThreats);
         } else {
             landing.flatMap(this::landingThreat).ifPresent(events::add);
         }
@@ -68,13 +68,13 @@ public final class FallPredictor implements ThreatPredictor {
         ));
     }
 
-    private Optional<ThreatEvent> predictVoid(PredictionContext context, Optional<Long> landingTick) {
+    private List<ThreatEvent> predictVoidTicks(PredictionContext context, Optional<Long> landingTick) {
         PlayerSnapshot player = context.player();
         Double worldMinY = finiteDouble(player.state("world_min_y"));
-        if (worldMinY == null) return Optional.empty();
+        if (worldMinY == null) return List.of();
         double threshold = worldMinY - 64d;
-        long hitTick = firstBelowThreshold(context, threshold, landingTick.orElse(Long.MAX_VALUE));
-        if (hitTick < 0) return Optional.empty();
+        long firstHitTick = firstBelowThreshold(context, threshold, landingTick.orElse(Long.MAX_VALUE));
+        if (firstHitTick < 0) return List.of();
 
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(4f),
@@ -89,19 +89,32 @@ public final class FallPredictor implements ThreatPredictor {
             Optional.empty(),
             "minecraft:out_of_world"
         );
-        return Optional.of(new ThreatEvent(
-            "fall:void",
-            ThreatKind.FALL,
-            new TickWindow(hitTick, hitTick),
-            source,
-            Confidence.BOUNDED,
-            Optional.empty(),
-            Optional.empty(),
-            true,
-            false,
-            true,
-            false
-        ));
+
+        long horizon = context.limits().maxProjectileHorizonTicks();
+        long lastHitTick = horizon;
+        if (landingTick.isPresent()) {
+            long landingAt = landingTick.get();
+            if (landingAt <= firstHitTick) return List.of();
+            lastHitTick = Math.min(lastHitTick, landingAt - 1L);
+        }
+
+        List<ThreatEvent> events = new ArrayList<>();
+        for (long tick = firstHitTick; tick <= lastHitTick; tick++) {
+            events.add(new ThreatEvent(
+                "fall:void:" + tick,
+                ThreatKind.FALL,
+                new TickWindow(tick, tick),
+                source,
+                Confidence.BOUNDED,
+                Optional.empty(),
+                Optional.empty(),
+                true,
+                false,
+                true,
+                false
+            ));
+        }
+        return List.copyOf(events);
     }
 
     private static long firstBelowThreshold(PredictionContext context, double threshold, long stopBeforeOrAt) {
