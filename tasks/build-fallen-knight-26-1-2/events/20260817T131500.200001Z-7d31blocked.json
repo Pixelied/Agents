@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "7d31blocked-20260817",
+  "task_id": "build-fallen-knight-26-1-2",
+  "agent_id": "openai-fallen-knight-inline-7d31",
+  "type": "blocked",
+  "message": "Tasks 1-2 static implementation is green, but exact-runtime CI cannot execute because GitHub hosted runners are blocked by an account billing/spending-limit issue. Remaining carrier feel checks also require a real survival player.",
+  "data": {
+    "verified": [
+      "Uploaded server.jar is exactly Minecraft Java 26.1.2",
+      "Embedded jar metadata requires Java 25 and reports datapack 101.1/resourcepack 84.0",
+      "Local static suite passes 6 tests",
+      "Static validator passes",
+      "Tasks 1-2 source and Java 25 runtime workflow are on feat/fallen-knight-26-1-2 at commit 95ac62589655fdc173a0a6b628abb4e203b4c9aa"
+    ],
+    "github_actions": {
+      "run_id": 32033863803,
+      "status": "blocked-before-runner-start",
+      "reason": "Recent account payments have failed or the spending limit needs to be increased"
+    },
+    "remaining_manual_carrier_checks": [
+      "Survival-player pathfinding/targeting",
+      "Zero-damage natural-swing knockback feel",
+      "NoAI freeze/unfreeze behavior during scripted windows",
+      "1.4 scale doorway/courtyard collision feel"
+    ],
+    "human_workflow_preference": "For agent-driven work, use Pixelied/Agents as the coordination repository and source of truth for agent task state."
+  },
+  "created_at": "2026-08-17T13:15:00+00:00"
+}
