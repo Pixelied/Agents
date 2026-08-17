@@ -48,5 +48,47 @@ class ProgressionContractTests(unittest.TestCase):
         hook = self.text("item/player_hurt_entity.mcfunction")
         self.assertIn("advancement revoke @s only fallen_knight:events/player_hurt_entity", hook)
 
+    def test_knights_oath_recipe_requires_fragment_placeholder(self):
+        recipe = json.loads((DP / "recipe/knights_oath.json").read_text(encoding="utf-8"))
+        self.assertEqual(recipe["key"]["F"], "minecraft:structure_void")
+        self.assertEqual(recipe["result"]["components"]["minecraft:custom_data"]["fk_item"], "knights_oath")
+        self.assertEqual(recipe["result"]["components"]["minecraft:max_stack_size"], 1)
+
+    def test_first_clear_unlocks_knights_oath_recipe(self):
+        first = self.text("reward/first.mcfunction")
+        self.assertIn("recipe give @s fallen_knight:knights_oath", first)
+
+    def test_ritual_requires_cleared_arena_and_exact_offering(self):
+        on_use = self.text("ritual/on_use.mcfunction")
+        check = self.text("ritual/check_offering.mcfunction")
+        activate = self.text("ritual/activate.mcfunction")
+        self.assertIn("scores={fk_state=2}", on_use)
+        self.assertIn("clear @s minecraft:diamond 0", check)
+        self.assertIn("clear @s minecraft:soul_sand 0", check)
+        self.assertIn("clear @s minecraft:iron_ingot 0", check)
+        self.assertIn("matches 1..", check)
+        self.assertIn("matches 4..", check)
+        self.assertIn("clear @s minecraft:diamond 1", activate)
+        self.assertIn("clear @s minecraft:soul_sand 4", activate)
+        self.assertIn("clear @s minecraft:iron_ingot 4", activate)
+        self.assertIn("function fallen_knight:arena/rematch_spawn", activate)
+
+    def test_oath_use_regrants_relic_before_validation(self):
+        on_use = self.text("ritual/on_use.mcfunction")
+        loot_line = "loot give @s loot fallen_knight:items/knights_oath"
+        self.assertIn(loot_line, on_use)
+        self.assertLess(on_use.index(loot_line), on_use.index("fk_state=2"))
+        oath = json.loads((DP / "loot_table/items/knights_oath.json").read_text(encoding="utf-8"))
+        text = json.dumps(oath)
+        self.assertIn('"minecraft:max_stack_size": 1', text)
+        self.assertIn('"fk_item": "knights_oath"', text)
+
+    def test_rematch_spawn_reuses_arena_and_starts_immediately(self):
+        rematch = self.text("arena/rematch_spawn.mcfunction")
+        self.assertIn("fk_clear matches 1", rematch)
+        self.assertIn("fk_state matches 2", rematch)
+        self.assertIn("function fallen_knight:arena/spawn_dormant_boss", rematch)
+        self.assertIn("function fallen_knight:arena/start", rematch)
+
 if __name__ == "__main__":
     unittest.main()
