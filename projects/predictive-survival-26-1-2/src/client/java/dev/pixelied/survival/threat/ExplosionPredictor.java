@@ -93,6 +93,11 @@ public final class ExplosionPredictor implements ThreatPredictor {
         ));
     }
 
+    static boolean canUseUnitCubeOcclusion(WorldSnapshot.BlockSnapshot block) {
+        return block.collision()
+            && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
+    }
+
     private static Float parsePositiveFloat(String value) {
         if (value == null) return null;
         try {
@@ -132,7 +137,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
         @Override
         public boolean blocksExplosionRay(Vec3Snapshot from, Vec3Snapshot to) {
             for (WorldSnapshot.BlockSnapshot block : blocks) {
-                if (block.collision() && intersectsUnitCube(from, to, block.position())) return true;
+                if (canUseUnitCubeOcclusion(block) && intersectsUnitCube(from, to, block.position())) return true;
             }
             for (CoverCandidate candidate : candidates) {
                 if (intersectsUnitCube(from, to, candidate.blockPos())) return true;
