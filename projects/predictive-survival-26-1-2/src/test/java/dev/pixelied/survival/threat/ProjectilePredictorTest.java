@@ -64,6 +64,27 @@ class ProjectilePredictorTest {
         assertTrue(event.damage().rawDamage().max() > event.damage().rawDamage().min());
     }
 
+    @Test
+    void missingCriticalStateIsTreatedAsUnknown() {
+        ThreatEvent event = predictor.predict(context(
+            List.of(arrow(Map.of("base_damage", "6.0"))),
+            List.of()
+        )).getFirst();
+
+        assertEquals(6f, event.damage().rawDamage().min(), 0.0001f);
+        assertTrue(event.damage().rawDamage().max() > event.damage().rawDamage().min());
+    }
+
+    @Test
+    void missingBaseDamageNeverFallsBackToVanillaMinimum() {
+        ThreatEvent event = predictor.predict(context(
+            List.of(arrow(Map.of("critical", "false"))),
+            List.of()
+        )).getFirst();
+
+        assertEquals(Float.MAX_VALUE, event.damage().rawDamage().max());
+    }
+
     private static PredictionContext context(
         List<WorldSnapshot.EntitySnapshot> entities,
         List<WorldSnapshot.BlockSnapshot> blocks
