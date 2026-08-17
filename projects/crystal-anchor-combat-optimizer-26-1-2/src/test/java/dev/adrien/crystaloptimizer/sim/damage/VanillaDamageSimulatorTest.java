@@ -3,6 +3,7 @@ package dev.adrien.crystaloptimizer.sim.damage;
 import dev.adrien.crystaloptimizer.sim.model.ArmorPieceState;
 import dev.adrien.crystaloptimizer.sim.model.BlockingState;
 import dev.adrien.crystaloptimizer.sim.model.EffectState;
+import dev.adrien.crystaloptimizer.sim.model.HurtWindowState;
 import dev.adrien.crystaloptimizer.sim.model.SimCombatant;
 import dev.adrien.crystaloptimizer.sim.model.TotemState;
 import net.minecraft.world.Difficulty;
@@ -62,6 +63,21 @@ class VanillaDamageSimulatorTest {
 
         assertEquals(6.0f, result.trace().difficultyScaled(), 0.0001f);
         assertEquals(6.0f, result.trace().incoming(), 0.0001f);
+    }
+
+    @Test
+    void peacefulDifficultyReturnsBeforeLivingEntityHurtStateMutates() {
+        var target = SimCombatant.testPlayer(20.0f)
+            .withHurtWindow(new HurtWindowState(7, 4.0f));
+
+        var result = VanillaDamageSimulator.apply(
+            target,
+            DamageRequest.explosion(10.0f).withDifficulty(Difficulty.PEACEFUL)
+        );
+
+        assertFalse(result.accepted());
+        assertEquals(0.0f, result.trace().difficultyScaled(), 0.0001f);
+        assertEquals(target, result.target());
     }
 
     @Test
