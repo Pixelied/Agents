@@ -13,3 +13,14 @@ scoreboard players set @s fk_phase 0
 scoreboard players set @s fk_attack 0
 scoreboard players set @s fk_timer 0
 scoreboard players set @s fk_prev 0
+scoreboard players set @s fk_cd_guard 0
+scoreboard players set @s fk_cd_bash 0
+scoreboard players set @s fk_cd_combo 0
+scoreboard players set @s fk_cd_over 0
+scoreboard players set @s fk_cd_charge 0
+scoreboard players set @s fk_cd_sweep 0
+scoreboard players set @s fk_cd_lunge 0
+scoreboard players set @s fk_cd_slash 0
+scoreboard players set @s fk_cd_hcombo 0
+scoreboard players set @s fk_cd_slam 0
+scoreboard players set @s fk_cd_blades 0

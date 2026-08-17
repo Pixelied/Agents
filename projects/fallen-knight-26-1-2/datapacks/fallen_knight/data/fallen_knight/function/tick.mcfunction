@@ -8,3 +8,4 @@ scoreboard players add @a fk_cleave 0
 scoreboard players remove @a[scores={fk_cleave=1..}] fk_cleave 1
 function fallen_knight:arena/tick_all
 function fallen_knight:arena/participants/tick_all
+function fallen_knight:boss/tick_all
