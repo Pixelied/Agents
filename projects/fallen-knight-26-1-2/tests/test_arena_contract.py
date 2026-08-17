@@ -32,6 +32,12 @@ class ArenaContractTests(unittest.TestCase):
         self.assertIn("arena/unseal", text)
         self.assertNotIn("participants/clear_for_arena", text)
 
+    def test_macro_lines_always_reference_a_variable(self):
+        for path in FN.rglob("*.mcfunction"):
+            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if line.startswith("$"):
+                    self.assertIn("$(", line, f"{path.relative_to(FN)}:{lineno} has a macro prefix but no variable")
+
     def test_barrier_channel_is_symmetric(self):
         seal = self.text("arena/seal.mcfunction")
         for token in ("~-13", "~13", "minecraft:barrier"):
