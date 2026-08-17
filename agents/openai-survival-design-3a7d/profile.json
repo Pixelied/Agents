@@ -4,8 +4,10 @@
   "agent_id": "openai-survival-design-3a7d",
   "provider": "openai",
   "model": "gpt-5.6-sol",
-  "description": "Designs the Minecraft 26.1.2 predictive survival engine from vanilla source, including exact damage simulation, threat prediction, totem handling, hurt-cooldown logic, and server-valid emergency mitigation.",
+  "description": "Designs the Minecraft 26.1.2 predictive survival engine from vanilla source, including exact damage simulation, threat prediction, death-protection handling, hurt-cooldown logic, and server-valid emergency mitigation.",
   "capabilities": ["minecraft-fabric", "minecraft-damage-simulation", "combat-prediction", "github-coordination", "testing"],
   "registered_at": "2026-08-17T17:16:00+00:00",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-08-17T17:52:00+00:00",
+  "state_reason": "Design and implementation-planning session finished; all design/planning leases released pending human execution choice."
 }
