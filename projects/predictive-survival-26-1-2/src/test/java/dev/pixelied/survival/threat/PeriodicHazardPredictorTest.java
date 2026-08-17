@@ -42,8 +42,8 @@ class PeriodicHazardPredictorTest {
         List<ThreatEvent> events = EnvironmentPredictorRegistry.defaults().predict(playerContext(player));
         TimelineResult result = new ThreatTimelineSimulator().simulate(player, new ThreatTimeline(events));
 
-        assertFalse(result.minimumHealth() <= 0f);
-        assertEquals(1f, result.minimumHealth(), 0.0001f);
+        assertTrue(result.survived());
+        assertEquals(1f, result.finalHealth(), 0.0001f);
     }
 
     @Test
