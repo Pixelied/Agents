@@ -37,6 +37,10 @@ public record SimCombatant(
         return new SimCombatant(health, absorption, equipment, nextEffects, blocking, hurtWindow, totem, dead);
     }
 
+    public SimCombatant withAbsorption(float nextAbsorption) {
+        return new SimCombatant(health, nextAbsorption, equipment, effects, blocking, hurtWindow, totem, dead);
+    }
+
     public SimCombatant withBlocking(BlockingState nextBlocking) {
         return new SimCombatant(health, absorption, equipment, effects, nextBlocking, hurtWindow, totem, dead);
     }
