@@ -4,10 +4,12 @@
   "task_id": "design-predictive-survival-26-1-2",
   "scope": "tasks/design-predictive-survival-26-1-2/artifacts",
   "owner": "openai-survival-design-3a7d",
-  "state": "active",
+  "state": "released",
   "intent": "Record a compact durable audit of the supplied Minecraft 26.1.2 source findings needed by later implementation agents.",
   "claimed_at": "2026-08-17T17:24:00+00:00",
   "heartbeat_at": "2026-08-17T17:24:00+00:00",
   "expires_at": "2026-08-18T17:24:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-17T18:06:00+00:00",
+  "release_reason": "Design source audit and implementation plan were completed; implementation now has a separate active task and agent."
 }
