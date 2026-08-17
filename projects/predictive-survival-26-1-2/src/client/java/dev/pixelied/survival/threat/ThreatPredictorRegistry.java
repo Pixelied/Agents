@@ -66,9 +66,9 @@ public final class ThreatPredictorRegistry {
             lessCertain(first.confidence(), second.confidence()),
             mergeOptional(first.sourcePosition(), second.sourcePosition()),
             mergeOptional(first.impactPosition(), second.impactPosition()),
-            first.avoidable() || second.avoidable(),
-            first.blockable() || second.blockable(),
-            first.relocatable() || second.relocatable(),
+            first.avoidable() && second.avoidable(),
+            first.blockable() && second.blockable(),
+            first.relocatable() && second.relocatable(),
             first.canDisableBlocking() || second.canDisableBlocking()
         );
     }
