@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-crystal-github-a6d2",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Implements and verifies the approved Minecraft 26.1.2 Crystal + Anchor Combat Optimizer through GitHub branches and Java 25 GitHub Actions.",
+  "capabilities": [
+    "github-actions",
+    "java",
+    "minecraft-fabric",
+    "networking",
+    "combat-simulation",
+    "testing",
+    "documentation"
+  ],
+  "registered_at": "2026-08-17T18:46:00+00:00",
+  "state": "available"
+}
