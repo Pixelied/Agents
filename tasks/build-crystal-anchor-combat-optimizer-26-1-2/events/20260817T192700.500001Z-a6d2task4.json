@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2f4b20a8e4c919d148626b8a1fa5c",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 4 GREEN: source-faithful 26.1.2 explosion entity-damage geometry now uses exact radius rules, ServerExplosion exposure sampling, DDA block collision rays, and the anchor-water former-center resistance override without inventing an entity-damage water multiplier.",
+  "data": {
+    "red_run_id": 32060007691,
+    "green_run_id": 32060214533,
+    "green_head": "945ad926e96dc1e1cc5c20c418e6739e55276e86",
+    "crystal_radius": 6.0,
+    "anchor_radius": 5.0
+  },
+  "created_at": "2026-08-17T19:27:00+00:00"
+}
