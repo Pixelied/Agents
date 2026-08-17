@@ -1,0 +1,84 @@
+name: Fallen Knight 26.1.2 CI
+
+on:
+  push:
+    branches: ["feat/fallen-knight-26-1-2"]
+    paths:
+      - "projects/fallen-knight-26-1-2/**"
+      - ".github/workflows/fallen-knight-26-1-2-ci.yml"
+  pull_request:
+    paths:
+      - "projects/fallen-knight-26-1-2/**"
+      - ".github/workflows/fallen-knight-26-1-2-ci.yml"
+
+jobs:
+  static-contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/fallen-knight-26-1-2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run contract tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Run static validator
+        run: python3 scripts/validate_fallen_knight.py
+
+  exact-runtime:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/fallen-knight-26-1-2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Fetch exact Minecraft 26.1.2 dedicated server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run/world/datapacks
+          curl -fsSL https://piston-meta.mojang.com/mc/game/version_manifest_v2.json -o run/version_manifest.json
+          VERSION_URL=$(python3 - <<'PY'
+          import json
+          data=json.load(open('run/version_manifest.json'))
+          print(next(v['url'] for v in data['versions'] if v['id']=='26.1.2'))
+          PY
+          )
+          curl -fsSL "$VERSION_URL" -o run/version.json
+          SERVER_URL=$(python3 - <<'PY'
+          import json
+          data=json.load(open('run/version.json'))
+          assert data['id']=='26.1.2'
+          assert data['javaVersion']['majorVersion']==25
+          print(data['downloads']['server']['url'])
+          PY
+          )
+          EXPECTED_SHA1=$(python3 - <<'PY'
+          import json
+          print(json.load(open('run/version.json'))['downloads']['server']['sha1'])
+          PY
+          )
+          curl -fsSL "$SERVER_URL" -o run/server.jar
+          echo "$EXPECTED_SHA1  run/server.jar" | sha1sum -c -
+          cp -R datapacks/fallen_knight run/world/datapacks/fallen_knight
+          printf 'eula=true\n' > run/eula.txt
+          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\n' > run/server.properties
+      - name: Boot server and exercise Fallen Knight carrier commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd run
+          {
+            sleep 35
+            echo 'function fallen_knight:debug/spawn_carrier'
+            sleep 2
+            echo 'data get entity @e[tag=fk.boss,limit=1] Health'
+            echo 'attribute @e[tag=fk.boss,limit=1] minecraft:scale base get'
+            echo 'data get entity @e[tag=fk.boss,limit=1] DeathLootTable'
+            echo 'stop'
+          } | timeout 90s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
+          grep -q 'Done (' server.log
+          ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs' server.log

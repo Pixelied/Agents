@@ -1,0 +1,58 @@
+{
+  "texture": "fallen_knight:textures/entity/fallen_knight",
+  "textureSize": [64, 64],
+  "shadowSize": 0.5,
+  "models": [
+    {
+      "part": "head",
+      "attach": false,
+      "boxes": [
+        {"textureOffset": [0, 0], "coordinates": [-4, -8, -4, 8, 8, 8]},
+        {"textureOffset": [32, 0], "coordinates": [-4, -8, -4, 8, 8, 8], "sizeAdd": 0.5}
+      ]
+    },
+    {
+      "part": "body",
+      "attach": false,
+      "boxes": [
+        {"textureOffset": [16, 16], "coordinates": [-4, 0, -2, 8, 12, 4]},
+        {"textureOffset": [16, 32], "coordinates": [-4, 0, -2, 8, 12, 4], "sizeAdd": 0.25}
+      ]
+    },
+    {
+      "part": "right_arm",
+      "attach": false,
+      "boxes": [
+        {"textureOffset": [40, 16], "coordinates": [-3, -2, -2, 4, 12, 4]},
+        {"textureOffset": [40, 32], "coordinates": [-3, -2, -2, 4, 12, 4], "sizeAdd": 0.25}
+      ]
+    },
+    {
+      "part": "left_arm",
+      "attach": false,
+      "boxes": [
+        {"textureOffset": [32, 48], "coordinates": [-1, -2, -2, 4, 12, 4]},
+        {"textureOffset": [48, 48], "coordinates": [-1, -2, -2, 4, 12, 4], "sizeAdd": 0.25}
+      ]
+    },
+    {
+      "part": "right_leg",
+      "attach": false,
+      "boxes": [
+        {"textureOffset": [0, 16], "coordinates": [-2, 0, -2, 4, 12, 4]},
+        {"textureOffset": [0, 32], "coordinates": [-2, 0, -2, 4, 12, 4], "sizeAdd": 0.25}
+      ]
+    },
+    {
+      "part": "left_leg",
+      "attach": false,
+      "boxes": [
+        {"textureOffset": [16, 48], "coordinates": [-2, 0, -2, 4, 12, 4]},
+        {"textureOffset": [0, 48], "coordinates": [-2, 0, -2, 4, 12, 4], "sizeAdd": 0.25}
+      ]
+    },
+    {"part": "nose", "attach": false, "scale": 0.0},
+    {"part": "hat", "attach": false, "scale": 0.0},
+    {"part": "arms", "attach": false, "scale": 0.0}
+  ]
+}
