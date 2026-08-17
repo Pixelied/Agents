@@ -5,7 +5,9 @@ import dev.pixelied.survival.damage.MinecraftBlockingAdapter;
 import dev.pixelied.survival.damage.MinecraftEquipmentAdapter;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -41,6 +43,22 @@ public final class MinecraftSnapshotFactory {
             }
         }
 
+        double gravity = player.getGravity();
+        double effectiveGravity = velocity.y() <= 0.0 && player.hasEffect(MobEffects.SLOW_FALLING)
+            ? Math.min(gravity, 0.01)
+            : gravity;
+
+        Map<String, String> state = new LinkedHashMap<>();
+        state.put("fall_distance", Double.toString(player.fallDistance));
+        state.put("safe_fall_distance", Double.toString(player.getAttributeValue(Attributes.SAFE_FALL_DISTANCE)));
+        state.put("fall_damage_multiplier", Double.toString(player.getAttributeValue(Attributes.FALL_DAMAGE_MULTIPLIER)));
+        state.put("effective_gravity", Double.toString(effectiveGravity));
+        state.put("vertical_friction", "0.98");
+        state.put("horizontal_friction", "0.91");
+        state.put("world_min_y", Integer.toString(player.level().getMinY()));
+        state.put("fall_flying", Boolean.toString(player.isFallFlying()));
+        state.put("suppressing_bounce", Boolean.toString(player.isSuppressingBounce()));
+
         return new PlayerSnapshot(
             player.getHealth(),
             player.getAbsorptionAmount(),
@@ -56,7 +74,8 @@ public final class MinecraftSnapshotFactory {
             new AabbSnapshot(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ),
             new Vec3Snapshot(position.x(), position.y(), position.z()),
             new Vec3Snapshot(velocity.x(), velocity.y(), velocity.z()),
-            equipmentKeys
+            equipmentKeys,
+            state
         );
     }
 
