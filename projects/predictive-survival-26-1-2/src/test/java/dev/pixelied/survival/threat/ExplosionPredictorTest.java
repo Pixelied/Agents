@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static dev.pixelied.survival.damage.DamageFlag.IS_EXPLOSION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExplosionPredictorTest {
@@ -51,6 +52,15 @@ class ExplosionPredictorTest {
         assertEquals(new TickWindow(0, 2), event.impact());
     }
 
+    @Test
+    void unknownCollisionShapeIsNeverAssumedToBeAFullCube() {
+        WorldSnapshot.BlockSnapshot partialOrUnknown = block(true, Map.of());
+        WorldSnapshot.BlockSnapshot confirmedFullCube = block(true, Map.of("full_collision_cube", "true"));
+
+        assertFalse(ExplosionPredictor.canUseUnitCubeOcclusion(partialOrUnknown));
+        assertTrue(ExplosionPredictor.canUseUnitCubeOcclusion(confirmedFullCube));
+    }
+
     private static PredictionContext context(List<WorldSnapshot.EntitySnapshot> entities) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
@@ -70,6 +80,12 @@ class ExplosionPredictorTest {
         return new WorldSnapshot.EntitySnapshot(
             id, type, new Vec3Snapshot(3, 0, 0), new Vec3Snapshot(0, 0, 0),
             new AabbSnapshot(3, 0, 0, 4, 1, 1), properties
+        );
+    }
+
+    private static WorldSnapshot.BlockSnapshot block(boolean collision, Map<String, String> properties) {
+        return new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(1, 0, 0), "minecraft:test_block", collision, properties
         );
     }
 }
