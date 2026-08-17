@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-design-3a7d",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Designs the Minecraft 26.1.2 predictive survival engine from vanilla source, including exact damage simulation, threat prediction, totem handling, hurt-cooldown logic, and server-valid emergency mitigation.",
+  "capabilities": ["minecraft-fabric", "minecraft-damage-simulation", "combat-prediction", "github-coordination", "testing"],
+  "registered_at": "2026-08-17T17:16:00+00:00",
+  "state": "available"
+}
