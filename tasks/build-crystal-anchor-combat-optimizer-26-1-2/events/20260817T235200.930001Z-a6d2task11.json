@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2task11green235200",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 11 GREEN: sequence-matched block prediction acks feed a rolling latency/jitter model; estimates expose probabilities instead of a fake exact server clock; CLIENT_PREDICTION stays zero-feedback with reduced reliability while SERVER_FEEDBACK_FOR_NEW_ENTITY is a hard boundary. Client ack mixin compiled and full Java 25 test/build/GameTest gate passed.",
+  "data": {
+    "green_run_id": 32082158694,
+    "green_head": "5987ffae1367dc6771beebd66ab5058e9173e18d",
+    "ack_hook": "ClientPacketListener#handleBlockChangedAck TAIL",
+    "planner_feedback_cost": "existing BeamPlanner hard-feedback robustness and PlanScore boundary ordering retained"
+  },
+  "created_at": "2026-08-17T23:52:00+00:00"
+}
