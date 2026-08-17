@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ThreatPredictorRegistryTest {
@@ -39,6 +40,20 @@ class ThreatPredictorRegistryTest {
 
         assertEquals(new DamageRange(8f, 12f), merged.damage().rawDamage());
         assertEquals(new TickWindow(2, 5), merged.impact());
+    }
+
+    @Test
+    void duplicateThreatOnlyKeepsGuaranteedDefensiveCapabilities() {
+        ThreatPredictor optimistic = ignored -> List.of(event("same", 8f, 8f, 2, 2, true, true, true, false));
+        ThreatPredictor conservative = ignored -> List.of(event("same", 8f, 8f, 2, 2, false, false, false, true));
+
+        ThreatEvent merged = new ThreatPredictorRegistry(List.of(optimistic, conservative))
+            .predictAll(context(EngineLimits.defaults())).getFirst();
+
+        assertFalse(merged.avoidable());
+        assertFalse(merged.blockable());
+        assertFalse(merged.relocatable());
+        assertEquals(true, merged.canDisableBlocking());
     }
 
     @Test
@@ -75,13 +90,20 @@ class ThreatPredictorRegistryTest {
     }
 
     private static ThreatEvent event(String id, float min, float max, long earliest, long latest) {
+        return event(id, min, max, earliest, latest, true, true, true, false);
+    }
+
+    private static ThreatEvent event(
+        String id, float min, float max, long earliest, long latest,
+        boolean avoidable, boolean blockable, boolean relocatable, boolean canDisableBlocking
+    ) {
         return new ThreatEvent(
             id,
             ThreatKind.OTHER,
             new TickWindow(earliest, latest),
             new DamageSourceSnapshot(new DamageRange(min, max), Set.of(), false, 1f, false, Optional.empty(), "test:" + id),
             Confidence.BOUNDED,
-            Optional.empty(), Optional.empty(), true, true, true, false
+            Optional.empty(), Optional.empty(), avoidable, blockable, relocatable, canDisableBlocking
         );
     }
 }
