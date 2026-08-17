@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-fallen-knight-inline-7d31",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Implements and verifies the Fallen Knight Minecraft 26.1.2 datapack boss inline with TDD, multiplayer-safe state, and exact-runtime checks.",
+  "capabilities": [
+    "minecraft-datapack",
+    "github-actions",
+    "testing",
+    "multiplayer-design"
+  ],
+  "registered_at": "2026-08-17T13:05:00+00:00",
+  "state": "available"
+}
