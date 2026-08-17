@@ -30,7 +30,7 @@ Rejected alternatives:
 - **Purely reactive damage/packet handling:** accurate after the fact but too late for shield warmup, inventory movement, projectile evasion, cover placement, and many lethal hits.
 - **One giant tick-loop AutoTotem:** difficult to test, easy to desynchronize, and incapable of comparing multiple survival strategies coherently.
 
-The chosen design keeps exact-ish vanilla damage math isolated from prediction uncertainty. Threat predictors emit bounded future events; the timeline simulator applies vanilla semantics; the planner compares feasible actions against the same future timeline.
+The chosen design keeps vanilla damage math isolated from prediction uncertainty. Threat predictors emit bounded future events; the timeline simulator applies vanilla semantics; the planner compares feasible actions against the same future timeline.
 
 ## 3. Platform and build baseline
 
@@ -51,7 +51,13 @@ The mod is client-only in production. Test-only server helpers/GameTests are all
 
 ## 4. Vanilla source is authoritative
 
-The supplied decompiled Minecraft 26.1.2 source under `/mnt/data/mcsrc2612/src/main/java` is the behavioral reference for game mechanics. Implementation must inspect the actual source instead of copying formulas from older clients, wikis, or previous Minecraft versions.
+The user-supplied decompiled Minecraft 26.1.2 source was the behavioral reference for this design session. The session inspected it under `/mnt/data/mcsrc2612/src/main/java`, but that path is **not durable workspace state** and implementation agents must not depend on it.
+
+A compact durable audit is stored at:
+
+`tasks/design-predictive-survival-26-1-2/artifacts/source-audit.md`
+
+Future implementation agents must regenerate/attach exact Minecraft 26.1.2 sources through the pinned Fabric Loom project and re-check source behavior before changing formulas. Do not commit the complete decompiled Minecraft source tree to the Agents repository.
 
 At minimum, implementation must trace and mirror behavior from:
 
@@ -83,7 +89,7 @@ Runtime registry tags/components are preferred over hard-coded membership lists.
 
 ### 5.1 `SurvivalEngine`
 
-Single orchestrator invoked from the client tick/network hooks. It owns no vanilla formulas itself. Each tick it:
+Single orchestrator invoked from client tick/network hooks. It owns no vanilla formulas itself. Each tick it:
 
 1. updates server timing and synchronization estimates;
 2. captures a compact `PlayerSnapshot` and relevant `WorldSnapshot`;
@@ -180,7 +186,7 @@ Do not run an unbounded combinatorial search. Generate only actions relevant to 
 
 State-machine executor for the selected action. It owns packet sending and restoration, but not strategy scoring.
 
-It must detect stale plans, inventory desync, missed deadlines, changed threats, and rejected/contradicted state. If an action becomes infeasible, immediately re-plan and escalate to a more reliable strategy when time allows.
+It must detect stale plans, inventory resynchronization, missed deadlines, changed threats, and contradicted state. If an action becomes infeasible, immediately re-plan and escalate to a more reliable strategy when time allows.
 
 ## 6. Exact damage pipeline
 
@@ -218,6 +224,8 @@ Mirror `LivingEntity#hurtServer` in this order:
    - otherwise set `lastHurt = damage`, `invulnerableTime = 20`, and process full damage.
 
 A small precursor hit therefore does **not** blanket-cancel a larger lethal hit. If the precursor establishes raw `lastHurt = 1` and a later hit is raw 20 while the strong cooldown is active, the later hit can still send 19 into the mitigation pipeline.
+
+A fully blocked hit may leave processed damage at zero and can refresh hurt timing state, but it does not establish a nonzero `lastHurt` that protects against a larger follow-up. The test suite must cover this sequence explicitly.
 
 The runtime `BYPASSES_COOLDOWN` tag must be respected even though the supplied vanilla generated tag provider does not populate a vanilla member for it.
 
@@ -263,7 +271,7 @@ A shield is protective only after the server has:
 
 The planner must include packet latency and jitter **before** the five-tick warmup. Merely having a shield in inventory/offhand is not protection.
 
-If a currently active offhand shield can block an imminent threat while a totem is needed for a second threat, prefer equipping the totem to main hand when feasible instead of destroying the active block state.
+If a currently active offhand shield can block an imminent threat while a totem is needed for a second threat, prefer equipping the totem to main hand when feasible instead of destroying the active block state. The 26.1.2 server selected-slot handler stops active use on selection change only when the actively used hand is `MAIN_HAND`, so this specific offhand-shield/mainhand-totem route is worth preserving and testing.
 
 ## 8. Threat coverage
 
@@ -395,9 +403,9 @@ When death protection is required, choose the fastest valid route that does not 
    - offhand (`buttonNum == 40`),
    choosing whichever better preserves other protection and has valid menu synchronization.
 
-`AbstractContainerMenu` explicitly supports `SWAP` with hotbar buttons 0–8 and offhand button 40. Use the current menu's real player-inventory slot mapping and state id; never hard-code screen slot ids.
+`AbstractContainerMenu` explicitly supports `SWAP` with hotbar buttons 0–8 and offhand button 40. Use the current menu's real player-inventory slot mapping; never hard-code screen slot ids.
 
-### 10.2 Transaction safety
+### 10.2 Transaction safety and resynchronization
 
 Track each emergency inventory transaction with:
 
@@ -409,7 +417,14 @@ Track each emergency inventory transaction with:
 - send tick/deadline;
 - observed server updates/contradictions.
 
-If the state is stale or a transaction is rejected/overwritten, re-plan immediately. Do not perform multi-click cursor juggling for an emergency when a one-packet `SWAP` route is available.
+In 26.1.2, a valid container click with a mismatched `stateId` is still applied server-side, after which the server sends a full resynchronization. Therefore:
+
+- use the newest known state id to reduce unnecessary resyncs;
+- do **not** assume a state-id mismatch means the emergency swap failed;
+- reconcile the authoritative full-state update before restoration/follow-up inventory mutations;
+- distinguish state-id mismatch from an actually ignored click caused by container-id mismatch, invalid menu, invalid slot, or changed menu validity.
+
+Do not perform multi-click cursor juggling for an emergency when a one-packet `SWAP` route is available.
 
 ### 10.3 Restoration
 
@@ -452,13 +467,13 @@ Use only if the block is already active or can be active before impact with the 
 
 ### 11.4 Armor/equipment optimization
 
-Evaluate feasible one-packet equipment swaps against the specific threat. Examples:
+Evaluate feasible equipment swaps against the specific threat. Examples:
 
 - chestplate instead of elytra before an explosion/melee hit;
 - specialized Protection variants when they materially change the source's post-mitigation damage;
-- leather equipment for freeze-related mechanics when supported by actual 26.1.2 behavior.
+- freeze-immune wearable equipment when actual 26.1.2 tag behavior makes it relevant.
 
-Use runtime enchantment/components and the damage source tags rather than item-name heuristics.
+Use runtime enchantment/components/tags and the damage source tags rather than item-name heuristics. Each proposed swap must include its real packet count and deadline; do not call a multi-piece armor change “instant.”
 
 ### 11.5 Effects/consumables
 
@@ -564,14 +579,15 @@ The engine must fail conservatively.
 - Unknown raw damage: use a defensible upper bound.
 - Unknown server `lastHurt`: assume no cooldown reduction.
 - Unknown event ordering: simulate worst materially plausible order.
-- Unknown inventory synchronization: prefer an already-held/hotbar route or maintain current death protection instead of risky restoration.
+- Container state-id mismatch: expect/reconcile an authoritative full resync rather than assuming the click was rejected.
+- Invalid/changed container mapping or menu validity: do not assume a sent emergency swap changed the server hand state; re-plan from authoritative updates.
 - Unknown shield activation deadline: do not count shield protection.
 - Predictor disagreement: merge threats rather than silently choosing the lowest estimate.
 - Missed action deadline: abandon that action and re-plan immediately.
 - No totem and no guaranteed save: choose the feasible action with the best worst-case remaining health/survival probability; do not intentionally add damage unless its complete sequence is proven better.
 - `BYPASSES_INVULNERABILITY`: never claim a totem can save it.
 
-The module should surface a small debug reason such as `TOTEM: lethal crystal 14.3 -> -2.1 HP in 3–4 server ticks` or `COVER: obsidian placement reduces worst-case crystal damage 16.0 -> 3.2` when diagnostics are enabled.
+The module should surface a small debug reason such as `TOTEM: lethal crystal 14.3 -> -2.1 HP in 3–4 server ticks` or `COVER: placement reduces worst-case crystal damage 16.0 -> 3.2` when diagnostics are enabled.
 
 ## 15. Performance constraints
 
@@ -606,6 +622,7 @@ Create unit tests for `DamageSimulator` independent of rendering/networking. Inc
 - full and partial shield blocking;
 - shield bypass and piercing-arrow bypass;
 - shield warmup boundary (4 vs 5 elapsed ticks);
+- a fully blocked zero-damage hit followed by a larger hit, proving that zero `lastHurt` does not cancel the larger hit;
 - death protection in main hand and offhand;
 - death protection rejected by `BYPASSES_INVULNERABILITY`;
 - hurt-cooldown sequences: smaller/equal follow-up, larger follow-up, cooldown expiry, and synthetic `BYPASSES_COOLDOWN` fixture;
@@ -635,7 +652,8 @@ Test the totem transaction state machine with mocked menu snapshots:
 - inventory-to-selected-hotbar `SWAP`;
 - inventory-to-offhand `SWAP`;
 - active offhand shield preserved by mainhand totem route;
-- stale container state/rejection;
+- state-id mismatch where the click applies and a full resync must be reconciled;
+- invalid container/menu/slot where the action is ignored or no longer safe to assume;
 - restoration after danger;
 - second totem after first pop.
 
