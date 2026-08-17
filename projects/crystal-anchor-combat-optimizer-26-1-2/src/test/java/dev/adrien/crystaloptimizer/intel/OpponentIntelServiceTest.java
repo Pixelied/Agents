@@ -1,9 +1,12 @@
 package dev.adrien.crystaloptimizer.intel;
 
 import java.util.UUID;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -13,6 +16,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OpponentIntelServiceTest {
     private static final UUID OPPONENT = UUID.fromString("00000000-0000-0000-0000-000000000031");
     private OpponentIntelService service;
+
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+    }
 
     @BeforeEach
     void setUp() {
