@@ -21,14 +21,26 @@ public final class OpponentIntelService {
         ItemStack stack,
         long timestampNanos
     ) {
+        Objects.requireNonNull(stack, "stack");
+        onVisibleEquipment(opponentId, slot, stack.getItem(), stack.getCount(), timestampNanos);
+    }
+
+    public synchronized void onVisibleEquipment(
+        UUID opponentId,
+        EquipmentSlot slot,
+        Item item,
+        int count,
+        long timestampNanos
+    ) {
         Objects.requireNonNull(opponentId, "opponentId");
         Objects.requireNonNull(slot, "slot");
-        Objects.requireNonNull(stack, "stack");
+        Objects.requireNonNull(item, "item");
         requireTimestamp(timestampNanos);
+        if (count < 0) {
+            throw new IllegalArgumentException("visible equipment count must be non-negative");
+        }
 
         MutableIntel state = state(opponentId);
-        Item item = stack.getItem();
-        int count = stack.getCount();
         ResourceEstimate exact = ResourceEstimate.exact(item, count);
         state.visibleEquipment.put(slot, exact);
         state.observations.add(new OpponentObservation(
