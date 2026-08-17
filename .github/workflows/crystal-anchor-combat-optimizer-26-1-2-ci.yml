@@ -34,6 +34,6 @@ jobs:
         with:
           gradle-version: '9.5.1'
 
-      - name: Test
+      - name: Test, build, and run GameTests
         working-directory: projects/crystal-anchor-combat-optimizer-26-1-2
-        run: gradle --no-daemon test
+        run: gradle --no-daemon clean test build runGameTest --stacktrace
