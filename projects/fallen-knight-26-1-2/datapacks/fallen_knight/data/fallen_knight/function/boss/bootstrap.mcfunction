@@ -2,7 +2,7 @@ tag @s add fk.boss
 attribute @s minecraft:max_health base set 160
 attribute @s minecraft:attack_damage base set 0
 attribute @s minecraft:scale base set 1.4
-data merge entity @s {Health:160.0f,PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,DeathLootTable:"fallen_knight:entity/empty"}
+data merge entity @s {Health:160.0f,PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,CustomName:'{"text":"The Fallen Knight"}',CustomNameVisible:0b,DeathLootTable:"fallen_knight:entity/empty"}
 item replace entity @s weapon.mainhand with minecraft:iron_sword
 item replace entity @s weapon.offhand with minecraft:shield
 item replace entity @s armor.head with minecraft:netherite_helmet
