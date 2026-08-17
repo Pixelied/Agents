@@ -1,8 +1,10 @@
 package dev.adrien.crystaloptimizer.client.mixin;
 
+import dev.adrien.crystaloptimizer.client.execution.InteractionTimingRecorder;
 import dev.adrien.crystaloptimizer.client.intel.ClientObservationBus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockChangedAckPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
 import net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket;
@@ -30,5 +32,10 @@ public abstract class ClientPacketListenerMixin {
     @Inject(method = "handleEntityEvent", at = @At("TAIL"))
     private void crystaloptimizer$entityEvent(ClientboundEntityEventPacket packet, CallbackInfo ci) {
         ClientObservationBus.instance().onEntityEventPacket(packet, System.nanoTime());
+    }
+
+    @Inject(method = "handleBlockChangedAck", at = @At("TAIL"))
+    private void crystaloptimizer$blockChangedAck(ClientboundBlockChangedAckPacket packet, CallbackInfo ci) {
+        InteractionTimingRecorder.instance().recordAck(packet.sequence(), System.nanoTime());
     }
 }
