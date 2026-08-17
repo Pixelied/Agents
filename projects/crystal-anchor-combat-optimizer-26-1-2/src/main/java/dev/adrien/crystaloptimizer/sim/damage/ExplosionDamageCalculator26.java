@@ -22,6 +22,6 @@ public final class ExplosionDamageCalculator26 {
         return (float) (((power * power + power) / 2.0) * 7.0 * doubleRadius + 1.0);
     }
 
-    private ExplosionDamageCalculator26() {
+    public ExplosionDamageCalculator26() {
     }
 }

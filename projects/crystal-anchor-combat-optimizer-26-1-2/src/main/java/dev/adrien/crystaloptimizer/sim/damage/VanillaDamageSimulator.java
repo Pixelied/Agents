@@ -150,6 +150,6 @@ public final class VanillaDamageSimulator {
         };
     }
 
-    private VanillaDamageSimulator() {
+    public VanillaDamageSimulator() {
     }
 }

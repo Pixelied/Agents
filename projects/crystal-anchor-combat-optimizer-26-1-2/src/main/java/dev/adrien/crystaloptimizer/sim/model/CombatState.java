@@ -51,6 +51,51 @@ public record CombatState(
         );
     }
 
+    public CombatState withGeometry(BlockDeltaOverlay nextGeometry) {
+        return copy(self, target, nextGeometry, crystals, anchors, inventory, timing);
+    }
+
+    public CombatState withCrystals(List<KnownCrystal> nextCrystals) {
+        return copy(self, target, geometry, nextCrystals, anchors, inventory, timing);
+    }
+
+    public CombatState withAnchors(Map<BlockPos, AnchorState> nextAnchors) {
+        return copy(self, target, geometry, crystals, nextAnchors, inventory, timing);
+    }
+
+    public CombatState withInventory(InventoryState nextInventory) {
+        return copy(self, target, geometry, crystals, anchors, nextInventory, timing);
+    }
+
+    public CombatState withSelfAndTarget(SimCombatant nextSelf, SimCombatant nextTarget) {
+        return copy(nextSelf, nextTarget, geometry, crystals, anchors, inventory, timing);
+    }
+
+    public CombatState withTiming(TimingState nextTiming) {
+        return copy(self, target, geometry, crystals, anchors, inventory, nextTiming);
+    }
+
+    private CombatState copy(
+        SimCombatant nextSelf,
+        SimCombatant nextTarget,
+        BlockDeltaOverlay nextGeometry,
+        List<KnownCrystal> nextCrystals,
+        Map<BlockPos, AnchorState> nextAnchors,
+        InventoryState nextInventory,
+        TimingState nextTiming
+    ) {
+        return new CombatState(
+            base,
+            nextSelf,
+            nextTarget,
+            nextGeometry,
+            nextCrystals,
+            nextAnchors,
+            nextInventory,
+            nextTiming
+        );
+    }
+
     private static SimCombatant requireCombatant(CombatSnapshot snapshot, UUID id, String label) {
         SimCombatant combatant = snapshot.combatants().get(id);
         if (combatant == null) {

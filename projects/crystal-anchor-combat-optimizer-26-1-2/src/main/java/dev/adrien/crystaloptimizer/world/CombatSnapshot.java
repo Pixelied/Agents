@@ -20,8 +20,32 @@ public record CombatSnapshot(
     List<KnownCrystal> crystals,
     Map<BlockPos, AnchorState> anchors,
     InventoryState inventory,
-    TimingState timing
+    TimingState timing,
+    LegalitySnapshot legality
 ) {
+    public CombatSnapshot(
+        long worldRevision,
+        UUID selfId,
+        CombatRegion region,
+        Map<UUID, SimCombatant> combatants,
+        List<KnownCrystal> crystals,
+        Map<BlockPos, AnchorState> anchors,
+        InventoryState inventory,
+        TimingState timing
+    ) {
+        this(
+            worldRevision,
+            selfId,
+            region,
+            combatants,
+            crystals,
+            anchors,
+            inventory,
+            timing,
+            LegalitySnapshot.unavailable()
+        );
+    }
+
     public CombatSnapshot {
         if (worldRevision < 0L) {
             throw new IllegalArgumentException("worldRevision must be non-negative");
@@ -33,6 +57,7 @@ public record CombatSnapshot(
         Objects.requireNonNull(anchors, "anchors");
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(timing, "timing");
+        Objects.requireNonNull(legality, "legality");
 
         combatants = Map.copyOf(combatants);
         crystals = List.copyOf(crystals);

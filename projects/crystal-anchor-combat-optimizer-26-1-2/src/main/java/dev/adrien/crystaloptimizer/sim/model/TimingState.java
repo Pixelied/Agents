@@ -21,4 +21,14 @@ public record TimingState(
     public static TimingState unknown() {
         return new TimingState(-1L, 0.0, 0.0, 0.0);
     }
+
+    public TimingState advanceTicks(int ticks) {
+        if (ticks < 0) {
+            throw new IllegalArgumentException("ticks must be non-negative");
+        }
+        if (estimatedServerTick < 0L) {
+            return this;
+        }
+        return new TimingState(estimatedServerTick + ticks, confidence, roundTripMillis, jitterMillis);
+    }
 }
