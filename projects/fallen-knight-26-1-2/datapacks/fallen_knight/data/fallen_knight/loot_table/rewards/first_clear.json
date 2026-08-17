@@ -26,24 +26,22 @@
                   }
                 ],
                 "minecraft:item_model": "fallen_knight:oathbreaker",
-                "minecraft:attribute_modifiers": {
-                  "modifiers": [
-                    {
-                      "id": "fallen_knight:oathbreaker_damage",
-                      "type": "minecraft:attack_damage",
-                      "amount": 6.0,
-                      "operation": "add_value",
-                      "slot": "mainhand"
-                    },
-                    {
-                      "id": "fallen_knight:oathbreaker_speed",
-                      "type": "minecraft:attack_speed",
-                      "amount": -2.7,
-                      "operation": "add_value",
-                      "slot": "mainhand"
-                    }
-                  ]
-                }
+                "minecraft:attribute_modifiers": [
+                  {
+                    "id": "fallen_knight:oathbreaker_damage",
+                    "type": "minecraft:attack_damage",
+                    "amount": 6.0,
+                    "operation": "add_value",
+                    "slot": "mainhand"
+                  },
+                  {
+                    "id": "fallen_knight:oathbreaker_speed",
+                    "type": "minecraft:attack_speed",
+                    "amount": -2.7,
+                    "operation": "add_value",
+                    "slot": "mainhand"
+                  }
+                ]
               }
             }
           ]

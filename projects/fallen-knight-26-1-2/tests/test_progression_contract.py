@@ -35,6 +35,11 @@ class ProgressionContractTests(unittest.TestCase):
         self.assertIn('oathbreaker', text)
         self.assertIn('cursed_sword_fragment', text)
 
+    def test_oathbreaker_attribute_modifiers_use_26_1_array_schema(self):
+        data = json.loads((DP / "loot_table/rewards/first_clear.json").read_text(encoding="utf-8"))
+        components = data["pools"][0]["entries"][0]["functions"][0]["components"]
+        self.assertIsInstance(components["minecraft:attribute_modifiers"], list)
+
     def test_repeat_clear_does_not_guarantee_fragment(self):
         data = json.loads((DP / "loot_table/rewards/repeat_clear.json").read_text(encoding="utf-8"))
         self.assertNotIn('cursed_sword_fragment', json.dumps(data))
