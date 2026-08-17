@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-exec-9b42",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Coordinates and implements the approved Minecraft 26.1.2 predictive survival engine using the Agents workspace, TDD, task-scoped reviews, and exact-runtime verification.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "minecraft-damage-simulation",
+    "combat-prediction",
+    "github-actions",
+    "testing",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-17T17:56:00+00:00",
+  "state": "available",
+  "state_reason": "Beginning implementation after human approval of the design and implementation plan."
+}
