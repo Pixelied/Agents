@@ -8,7 +8,10 @@ import dev.adrien.crystaloptimizer.candidate.Candidate;
 import dev.adrien.crystaloptimizer.candidate.CandidateBudget;
 import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
 import dev.adrien.crystaloptimizer.candidate.CandidatePruner;
+import dev.adrien.crystaloptimizer.prediction.PositionHypothesis;
+import dev.adrien.crystaloptimizer.prediction.PredictionSet;
 import dev.adrien.crystaloptimizer.sim.damage.DamageRequest;
+import dev.adrien.crystaloptimizer.sim.damage.DamageResult;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionContext;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionDamageCalculator26;
 import dev.adrien.crystaloptimizer.sim.damage.VanillaDamageSimulator;
@@ -21,6 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public final class BeamPlanner {
     private final CandidateGenerator generator;
@@ -41,12 +45,23 @@ public final class BeamPlanner {
     }
 
     public CombatPlan plan(CombatState root, PlannerBudget budget) {
+        return plan(root, budget, currentPositionPrediction(root));
+    }
+
+    public CombatPlan plan(CombatState root, PlannerBudget budget, PredictionSet targetPredictions) {
         Objects.requireNonNull(root, "root");
         Objects.requireNonNull(budget, "budget");
+        Objects.requireNonNull(targetPredictions, "targetPredictions");
 
         double initialSelfEffective = effectiveHealth(root.self());
         double initialTargetEffective = effectiveHealth(root.target());
-        Node rootNode = Node.root(root, initialSelfEffective, initialTargetEffective, scoreRoot(root));
+        Node rootNode = Node.root(
+            root,
+            initialSelfEffective,
+            initialTargetEffective,
+            scoreRoot(root),
+            targetPredictions
+        );
         Node best = rootNode;
         List<Node> beam = List.of(rootNode);
         long deadline = saturatingAdd(System.nanoTime(), budget.maxNanos());
@@ -65,10 +80,13 @@ public final class BeamPlanner {
                 if (node.state().target().dead()) {
                     continue;
                 }
+                boolean uncertainPosition = node.predictions().hypotheses().size() > 1
+                    || node.predictions().confidence() < 0.999999;
                 List<Candidate> candidates = pruner.prune(
                     node.state(),
                     generator.generate(node.state()),
-                    candidateBudget
+                    candidateBudget,
+                    uncertainPosition
                 );
                 for (Candidate candidate : candidates) {
                     Node child = expand(node, candidate);
@@ -124,10 +142,10 @@ public final class BeamPlanner {
         }
 
         for (ExplosionContext explosion : outcome.scheduledExplosions()) {
-            ExplosionApplication applied = applyExplosion(next, explosion);
+            ExplosionApplication applied = applyExplosion(next, explosion, parent.predictions());
             next = applied.state();
             targetPopped |= applied.targetPopped();
-            robustness *= applied.exact() ? 1.0 : 0.70;
+            robustness *= applied.positionRobustness();
         }
 
         List<CombatAction> actions = new ArrayList<>(parent.actions());
@@ -165,35 +183,28 @@ public final class BeamPlanner {
             robustness,
             targetPopped,
             parent.initialSelfEffective(),
-            parent.initialTargetEffective()
+            parent.initialTargetEffective(),
+            parent.predictions()
         );
     }
 
-    private ExplosionApplication applyExplosion(CombatState state, ExplosionContext explosion) {
+    private ExplosionApplication applyExplosion(
+        CombatState state,
+        ExplosionContext explosion,
+        PredictionSet predictions
+    ) {
         if (!state.hasSpatialState()) {
-            return new ExplosionApplication(state, false, false);
+            return new ExplosionApplication(state, false, 1.0);
         }
 
         var selfSpatial = state.selfSpatial();
-        var targetSpatial = state.targetSpatial();
-        float targetIncoming = ExplosionDamageCalculator26.incoming(
-            explosion,
-            targetSpatial.boundingBox(),
-            targetSpatial.position(),
-            state.geometry()
-        );
+        PositionHypothesis likely = predictions.likely();
+        DamageResult likelyTargetResult = simulateTargetExplosion(state, explosion, likely);
         float selfIncoming = ExplosionDamageCalculator26.incoming(
             explosion,
             selfSpatial.boundingBox(),
             selfSpatial.position(),
             state.geometry()
-        );
-
-        var targetResult = VanillaDamageSimulator.apply(
-            state.target(),
-            DamageRequest.explosion(targetIncoming)
-                .withDifficulty(state.base().difficulty())
-                .withSourcePosition(explosion.center())
         );
         var selfResult = VanillaDamageSimulator.apply(
             state.self(),
@@ -202,9 +213,82 @@ public final class BeamPlanner {
                 .withSourcePosition(explosion.center())
         );
 
-        CombatState next = state.withSelfAndTarget(selfResult.target(), targetResult.target());
+        double positionRobustness = positionRobustness(
+            state,
+            explosion,
+            predictions,
+            likelyTargetResult
+        );
+        CombatState next = state.withSelfAndTarget(selfResult.target(), likelyTargetResult.target());
         next = next.withCrystals(removeCrystalsDamagedByExplosion(next, explosion));
-        return new ExplosionApplication(next, targetResult.trace().totemTriggered(), true);
+        return new ExplosionApplication(
+            next,
+            likelyTargetResult.trace().totemTriggered(),
+            positionRobustness
+        );
+    }
+
+    private DamageResult simulateTargetExplosion(
+        CombatState state,
+        ExplosionContext explosion,
+        PositionHypothesis hypothesis
+    ) {
+        var baseSpatial = state.targetSpatial();
+        Vec3 offset = hypothesis.position().subtract(baseSpatial.position());
+        AABB predictedBox = baseSpatial.boundingBox().move(offset);
+        float targetIncoming = ExplosionDamageCalculator26.incoming(
+            explosion,
+            predictedBox,
+            hypothesis.position(),
+            state.geometry()
+        );
+        return VanillaDamageSimulator.apply(
+            state.target(),
+            DamageRequest.explosion(targetIncoming)
+                .withDifficulty(state.base().difficulty())
+                .withSourcePosition(explosion.center())
+        );
+    }
+
+    private double positionRobustness(
+        CombatState state,
+        ExplosionContext explosion,
+        PredictionSet predictions,
+        DamageResult likelyResult
+    ) {
+        if (predictions.hypotheses().size() == 1) {
+            return 1.0;
+        }
+
+        double initialEffective = effectiveHealth(state.target());
+        if (likelyResult.target().dead()) {
+            return predictions.hypotheses().stream()
+                .filter(hypothesis -> simulateTargetExplosion(state, explosion, hypothesis).target().dead())
+                .mapToDouble(PositionHypothesis::weight)
+                .sum();
+        }
+        if (likelyResult.trace().totemTriggered()) {
+            return predictions.hypotheses().stream()
+                .filter(hypothesis -> {
+                    DamageResult result = simulateTargetExplosion(state, explosion, hypothesis);
+                    return result.target().dead() || result.trace().totemTriggered();
+                })
+                .mapToDouble(PositionHypothesis::weight)
+                .sum();
+        }
+
+        double likelyReduction = initialEffective - effectiveHealth(likelyResult.target());
+        if (likelyReduction <= 1.0e-9) {
+            return 1.0;
+        }
+
+        double weightedRetention = 0.0;
+        for (PositionHypothesis hypothesis : predictions.hypotheses()) {
+            DamageResult result = simulateTargetExplosion(state, explosion, hypothesis);
+            double reduction = initialEffective - effectiveHealth(result.target());
+            weightedRetention += hypothesis.weight() * clamp01(reduction / likelyReduction);
+        }
+        return clamp01(weightedRetention);
     }
 
     private List<KnownCrystal> removeCrystalsDamagedByExplosion(CombatState state, ExplosionContext explosion) {
@@ -223,6 +307,15 @@ public final class BeamPlanner {
                 return incoming <= 0.0f;
             })
             .toList();
+    }
+
+    private static PredictionSet currentPositionPrediction(CombatState state) {
+        Vec3 position = state.hasSpatialState() ? state.targetSpatial().position() : Vec3.ZERO;
+        Vec3 velocity = state.hasSpatialState() ? state.targetSpatial().velocity() : Vec3.ZERO;
+        return new PredictionSet(
+            List.of(new PositionHypothesis(PositionHypothesis.Kind.LIKELY, position, velocity, 1.0)),
+            1.0
+        );
     }
 
     private static PlanScore scoreRoot(CombatState root) {
@@ -272,7 +365,11 @@ public final class BeamPlanner {
         return result;
     }
 
-    private record ExplosionApplication(CombatState state, boolean targetPopped, boolean exact) {
+    private record ExplosionApplication(
+        CombatState state,
+        boolean targetPopped,
+        double positionRobustness
+    ) {
     }
 
     private record Node(
@@ -282,22 +379,25 @@ public final class BeamPlanner {
         double robustness,
         boolean targetPopped,
         double initialSelfEffective,
-        double initialTargetEffective
+        double initialTargetEffective,
+        PredictionSet predictions
     ) {
         static Node root(
             CombatState state,
             double initialSelfEffective,
             double initialTargetEffective,
-            PlanScore score
+            PlanScore score,
+            PredictionSet predictions
         ) {
             return new Node(
                 state,
                 List.of(),
                 score,
-                1.0,
+                predictions.confidence(),
                 false,
                 initialSelfEffective,
-                initialTargetEffective
+                initialTargetEffective,
+                predictions
             );
         }
     }

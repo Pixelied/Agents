@@ -9,6 +9,15 @@ import java.util.Map;
 
 public final class CandidatePruner {
     public List<Candidate> prune(CombatState state, List<Candidate> candidates, CandidateBudget budget) {
+        return prune(state, candidates, budget, false);
+    }
+
+    public List<Candidate> prune(
+        CombatState state,
+        List<Candidate> candidates,
+        CandidateBudget budget,
+        boolean preservePositionSensitiveExplosives
+    ) {
         List<Candidate> legalAndSafe = candidates.stream()
             .filter(candidate -> candidate.action().check(state).legal())
             .filter(candidate -> !obviousLosingSuicide(state, candidate))
@@ -17,7 +26,8 @@ public final class CandidatePruner {
         List<Candidate> nonDominated = new ArrayList<>();
         for (Candidate candidate : legalAndSafe) {
             boolean dominated = legalAndSafe.stream()
-                .anyMatch(other -> other != candidate && dominates(other, candidate));
+                .anyMatch(other -> other != candidate
+                    && dominates(other, candidate, preservePositionSensitiveExplosives));
             if (!dominated) {
                 nonDominated.add(candidate);
             }
@@ -48,8 +58,15 @@ public final class CandidatePruner {
             && candidate.tacticalInterest() != TacticalInterest.ZERO_FEEDBACK_FINISHER;
     }
 
-    private boolean dominates(Candidate left, Candidate right) {
+    private boolean dominates(
+        Candidate left,
+        Candidate right,
+        boolean preservePositionSensitiveExplosives
+    ) {
         if (left.category() != right.category()) {
+            return false;
+        }
+        if (preservePositionSensitiveExplosives && positionSensitive(left.category())) {
             return false;
         }
         if (left.tacticalInterest().priority() < right.tacticalInterest().priority()) {
@@ -70,6 +87,12 @@ public final class CandidatePruner {
             || a.futureFollowupPotential() > b.futureFollowupPotential()
             || left.tacticalInterest().priority() > right.tacticalInterest().priority();
         return noWorse && strictlyBetter;
+    }
+
+    private static boolean positionSensitive(CandidateCategory category) {
+        return category == CandidateCategory.CRYSTAL_ATTACK
+            || category == CandidateCategory.CRYSTAL_PLACEMENT
+            || category == CandidateCategory.ANCHOR_DETONATION;
     }
 
     private double score(Candidate candidate) {
