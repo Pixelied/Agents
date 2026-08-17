@@ -71,8 +71,8 @@ class ProjectilePredictorTest {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
-            DeathProtectionSnapshot.none(), new AabbSnapshot(7, 0, 0, 7.6, 1.8, 0.6),
-            new Vec3Snapshot(7, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
+            DeathProtectionSnapshot.none(), new AabbSnapshot(6.7, 0, 0, 7.3, 1.8, 0.6),
+            new Vec3Snapshot(6.7, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
         );
         return new PredictionContext(
             player,
@@ -86,9 +86,9 @@ class ProjectilePredictorTest {
         return new WorldSnapshot.EntitySnapshot(
             "arrow:1",
             "minecraft:arrow",
-            new Vec3Snapshot(0, 0.9, 0.3),
+            new Vec3Snapshot(0, 1.9, 0.3),
             new Vec3Snapshot(1, 0, 0),
-            new AabbSnapshot(-0.125, 0.775, 0.175, 0.125, 1.025, 0.425),
+            new AabbSnapshot(-0.125, 1.775, 0.175, 0.125, 2.025, 0.425),
             properties
         );
     }
