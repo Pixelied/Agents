@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.execution;
 
+import dev.adrien.crystaloptimizer.action.CombatAction;
 import dev.adrien.crystaloptimizer.action.Wait;
 import dev.adrien.crystaloptimizer.planner.CombatPlan;
 import dev.adrien.crystaloptimizer.planner.PlanScore;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,7 +41,7 @@ class CommitSchedulerModelTest {
 
         assertTrue(emergency.granted());
         assertEquals(CommitPhase.NORMAL, scheduler.phase());
-        assertEquals(null, scheduler.activePlan());
+        assertNull(scheduler.activePlan());
     }
 
     @Test
@@ -85,7 +87,7 @@ class CommitSchedulerModelTest {
     }
 
     private static CombatPlan singleStepPlan() {
-        var actions = List.of(new Wait(1));
+        List<CombatAction> actions = List.of(new Wait(1));
         return new CombatPlan(
             actions,
             new PlanScore(false, 0.9, 0.8, 1, 0.9, 0.9, 0, 0.05, 1.0, 1.0),
@@ -96,7 +98,7 @@ class CommitSchedulerModelTest {
     }
 
     private static CombatPlan plan(double deathProbability, double futureGeometry) {
-        var actions = List.of(new Wait(1), new Wait(1));
+        List<CombatAction> actions = List.of(new Wait(1), new Wait(1));
         return new CombatPlan(
             actions,
             new PlanScore(
