@@ -24,6 +24,13 @@ class MinecraftAdapterContractTest {
     }
 
     @Test
+    void piercingArrowRequiresPositivePierceLevel() {
+        assertFalse(MinecraftDamageAdapter.piercingProjectile(false, 4));
+        assertFalse(MinecraftDamageAdapter.piercingProjectile(true, 0));
+        assertTrue(MinecraftDamageAdapter.piercingProjectile(true, 1));
+    }
+
+    @Test
     void shieldReadinessRespectsFiveTickBoundary() {
         assertFalse(MinecraftBlockingAdapter.snapshot(true, 4, 5, 1f).active());
         assertTrue(MinecraftBlockingAdapter.snapshot(true, 5, 5, 1f).active());
