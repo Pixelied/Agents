@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "title": "Build and verify Crystal + Anchor Combat Optimizer for Minecraft 26.1.2",
+  "objective": "Implement the approved fully client-side Fabric 26.1.2 combat optimizer that discovers and executes vanilla-valid end-crystal and respawn-anchor kill sequences using exact sequential damage simulation, bounded beam search, observable-only opponent intelligence, legal packet dependencies, adaptive risk, real rotations, and server reconciliation.",
+  "created_by": "openai-crystal-github-a6d2",
+  "created_at": "2026-08-17T18:49:00+00:00",
+  "priority": "critical",
+  "status": "open",
+  "scopes": [
+    "projects/crystal-anchor-combat-optimizer-26-1-2",
+    ".github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml",
+    "tasks/build-crystal-anchor-combat-optimizer-26-1-2/artifacts"
+  ],
+  "acceptance_criteria": [
+    "The repository contains a complete client-side Fabric project targeting exactly Minecraft 26.1.2 and Java 25 with pinned Fabric Loader, Loom, and Fabric API versions",
+    "GitHub Actions builds the project on Java 25 and runs deterministic unit tests plus configured Fabric GameTests",
+    "Hurt-window, armor/effect, absorption, totem, crystal, anchor, and sequential explosion behavior are implemented from 26.1.2 source-backed mechanics with no damage fudge factors",
+    "The planner uses bounded rolling-horizon beam search over primitive legal state transitions rather than hard-coded combos or a greedy highest-damage loop",
+    "Critical execution distinguishes zero-feedback action chains from genuine server-feedback boundaries and never fabricates entity IDs, movement, reach, rotations, inventory state, hidden opponent slots, or server tick phase",
+    "Opponent intelligence uses every legitimate client-visible equipment, pickup, consumption, pop, and timing signal while preserving exact, derived, and estimated uncertainty categories",
+    "Adaptive target/risk logic is kill-opportunity-first with threat weighting, opportunistic setup, no automatic movement, adaptive real rotations, and hotbar-first automatic restocking with the offhand reserved for future AutoTotem coordination",
+    "Runtime reconciliation invalidates stale plans against server-observed state and records simulator mismatches instead of compensating with magic constants",
+    "Every claimed progressive-damage, pop-lock, terrain/exposure, timing, or prepared-anchor optimization has a deterministic or differential regression test before live execution uses it",
+    "The normal UI stays compact while developer diagnostics can explain selected lines, damage deltas, confidence, packet dependencies, rejection reasons, and combat traces",
+    "The final build, test results, CI evidence, and any runtime-verification limitations are documented honestly"
+  ]
+}
