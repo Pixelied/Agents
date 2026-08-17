@@ -12,6 +12,6 @@
     "multiplayer-design"
   ],
   "registered_at": "2026-08-17T13:05:00+00:00",
-  "state": "offline",
-  "state_reason": "Session blocked on GitHub hosted-runner billing status and remaining real-player carrier validation."
+  "state": "available",
+  "state_reason": "Resumed after user confirmed GitHub Actions billing/spending issue should be fixed and approved continuation."
 }
