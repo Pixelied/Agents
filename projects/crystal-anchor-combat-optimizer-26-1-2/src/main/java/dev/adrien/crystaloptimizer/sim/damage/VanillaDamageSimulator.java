@@ -14,6 +14,30 @@ public final class VanillaDamageSimulator {
             request.difficulty(),
             request.scalesWithDifficulty()
         );
+        float previousLastHurt = target.hurtWindow().lastHurt();
+
+        if (difficultyScaled == 0.0f) {
+            return new DamageResult(
+                target,
+                new DamageTrace(
+                    rawIncoming,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    previousLastHurt,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    Set.of(),
+                    false,
+                    target.dead()
+                ),
+                false
+            );
+        }
+
         float blockedDamage = VanillaMitigationPipeline.blockedDamage(
             target.blocking(),
             request.sourcePosition(),
@@ -21,7 +45,6 @@ public final class VanillaDamageSimulator {
             request
         );
         float incoming = Math.max(0.0f, difficultyScaled - blockedDamage);
-        float previousLastHurt = target.hurtWindow().lastHurt();
 
         var hurtDecision = HurtWindowProcessor.evaluate(target.hurtWindow(), incoming);
         if (!hurtDecision.accepted()) {
