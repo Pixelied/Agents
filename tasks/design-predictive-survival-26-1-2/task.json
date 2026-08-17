@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "design-predictive-survival-26-1-2",
+  "title": "Design predictive survival engine for Minecraft 26.1.2",
+  "objective": "Produce an implementation-ready design for a Minecraft Java 26.1.2 Fabric/Meteor client module that predicts observable incoming damage using vanilla-faithful mechanics and chooses server-valid survival actions, including correctly timed totem use, without assuming unverified exploits.",
+  "created_by": "openai-survival-design-3a7d",
+  "created_at": "2026-08-17T17:17:00+00:00",
+  "priority": "critical",
+  "status": "open",
+  "scopes": [
+    "docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md",
+    "tasks/design-predictive-survival-26-1-2/artifacts"
+  ],
+  "acceptance_criteria": [
+    "The design targets Minecraft Java 26.1.2 and Java 25 and uses the supplied 26.1.2 source as the behavioral source of truth",
+    "The design reproduces the vanilla player/living-entity damage pipeline, hurt cooldown and lastHurt semantics, armor/toughness, effects, enchantments, absorption, blocking, damage tags, and death protection in the correct order",
+    "The design defines predictors for explosions, projectiles, melee and mace threats, falls, environmental hazards, status/tick damage, and other observable vanilla damage families with explicit confidence and timing semantics",
+    "The design defines a server-authoritative action planner covering totems, shielding, cover placement, movement/evasion, equipment changes, instant effects, fall clutches, escape actions, and only mathematically beneficial hurt-cooldown manipulation",
+    "The design accounts for shield warmup, inventory/offhand/mainhand synchronization, ping and server-tick uncertainty, and rejects client-only desync as protection",
+    "Every speculative or exploit-like survival tactic is gated behind feasibility simulation and runtime verification rather than being assumed to work",
+    "Architecture boundaries, data flow, error/fallback behavior, performance limits, settings, observability, and a deterministic testing strategy are explicit",
+    "The written spec contains no TODO/TBD placeholders or contradictory requirements and is ready to feed into an implementation plan after human review"
+  ]
+}
