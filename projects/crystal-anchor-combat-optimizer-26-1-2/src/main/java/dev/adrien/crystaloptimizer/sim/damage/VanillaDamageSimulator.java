@@ -4,12 +4,22 @@ import dev.adrien.crystaloptimizer.sim.model.EffectState;
 import dev.adrien.crystaloptimizer.sim.model.HurtWindowState;
 import dev.adrien.crystaloptimizer.sim.model.SimCombatant;
 import java.util.Set;
+import net.minecraft.world.Difficulty;
 
 public final class VanillaDamageSimulator {
     public static DamageResult apply(SimCombatant target, DamageRequest request) {
         float rawIncoming = request.rawIncoming();
-        float difficultyScaled = rawIncoming;
-        float blockedDamage = VanillaMitigationPipeline.blockedDamage(difficultyScaled, request);
+        float difficultyScaled = applyDifficultyScaling(
+            rawIncoming,
+            request.difficulty(),
+            request.scalesWithDifficulty()
+        );
+        float blockedDamage = VanillaMitigationPipeline.blockedDamage(
+            target.blocking(),
+            request.sourcePosition(),
+            difficultyScaled,
+            request
+        );
         float incoming = Math.max(0.0f, difficultyScaled - blockedDamage);
         float previousLastHurt = target.hurtWindow().lastHurt();
 
@@ -50,6 +60,7 @@ public final class VanillaDamageSimulator {
         float postMagic = VanillaMitigationPipeline.afterEffectsAndEnchantments(
             postArmor,
             equipmentDamage.equipment(),
+            target.effects(),
             request
         );
 
@@ -101,6 +112,19 @@ public final class VanillaDamageSimulator {
             ),
             true
         );
+    }
+
+    public static float applyDifficultyScaling(float damage, Difficulty difficulty, boolean scalesWithDifficulty) {
+        if (!scalesWithDifficulty) {
+            return damage;
+        }
+
+        return switch (difficulty) {
+            case PEACEFUL -> 0.0f;
+            case EASY -> Math.min(damage / 2.0f + 1.0f, damage);
+            case HARD -> damage * 3.0f / 2.0f;
+            case NORMAL -> damage;
+        };
     }
 
     private VanillaDamageSimulator() {
