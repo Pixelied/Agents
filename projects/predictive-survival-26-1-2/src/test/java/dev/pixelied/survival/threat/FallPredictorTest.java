@@ -52,6 +52,18 @@ class FallPredictorTest {
     }
 
     @Test
+    void voidDamageRepeatsEveryServerTickAfterCrossing() {
+        List<ThreatEvent> events = predictor.predict(voidContext());
+
+        assertTrue(events.size() >= 5);
+        long first = events.getFirst().impact().earliest();
+        for (int i = 0; i < 5; i++) {
+            assertEquals(new TickWindow(first + i, first + i), events.get(i).impact());
+            assertEquals("minecraft:out_of_world", events.get(i).damage().sourceKey());
+        }
+    }
+
+    @Test
     void landingPredictionUsesFutureGeometryAndCurrentFallState() {
         LandingPrediction landing = new FallLandingSolver().solve(landingContext("minecraft:stone")).orElseThrow();
 
