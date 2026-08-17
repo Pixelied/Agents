@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-fallen-knight-26-1-2",
+  "agent_id": "openai-fallen-knight-inline-7d31",
+  "type": "progress",
+  "state": "awaiting_manual_playtest",
+  "summary": "Automated implementation reached beta-candidate status through Tasks 8-12 locally: Knight's Oath rematches, castle worldgen, discovery map/watchtower route, resource-pack visual hooks, packaging, and exact 26.1.2 acceptance checks. Manual 1-4 player combat-feel validation remains required before release.",
+  "branch": "feat/fallen-knight-26-1-2",
+  "artifact": "fallen-knight-26.1.2-0.1.0-beta.1.zip",
+  "manual_gate": "Run PLAYTEST.md on a real Minecraft Java 26.1.2 multiplayer server before final branch completion."
+}
