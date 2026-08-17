@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2task10green234400",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 10 GREEN: conservative target prediction produces weighted likely/reversal/bound hypotheses with confidence decay, supports post-explosion knockback transitions, and beam planning evaluates explosive lethality across the movement envelope so robust lines beat pixel-perfect nominal damage. Full Java 25 test/build/GameTest gate passed.",
+  "data": {
+    "green_run_id": 32081725408,
+    "green_head": "17a7c364ab98ae07119edf7b2fb5aaadf45c572d",
+    "prediction_core_head": "bc78200597af1be548a6f2521c4bb2ee680001a5",
+    "planner_robustness": "weighted hypothesis outcome retention with prediction confidence"
+  },
+  "created_at": "2026-08-17T23:44:00+00:00"
+}
