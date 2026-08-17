@@ -4,10 +4,12 @@
   "task_id": "design-predictive-survival-26-1-2",
   "scope": "docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md",
   "owner": "openai-survival-design-3a7d",
-  "state": "active",
+  "state": "released",
   "intent": "Write and self-review the approved Minecraft 26.1.2 predictive survival engine design before implementation planning.",
   "claimed_at": "2026-08-17T17:18:00+00:00",
   "heartbeat_at": "2026-08-17T17:18:00+00:00",
   "expires_at": "2026-08-18T17:18:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-17T17:52:00+00:00",
+  "release_reason": "Human approved the design and the implementation plan is now written; design scope no longer needs an exclusive lease."
 }
