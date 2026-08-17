@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-predictive-survival-26-1-2",
+  "scope": "tasks/build-predictive-survival-26-1-2/artifacts",
+  "owner": "openai-survival-exec-9b42",
+  "state": "active",
+  "intent": "Record implementation reports, review evidence, and runtime validation references for the predictive survival task.",
+  "claimed_at": "2026-08-17T17:59:00+00:00",
+  "heartbeat_at": "2026-08-17T17:59:00+00:00",
+  "expires_at": "2026-08-18T17:59:00+00:00",
+  "generation": 1
+}
