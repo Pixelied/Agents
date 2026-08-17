@@ -11,6 +11,7 @@ import net.minecraft.core.BlockPos;
 
 public record CombatState(
     CombatSnapshot base,
+    UUID targetId,
     SimCombatant self,
     SimCombatant target,
     BlockDeltaOverlay geometry,
@@ -21,6 +22,7 @@ public record CombatState(
 ) {
     public CombatState {
         Objects.requireNonNull(base, "base");
+        Objects.requireNonNull(targetId, "targetId");
         Objects.requireNonNull(self, "self");
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(geometry, "geometry");
@@ -41,6 +43,7 @@ public record CombatState(
         SimCombatant target = requireCombatant(snapshot, targetId, "target");
         return new CombatState(
             snapshot,
+            targetId,
             self,
             target,
             new BlockDeltaOverlay(snapshot.region()),
@@ -49,6 +52,18 @@ public record CombatState(
             snapshot.inventory(),
             snapshot.timing()
         );
+    }
+
+    public CombatantSpatialState selfSpatial() {
+        return requireSpatial(base.selfId(), "self");
+    }
+
+    public CombatantSpatialState targetSpatial() {
+        return requireSpatial(targetId, "target");
+    }
+
+    public boolean hasSpatialState() {
+        return base.spatial().containsKey(base.selfId()) && base.spatial().containsKey(targetId);
     }
 
     public CombatState withGeometry(BlockDeltaOverlay nextGeometry) {
@@ -86,6 +101,7 @@ public record CombatState(
     ) {
         return new CombatState(
             base,
+            targetId,
             nextSelf,
             nextTarget,
             nextGeometry,
@@ -94,6 +110,14 @@ public record CombatState(
             nextInventory,
             nextTiming
         );
+    }
+
+    private CombatantSpatialState requireSpatial(UUID id, String label) {
+        CombatantSpatialState spatial = base.spatial().get(id);
+        if (spatial == null) {
+            throw new IllegalStateException(label + " spatial state is absent from snapshot: " + id);
+        }
+        return spatial;
     }
 
     private static SimCombatant requireCombatant(CombatSnapshot snapshot, UUID id, String label) {

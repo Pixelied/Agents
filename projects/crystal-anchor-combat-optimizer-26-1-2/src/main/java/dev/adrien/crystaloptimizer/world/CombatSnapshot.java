@@ -1,6 +1,7 @@
 package dev.adrien.crystaloptimizer.world;
 
 import dev.adrien.crystaloptimizer.sim.model.AnchorState;
+import dev.adrien.crystaloptimizer.sim.model.CombatantSpatialState;
 import dev.adrien.crystaloptimizer.sim.model.InventoryState;
 import dev.adrien.crystaloptimizer.sim.model.KnownCrystal;
 import dev.adrien.crystaloptimizer.sim.model.SimCombatant;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.Difficulty;
 
 public record CombatSnapshot(
     long worldRevision,
@@ -21,7 +23,9 @@ public record CombatSnapshot(
     Map<BlockPos, AnchorState> anchors,
     InventoryState inventory,
     TimingState timing,
-    LegalitySnapshot legality
+    LegalitySnapshot legality,
+    Map<UUID, CombatantSpatialState> spatial,
+    Difficulty difficulty
 ) {
     public CombatSnapshot(
         long worldRevision,
@@ -42,7 +46,35 @@ public record CombatSnapshot(
             anchors,
             inventory,
             timing,
-            LegalitySnapshot.unavailable()
+            LegalitySnapshot.unavailable(),
+            Map.of(),
+            Difficulty.NORMAL
+        );
+    }
+
+    public CombatSnapshot(
+        long worldRevision,
+        UUID selfId,
+        CombatRegion region,
+        Map<UUID, SimCombatant> combatants,
+        List<KnownCrystal> crystals,
+        Map<BlockPos, AnchorState> anchors,
+        InventoryState inventory,
+        TimingState timing,
+        LegalitySnapshot legality
+    ) {
+        this(
+            worldRevision,
+            selfId,
+            region,
+            combatants,
+            crystals,
+            anchors,
+            inventory,
+            timing,
+            legality,
+            Map.of(),
+            Difficulty.NORMAL
         );
     }
 
@@ -58,9 +90,12 @@ public record CombatSnapshot(
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(timing, "timing");
         Objects.requireNonNull(legality, "legality");
+        Objects.requireNonNull(spatial, "spatial");
+        Objects.requireNonNull(difficulty, "difficulty");
 
         combatants = Map.copyOf(combatants);
         crystals = List.copyOf(crystals);
+        spatial = Map.copyOf(spatial);
         LinkedHashMap<BlockPos, AnchorState> anchorCopy = new LinkedHashMap<>();
         anchors.forEach((pos, state) -> anchorCopy.put(pos.immutable(), Objects.requireNonNull(state)));
         anchors = Map.copyOf(anchorCopy);
