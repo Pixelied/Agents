@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2d2d3552a4f24a72038dd90d2f2af",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 2 GREEN: immutable hurt-window state and progressive-damage acceptance passed the Java 25 full test/build/GameTest gate after a missing-types RED run.",
+  "data": {
+    "red_run_id": 32057589842,
+    "green_run_id": 32057762584,
+    "green_head": "5c59577807167685658bce91fb66eeaf665d6790",
+    "covered": [
+      "stronger protected hit passes only delta",
+      "equal/weaker protected hit rejected",
+      "fresh hit starts 20 ticks and stores incoming",
+      "tick clamp preserves lastHurt"
+    ]
+  },
+  "created_at": "2026-08-17T19:00:00+00:00"
+}
