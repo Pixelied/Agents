@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2c1924f7b4a2e86a0774f61cb4c2d",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 1 GREEN: Java 25, Gradle 9.5.1, Fabric Loom 1.17.19, Loader JUnit, production build, and empty server GameTest bootstrap succeeded after an intentionally failing missing-CrystalOptimizer RED run.",
+  "data": {
+    "red_run_id": 32057100082,
+    "red_reason": "BootstrapSmokeTest intentionally failed to compile because CrystalOptimizer did not exist",
+    "green_run_id": 32057415752,
+    "green_head": "80ee11e7eecaa569fb7c88a22186fe5f73de3896",
+    "gate": "gradle --no-daemon clean test build runGameTest --stacktrace"
+  },
+  "created_at": "2026-08-17T18:57:00+00:00"
+}
