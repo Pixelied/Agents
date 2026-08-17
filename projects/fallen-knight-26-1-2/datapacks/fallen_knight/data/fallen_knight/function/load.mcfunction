@@ -34,3 +34,4 @@ scoreboard objectives add fk_cd_slam dummy
 scoreboard objectives add fk_cd_blades dummy
 scoreboard players add $next fk_aid 0
 scoreboard players add $nextenc fk_eid 0
+schedule function fallen_knight:arena/repair_loaded 1t replace

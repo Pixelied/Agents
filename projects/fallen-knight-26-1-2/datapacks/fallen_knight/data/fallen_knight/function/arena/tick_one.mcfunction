@@ -2,6 +2,7 @@
 execute if score @s fk_state matches 0 if entity @a[tag=!fk.participant,gamemode=!spectator,scores={fk_alive=1..},distance=..12] run function fallen_knight:arena/start
 
 # Active arena snapshots current boss health and controls late-join/reset windows.
+execute if score @s fk_state matches 1 run function fallen_knight:arena/check_boss_bounds
 execute if score @s fk_state matches 1 store result score @s fk_hp run data get entity @e[tag=fk.boss,sort=nearest,limit=1,distance=..13] Health 1
 execute if score @s fk_state matches 1 if score @s fk_hp > @s fk_joinhp run scoreboard players set @s fk_join 1
 execute if score @s fk_state matches 1 unless score @s fk_hp > @s fk_joinhp run scoreboard players set @s fk_join 0

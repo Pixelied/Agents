@@ -1,4 +1,6 @@
 execute store result score @s fk_hp run data get entity @s Health 1
+execute if score @s fk_hp matches ..0 unless score @s fk_phase matches 4 run function fallen_knight:boss/death/start
+execute if score @s fk_phase matches 4 run function fallen_knight:boss/death/tick
 execute store result storage fallen_knight:macro arena.aid int 1 run scoreboard players get @s fk_aid
 execute store result storage fallen_knight:macro arena.hp int 1 run scoreboard players get @s fk_hp
 execute if score @s fk_aid matches 1.. run function fallen_knight:arena/bossbar/update with storage fallen_knight:macro arena

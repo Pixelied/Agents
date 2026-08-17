@@ -43,5 +43,43 @@ class ArenaContractTests(unittest.TestCase):
         for token in ("~-13", "~13", "minecraft:barrier"):
             self.assertIn(token, seal)
 
+    def test_lifecycle_reset_is_exactly_300_ticks(self):
+        text = self.text("arena/tick_one.mcfunction")
+        self.assertIn("fk_reset matches 300..", text)
+
+    def test_participation_time_requires_matching_active_arena(self):
+        text = self.text("arena/participants/tick_one_for_arena.mcfunction")
+        self.assertIn("fk_state=1", text)
+        self.assertIn("fk_aid=$(aid)", text)
+
+    def test_victory_is_stamped_before_castle_clear(self):
+        text = self.text("boss/death/finish.mcfunction")
+        victory = text.index("arena/result/victory")
+        cleared = text.index("arena/mark_cleared")
+        self.assertLess(victory, cleared)
+        self.assertNotIn("participants/clear", text)
+
+    def test_failed_reset_stamps_current_encounter(self):
+        reset = self.text("arena/reset.mcfunction")
+        failure = self.text("arena/result/failure.mcfunction")
+        self.assertIn("arena/result/failure", reset)
+        self.assertIn("fk_win_$(eid)", failure)
+        self.assertIn("fk_result -1", failure)
+
+    def test_successful_death_marks_arena_cleared(self):
+        text = self.text("arena/mark_cleared_marker.mcfunction")
+        self.assertIn("fk_clear 1", text)
+        self.assertIn("fk_state 2", text)
+        self.assertNotIn("participants/clear", text)
+
+    def test_active_arena_checks_boss_bounds(self):
+        text = self.text("arena/tick_one.mcfunction")
+        self.assertIn("arena/check_boss_bounds", text)
+
+    def test_watchdog_preserves_known_victories(self):
+        text = self.text("arena/watchdog_for_eid.mcfunction")
+        self.assertIn("fk_result matches -1", text)
+        self.assertNotIn("fk_result matches 1 run function fallen_knight:reward", text)
+
 if __name__ == "__main__":
     unittest.main()
