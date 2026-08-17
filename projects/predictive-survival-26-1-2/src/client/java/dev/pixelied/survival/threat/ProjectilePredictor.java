@@ -153,12 +153,20 @@ public final class ProjectilePredictor implements ThreatPredictor {
     ) {
         Map<String, String> properties = entity.properties();
         if (family == ProjectileFamily.ARROW_LIKE) {
-            double baseDamage = finiteNonNegative(properties.get("base_damage"), 2d);
-            int normal = (int) Math.ceil(VanillaProjectileMotionModels.length(impactVelocity) * baseDamage);
-            String critical = properties.getOrDefault("critical", "false");
+            Float baseDamage = finiteFloat(properties.get("base_damage"));
+            if (baseDamage == null || baseDamage < 0f) {
+                return Optional.of(new DamageRange(0f, Float.MAX_VALUE));
+            }
+
+            double scaledDamage = VanillaProjectileMotionModels.length(impactVelocity) * baseDamage;
+            if (!Double.isFinite(scaledDamage) || scaledDamage > Integer.MAX_VALUE) {
+                return Optional.of(new DamageRange(0f, Float.MAX_VALUE));
+            }
+            int normal = Math.max(0, (int) Math.ceil(scaledDamage));
+            String critical = properties.getOrDefault("critical", "unknown");
             if ("true".equalsIgnoreCase(critical) || "unknown".equalsIgnoreCase(critical)) {
-                int maximum = normal + normal / 2 + 1;
-                return Optional.of(new DamageRange(normal, maximum));
+                long maximum = (long) normal + normal / 2L + 1L;
+                return Optional.of(new DamageRange(normal, Math.min((float) maximum, Float.MAX_VALUE)));
             }
             return Optional.of(DamageRange.exact(normal));
         }
