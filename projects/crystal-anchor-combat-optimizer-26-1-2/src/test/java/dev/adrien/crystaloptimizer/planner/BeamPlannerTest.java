@@ -115,9 +115,9 @@ class BeamPlannerTest {
     }
 
     private static CombatState popLockFixture() {
-        BlockPos anchorPos = new BlockPos(0, 64, 4);
-        KnownCrystal shaped = new KnownCrystal(101, new Vec3(9.5, 65.0, 0.5));
-        KnownCrystal greedy = new KnownCrystal(102, new Vec3(7.5, 65.0, 0.5));
+        BlockPos anchorPos = new BlockPos(0, 64, 5);
+        KnownCrystal shaped = new KnownCrystal(101, new Vec3(8.5, 65.0, 1.0));
+        KnownCrystal greedy = new KnownCrystal(102, new Vec3(7.5, 65.0, 1.0));
         SimCombatant self = SimCombatant.testPlayer(20.0f);
         SimCombatant target = SimCombatant.testPlayer(5.0f).withTotem(TotemState.OFFHAND);
         CombatRegion region = CombatRegion.singleBlock(anchorPos, Blocks.RESPAWN_ANCHOR.defaultBlockState());
@@ -130,8 +130,8 @@ class BeamPlannerTest {
             ),
             TARGET,
             new CombatantSpatialState(
-                new Vec3(0.5, 64.0, 0.5),
-                new AABB(0.2, 64.0, 0.2, 0.8, 65.8, 0.8),
+                new Vec3(0.5, 64.0, 1.0),
+                new AABB(0.2, 64.0, 0.7, 0.8, 65.8, 1.3),
                 Vec3.ZERO
             )
         );
