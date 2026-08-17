@@ -9,7 +9,7 @@ public final class ServerTimingEstimator {
     private static final int SAMPLE_LIMIT = 20;
     private static final double DEFAULT_RTT_MS = 250d;
     private static final double DEFAULT_JITTER_MS = 100d;
-    private static final double DEFAULT_TICK_MS = 50d;
+    private static final double SERVER_TICK_MS = 50d;
 
     private final Deque<Double> rttSamplesMs = new ArrayDeque<>();
     private final Deque<Double> tickSamplesMs = new ArrayDeque<>();
@@ -29,14 +29,15 @@ public final class ServerTimingEstimator {
 
         double rtt = rttSamplesMs.isEmpty() ? DEFAULT_RTT_MS : mean(rttSamplesMs);
         double jitter = rttSamplesMs.isEmpty() ? DEFAULT_JITTER_MS : maxAbsoluteDeviation(rttSamplesMs, rtt);
-        double tickMs = tickSamplesMs.isEmpty() ? DEFAULT_TICK_MS : mean(tickSamplesMs);
+        double clientTickMs = tickSamplesMs.isEmpty() ? SERVER_TICK_MS : mean(tickSamplesMs);
+        double clientSchedulingOverrunMs = Math.max(0d, clientTickMs - SERVER_TICK_MS);
 
         double oneWayCenterMs = rtt / 2d;
         double earliestMs = Math.max(0d, oneWayCenterMs - jitter);
-        double latestMs = oneWayCenterMs + jitter;
+        double latestMs = oneWayCenterMs + jitter + clientSchedulingOverrunMs;
 
-        long earliestTicks = floorTicks(earliestMs, tickMs);
-        long latestTicks = ceilTicks(latestMs, tickMs) + 1L;
+        long earliestTicks = floorServerTicks(earliestMs);
+        long latestTicks = ceilServerTicks(latestMs) + 1L;
         TickWindow processing = new TickWindow(
             saturatingAdd(clientTick, earliestTicks),
             saturatingAdd(clientTick, latestTicks)
@@ -61,12 +62,12 @@ public final class ServerTimingEstimator {
         return max;
     }
 
-    private static long floorTicks(double millis, double tickMs) {
-        return Math.max(0L, (long) Math.floor(millis / tickMs));
+    private static long floorServerTicks(double millis) {
+        return Math.max(0L, (long) Math.floor(millis / SERVER_TICK_MS));
     }
 
-    private static long ceilTicks(double millis, double tickMs) {
-        return Math.max(0L, (long) Math.ceil(millis / tickMs));
+    private static long ceilServerTicks(double millis) {
+        return Math.max(0L, (long) Math.ceil(millis / SERVER_TICK_MS));
     }
 
     private static long saturatingAdd(long value, long increment) {
