@@ -3,6 +3,7 @@ name: Predictive Survival 26.1.2 CI
 on:
   push:
     branches:
+      - main
       - feat/predictive-survival-26-1-2
     paths:
       - 'projects/predictive-survival-26-1-2/**'
