@@ -36,3 +36,13 @@ jobs:
       - name: Test and build
         working-directory: projects/predictive-survival-26-1-2
         run: gradle --no-daemon clean test build
+
+      - name: Upload production jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictive-survival-26.1.2
+          if-no-files-found: error
+          path: |
+            projects/predictive-survival-26-1-2/build/libs/*.jar
+            !projects/predictive-survival-26-1-2/build/libs/*-sources.jar
