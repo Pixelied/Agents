@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "predictive-survival-task1-green-20260817",
+  "task_id": "build-predictive-survival-26-1-2",
+  "agent_id": "openai-survival-exec-9b42",
+  "type": "progress",
+  "message": "Task 1 reached GREEN: Java 25/Fabric 26.1.2 unit tests and build succeeded and the production jar artifact uploaded.",
+  "data": {
+    "red_commit": "d8503f8c2bde7b866e73031cdf2e7e90873f518a",
+    "green_commit": "ddc102bb3f91d96b14dff9307de6b0b6df763ea5",
+    "green_ci_run": 32052984654,
+    "green_job": 95456593562,
+    "artifact_id": 9295387397
+  },
+  "created_at": "2026-08-17T18:06:12+00:00"
+}
