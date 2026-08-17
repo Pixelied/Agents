@@ -184,7 +184,7 @@ public final class DamageSimulator {
         return new PlayerSnapshot(
             health, absorption, player.playerInvulnerable(), player.abilityInvulnerable(), player.deadOrDying(),
             player.difficulty(), mitigation, effects, player.blocking(), hurtState, deathProtection,
-            player.boundingBox(), player.position(), player.velocity(), player.equipmentItemKeys()
+            player.boundingBox(), player.position(), player.velocity(), player.equipmentItemKeys(), player.stateProperties()
         );
     }
 }
