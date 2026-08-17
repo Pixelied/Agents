@@ -4,10 +4,12 @@
   "task_id": "build-fallen-knight-26-1-2",
   "scope": ".github/workflows/fallen-knight-26-1-2-ci.yml",
   "owner": "openai-fallen-knight-inline-7d31",
-  "state": "active",
+  "state": "released",
   "intent": "Add Java 25 CI and exact Minecraft 26.1.2 server validation for the Fallen Knight datapack.",
   "claimed_at": "2026-08-17T13:10:45+00:00",
   "heartbeat_at": "2026-08-17T13:10:45+00:00",
   "expires_at": "2026-08-18T13:10:45+00:00",
+  "released_at": "2026-08-17T13:15:25+00:00",
+  "release_reason": "Blocked because GitHub hosted runners did not start due to account billing/spending-limit status.",
   "generation": 1
 }
