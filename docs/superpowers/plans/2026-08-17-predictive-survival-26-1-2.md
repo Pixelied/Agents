@@ -199,8 +199,6 @@ public record AabbSnapshot(double minX, double minY, double minZ,
                            double maxX, double maxY, double maxZ) {}
 ```
 
-`DamageSourceSnapshot` is the normalized source used by the pure simulator:
-
 ```java
 public record DamageSourceSnapshot(
     DamageRange rawDamage,
@@ -213,7 +211,14 @@ public record DamageSourceSnapshot(
 ) {}
 ```
 
-`ThreatEvent` and timeline results carry every capability later tasks need:
+```java
+public final class DamageTrace {
+    public float before(DamageStage stage);
+    public float after(DamageStage stage);
+}
+public record DamageResult(PlayerSnapshot after, DamageTrace trace,
+                           boolean rejected, boolean deathProtectionConsumed) {}
+```
 
 ```java
 public record ThreatEvent(
@@ -229,14 +234,8 @@ public record ThreatEvent(
     boolean relocatable,
     boolean canDisableBlocking
 ) {}
-
-public record TimelineEventResult(
-    ThreatEvent event,
-    float preMitigationRaw,
-    float finalDamage,
-    DamageResult damageResult
-) {}
-
+public record TimelineEventResult(ThreatEvent event, float preMitigationRaw,
+                                  float finalDamage, DamageResult damageResult) {}
 public record TimelineResult(
     java.util.List<TimelineEventResult> eventResults,
     float finalHealth,
@@ -248,8 +247,6 @@ public record TimelineResult(
     public TimelineEventResult eventResult(String id);
 }
 ```
-
-`SurvivalAction.java` is one sealed interface with nested action records:
 
 ```java
 public sealed interface SurvivalAction {
@@ -265,8 +262,6 @@ public sealed interface SurvivalAction {
 }
 ```
 
-`DeathProtectionRoute.java` is a sealed interface with nested route records:
-
 ```java
 public sealed interface DeathProtectionRoute {
     enum Destination { MAIN_HAND, OFF_HAND }
@@ -275,8 +270,6 @@ public sealed interface DeathProtectionRoute {
     record ContainerSwap(int sourceMenuSlot, int button, Destination destination) implements DeathProtectionRoute {}
 }
 ```
-
-Planner result contracts:
 
 ```java
 public record ActionFeasibility(boolean feasible, String reason, Deadline deadline) {}
@@ -464,12 +457,16 @@ git commit -m "feat: model vanilla hurt preprocessing and cooldown"
 
 - [ ] **Step 2: Run failure:** `./gradlew test --tests 'dev.pixelied.survival.damage.*MitigationTest' --tests dev.pixelied.survival.damage.DeathProtectionTest`
 - [ ] **Step 3: Implement source order:** armor unless `BYPASSES_ARMOR`; skip effect/enchantment stage for `BYPASSES_EFFECTS`; otherwise Resistance unless `BYPASSES_RESISTANCE`, then enchantment protection unless `BYPASSES_ENCHANTMENTS`; absorption before health; source-confirmed armor durability changes; both-hand death protection at health `<= 0` unless `BYPASSES_INVULNERABILITY`.
-- [ ] **Step 4: Add armor-break regression, verify, commit**
+- [ ] **Step 4: Add sequential armor-break regression, verify, commit**
 
 ```java
 @Test void oneDurabilityArmorBreakRaisesSecondHitDamage() {
-    TimelineResult r = fixture().oneDurabilityChestplate().twoIdenticalHits().simulateTimeline();
-    assertTrue(r.eventResults().get(1).finalDamage() > r.eventResults().get(0).finalDamage());
+    DamageSimulator simulator = fixture().simulator();
+    DamageSourceSnapshot hit = fixture().exactRawSource(8f);
+    DamageResult first = simulator.simulate(fixture().oneDurabilityChestplatePlayer(), hit);
+    DamageResult second = simulator.simulate(first.after(), hit);
+    assertTrue(second.trace().after(DamageStage.HEALTH_DAMAGE)
+        > first.trace().after(DamageStage.HEALTH_DAMAGE));
 }
 ```
 
@@ -825,7 +822,7 @@ public record LandingPrediction(Vec3Snapshot position, long tick, String surface
 ```
 
 - [ ] **Step 2: Run failure:** `./gradlew test --tests dev.pixelied.survival.threat.FallPredictorTest`
-- [ ] **Step 3: Use future AABB/collision geometry and velocity, not `fallDistance` alone. Cover normal landings, stalagmites, elytra `FLY_INTO_WALL`, observable falling blocks/stalactites, and void trajectories.**
+- [ ] **Step 3: Use future AABB/collision geometry and velocity, not `fallDistance` alone. Cover normal landings, stalagmites, elytra `FLY_INTO_WALL`, observable falling blocks/stalactites, and void trajectories. `FELL_OUT_OF_WORLD` and any observable `GENERIC_KILL`-equivalent source are marked unsavable by death protection from their runtime tags.**
 - [ ] **Step 4: Verify and commit**
 
 ```bash
@@ -858,7 +855,7 @@ public record HazardClockSnapshot(String hazardId, int ticksUntilNextDamage, int
 ```
 
 - [ ] **Step 2: Run failure:** `./gradlew test --tests dev.pixelied.survival.threat.PeriodicHazardPredictorTest`
-- [ ] **Step 3: Cover fire/campfire/lava/hot-floor, cactus/berry bush, suffocation, cramming, drowning, starvation, freezing, world border, dry-out where relevant, area-effect hazards, Wither, poison/magic effect ticks, and observable lightning. Predictor computes deadlines; `DamageSimulator` owns mitigation/rejection.**
+- [ ] **Step 3: Cover fire/campfire/lava/hot-floor, cactus/berry bush, suffocation, cramming, drowning, starvation, freezing, world border, dry-out where relevant, dragon-breath/area-effect hazards, Wither, poison/magic effect ticks, and observable lightning. Predictor computes deadlines; `DamageSimulator` owns mitigation/rejection.**
 - [ ] **Step 4: Verify and commit**
 
 ```bash
@@ -1034,7 +1031,7 @@ git commit -m "feat: execute protection and shield states"
 ```
 
 - [ ] **Step 2: Run failure:** `./gradlew test --tests dev.pixelied.survival.planner.NonTotemActionTest --tests dev.pixelied.survival.action.NonTotemExecutorTest`
-- [ ] **Step 3: Implement only physically/server-valid candidates. Movement must move the accepted server AABB; cover must be reachable/legal; equipment counts real packet operations; effects include use/projectile duration; fall rescues cover water, legal landing-block use, elytra, wind charge, valid mace smash, and pearl relocation.**
+- [ ] **Step 3: Implement only physically/server-valid candidates.** Movement must move the accepted server AABB; cover must be reachable/legal; equipment candidates are scored by the same source-specific timeline so chestplates, specialized Protection enchantments, elytra, and freeze-relevant wearables are compared from runtime stats/tags rather than names; effect candidates include quickly applicable Resistance, Fire Resistance, healing/absorption and longer-horizon food/Slow Falling/Water Breathing with their real use/flight durations; fall rescues cover water, legal landing-block use, elytra, wind charge, valid mace smash, and pearl relocation. Pearl action simulation inserts a synthetic `ender_pearl` event with 5 raw damage before scoring the resulting timeline.
 - [ ] **Step 4: Verify and commit**
 
 ```bash
