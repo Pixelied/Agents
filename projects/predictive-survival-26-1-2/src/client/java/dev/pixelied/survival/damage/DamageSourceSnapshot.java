@@ -14,8 +14,22 @@ public record DamageSourceSnapshot(
     float freezingMultiplier,
     boolean piercingProjectile,
     Optional<Vec3Snapshot> sourcePosition,
-    String sourceKey
+    String sourceKey,
+    float applicationHealthThresholdExclusive
 ) {
+    public DamageSourceSnapshot(
+        DamageRange rawDamage,
+        Set<DamageFlag> flags,
+        boolean scalesWithDifficulty,
+        float freezingMultiplier,
+        boolean piercingProjectile,
+        Optional<Vec3Snapshot> sourcePosition,
+        String sourceKey
+    ) {
+        this(rawDamage, flags, scalesWithDifficulty, freezingMultiplier, piercingProjectile,
+            sourcePosition, sourceKey, 0f);
+    }
+
     public DamageSourceSnapshot {
         rawDamage = Objects.requireNonNull(rawDamage, "rawDamage");
         flags = Set.copyOf(Objects.requireNonNull(flags, "flags"));
@@ -23,6 +37,9 @@ public record DamageSourceSnapshot(
         sourceKey = Objects.requireNonNull(sourceKey, "sourceKey");
         if (freezingMultiplier < 0f || Float.isNaN(freezingMultiplier)) {
             throw new IllegalArgumentException("freezingMultiplier must be non-negative");
+        }
+        if (!Float.isFinite(applicationHealthThresholdExclusive) || applicationHealthThresholdExclusive < 0f) {
+            throw new IllegalArgumentException("applicationHealthThresholdExclusive must be finite and non-negative");
         }
     }
 
