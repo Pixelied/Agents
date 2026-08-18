@@ -196,7 +196,7 @@ final class PotionValidationScenarios {
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer
     ) {
-        Setup setup = singleplayer.getServer().computeOnServer(server -> {
+        LingeringSetup setup = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             SurvivalValidationClientGameTest.reset(player, 20f);
             player.setDeltaMovement(Vec3.ZERO);
@@ -212,9 +212,10 @@ final class PotionValidationScenarios {
             potion.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 5d);
             potion.setDeltaMovement(0d, 0d, -1.0d);
             level.addFreshEntity(potion);
-            return new Setup(
+            return new LingeringSetup(
                 potion.getId(),
                 owner.getId(),
+                player.position(),
                 player.position().toString(),
                 player.getBoundingBox().toString(),
                 potion.position().toString(),
@@ -232,7 +233,7 @@ final class PotionValidationScenarios {
                 .orElse(null);
             String snapshot = snapshot(frame, setup.projectileId());
 
-            DamageObservation damage = awaitDamageDetailed(
+            DamageObservation damage = awaitLingeringDamage(
                 context, singleplayer, setup.projectileId(), snapshot, setup, 80
             );
             if (predicted == null) {
@@ -250,7 +251,7 @@ final class PotionValidationScenarios {
                 Entity owner = level.getEntity(setup.ownerId());
                 if (owner != null) owner.discard();
                 for (AreaEffectCloud cloud : level.getEntitiesOfClass(
-                    AreaEffectCloud.class, player.getBoundingBox().inflate(8d)
+                    AreaEffectCloud.class, player.getBoundingBox().inflate(16d)
                 )) {
                     cloud.discard();
                 }
@@ -364,6 +365,40 @@ final class PotionValidationScenarios {
         );
     }
 
+    private static DamageObservation awaitLingeringDamage(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        int projectileId,
+        String snapshot,
+        LingeringSetup setup,
+        int maxTicks
+    ) {
+        Observation lastPresent = null;
+        Observation current = null;
+        int disappearedAt = -1;
+        for (int tick = 1; tick <= maxTicks; tick++) {
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                Vec3 anchor = setup.playerAnchor();
+                player.setPos(anchor.x, anchor.y, anchor.z);
+                player.setDeltaMovement(Vec3.ZERO);
+            });
+            context.waitTick();
+            current = singleplayer.getServer().computeOnServer(server -> observe(server, projectileId));
+            if (current.present()) lastPresent = current;
+            if (!current.present() && disappearedAt < 0) disappearedAt = tick;
+            if (current.health() < 20f) {
+                return new DamageObservation(current.health(), tick, disappearedAt, lastPresent, current);
+            }
+        }
+        throw new AssertionError(
+            "anchored lingering Harming fixture produced no server damage within " + maxTicks + " ticks; "
+                + snapshot + " setup=" + setup + " disappearedAt=" + disappearedAt
+                + " lastPresent=" + lastPresent + " current=" + current
+                + " " + cloudDiagnostics(singleplayer)
+        );
+    }
+
     private static String cloudDiagnostics(TestSingleplayerContext singleplayer) {
         return singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
@@ -419,6 +454,17 @@ final class PotionValidationScenarios {
     private record Setup(
         int projectileId,
         int ownerId,
+        String playerPosition,
+        String playerBox,
+        String potionPosition,
+        String potionContents
+    ) {
+    }
+
+    private record LingeringSetup(
+        int projectileId,
+        int ownerId,
+        Vec3 playerAnchor,
         String playerPosition,
         String playerBox,
         String potionPosition,
