@@ -29,6 +29,9 @@ public record ChargeAnchor(BlockPos pos) implements CombatAction {
         if (state.inventory().count(Items.GLOWSTONE) <= 0) {
             return ActionLegality.denied("no glowstone resource is known available");
         }
+        if (state.inventory().selectedItem().filter(Items.GLOWSTONE::equals).isEmpty()) {
+            return ActionLegality.denied("glowstone is not selected in the real main hand");
+        }
         return ActionLegality.allowed();
     }
 
