@@ -39,6 +39,40 @@ class ProjectilePredictorTest {
     }
 
     @Test
+    void oneTickObservedServerLeadPullsImpactForwardWithoutChangingDamage() {
+        ThreatEvent event = predictor.predict(context(
+            List.of(arrow(Map.of(
+                "base_damage", "6.0",
+                "critical", "false",
+                "observation_age_ticks", "1"
+            ))),
+            List.of()
+        )).getFirst();
+
+        assertEquals(new TickWindow(6, 6), event.impact());
+        assertEquals(DamageRange.exact(6f), event.damage().rawDamage());
+    }
+
+    @Test
+    void tridentExplicitRawDamageOverridesArrowLikeVelocityFormula() {
+        WorldSnapshot.EntitySnapshot trident = new WorldSnapshot.EntitySnapshot(
+            "trident:1",
+            "minecraft:trident",
+            new Vec3Snapshot(0, 1.9, 0.3),
+            new Vec3Snapshot(1, 0, 0),
+            new AabbSnapshot(-0.125, 1.775, 0.175, 0.125, 2.025, 0.425),
+            Map.of(
+                "base_damage", "2.0",
+                "raw_damage", "8.0",
+                "critical", "false"
+            )
+        );
+
+        ThreatEvent event = predictor.predict(context(List.of(trident), List.of())).getFirst();
+        assertEquals(DamageRange.exact(8f), event.damage().rawDamage());
+    }
+
+    @Test
     void earlierWallCollisionRemovesPlayerThreat() {
         WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
             new Vec3Snapshot(4, 1, 0),
