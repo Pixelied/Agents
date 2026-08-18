@@ -26,24 +26,20 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
         List<ThreatEvent> events = new ArrayList<>();
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             if (!CLOUD_TYPE.equals(entity.typeKey())) continue;
-            addCloudThreats(context, entity, events);
+            addCloudThreat(context, entity, events);
         }
         return List.copyOf(events);
     }
 
-    private static void addCloudThreats(
+    private static void addCloudThreat(
         PredictionContext context,
         WorldSnapshot.EntitySnapshot cloud,
         List<ThreatEvent> output
     ) {
         float rawDamage = finitePositiveFloat(cloud.properties().get("cloud_instant_damage"), 0f);
         if (rawDamage <= 0f) return;
-
-        int remaining = nonNegativeInt(cloud.properties().get("cloud_duration_remaining_ticks"), 0);
-        if (remaining <= 0) return;
         if (!intersects(context.player().boundingBox(), cloud.boundingBox())) return;
 
-        int waitRemaining = nonNegativeInt(cloud.properties().get("cloud_wait_remaining_ticks"), 0);
         int reapplicationDelay = Math.max(
             1,
             nonNegativeInt(
@@ -51,47 +47,16 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
                 DEFAULT_REAPPLICATION_DELAY
             )
         );
-        int observationAge = nonNegativeInt(cloud.properties().get("observation_age_ticks"), 0);
-        long horizon = Math.min((long) context.limits().maxDecisionHistory(), remaining);
-        if (horizon < 0) return;
+        long latest = Math.min((long) context.limits().maxDecisionHistory(), reapplicationDelay);
 
-        if (waitRemaining > 0) {
-            long earliest = Math.max(0L, (long) waitRemaining - observationAge);
-            long latest = Math.min(horizon, waitRemaining);
-            if (earliest <= latest) {
-                output.add(event(cloud, 0, new TickWindow(earliest, latest), rawDamage));
-            }
-
-            long nextEarliest = earliest + reapplicationDelay;
-            long nextLatest = latest + reapplicationDelay;
-            int index = 1;
-            while (nextEarliest <= horizon) {
-                output.add(event(
-                    cloud,
-                    index++,
-                    new TickWindow(nextEarliest, Math.min(horizon, nextLatest)),
-                    rawDamage
-                ));
-                nextEarliest += reapplicationDelay;
-                nextLatest += reapplicationDelay;
-            }
-            return;
-        }
-
-        // The per-victim reapplication map is authoritative server state and is not synchronized to the client.
-        // Never credit an unknown cooldown as safety. Emit one bounded imminent application; the live engine
-        // re-captures the cloud every client tick and therefore re-evaluates this bound continuously.
-        output.add(event(
-            cloud,
-            0,
-            new TickWindow(0L, Math.min(horizon, reapplicationDelay)),
-            rawDamage
-        ));
+        // The live cloud entity and its causal attribution are observable, but the server's exact wait/victim
+        // reapplication phase is not synchronized. Never credit that unknown phase as safety. Emit one bounded
+        // imminent application and let the runtime re-capture/re-evaluate the cloud on the next client frame.
+        output.add(event(cloud, new TickWindow(0L, latest), rawDamage));
     }
 
     private static ThreatEvent event(
         WorldSnapshot.EntitySnapshot cloud,
-        int index,
         TickWindow impact,
         float rawDamage
     ) {
@@ -105,7 +70,7 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
             cloud.properties().getOrDefault("cloud_source_key", "minecraft:indirect_magic")
         );
         return new ThreatEvent(
-            "env:area_effect_cloud:" + cloud.id() + ":" + index,
+            "env:area_effect_cloud:" + cloud.id() + ":0",
             ThreatKind.ENVIRONMENT,
             impact,
             source,
