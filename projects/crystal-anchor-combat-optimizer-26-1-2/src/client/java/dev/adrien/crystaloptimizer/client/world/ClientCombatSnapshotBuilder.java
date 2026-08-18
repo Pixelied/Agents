@@ -188,6 +188,7 @@ public final class ClientCombatSnapshotBuilder {
     private static InventoryState inventory(LocalPlayer self) {
         LinkedHashMap<Item, Integer> counts = new LinkedHashMap<>();
         LinkedHashMap<Integer, Item> hotbar = new LinkedHashMap<>();
+        LinkedHashMap<Integer, Integer> hotbarCounts = new LinkedHashMap<>();
         var inventory = self.getInventory();
         List<ItemStack> items = inventory.getNonEquipmentItems();
         for (int slot = 0; slot < items.size(); slot++) {
@@ -198,6 +199,7 @@ public final class ClientCombatSnapshotBuilder {
             counts.merge(stack.getItem(), stack.getCount(), Integer::sum);
             if (slot < 9) {
                 hotbar.put(slot, stack.getItem());
+                hotbarCounts.put(slot, stack.getCount());
             }
         }
         ItemStack offhand = self.getOffhandItem();
@@ -208,6 +210,7 @@ public final class ClientCombatSnapshotBuilder {
             inventory.getSelectedSlot(),
             counts,
             hotbar,
+            hotbarCounts,
             offhand.isEmpty() ? Optional.empty() : Optional.of(offhand.getItem())
         );
     }
