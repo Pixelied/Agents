@@ -155,7 +155,7 @@ public final class ThreatTimelineSimulator {
             player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
             player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
             aged, player.deathProtection(), player.boundingBox(), player.position(), player.velocity(),
-            player.equipmentItemKeys()
+            player.equipmentItemKeys(), player.stateProperties()
         );
     }
 
