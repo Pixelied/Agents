@@ -57,12 +57,11 @@ jobs:
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
-          if [ -f gametest-console.log ]; then
-            grep -F 'hurt_cooldown_delta expected=' gametest-console.log | tail -n 3 || true
-          fi
-          if [ -f run/logs/latest.log ]; then
-            grep -F 'hurt_cooldown_delta expected=' run/logs/latest.log | tail -n 3 || true
-          fi
+          for file in gametest-console.log run/logs/latest.log; do
+            [ -f "$file" ] || continue
+            echo "--- $file assertions ---"
+            grep -Ein 'AssertionError|expected=|timed out|timeout|test failed|gametest failed|game test failed' "$file" | tail -n 20 || true
+          done
 
       - name: Upload production jar
         if: success()
