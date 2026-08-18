@@ -555,7 +555,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
             double y = Math.floor(block.position().y());
             double z = Math.floor(block.position().z());
             AabbSnapshot cube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
-            double t = segmentAabbEntry(from, to, bounds.expand(cube));
+            double t = segmentAabbEntry(from, to, cube);
             if (Double.isFinite(t) && (best == null || t < best.t())) {
                 best = new Collision(t, interpolate(from, to, t));
             }
