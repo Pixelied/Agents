@@ -360,7 +360,25 @@ final class PotionValidationScenarios {
             "harmful potion fixture produced no server damage within " + maxTicks + " ticks; "
                 + snapshot + " setup=" + setup + " disappearedAt=" + disappearedAt
                 + " lastPresent=" + lastPresent + " current=" + current
+                + " " + cloudDiagnostics(singleplayer)
         );
+    }
+
+    private static String cloudDiagnostics(TestSingleplayerContext singleplayer) {
+        return singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            ServerLevel level = (ServerLevel) player.level();
+            List<String> clouds = level.getEntitiesOfClass(
+                AreaEffectCloud.class, player.getBoundingBox().inflate(16d)
+            ).stream().map(cloud -> "id=" + cloud.getId()
+                + " position=" + cloud.position()
+                + " radius=" + cloud.getRadius()
+                + " waiting=" + cloud.isWaiting())
+                .toList();
+            return "serverPlayerPosition=" + player.position()
+                + " serverPlayerVelocity=" + player.getDeltaMovement()
+                + " clouds=" + clouds;
+        });
     }
 
     private static void cleanup(TestSingleplayerContext singleplayer, int projectileId, int ownerId) {
