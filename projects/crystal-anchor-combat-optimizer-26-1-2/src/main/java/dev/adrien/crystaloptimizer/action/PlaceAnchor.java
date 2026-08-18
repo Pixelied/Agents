@@ -27,7 +27,11 @@ public record PlaceAnchor(BlockPos pos) implements CombatAction {
         if (!state.geometry().getBlockState(pos).isAir() || state.anchors().containsKey(pos)) {
             return ActionLegality.denied("anchor position is not conservatively empty");
         }
-        return ActionChecks.requireFreeBlockSpace(state, pos);
+        ActionLegality freeSpace = ActionChecks.requireFreeBlockSpace(state, pos);
+        if (!freeSpace.legal()) {
+            return freeSpace;
+        }
+        return ActionChecks.requireAdjacentPlacementSupport(state, pos);
     }
 
     @Override
