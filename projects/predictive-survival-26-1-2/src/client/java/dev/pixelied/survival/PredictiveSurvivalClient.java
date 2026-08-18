@@ -19,15 +19,21 @@ import net.minecraft.resources.Identifier;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Objects;
+import java.util.function.Predicate;
 
 public final class PredictiveSurvivalClient implements ClientModInitializer {
     private static final Identifier DEBUG_HUD_ID = Identifier.fromNamespaceAndPath("predictive_survival", "debug");
+    private static final String CLIENT_GAMETEST_MOD_ID = "predictive_survival_gametest";
 
     private SurvivalEngine engine;
     private MinecraftSurvivalRuntime runtime;
 
     @Override
     public void onInitializeClient() {
+        FabricLoader loader = FabricLoader.getInstance();
+        if (!shouldStartAutomation(loader::isModLoaded)) return;
+
         Minecraft minecraft = Minecraft.getInstance();
         SurvivalConfig config = loadConfig();
         runtime = new MinecraftSurvivalRuntime(minecraft);
@@ -48,6 +54,10 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
             DEBUG_HUD_ID,
             this::extractDebugHud
         );
+    }
+
+    static boolean shouldStartAutomation(Predicate<String> isModLoaded) {
+        return !Objects.requireNonNull(isModLoaded, "isModLoaded").test(CLIENT_GAMETEST_MOD_ID);
     }
 
     private void extractDebugHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
