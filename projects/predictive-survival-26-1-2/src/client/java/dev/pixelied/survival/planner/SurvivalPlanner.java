@@ -96,7 +96,9 @@ public final class SurvivalPlanner {
     ) {
         if (!action.legal()) return "illegal";
         if (!action.authoritativePrerequisitesSatisfied()) return "authoritative prerequisites missing";
-        if (mode == SafetyMode.SAFE && action.deliberateDamage()) return "safe mode forbids deliberate damage";
+        if (mode != SafetyMode.EXPERIMENTAL && action.deliberateDamage()) {
+            return "safety mode forbids deliberate damage";
+        }
         if (action instanceof SurvivalAction.RaiseShield shield && !shield.guaranteedBlock()) {
             return "shield block is not guaranteed";
         }
