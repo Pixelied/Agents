@@ -44,11 +44,23 @@ class RuntimeEntrypointContract(unittest.TestCase):
         self.assertNotIn("echo 'function medusa:debug/test_petrification_damage'", workflow)
         self.assertIn("Serialization errors", workflow, "runtime gate must reject entity/data serialization warnings")
 
-    def test_pedestal_display_uses_complete_26_1_2_transformation(self):
-        text = (FN / "arena/pedestal/spawn_eye.mcfunction").read_text()
-        self.assertNotIn("transformation:{scale:", text, "partial display transformations fail 26.1.2 serialization")
-        for key in ["translation", "left_rotation", "scale", "right_rotation"]:
-            self.assertIn(key, text)
+    def test_all_display_transformations_use_complete_26_1_2_map(self):
+        required = ["translation:", "left_rotation:", "scale:", "right_rotation:"]
+        bad = []
+        for path in FN.rglob("*.mcfunction"):
+            for lineno, line in enumerate(path.read_text().splitlines(), 1):
+                if "transformation:{" not in line:
+                    continue
+                transform = line.split("transformation:{", 1)[1]
+                missing = [key for key in required if key not in transform]
+                if missing:
+                    bad.append(f"{path.relative_to(ROOT)}:{lineno} missing {','.join(missing)}")
+        self.assertEqual(
+            bad,
+            [],
+            "26.1.2 display transformation maps must provide translation/left_rotation/scale/right_rotation:\n"
+            + "\n".join(bad),
+        )
 
     def test_mcfunction_macro_lines_have_variables(self):
         bad = []
