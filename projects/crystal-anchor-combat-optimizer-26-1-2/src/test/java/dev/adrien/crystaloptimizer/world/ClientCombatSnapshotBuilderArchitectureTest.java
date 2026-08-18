@@ -23,7 +23,7 @@ class ClientCombatSnapshotBuilderArchitectureTest {
         assertTrue(source.contains("RespawnAnchorBlock.CHARGE"));
         assertTrue(source.contains("EnvironmentAttributes.RESPAWN_ANCHOR_WORKS"));
         assertTrue(source.contains("CombatRegion.of"));
-        assertTrue(source.contains("InteractionTimingRecorder.model()"));
+        assertTrue(source.contains("InteractionTimingRecorder.instance().estimateBurst"));
 
         assertFalse(source.contains("target.getInventory()"));
         assertFalse(source.contains("getAbsorptionAmount()"));
