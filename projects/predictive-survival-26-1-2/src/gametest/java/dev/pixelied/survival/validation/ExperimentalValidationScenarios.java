@@ -48,22 +48,22 @@ final class ExperimentalValidationScenarios {
     }
 
     private static ValidationResult validateSmallPrecursorIsNotImmunity(TestSingleplayerContext singleplayer) {
-        DamageResult predictedFirst = SIMULATOR.simulate(cleanSnapshot(30f, MitigationSnapshot.none()), generic(1f));
-        DamageResult predictedSecond = SIMULATOR.simulate(predictedFirst.after(), generic(20f));
+        DamageResult predictedFirst = SIMULATOR.simulate(cleanSnapshot(20f, MitigationSnapshot.none()), generic(1f));
+        DamageResult predictedSecond = SIMULATOR.simulate(predictedFirst.after(), generic(15f));
 
         float actual = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
-            SurvivalValidationClientGameTest.reset(player, 30f);
+            SurvivalValidationClientGameTest.reset(player, 20f);
             ServerLevel level = (ServerLevel) player.level();
             DamageSource generic = player.damageSources().generic();
             player.hurtServer(level, generic, 1f);
-            player.hurtServer(level, generic, 20f);
+            player.hurtServer(level, generic, 15f);
             return player.getHealth();
         });
 
         SurvivalValidationClientGameTest.assertClose(
             "small_precursor_total_damage",
-            10f,
+            5f,
             actual,
             EPSILON
         );
