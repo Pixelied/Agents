@@ -31,13 +31,13 @@ public final class TargetOpportunityScorer {
         }
 
         double robustness = clamp01(Math.min(plan.robustness(), score.robustness()));
-        double safety = 1.0 - clamp01(score.selfDamageRisk());
-        double feedbackQuality = 1.0 / (1.0 + score.networkDependencyPenalty());
+        double safety = 1.0 - clamp01(score.selfRisk());
+        double feedbackQuality = 1.0 / (1.0 + score.feedbackBoundaries());
 
         if (plan.lethal() && score.targetDeathProbability() > 0.0) {
-            double speed = score.timeToKillActions() == Integer.MAX_VALUE
+            double speed = score.ticksToKill() == Integer.MAX_VALUE
                 ? 0.0
-                : 1.0 / (1.0 + Math.max(0, score.timeToKillActions()));
+                : 1.0 / (1.0 + Math.max(0, score.ticksToKill()));
             double opportunity = 0.70
                 + 0.12 * clamp01(score.targetDeathProbability())
                 + 0.04 * clamp01(score.totemDenialProbability())
@@ -48,7 +48,7 @@ public final class TargetOpportunityScorer {
             return clamp01(opportunity);
         }
 
-        double geometry = 1.0 - Math.exp(-Math.max(0.0, score.futureGeometryValue()) / 2.0);
+        double geometry = 1.0 - Math.exp(-Math.max(0.0, score.futureGeometry()) / 2.0);
         double opportunity = 0.44 * clamp01(score.threatNeutralization())
             + 0.08 * robustness
             + 0.05 * geometry
