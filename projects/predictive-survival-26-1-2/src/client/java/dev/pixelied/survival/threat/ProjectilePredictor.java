@@ -267,8 +267,8 @@ public final class ProjectilePredictor implements ThreatPredictor {
 
     private static TickWindow observedImpactWindow(WorldSnapshot.EntitySnapshot entity, long modeledTick) {
         int observationAge = positiveInt(entity.properties().get("observation_age_ticks"), 0);
-        long observedTick = Math.max(0L, modeledTick - observationAge);
-        return new TickWindow(observedTick, observedTick);
+        long earliest = Math.max(0L, modeledTick - observationAge);
+        return new TickWindow(earliest, modeledTick);
     }
 
     private static Collision firstBlockCollision(
