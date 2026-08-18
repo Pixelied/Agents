@@ -47,7 +47,7 @@ final class LingeringWitherCloudValidationScenarios {
             ItemStack stack = new ItemStack(Items.LINGERING_POTION);
             stack.set(
                 DataComponents.POTION_CONTENTS,
-                PotionContents.EMPTY.withEffectAdded(new MobEffectInstance(MobEffects.WITHER, 100, 0))
+                PotionContents.EMPTY.withEffectAdded(new MobEffectInstance(MobEffects.WITHER, 200, 0))
             );
             ThrownLingeringPotion potion = new ThrownLingeringPotion(level, owner, stack);
             potion.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 5d);
