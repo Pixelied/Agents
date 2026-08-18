@@ -76,17 +76,39 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
     }
 
     private static void validateHurtCooldown(TestSingleplayerContext singleplayer) {
-        float actual = singleplayer.getServer().computeOnServer(server -> {
+        CooldownTrace trace = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = onlyPlayer(server);
             reset(player, 20f);
             ServerLevel level = (ServerLevel) player.level();
-            player.hurtServer(level, player.damageSources().generic(), 5f);
-            player.hurtServer(level, player.damageSources().generic(), 3f);
-            player.hurtServer(level, player.damageSources().generic(), 8f);
-            return player.getHealth();
+            boolean abilityInvulnerable = player.getAbilities().invulnerable;
+            int beforeInvulnerability = player.invulnerableTime;
+            boolean firstAccepted = player.hurtServer(level, player.damageSources().generic(), 5f);
+            float afterFirst = player.getHealth();
+            int afterFirstInvulnerability = player.invulnerableTime;
+            boolean secondAccepted = player.hurtServer(level, player.damageSources().generic(), 3f);
+            float afterSecond = player.getHealth();
+            int afterSecondInvulnerability = player.invulnerableTime;
+            boolean thirdAccepted = player.hurtServer(level, player.damageSources().generic(), 8f);
+            float afterThird = player.getHealth();
+            int afterThirdInvulnerability = player.invulnerableTime;
+            return new CooldownTrace(
+                abilityInvulnerable,
+                beforeInvulnerability,
+                firstAccepted,
+                afterFirst,
+                afterFirstInvulnerability,
+                secondAccepted,
+                afterSecond,
+                afterSecondInvulnerability,
+                thirdAccepted,
+                afterThird,
+                afterThirdInvulnerability
+            );
         });
 
-        assertClose("hurt_cooldown_delta", 12f, actual, EPSILON);
+        if (Math.abs(12f - trace.afterThird()) > EPSILON) {
+            throw new AssertionError("hurt_cooldown_delta expected=12 actual=" + trace.afterThird() + " trace=" + trace);
+        }
     }
 
     private static void validateDeathProtection(
@@ -151,5 +173,20 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
     }
 
     private record PopState(float health, boolean consumed) {
+    }
+
+    private record CooldownTrace(
+        boolean abilityInvulnerable,
+        int beforeInvulnerability,
+        boolean firstAccepted,
+        float afterFirst,
+        int afterFirstInvulnerability,
+        boolean secondAccepted,
+        float afterSecond,
+        int afterSecondInvulnerability,
+        boolean thirdAccepted,
+        float afterThird,
+        int afterThirdInvulnerability
+    ) {
     }
 }
