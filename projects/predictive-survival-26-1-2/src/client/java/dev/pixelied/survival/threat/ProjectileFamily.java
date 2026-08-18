@@ -27,7 +27,8 @@ public enum ProjectileFamily {
             case "minecraft:arrow", "minecraft:spectral_arrow", "minecraft:trident",
                  "minecraft:spear", "minecraft:thrown_spear" -> Optional.of(ARROW_LIKE);
             case "minecraft:snowball", "minecraft:egg", "minecraft:ender_pearl",
-                 "minecraft:potion", "minecraft:experience_bottle" -> Optional.of(THROWABLE);
+                 "minecraft:potion", "minecraft:splash_potion", "minecraft:lingering_potion",
+                 "minecraft:experience_bottle" -> Optional.of(THROWABLE);
             case "minecraft:llama_spit" -> Optional.of(LLAMA_SPIT);
             case "minecraft:fireball", "minecraft:small_fireball", "minecraft:dragon_fireball",
                  "minecraft:wither_skull" -> Optional.of(HURTING_PROJECTILE);
