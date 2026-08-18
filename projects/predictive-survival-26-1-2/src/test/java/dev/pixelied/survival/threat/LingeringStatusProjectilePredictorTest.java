@@ -46,6 +46,19 @@ class LingeringStatusProjectilePredictorTest {
     }
 
     @Test
+    void lingeringStatusUsesObservablePotionDurationScaleInsteadOfHardcodedQuarter() {
+        List<ThreatEvent> wither = predictor.predict(context(lingering(Map.of(
+            "potion_lingering", "true",
+            "potion_wither_duration_ticks", "200",
+            "potion_wither_amplifier", "0",
+            "potion_duration_scale", "0.5"
+        )))).stream().filter(event -> "minecraft:wither".equals(event.damage().sourceKey())).toList();
+
+        assertFalse(wither.isEmpty());
+        assertEquals(new TickWindow(35, 35), wither.getFirst().impact());
+    }
+
+    @Test
     void lingeringWitherHundredDoesNotInventDamageBeforeEffectExpires() {
         List<ThreatEvent> events = predictor.predict(context(lingering(Map.of(
             "potion_lingering", "true",
