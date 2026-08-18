@@ -23,10 +23,15 @@ public final class ProjectilePredictor implements ThreatPredictor {
     private static final double EPSILON = 1.0E-9d;
     private static final String DRAGON_FIREBALL_TYPE = "minecraft:dragon_fireball";
     private static final String SPLASH_POTION_TYPE = "minecraft:splash_potion";
+    private static final String LINGERING_POTION_TYPE = "minecraft:lingering_potion";
     private static final float DRAGON_BREATH_RAW_DAMAGE = 6f;
     private static final double DRAGON_BREATH_RADIUS = 3.05d;
     private static final double DRAGON_BREATH_HEIGHT = 0.5d;
     private static final int DRAGON_BREATH_REAPPLICATION_TICKS = 20;
+    private static final float LINGERING_INSTANT_EFFECT_SCALE = 0.5f;
+    private static final double LINGERING_CLOUD_RADIUS = 3d;
+    private static final double LINGERING_CLOUD_HEIGHT = 0.5d;
+    private static final int LINGERING_CLOUD_WAIT_TICKS = 10;
 
     private final ExplosionExposure explosionExposure = new ExplosionExposure();
 
@@ -64,6 +69,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
             if (block != null && block.t() <= playerT + EPSILON) {
                 List<ThreatEvent> events = new ArrayList<>();
                 splashPotionImpact(context, entity, block.position(), next.tick(), false).ifPresent(events::add);
+                lingeringPotionImpact(context, entity, block.position(), next.tick()).ifPresent(events::add);
                 collisionExplosion(context, entity, block.position(), next.tick()).ifPresent(events::add);
                 events.addAll(collisionAreaHazards(context, entity, block.position(), next.tick()));
                 return List.copyOf(events);
@@ -78,6 +84,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 };
                 directHit(entity, family, impactVelocity, impact, next.tick()).ifPresent(events::add);
                 splashPotionImpact(context, entity, impact, next.tick(), true).ifPresent(events::add);
+                lingeringPotionImpact(context, entity, impact, next.tick()).ifPresent(events::add);
                 collisionExplosion(context, entity, impact, next.tick()).ifPresent(events::add);
                 Vec3Snapshot areaOrigin = isDragonFireball(entity)
                     ? playerPositionAt(context.player(), next.tick())
@@ -254,6 +261,51 @@ public final class ProjectilePredictor implements ThreatPredictor {
         ));
     }
 
+    private Optional<ThreatEvent> lingeringPotionImpact(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot entity,
+        Vec3Snapshot impact,
+        long tick
+    ) {
+        if (!isLingeringPotion(entity)) return Optional.empty();
+        Float fullDamage = finiteFloat(entity.properties().get("potion_instant_damage"));
+        if (fullDamage == null || fullDamage <= 0f) return Optional.empty();
+
+        float rawDamage = fullDamage * LINGERING_INSTANT_EFFECT_SCALE;
+        if (!Float.isFinite(rawDamage) || rawDamage <= 0f) return Optional.empty();
+
+        TickWindow collision = observedImpactWindow(entity, tick);
+        long earliest = saturatingAdd(collision.earliest(), LINGERING_CLOUD_WAIT_TICKS);
+        long latest = saturatingAdd(collision.latest(), LINGERING_CLOUD_WAIT_TICKS);
+        long horizon = context.limits().maxProjectileHorizonTicks();
+        if (earliest > horizon) return Optional.empty();
+        latest = Math.min(latest, horizon);
+        if (!couldOccupyLingeringCloud(context.player(), impact, latest)) return Optional.empty();
+
+        DamageSourceSnapshot source = new DamageSourceSnapshot(
+            DamageRange.exact(rawDamage),
+            EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
+            false,
+            1f,
+            false,
+            Optional.of(impact),
+            entity.properties().getOrDefault("potion_source_key", "minecraft:indirect_magic")
+        );
+        return Optional.of(new ThreatEvent(
+            "projectile:" + entity.id() + ":lingering_cloud:0",
+            ThreatKind.ENVIRONMENT,
+            new TickWindow(earliest, latest),
+            source,
+            Confidence.BOUNDED,
+            Optional.of(entity.position()),
+            Optional.of(impact),
+            true,
+            false,
+            true,
+            false
+        ));
+    }
+
     private Optional<ThreatEvent> collisionExplosion(
         PredictionContext context,
         WorldSnapshot.EntitySnapshot entity,
@@ -356,6 +408,23 @@ public final class ProjectilePredictor implements ThreatPredictor {
         double maxZ = areaOrigin.z() + DRAGON_BREATH_RADIUS;
         double minY = areaOrigin.y();
         double maxY = areaOrigin.y() + DRAGON_BREATH_HEIGHT;
+        return path.maxX() >= minX && path.minX() <= maxX
+            && path.maxZ() >= minZ && path.minZ() <= maxZ
+            && path.maxY() >= minY && path.minY() <= maxY;
+    }
+
+    private static boolean couldOccupyLingeringCloud(
+        PlayerSnapshot player,
+        Vec3Snapshot areaOrigin,
+        long latest
+    ) {
+        AabbSnapshot path = sweptPlayerBox(player, 0L, latest);
+        double minX = areaOrigin.x() - LINGERING_CLOUD_RADIUS;
+        double maxX = areaOrigin.x() + LINGERING_CLOUD_RADIUS;
+        double minZ = areaOrigin.z() - LINGERING_CLOUD_RADIUS;
+        double maxZ = areaOrigin.z() + LINGERING_CLOUD_RADIUS;
+        double minY = areaOrigin.y();
+        double maxY = areaOrigin.y() + LINGERING_CLOUD_HEIGHT;
         return path.maxX() >= minX && path.minX() <= maxX
             && path.maxZ() >= minZ && path.minZ() <= maxZ
             && path.maxY() >= minY && path.minY() <= maxY;
@@ -539,6 +608,11 @@ public final class ProjectilePredictor implements ThreatPredictor {
     private static boolean isSplashPotion(WorldSnapshot.EntitySnapshot entity) {
         return SPLASH_POTION_TYPE.equals(entity.typeKey())
             || "minecraft:potion".equals(entity.typeKey()) && entity.properties().containsKey("potion_splash_radius");
+    }
+
+    private static boolean isLingeringPotion(WorldSnapshot.EntitySnapshot entity) {
+        return LINGERING_POTION_TYPE.equals(entity.typeKey())
+            || Boolean.parseBoolean(entity.properties().getOrDefault("potion_lingering", "false"));
     }
 
     private static long saturatingAdd(long value, long increment) {
