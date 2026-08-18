@@ -15,7 +15,10 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.monster.Skeleton;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import net.minecraft.world.item.ItemStack;
@@ -40,6 +43,7 @@ final class ProjectileValidationScenarios {
         List<ValidationResult> results = new ArrayList<>();
         results.add(validateArrow(context, singleplayer));
         results.add(validateTrident(context, singleplayer));
+        results.add(validateMobOwnedArrowHardScaling(context, singleplayer));
         return List.copyOf(results);
     }
 
@@ -85,6 +89,49 @@ final class ProjectileValidationScenarios {
         });
 
         return validateLiveProjectile(context, singleplayer, entityId, "minecraft:trident", "trident_flight");
+    }
+
+    private static ValidationResult validateMobOwnedArrowHardScaling(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer
+    ) {
+        singleplayer.getServer().runOnServer(server -> server.setDifficulty(Difficulty.HARD, true));
+        context.waitFor(minecraft -> minecraft.level != null && minecraft.level.getDifficulty() == Difficulty.HARD);
+
+        ProjectileSetup setup = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            SurvivalValidationClientGameTest.reset(player, 20f);
+            player.setDeltaMovement(Vec3.ZERO);
+            ServerLevel level = (ServerLevel) player.level();
+
+            Skeleton owner = new Skeleton(EntityType.SKELETON, level);
+            owner.setNoAi(true);
+            owner.setPos(player.getX() + 12d, player.getY(), player.getZ() + 12d);
+            level.addFreshEntity(owner);
+
+            Vec3 spawn = new Vec3(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 6d);
+            Arrow arrow = new Arrow(level, spawn.x, spawn.y, spawn.z, new ItemStack(Items.ARROW), null);
+            arrow.setOwner(owner);
+            arrow.setDeltaMovement(0d, 0d, -1.5d);
+            level.addFreshEntity(arrow);
+            return new ProjectileSetup(arrow.getId(), owner.getId());
+        });
+
+        ValidationResult result;
+        try {
+            result = validateLiveProjectile(
+                context,
+                singleplayer,
+                setup.projectileId(),
+                "minecraft:arrow",
+                "mob_arrow_hard_scaling"
+            );
+        } finally {
+            discard(singleplayer, setup.ownerId());
+            singleplayer.getServer().runOnServer(server -> server.setDifficulty(Difficulty.NORMAL, true));
+            context.waitFor(minecraft -> minecraft.level != null && minecraft.level.getDifficulty() == Difficulty.NORMAL);
+        }
+        return result;
     }
 
     private static ValidationResult validateLiveProjectile(
@@ -191,5 +238,8 @@ final class ProjectileValidationScenarios {
     }
 
     private record ProjectileState(Vec3Snapshot position, Vec3Snapshot velocity) {
+    }
+
+    private record ProjectileSetup(int projectileId, int ownerId) {
     }
 }
