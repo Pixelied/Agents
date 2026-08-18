@@ -102,6 +102,11 @@ public final class MinecraftWorldSnapshotFactory {
             if (entity instanceof LargeFireball) {
                 properties.put("raw_damage", "6");
                 properties.put("explosion_radius", "1");
+                Entity owner = hurtingProjectile.getOwner();
+                properties.put(
+                    "scales_with_difficulty",
+                    Boolean.toString(owner instanceof LivingEntity && !(owner instanceof Player))
+                );
             } else if (entity instanceof SmallFireball) {
                 properties.put("raw_damage", "5");
             } else if (entity instanceof WitherSkull) {
