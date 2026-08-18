@@ -42,6 +42,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             results.addAll(DamageValidationScenarios.firstRuntimeSlice(context, singleplayer));
             results.addAll(ExplosionValidationScenarios.runtimeSlice(singleplayer));
             results.addAll(ProjectileValidationScenarios.runtimeSlice(context, singleplayer));
+            DragonFireballValidationScenarios.validateObservableDamageHasPreImpactThreat(context, singleplayer);
             results.addAll(ExtendedValidationScenarios.runtimeSlice(context, singleplayer));
             results.addAll(FallRescueValidationScenarios.runtimeSlice(context, singleplayer));
             results.addAll(ExperimentalValidationScenarios.runtimeSlice(singleplayer));
@@ -88,14 +89,8 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             player.hurtServer((ServerLevel) player.level(), player.damageSources().generic(), 4f);
             return player.getHealth();
         });
-
-        return new ValidationResult(
-            "generic_raw_4",
-            predicted,
-            actual,
-            ValidationStatus.RUNTIME_CONFIRMED,
-            EPSILON
-        );
+        assertClose("generic_damage", predicted, actual, EPSILON);
+        return new ValidationResult("generic_damage", predicted, actual, ValidationStatus.RUNTIME_CONFIRMED, EPSILON);
     }
 
     private static void validateHurtCooldown(TestSingleplayerContext singleplayer) {
@@ -103,21 +98,24 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             ServerPlayer player = onlyPlayer(server);
             reset(player, 20f);
             ServerLevel level = (ServerLevel) player.level();
-            player.hurtServer(level, player.damageSources().generic(), 5f);
-            player.hurtServer(level, player.damageSources().generic(), 3f);
             player.hurtServer(level, player.damageSources().generic(), 8f);
+            player.hurtServer(level, player.damageSources().generic(), 12f);
             return player.getHealth();
         });
 
-        assertClose("hurt_cooldown_delta", 12f, actual, EPSILON);
+        assertClose("hurt_cooldown_sequence", 8f, actual, EPSILON);
     }
 
     private static void validateDeathProtection(TestSingleplayerContext singleplayer, InteractionHand hand) {
         PopState state = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = onlyPlayer(server);
-            reset(player, 4f);
-            player.setItemInHand(hand, new ItemStack(Items.TOTEM_OF_UNDYING));
-            player.hurtServer((ServerLevel) player.level(), player.damageSources().generic(), 20f);
+            reset(player, 20f);
+            if (hand == InteractionHand.MAIN_HAND) {
+                player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.TOTEM_OF_UNDYING));
+            } else {
+                player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.TOTEM_OF_UNDYING));
+            }
+            player.hurtServer((ServerLevel) player.level(), player.damageSources().generic(), 100f);
             return new PopState(player.getHealth(), player.getItemInHand(hand).isEmpty());
         });
 
