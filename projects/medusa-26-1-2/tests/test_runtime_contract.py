@@ -17,6 +17,10 @@ class RuntimeEntrypointContract(unittest.TestCase):
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing runtime debug entrypoint: {rel}")
 
+    def test_debug_harness_loads_the_remote_arena_chunks(self):
+        text = (FN / "debug/create_test_temple.mcfunction").read_text()
+        self.assertIn("forceload add 0 0 96 96", text)
+
     def test_mcfunction_macro_lines_have_variables(self):
         bad = []
         for path in FN.rglob("*.mcfunction"):
@@ -42,8 +46,15 @@ class RuntimeEntrypointContract(unittest.TestCase):
                 f"26.1.2 shaped ingredient {symbol} must be an item/tag string or list, got {ingredient!r}",
             )
 
-    def test_petrification_is_in_resistance_bypass_tag(self):
-        tag_path = DP / "data/minecraft/tags/damage_type/bypasses_resistance.json"
-        self.assertTrue(tag_path.is_file(), "missing minecraft:bypasses_resistance damage-type tag")
-        tag = json.loads(tag_path.read_text())
-        self.assertIn("medusa:petrification", tag.get("values", []))
+    def test_petrification_suffocation_opens_a_resistance_damage_window(self):
+        text = (FN / "petrify/suffocate.mcfunction").read_text()
+        clear_pos = text.find("effect clear @s minecraft:resistance")
+        damage_pos = text.find("damage @s 2 medusa:petrification")
+        restore_pos = text.find("effect give @s minecraft:resistance")
+        self.assertGreaterEqual(clear_pos, 0, "suffocation must temporarily clear Resistance")
+        self.assertGreater(damage_pos, clear_pos, "damage must happen after Resistance is cleared")
+        self.assertGreater(restore_pos, damage_pos, "Resistance must be restored immediately after damage")
+
+        debug = (FN / "debug/test_petrification_damage.mcfunction").read_text()
+        self.assertIn("effect clear @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
+        self.assertIn("effect give @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
