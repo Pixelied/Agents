@@ -9,7 +9,7 @@ function medusa:staff/channel/clear_helpers with storage medusa:macro staff_ston
 summon minecraft:marker ~ ~ ~ {Tags:["md.staff_stone_anchor","md.new_staff_stone_anchor"]}
 scoreboard players operation @e[type=minecraft:marker,tag=md.new_staff_stone_anchor,distance=..2,limit=1,sort=nearest] md_tid = @s md_tid
 tag @e[type=minecraft:marker,tag=md.new_staff_stone_anchor,distance=..2] remove md.new_staff_stone_anchor
-summon minecraft:block_display ~ ~ ~ {Tags:["md.staff_stone_shell","md.new_staff_stone_shell"],block_state:{Name:"minecraft:stone"},transformation:{translation:[-0.55f,0.0f,-0.55f],scale:[1.1f,1.9f,1.1f]}}
+summon minecraft:block_display ~ ~ ~ {Tags:["md.staff_stone_shell","md.new_staff_stone_shell"],block_state:{Name:"minecraft:stone"},transformation:{translation:[-0.55f,0.0f,-0.55f],left_rotation:[0.0f,0.0f,0.0f,1.0f],scale:[1.1f,1.9f,1.1f],right_rotation:[0.0f,0.0f,0.0f,1.0f]}}
 scoreboard players operation @e[type=minecraft:block_display,tag=md.new_staff_stone_shell,distance=..2,limit=1,sort=nearest] md_tid = @s md_tid
 tag @e[type=minecraft:block_display,tag=md.new_staff_stone_shell,distance=..2] remove md.new_staff_stone_shell
 playsound minecraft:block.stone.place master @a[distance=..16] ~ ~ ~ 0.9 0.55
