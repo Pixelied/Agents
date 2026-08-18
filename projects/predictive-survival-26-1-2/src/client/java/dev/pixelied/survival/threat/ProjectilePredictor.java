@@ -35,6 +35,8 @@ public final class ProjectilePredictor implements ThreatPredictor {
     private static final int POISON_BASE_INTERVAL_TICKS = 25;
     private static final float POISON_RAW_DAMAGE = 1f;
     private static final float POISON_HEALTH_FLOOR = 1f;
+    private static final int WITHER_BASE_INTERVAL_TICKS = 40;
+    private static final float WITHER_RAW_DAMAGE = 1f;
 
     private final ExplosionExposure explosionExposure = new ExplosionExposure();
 
@@ -75,6 +77,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                     context, entity, block.position(), block.blockBounds(), next.tick(), false
                 ).ifPresent(events::add);
                 events.addAll(poisonPotionImpacts(context, entity, block.position(), next.tick(), false));
+                events.addAll(witherPotionImpacts(context, entity, block.position(), next.tick(), false));
                 lingeringPotionImpact(context, entity, block.position(), next.tick()).ifPresent(events::add);
                 collisionExplosion(context, entity, block.position(), next.tick()).ifPresent(events::add);
                 events.addAll(collisionAreaHazards(context, entity, block.position(), next.tick()));
@@ -91,6 +94,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 directHit(entity, family, impactVelocity, impact, next.tick()).ifPresent(events::add);
                 splashPotionImpact(context, entity, impact, null, next.tick(), true).ifPresent(events::add);
                 events.addAll(poisonPotionImpacts(context, entity, impact, next.tick(), true));
+                events.addAll(witherPotionImpacts(context, entity, impact, next.tick(), true));
                 lingeringPotionImpact(context, entity, impact, next.tick()).ifPresent(events::add);
                 collisionExplosion(context, entity, impact, next.tick()).ifPresent(events::add);
                 Vec3Snapshot areaOrigin = isDragonFireball(entity)
@@ -329,9 +333,64 @@ public final class ProjectilePredictor implements ThreatPredictor {
         return List.copyOf(events);
     }
 
+    private List<ThreatEvent> witherPotionImpacts(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot entity,
+        Vec3Snapshot impact,
+        long tick,
+        boolean directPlayerHit
+    ) {
+        if (!isSplashPotion(entity) || !directPlayerHit) return List.of();
+        int duration = positiveInt(entity.properties().get("potion_wither_duration_ticks"), 0);
+        if (duration <= 0) return List.of();
+        int amplifier = positiveInt(entity.properties().get("potion_wither_amplifier"), 0);
+        int interval = witherIntervalTicks(amplifier);
+        int firstOffset = duration % interval;
+
+        TickWindow collision = observedImpactWindow(entity, tick);
+        long horizon = context.limits().maxProjectileHorizonTicks();
+        List<ThreatEvent> events = new ArrayList<>();
+        int application = 0;
+        for (int elapsed = firstOffset; elapsed < duration; elapsed += interval) {
+            long earliest = saturatingAdd(collision.earliest(), elapsed);
+            if (earliest > horizon) break;
+            long latest = Math.min(horizon, saturatingAdd(collision.latest(), elapsed));
+            DamageSourceSnapshot source = new DamageSourceSnapshot(
+                DamageRange.exact(WITHER_RAW_DAMAGE),
+                EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
+                false,
+                1f,
+                false,
+                Optional.of(impact),
+                "minecraft:wither",
+                0f
+            );
+            events.add(new ThreatEvent(
+                "projectile:" + entity.id() + ":wither:" + application,
+                ThreatKind.PROJECTILE,
+                new TickWindow(earliest, latest),
+                source,
+                earliest == latest ? Confidence.EXACT : Confidence.BOUNDED,
+                Optional.of(entity.position()),
+                Optional.of(impact),
+                true,
+                false,
+                true,
+                false
+            ));
+            application++;
+        }
+        return List.copyOf(events);
+    }
+
     private static int poisonIntervalTicks(int amplifier) {
         int shift = Math.min(30, Math.max(0, amplifier));
         return Math.max(1, POISON_BASE_INTERVAL_TICKS >> shift);
+    }
+
+    private static int witherIntervalTicks(int amplifier) {
+        int shift = Math.min(30, Math.max(0, amplifier));
+        return Math.max(1, WITHER_BASE_INTERVAL_TICKS >> shift);
     }
 
     private Optional<ThreatEvent> lingeringPotionImpact(
