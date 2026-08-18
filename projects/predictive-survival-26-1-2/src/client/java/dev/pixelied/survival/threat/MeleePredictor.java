@@ -4,7 +4,6 @@ import dev.pixelied.survival.core.Confidence;
 import dev.pixelied.survival.core.DamageRange;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
-import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
@@ -37,21 +36,32 @@ public final class MeleePredictor implements ThreatPredictor {
         double reach = parseFiniteNonNegative(properties.get("attack_range"), Double.POSITIVE_INFINITY);
         if (aabbDistance(attacker.boundingBox(), context.player().boundingBox()) > reach) return Optional.empty();
 
-        WeaponSnapshot weapon = weaponSnapshot(properties);
-        DamageRange damage = weapon.rawDamageRange();
-        if (damage.max() <= 0f) return Optional.empty();
+        String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
+        boolean spear = isSpear(weaponKey, properties);
+        WeaponSnapshot weapon = spear ? null : weaponSnapshot(properties);
+        DamageRange damage;
+        boolean maceSmash = false;
 
-        boolean maceSmash = weapon.isMaceSmash();
+        if (spear) {
+            Optional<DamageRange> spearDamage = spearDamage(attacker, properties);
+            if (spearDamage.isEmpty()) return Optional.empty();
+            damage = spearDamage.get();
+        } else {
+            damage = weapon.rawDamageRange();
+            if (damage.max() <= 0f) return Optional.empty();
+            maceSmash = weapon.isMaceSmash();
+        }
+
         EnumSet<DamageFlag> flags = EnumSet.noneOf(DamageFlag.class);
         if (maceSmash) flags.add(DamageFlag.IS_MACE_SMASH);
         if (Boolean.parseBoolean(properties.getOrDefault("bypasses_shield", "false"))) {
             flags.add(DamageFlag.BYPASSES_SHIELD);
         }
 
-        String sourceKey = properties.getOrDefault(
-            "source_key",
-            maceSmash ? "minecraft:mace_smash" : defaultMeleeSource(attacker)
-        );
+        String defaultSource = spear
+            ? "minecraft:spear"
+            : maceSmash ? "minecraft:mace_smash" : defaultMeleeSource(attacker);
+        String sourceKey = properties.getOrDefault("source_key", defaultSource);
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             damage,
             flags,
@@ -67,9 +77,11 @@ public final class MeleePredictor implements ThreatPredictor {
             ? committedWindow(properties)
             : new TickWindow(0L, POTENTIAL_ATTACK_WINDOW_TICKS);
         Confidence confidence = committed ? Confidence.MATCHED : Confidence.POTENTIAL;
+        boolean canDisableBlocking = Boolean.parseBoolean(properties.getOrDefault("can_disable_blocking", "false"));
+        if (!spear) canDisableBlocking = weapon.canDisableBlocking();
 
         return Optional.of(new ThreatEvent(
-            "melee:" + attacker.id(),
+            (spear ? "spear:" : "melee:") + attacker.id(),
             ThreatKind.MELEE,
             impact,
             source,
@@ -79,8 +91,53 @@ public final class MeleePredictor implements ThreatPredictor {
             true,
             !source.has(DamageFlag.BYPASSES_SHIELD),
             true,
-            weapon.canDisableBlocking()
+            canDisableBlocking
         ));
+    }
+
+    private static boolean isSpear(String weaponKey, Map<String, String> properties) {
+        return weaponKey.endsWith("_spear")
+            || "minecraft:spear".equals(weaponKey)
+            || Boolean.parseBoolean(properties.getOrDefault("spear_kinetic", "false"));
+    }
+
+    private static Optional<DamageRange> spearDamage(
+        WorldSnapshot.EntitySnapshot attacker,
+        Map<String, String> properties
+    ) {
+        Float baseMobDamage = parseFiniteFloat(properties.get("spear_base_mob_damage"));
+        Float damageMultiplier = parseFiniteFloat(properties.get("spear_damage_multiplier"));
+        Integer maxDurationTicks = parseNonNegativeInt(properties.get("spear_damage_max_use_ticks"));
+        Float minSpeed = parseFiniteFloat(properties.get("spear_damage_min_speed"));
+        Float minRelativeSpeed = parseFiniteFloat(properties.get("spear_damage_min_relative_speed"));
+        Integer ticksUsed = parseNonNegativeInt(properties.get("spear_ticks_used"));
+        Double attackerProjection = parseFiniteDouble(properties.get("spear_attacker_speed_projection"));
+        Double targetProjection = parseFiniteDouble(properties.get("spear_target_speed_projection"));
+
+        if (baseMobDamage == null || baseMobDamage < 0f
+            || damageMultiplier == null || damageMultiplier < 0f
+            || maxDurationTicks == null
+            || minSpeed == null || minSpeed < 0f
+            || minRelativeSpeed == null || minRelativeSpeed < 0f
+            || ticksUsed == null
+            || attackerProjection == null
+            || targetProjection == null) {
+            // A visible spear with incomplete kinetic state is not safe to downgrade to normal melee math.
+            return Optional.of(new DamageRange(0f, Float.MAX_VALUE));
+        }
+
+        float actionFactor = "minecraft:player".equals(attacker.typeKey()) ? 1f : 0.2f;
+        return new SpearSnapshot(
+            baseMobDamage,
+            damageMultiplier,
+            maxDurationTicks,
+            minSpeed,
+            minRelativeSpeed,
+            ticksUsed,
+            attackerProjection,
+            targetProjection,
+            actionFactor
+        ).rawDamage();
     }
 
     private static WeaponSnapshot weaponSnapshot(Map<String, String> properties) {
@@ -179,6 +236,26 @@ public final class MeleePredictor implements ThreatPredictor {
         try {
             float parsed = Float.parseFloat(value);
             return Float.isFinite(parsed) ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Double parseFiniteDouble(String value) {
+        if (value == null) return null;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Integer parseNonNegativeInt(String value) {
+        if (value == null) return null;
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed >= 0 ? parsed : null;
         } catch (NumberFormatException ignored) {
             return null;
         }
