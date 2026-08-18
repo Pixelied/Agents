@@ -74,7 +74,8 @@ public final class SurvivalPlanner {
             );
         }
 
-        TimelineResult result = timelineSimulator.simulate(action.apply(context.player()), timeline);
+        ThreatTimeline transformedTimeline = action.applyTimeline(timeline);
+        TimelineResult result = timelineSimulator.simulate(action.apply(context.player()), transformedTimeline);
         return new ActionSimulation(
             action, result, true, action.reliability(),
             action.consumableCost(), action.disruptionCost(), "ok"
