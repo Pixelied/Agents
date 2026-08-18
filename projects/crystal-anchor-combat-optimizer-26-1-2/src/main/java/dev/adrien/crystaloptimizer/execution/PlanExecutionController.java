@@ -88,6 +88,13 @@ public final class PlanExecutionController {
         return scheduler.lastAbortReason();
     }
 
+    public void abort(CommitAbortReason reason) {
+        Objects.requireNonNull(reason, "reason");
+        clearLocalWait();
+        opportunisticAction = null;
+        scheduler.abort(reason);
+    }
+
     public void reconciliationComplete() {
         scheduler.reconciliationComplete();
     }
