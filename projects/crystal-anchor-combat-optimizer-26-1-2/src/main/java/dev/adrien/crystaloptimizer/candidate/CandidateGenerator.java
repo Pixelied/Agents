@@ -4,18 +4,25 @@ import dev.adrien.crystaloptimizer.action.AttackKnownCrystal;
 import dev.adrien.crystaloptimizer.action.ChargeAnchor;
 import dev.adrien.crystaloptimizer.action.CombatAction;
 import dev.adrien.crystaloptimizer.action.DetonateAnchor;
+import dev.adrien.crystaloptimizer.action.PlaceAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
+import dev.adrien.crystaloptimizer.action.PlaceObsidian;
 import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.action.Wait;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public final class CandidateGenerator {
+    private static final int SETUP_HORIZONTAL_RADIUS = 2;
+    private static final int SETUP_VERTICAL_RADIUS = 1;
+    private static final int SETUP_HORIZONTAL_DISTANCE_SQUARED = 5;
+
     private final CandidateFeatureEstimator estimator;
     private final TacticalInterestDetector interestDetector;
 
@@ -53,8 +60,29 @@ public final class CandidateGenerator {
             }
         }
 
+        addTargetLocalSetupCandidates(result, state);
         addIfLegal(result, state, new Wait(1), CandidateCategory.WAIT);
         return List.copyOf(result);
+    }
+
+    private void addTargetLocalSetupCandidates(List<Candidate> result, CombatState state) {
+        if (!state.hasSpatialState()) {
+            return;
+        }
+
+        BlockPos targetBlock = BlockPos.containing(state.targetSpatial().position());
+        for (int dy = -SETUP_VERTICAL_RADIUS; dy <= SETUP_VERTICAL_RADIUS; dy++) {
+            for (int dx = -SETUP_HORIZONTAL_RADIUS; dx <= SETUP_HORIZONTAL_RADIUS; dx++) {
+                for (int dz = -SETUP_HORIZONTAL_RADIUS; dz <= SETUP_HORIZONTAL_RADIUS; dz++) {
+                    if (dx * dx + dz * dz > SETUP_HORIZONTAL_DISTANCE_SQUARED) {
+                        continue;
+                    }
+                    BlockPos pos = targetBlock.offset(dx, dy, dz);
+                    addIfLegal(result, state, new PlaceAnchor(pos), CandidateCategory.ANCHOR_SETUP);
+                    addIfLegal(result, state, new PlaceObsidian(pos), CandidateCategory.SUPPORT_OBSIDIAN);
+                }
+            }
+        }
     }
 
     private void addRelevantHotbarSelections(List<Candidate> result, CombatState state) {
