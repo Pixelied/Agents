@@ -201,14 +201,37 @@ public final class SurvivalEngine {
     private static String scheduleFingerprint(EngineFrame frame) {
         long clientTick = frame.context().timing().clientTick();
         List<String> schedule = frame.timeline().events().stream()
-            .map(event -> event.id()
-                + '|' + event.kind()
-                + '|' + event.damage().sourceKey()
+            .map(event -> safetyFingerprint(event)
                 + '|' + saturatingAdd(clientTick, event.impact().earliest())
                 + ':' + saturatingAdd(clientTick, event.impact().latest()))
             .sorted()
             .toList();
         return String.join(";", schedule);
+    }
+
+    private static String safetyFingerprint(ThreatEvent event) {
+        var damage = event.damage();
+        List<String> flags = damage.flags().stream()
+            .map(Enum::name)
+            .sorted()
+            .toList();
+        return event.id()
+            + '|' + event.kind()
+            + '|' + damage.sourceKey()
+            + '|' + damage.rawDamage().min() + ':' + damage.rawDamage().max()
+            + '|' + flags
+            + '|' + damage.scalesWithDifficulty()
+            + '|' + damage.freezingMultiplier()
+            + '|' + damage.piercingProjectile()
+            + '|' + damage.applicationHealthThresholdExclusive()
+            + '|' + damage.sourcePosition()
+            + '|' + event.confidence()
+            + '|' + event.sourcePosition()
+            + '|' + event.impactPosition()
+            + '|' + event.avoidable()
+            + '|' + event.blockable()
+            + '|' + event.relocatable()
+            + '|' + event.canDisableBlocking();
     }
 
     private static long saturatingAdd(long value, long increment) {
