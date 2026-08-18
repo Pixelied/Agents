@@ -22,6 +22,7 @@ import dev.adrien.crystaloptimizer.execution.RuntimeFrame;
 import dev.adrien.crystaloptimizer.planner.BeamPlanner;
 import dev.adrien.crystaloptimizer.planner.PlannerBudget;
 import dev.adrien.crystaloptimizer.planner.RiskBudget;
+import dev.adrien.crystaloptimizer.planner.TargetOpportunityScorer;
 import dev.adrien.crystaloptimizer.planner.TargetPriority;
 import dev.adrien.crystaloptimizer.planner.TargetSelector;
 import dev.adrien.crystaloptimizer.prediction.MovementSample;
@@ -30,9 +31,11 @@ import dev.adrien.crystaloptimizer.prediction.TargetPredictor;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionKind;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import dev.adrien.crystaloptimizer.sim.model.TimingState;
+import dev.adrien.crystaloptimizer.world.CombatSnapshot;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +45,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.item.Items;
 
 public final class ClientCombatRuntime {
     private static final int MAX_MOVEMENT_SAMPLES = 8;
@@ -51,6 +52,11 @@ public final class ClientCombatRuntime {
     private static final long PLANNER_BUDGET_NANOS = 2_000_000L;
     private static final int PLANNER_BEAM_WIDTH = 10;
     private static final int PLANNER_MAX_DEPTH = 4;
+    private static final int TARGET_SHORTLIST_LIMIT = 2;
+    private static final int TARGET_REEVALUATION_INTERVAL_TICKS = 3;
+    private static final long TARGET_SELECTION_BUDGET_NANOS = 450_000L;
+    private static final int TARGET_SELECTION_BEAM_WIDTH = 4;
+    private static final int TARGET_SELECTION_MAX_DEPTH = 2;
     private static final double MIN_PREDICTION_MILLIS = 50.0;
     private static final double MAX_PREDICTION_MILLIS = 250.0;
 
@@ -60,6 +66,7 @@ public final class ClientCombatRuntime {
     private final TargetPredictor targetPredictor;
     private final RiskBudget riskBudget;
     private final PlannerBudget plannerBudget;
+    private final PlannerBudget targetSelectionBudget;
     private final BeamPlanner beamPlanner;
     private final CombatRuntimeEngine engine;
     private final VanillaInteractionDispatcher dispatcher;
@@ -69,6 +76,7 @@ public final class ClientCombatRuntime {
     private UUID previousTarget;
     private String lastTargetName = "";
     private TimingState lastTiming = TimingState.unknown();
+    private int targetReevaluationTicks;
     private boolean enabled;
 
     public ClientCombatRuntime(Minecraft minecraft) {
@@ -81,6 +89,11 @@ public final class ClientCombatRuntime {
             PLANNER_BEAM_WIDTH,
             PLANNER_MAX_DEPTH,
             PLANNER_BUDGET_NANOS
+        );
+        this.targetSelectionBudget = new PlannerBudget(
+            TARGET_SELECTION_BEAM_WIDTH,
+            TARGET_SELECTION_MAX_DEPTH,
+            TARGET_SELECTION_BUDGET_NANOS
         );
         this.beamPlanner = new BeamPlanner(
             new CandidateGenerator(CandidateFeatureEstimator.conservative()),
@@ -136,10 +149,7 @@ public final class ClientCombatRuntime {
         this.enabled = enabled;
         if (!enabled) {
             engine.abort(CommitAbortReason.RECONCILIATION_INVALIDATED);
-            previousTarget = null;
-            lastTargetName = "";
-            lastTiming = TimingState.unknown();
-            movementHistory.clear();
+            resetTargetingState();
         }
     }
 
@@ -152,10 +162,7 @@ public final class ClientCombatRuntime {
         ClientLevel level = minecraft.level;
         if (self == null || level == null || minecraft.gameMode == null) {
             engine.abort(CommitAbortReason.RECONCILIATION_INVALIDATED);
-            previousTarget = null;
-            lastTargetName = "";
-            lastTiming = TimingState.unknown();
-            movementHistory.clear();
+            resetTargetingState();
             return;
         }
 
@@ -163,66 +170,126 @@ public final class ClientCombatRuntime {
             return;
         }
 
-        AbstractClientPlayer target = resolveTarget(self, level);
-        if (target == null) {
+        long nowNanos = System.nanoTime();
+        TargetSelection selection = resolveTarget(self, level, nowNanos);
+        if (selection == null) {
             if (engine.pinnedTargetId().isPresent()) {
                 engine.abort(CommitAbortReason.TARGET_OUTSIDE_VIABLE_GEOMETRY);
             }
             previousTarget = null;
             lastTargetName = "";
+            targetReevaluationTicks = 0;
             return;
         }
 
-        var snapshot = snapshotBuilder.build(target);
-        if (snapshot.isEmpty()) {
-            engine.abort(CommitAbortReason.TARGET_OUTSIDE_VIABLE_GEOMETRY);
-            previousTarget = null;
-            lastTargetName = "";
-            return;
-        }
-
-        var currentSnapshot = snapshot.orElseThrow();
+        AbstractClientPlayer target = selection.target();
+        CombatSnapshot currentSnapshot = selection.snapshot();
         lastTargetName = target.getName().getString();
         lastTiming = currentSnapshot.timing();
-        long nowNanos = System.nanoTime();
-        recordMovement(target, nowNanos);
-        PredictionSet predictions = predict(target.getUUID(), currentSnapshot.timing());
         RuntimeFrame frame = new RuntimeFrame(
             currentSnapshot,
             target.getUUID(),
-            predictions
+            selection.predictions()
         );
         engine.tick(frame, action -> feedback(dispatcher.dispatch(action)), nowNanos, MAX_DISPATCHES_PER_TICK);
         previousTarget = target.getUUID();
     }
 
-    private AbstractClientPlayer resolveTarget(LocalPlayer self, ClientLevel level) {
+    private TargetSelection resolveTarget(LocalPlayer self, ClientLevel level, long nowNanos) {
         UUID pinned = engine.pinnedTargetId().orElse(null);
         if (pinned != null) {
-            return level.players().stream()
+            AbstractClientPlayer target = level.players().stream()
                 .filter(player -> player.getUUID().equals(pinned))
                 .filter(player -> validTarget(self, player, searchRange(self)))
                 .findFirst()
                 .orElse(null);
+            return target == null ? null : snapshotSelection(target, nowNanos);
+        }
+
+        if (previousTarget != null && targetReevaluationTicks > 0) {
+            AbstractClientPlayer previous = level.players().stream()
+                .filter(player -> player.getUUID().equals(previousTarget))
+                .filter(player -> validTarget(self, player, searchRange(self)))
+                .findFirst()
+                .orElse(null);
+            if (previous != null) {
+                TargetSelection selection = snapshotSelection(previous, nowNanos);
+                if (selection != null) {
+                    targetReevaluationTicks--;
+                    return selection;
+                }
+            }
+            targetReevaluationTicks = 0;
         }
 
         double range = searchRange(self);
         List<AbstractClientPlayer> candidates = level.players().stream()
             .filter(player -> validTarget(self, player, range))
+            .sorted(Comparator.comparingDouble(
+                (AbstractClientPlayer candidate) -> shortlistScore(self, candidate)
+            ).reversed())
+            .limit(TARGET_SHORTLIST_LIMIT)
             .toList();
         if (candidates.isEmpty()) {
+            movementHistory.clear();
             return null;
         }
 
         List<TargetPriority> priorities = new ArrayList<>(candidates.size());
+        List<TargetSelection> selections = new ArrayList<>(candidates.size());
         for (AbstractClientPlayer candidate : candidates) {
-            priorities.add(priority(self, candidate));
+            var snapshot = snapshotBuilder.build(candidate);
+            if (snapshot.isEmpty()) {
+                continue;
+            }
+
+            CombatSnapshot candidateSnapshot = snapshot.orElseThrow();
+            recordMovement(candidate, nowNanos);
+            PredictionSet predictions = predict(candidate.getUUID(), candidateSnapshot.timing());
+            var plan = beamPlanner.plan(
+                CombatState.fromSnapshot(candidateSnapshot, candidate.getUUID()),
+                targetSelectionBudget,
+                predictions
+            );
+            priorities.add(TargetOpportunityScorer.priority(
+                candidate.getUUID(),
+                plan,
+                threatScore(self, candidate),
+                distance(self, candidate)
+            ));
+            selections.add(new TargetSelection(candidate, candidateSnapshot, predictions));
         }
+
+        if (priorities.isEmpty()) {
+            movementHistory.clear();
+            return null;
+        }
+
         TargetPriority selected = targetSelector.select(previousTarget, priorities, riskBudget);
-        return candidates.stream()
-            .filter(candidate -> candidate.getUUID().equals(selected.targetId()))
+        TargetSelection selection = selections.stream()
+            .filter(candidate -> candidate.target().getUUID().equals(selected.targetId()))
             .findFirst()
-            .orElse(null);
+            .orElseThrow();
+        targetReevaluationTicks = TARGET_REEVALUATION_INTERVAL_TICKS;
+        movementHistory.keySet().removeIf(id -> selections.stream()
+            .noneMatch(candidate -> candidate.target().getUUID().equals(id)));
+        return selection;
+    }
+
+    private TargetSelection snapshotSelection(AbstractClientPlayer target, long nowNanos) {
+        var snapshot = snapshotBuilder.build(target);
+        if (snapshot.isEmpty()) {
+            return null;
+        }
+        CombatSnapshot currentSnapshot = snapshot.orElseThrow();
+        recordMovement(target, nowNanos);
+        PredictionSet predictions = predict(target.getUUID(), currentSnapshot.timing());
+        return new TargetSelection(target, currentSnapshot, predictions);
+    }
+
+    private double shortlistScore(LocalPlayer self, AbstractClientPlayer target) {
+        double sticky = target.getUUID().equals(previousTarget) ? 2.0 : 0.0;
+        return sticky + threatScore(self, target) * 1.5 - distance(self, target) * 0.001;
     }
 
     private static boolean validTarget(LocalPlayer self, AbstractClientPlayer target, double range) {
@@ -241,32 +308,14 @@ public final class ClientCombatRuntime {
         return Math.max(crystalReach, anchorReach);
     }
 
-    private static TargetPriority priority(LocalPlayer self, AbstractClientPlayer target) {
-        double maxHealth = Math.max(1.0, target.getMaxHealth());
-        double healthWeakness = clamp01(1.0 - target.getHealth() / maxHealth);
-        int armorPieces = 0;
-        for (EquipmentSlot slot : List.of(
-            EquipmentSlot.HEAD,
-            EquipmentSlot.CHEST,
-            EquipmentSlot.LEGS,
-            EquipmentSlot.FEET
-        )) {
-            if (!target.getItemBySlot(slot).isEmpty()) {
-                armorPieces++;
-            }
-        }
-        double armorWeakness = 1.0 - armorPieces / 4.0;
-        boolean visibleTotem = target.getMainHandItem().is(Items.TOTEM_OF_UNDYING)
-            || target.getOffhandItem().is(Items.TOTEM_OF_UNDYING);
-        double killOpportunity = clamp01(
-            0.40 + healthWeakness * 0.40 + armorWeakness * 0.20 - (visibleTotem ? 0.10 : 0.0)
-        );
-
+    private static double threatScore(LocalPlayer self, AbstractClientPlayer target) {
         boolean recentAttacker = self.getLastHurtByMob() == target
             && self.tickCount - self.getLastHurtByMobTimestamp() <= 40;
-        double threat = recentAttacker ? 1.0 : 0.0;
-        double distance = Math.sqrt(self.distanceToSqr(target));
-        return new TargetPriority(target.getUUID(), killOpportunity, threat, distance);
+        return recentAttacker ? 1.0 : 0.0;
+    }
+
+    private static double distance(LocalPlayer self, AbstractClientPlayer target) {
+        return Math.sqrt(self.distanceToSqr(target));
     }
 
     private void recordMovement(AbstractClientPlayer target, long nowNanos) {
@@ -278,7 +327,6 @@ public final class ClientCombatRuntime {
         while (history.size() > MAX_MOVEMENT_SAMPLES) {
             history.removeFirst();
         }
-        movementHistory.keySet().removeIf(id -> !id.equals(target.getUUID()));
     }
 
     private PredictionSet predict(UUID targetId, TimingState timing) {
@@ -294,6 +342,14 @@ public final class ClientCombatRuntime {
         );
     }
 
+    private void resetTargetingState() {
+        previousTarget = null;
+        lastTargetName = "";
+        lastTiming = TimingState.unknown();
+        targetReevaluationTicks = 0;
+        movementHistory.clear();
+    }
+
     private static ExecutionFeedback feedback(DispatchReceipt receipt) {
         return switch (receipt.status()) {
             case SENT -> ExecutionFeedback.sent();
@@ -303,7 +359,10 @@ public final class ClientCombatRuntime {
         };
     }
 
-    private static double clamp01(double value) {
-        return Math.max(0.0, Math.min(1.0, value));
+    private record TargetSelection(
+        AbstractClientPlayer target,
+        CombatSnapshot snapshot,
+        PredictionSet predictions
+    ) {
     }
 }
