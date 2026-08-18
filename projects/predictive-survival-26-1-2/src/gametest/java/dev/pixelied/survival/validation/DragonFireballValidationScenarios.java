@@ -7,6 +7,7 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
+import dev.pixelied.survival.threat.EnvironmentPredictorRegistry;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.timing.TimingSnapshot;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -19,6 +20,10 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 final class DragonFireballValidationScenarios {
     private static final EngineLimits LIMITS = EngineLimits.defaults();
@@ -68,6 +73,7 @@ final class DragonFireballValidationScenarios {
 
             ImpactObservation impact = null;
             CloudObservation firstCloud = null;
+            Boolean cloudPredictedThreat = null;
             for (int tick = 1; tick <= 40; tick++) {
                 context.waitTick();
                 ImpactObservation observation = singleplayer.getServer().computeOnServer(server ->
@@ -75,6 +81,26 @@ final class DragonFireballValidationScenarios {
                 );
                 if (firstCloud == null && observation.cloud() != null) {
                     firstCloud = observation.cloud();
+                    CloudObservation capturedCloud = firstCloud;
+                    context.waitFor(minecraft ->
+                        minecraft.level != null && minecraft.level.getEntity(capturedCloud.entityId()) != null
+                    );
+                    cloudPredictedThreat = context.computeOnClient(minecraft -> {
+                        if (minecraft.player == null || minecraft.level == null) {
+                            throw new AssertionError("client player/level unavailable for area-cloud validation");
+                        }
+                        PlayerSnapshot player = new MinecraftSnapshotFactory().capture(minecraft.player);
+                        PredictionContext predictionContext = new PredictionContext(
+                            player,
+                            new MinecraftWorldSnapshotFactory().capture(minecraft.level, minecraft.player, LIMITS),
+                            new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
+                            LIMITS
+                        );
+                        return EnvironmentPredictorRegistry.defaults().predict(predictionContext).stream()
+                            .anyMatch(event -> event.id().startsWith(
+                                "env:area_effect_cloud:" + capturedCloud.entityId() + ":"
+                            ));
+                    });
                 }
                 if (observation.health() < 20f) {
                     impact = new ImpactObservation(
@@ -98,6 +124,15 @@ final class DragonFireballValidationScenarios {
                         + "actualHealth=" + impact.health()
                         + " damageTick=" + impact.tick()
                         + " projectilePresent=" + impact.projectilePresent()
+                        + " firstCloud=" + firstCloud
+                        + " impactCloud=" + impact.cloud()
+                );
+            }
+            if (!Boolean.TRUE.equals(cloudPredictedThreat)) {
+                throw new AssertionError(
+                    "live dragon-breath area effect cloud caused server damage but the production environment registry "
+                        + "emitted no cloud threat; actualHealth=" + impact.health()
+                        + " damageTick=" + impact.tick()
                         + " firstCloud=" + firstCloud
                         + " impactCloud=" + impact.cloud()
                 );
@@ -141,13 +176,39 @@ final class DragonFireballValidationScenarios {
     private static CloudObservation cloud(Entity cloud, ServerPlayer player) {
         AABB box = cloud.getBoundingBox();
         return new CloudObservation(
+            cloud.getId(),
             new Vec3Snapshot(cloud.getX(), cloud.getY(), cloud.getZ()),
             box.maxX - box.minX,
             box.maxY - box.minY,
             box.maxZ - box.minZ,
             Math.sqrt(player.distanceToSqr(cloud)),
-            cloud.tickCount
+            cloud.tickCount,
+            cloudApi(cloud)
         );
+    }
+
+    private static String cloudApi(Entity cloud) {
+        return Arrays.stream(cloud.getClass().getMethods())
+            .filter(method -> {
+                String name = method.getName().toLowerCase();
+                return name.contains("potion")
+                    || name.contains("effect")
+                    || name.contains("radius")
+                    || name.contains("wait")
+                    || name.contains("duration")
+                    || name.contains("reapplication")
+                    || name.contains("owner");
+            })
+            .map(DragonFireballValidationScenarios::methodSignature)
+            .sorted()
+            .distinct()
+            .collect(Collectors.joining(","));
+    }
+
+    private static String methodSignature(Method method) {
+        return method.getName() + "(" + Arrays.stream(method.getParameterTypes())
+            .map(Class::getSimpleName)
+            .collect(Collectors.joining(";")) + "):" + method.getReturnType().getSimpleName();
     }
 
     private record Setup(int projectileId, int ownerId) {
@@ -162,12 +223,14 @@ final class DragonFireballValidationScenarios {
     }
 
     private record CloudObservation(
+        int entityId,
         Vec3Snapshot position,
         double width,
         double height,
         double depth,
         double playerDistance,
-        int ageTicks
+        int ageTicks,
+        String api
     ) {
     }
 }
