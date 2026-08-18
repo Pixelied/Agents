@@ -15,6 +15,7 @@ import dev.pixelied.survival.inventory.MenuSlotMap;
 import dev.pixelied.survival.inventory.MinecraftInventorySnapshotFactory;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalCandidateGenerator;
+import dev.pixelied.survival.threat.AreaEffectCloudAttributionTracker;
 import dev.pixelied.survival.threat.EnvironmentPredictorRegistry;
 import dev.pixelied.survival.threat.ExplosionPredictor;
 import dev.pixelied.survival.threat.FallPredictor;
@@ -46,6 +47,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final MinecraftWorldSnapshotFactory worldSnapshots;
     private final MinecraftInventorySnapshotFactory inventorySnapshots;
     private final ServerTimingEstimator timingEstimator;
+    private final AreaEffectCloudAttributionTracker cloudAttributions;
     private final ThreatPredictorRegistry predictors;
     private final SurvivalCandidateGenerator candidateGenerator;
     private final DeathProtectionActionExecutor protectionExecutor;
@@ -65,6 +67,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.worldSnapshots = new MinecraftWorldSnapshotFactory();
         this.inventorySnapshots = new MinecraftInventorySnapshotFactory();
         this.timingEstimator = new ServerTimingEstimator();
+        this.cloudAttributions = new AreaEffectCloudAttributionTracker();
         EnvironmentPredictorRegistry environment = EnvironmentPredictorRegistry.defaults();
         this.predictors = new ThreatPredictorRegistry(List.<ThreatPredictor>of(
             new ExplosionPredictor(),
@@ -105,9 +108,12 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
         PlayerSnapshot rawPlayer = playerSnapshots.capture(player);
         PlayerSnapshot playerSnapshot = withConservativeBlocking(rawPlayer, player, timing);
-        WorldSnapshot world = worldSnapshots.capture(minecraft.level, player, limits);
+        WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
+        WorldSnapshot world = cloudAttributions.annotate(clientTick, rawWorld);
         PredictionContext context = new PredictionContext(playerSnapshot, world, timing, limits);
-        ThreatTimeline timeline = new ThreatTimeline(predictors.predictAll(context));
+        List<ThreatEvent> predicted = predictors.predictAll(context);
+        cloudAttributions.observePredictedThreats(clientTick, predicted);
+        ThreatTimeline timeline = new ThreatTimeline(predicted);
         List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu);
 
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, timeline, candidates);
