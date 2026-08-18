@@ -65,7 +65,8 @@ public final class VanillaDamageSimulator {
                     false,
                     target.dead()
                 ),
-                false
+                false,
+                hurtDecision.uncertain()
             );
         }
 
