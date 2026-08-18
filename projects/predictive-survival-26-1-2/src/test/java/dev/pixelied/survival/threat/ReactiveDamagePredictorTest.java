@@ -67,14 +67,18 @@ class ReactiveDamagePredictorTest {
     }
 
     @Test
-    void pearlWithoutObservableImpactProducesNoSelfDamageClaim() {
+    void ownPearlWithoutExactImpactUsesConservativeProjectileHorizon() {
         WorldSnapshot.EntitySnapshot pearl = entity(
             "pearl:2",
             "minecraft:ender_pearl",
             Map.of("owner_is_local_player", "true")
         );
 
-        assertTrue(predictor.predict(context(Map.of(), List.of(pearl))).isEmpty());
+        ThreatEvent event = predictor.predict(context(Map.of(), List.of(pearl))).getFirst();
+
+        assertEquals(new TickWindow(1, EngineLimits.defaults().maxProjectileHorizonTicks()), event.impact());
+        assertEquals(Confidence.BOUNDED, event.confidence());
+        assertEquals(5f, event.damage().rawDamage().max(), 0.0001f);
     }
 
     @Test
