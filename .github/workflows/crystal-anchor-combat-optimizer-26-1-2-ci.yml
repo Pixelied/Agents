@@ -37,3 +37,36 @@ jobs:
       - name: Test, build, and run GameTests
         working-directory: projects/crystal-anchor-combat-optimizer-26-1-2
         run: gradle --no-daemon clean test build runGameTest --stacktrace
+
+      - name: Package distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='projects/crystal-anchor-combat-optimizer-26-1-2'
+          dist='crystal-optimizer-dist'
+          rm -rf "$dist"
+          mkdir -p "$dist/package/project" "$dist/package/ci"
+          rsync -a \
+            --exclude '.gradle/' \
+            --exclude 'build/' \
+            --exclude 'run/' \
+            --exclude '.idea/' \
+            "$project/" "$dist/package/project/"
+          cp .github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml "$dist/package/ci/"
+          (
+            cd "$dist/package"
+            zip -qr ../crystal-anchor-combat-optimizer-26-1-2-source.zip .
+          )
+          cp "$project"/build/libs/*.jar "$dist/"
+          (
+            cd "$dist"
+            sha256sum *.jar *.zip > SHA256SUMS.txt
+          )
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: crystal-anchor-combat-optimizer-26-1-2
+          path: crystal-optimizer-dist/*
+          if-no-files-found: error
+          retention-days: 30
