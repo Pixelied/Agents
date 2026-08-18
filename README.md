@@ -52,15 +52,18 @@ AGENTS.md                      Universal instructions every agent reads first
 .agent-workspace.json          Machine-readable workspace manifest
 agentctl.py                    CLI entrypoint
 src/agent_workspace/           Coordination implementation
-agents/<agent-id>/             Agent identity, inbox, and private scratch notes
+agents/<agent-id>/             Agent identity and agent-owned runtime state
 tasks/<task-id>/               Task metadata, leases, events, handoffs, artifacts
+projects/<project-id>/         First-class project codebases, isolated by project
 templates/                     Copyable machine-readable examples
 schemas/                       JSON Schema contracts
 docs/protocols/                Detailed operating rules
 examples/                      Worked workflow examples
-tests/                         Behavioral and repository-contract tests
-.github/workflows/validate.yml CI validation
+tests/                         Workspace behavioral and repository-contract tests
+.github/workflows/             Universal and project-specific CI workflows
 ```
+
+Git does not track empty directories. Optional runtime folders such as an empty task `handoffs/` directory or agent `inbox/` may therefore be absent in a clean checkout until the first record is written. See [`docs/protocols/coordination.md`](docs/protocols/coordination.md).
 
 ## Requirements and verification
 
@@ -70,3 +73,5 @@ Python 3.11 or newer. Runtime code uses only the Python standard library.
 python -m unittest discover -s tests -v
 python agentctl.py validate
 ```
+
+These commands validate the shared coordination workspace. Individual projects under `projects/` may have additional language-, game-, or platform-specific CI gates in `.github/workflows/`.
