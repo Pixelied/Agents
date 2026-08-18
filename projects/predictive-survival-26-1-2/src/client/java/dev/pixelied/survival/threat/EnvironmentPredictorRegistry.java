@@ -28,6 +28,7 @@ public final class EnvironmentPredictorRegistry {
             new WorldBorderPredictor(),
             new StarvationPredictor(),
             new StatusEffectPredictor(),
+            new LingeringStatusProjectilePredictor(),
             new AreaEffectCloudPredictor()
         ));
     }
