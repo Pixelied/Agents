@@ -235,7 +235,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 if (maximumRaw <= 0f) return Optional.empty();
                 damage = new DamageRange(0f, maximumRaw);
             } else {
-                float raw = splashRawDamage(fullDamage, radius, distance(context.player().position(), impact));
+                float raw = splashRawDamage(fullDamage, radius, distanceToAabb(impact, context.player().boundingBox()));
                 if (raw <= 0f) return Optional.empty();
                 damage = DamageRange.exact(raw);
             }
@@ -555,9 +555,15 @@ public final class ProjectilePredictor implements ThreatPredictor {
             double y = Math.floor(block.position().y());
             double z = Math.floor(block.position().z());
             AabbSnapshot cube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
-            double t = segmentAabbEntry(from, to, cube);
+            double t = segmentAabbEntry(from, to, bounds.expand(cube));
             if (Double.isFinite(t) && (best == null || t < best.t())) {
-                best = new Collision(t, interpolate(from, to, t));
+                Vec3Snapshot center = interpolate(from, to, t);
+                Vec3Snapshot impact = new Vec3Snapshot(
+                    Math.max(cube.minX(), Math.min(center.x(), cube.maxX())),
+                    Math.max(cube.minY(), Math.min(center.y(), cube.maxY())),
+                    Math.max(cube.minZ(), Math.min(center.z(), cube.maxZ()))
+                );
+                best = new Collision(t, impact);
             }
         }
         return best;
