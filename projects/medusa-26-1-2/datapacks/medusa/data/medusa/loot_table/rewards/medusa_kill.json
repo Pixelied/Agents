@@ -1,0 +1,59 @@
+{
+  "type": "minecraft:generic",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [{
+        "type": "minecraft:item",
+        "name": "minecraft:heart_of_the_sea",
+        "functions": [{"function": "minecraft:set_components", "components": {
+          "minecraft:custom_data": {"md_item": "medusa_heart"},
+          "minecraft:custom_name": {"text": "Medusa's Heart", "color": "dark_green", "italic": false},
+          "minecraft:item_model": "medusa:medusa_heart"
+        }}]
+      }]
+    },
+    {
+      "rolls": 1,
+      "entries": [{
+        "type": "minecraft:item",
+        "name": "minecraft:turtle_scute",
+        "functions": [
+          {"function": "minecraft:set_components", "components": {
+            "minecraft:custom_data": {"md_item": "gorgon_scale"},
+            "minecraft:custom_name": {"text": "Gorgon Scale", "color": "green", "italic": false},
+            "minecraft:item_model": "medusa:gorgon_scale"
+          }},
+          {"function": "minecraft:set_count", "count": {"type": "minecraft:uniform", "min": 10, "max": 14}}
+        ]
+      }]
+    },
+    {
+      "rolls": 1,
+      "entries": [{
+        "type": "minecraft:item",
+        "name": "minecraft:flint",
+        "functions": [
+          {"function": "minecraft:set_components", "components": {
+            "minecraft:custom_data": {"md_item": "serpent_fang"},
+            "minecraft:custom_name": {"text": "Serpent Fang", "color": "dark_green", "italic": false},
+            "minecraft:item_model": "medusa:serpent_fang"
+          }},
+          {"function": "minecraft:set_count", "count": 2}
+        ]
+      }]
+    },
+    {
+      "rolls": 1,
+      "entries": [{"type": "minecraft:item", "name": "minecraft:diamond", "functions": [{"function": "minecraft:set_count", "count": {"type": "minecraft:uniform", "min": 2, "max": 4}}]}]
+    },
+    {
+      "rolls": 1,
+      "entries": [{"type": "minecraft:item", "name": "minecraft:gold_ingot", "functions": [{"function": "minecraft:set_count", "count": {"type": "minecraft:uniform", "min": 8, "max": 16}}]}]
+    },
+    {
+      "rolls": 1,
+      "entries": [{"type": "minecraft:item", "name": "minecraft:netherite_scrap", "conditions": [{"condition": "minecraft:random_chance", "chance": 0.25}]}]
+    }
+  ]
+}
