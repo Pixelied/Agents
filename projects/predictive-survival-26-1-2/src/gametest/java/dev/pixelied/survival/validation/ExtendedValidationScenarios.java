@@ -1,13 +1,20 @@
 package dev.pixelied.survival.validation;
 
 import dev.pixelied.survival.core.DamageRange;
+import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.MinecraftSnapshotFactory;
 import dev.pixelied.survival.core.PlayerSnapshot;
+import dev.pixelied.survival.core.PredictionContext;
+import dev.pixelied.survival.core.TickWindow;
+import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.DamageResult;
 import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.MinecraftDamageAdapter;
+import dev.pixelied.survival.threat.BurnPredictor;
+import dev.pixelied.survival.timeline.ThreatEvent;
+import dev.pixelied.survival.timing.TimingSnapshot;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.player.LocalPlayer;
@@ -40,6 +47,7 @@ final class ExtendedValidationScenarios {
             results.add(validateSourceCase(context, singleplayer, sourceCase));
         }
         results.add(validateRepeatedDeathProtection(singleplayer));
+        results.add(validateLiveBurnPrediction(context, singleplayer));
         return List.copyOf(results);
     }
 
@@ -144,6 +152,83 @@ final class ExtendedValidationScenarios {
         );
     }
 
+    private static ValidationResult validateLiveBurnPrediction(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer
+    ) {
+        singleplayer.getServer().runOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            SurvivalValidationClientGameTest.reset(player, 20f);
+            player.setRemainingFireTicks(39);
+        });
+        context.waitFor(minecraft -> minecraft.player != null && minecraft.player.isOnFire());
+
+        BurnPrediction prediction = context.computeOnClient(minecraft -> {
+            LocalPlayer player = minecraft.player;
+            if (player == null) throw new AssertionError("client player unavailable for live burn validation");
+            PlayerSnapshot snapshot = new MinecraftSnapshotFactory().capture(player);
+            PredictionContext predictionContext = new PredictionContext(
+                snapshot,
+                WorldSnapshot.empty(),
+                new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
+                EngineLimits.defaults()
+            );
+            ThreatEvent event = new BurnPredictor().predict(predictionContext).stream()
+                .filter(candidate -> candidate.damage().sourceKey().equals("minecraft:on_fire"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                    "burning client had no minecraft:on_fire prediction; remainingFireTicks="
+                        + player.getRemainingFireTicks() + " isOnFire=" + player.isOnFire()
+                ));
+            float predictedHealth = SIMULATOR.simulate(snapshot, event.damage()).after().health();
+            return new BurnPrediction(event, snapshot.health(), predictedHealth);
+        });
+
+        int actualImpactTicks = waitForHealthDrop(
+            context,
+            singleplayer,
+            prediction.initialHealth,
+            25,
+            "live_on_fire"
+        );
+        float actualHealth = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            float health = player.getHealth();
+            player.clearFire();
+            return health;
+        });
+        if (!prediction.event.impact().contains(actualImpactTicks)) {
+            throw new AssertionError(
+                "live_on_fire impact predicted=" + prediction.event.impact() + " actualTick=" + actualImpactTicks
+            );
+        }
+
+        return new ValidationResult(
+            "live_on_fire",
+            prediction.predictedHealth,
+            actualHealth,
+            ValidationStatus.RUNTIME_CONFIRMED,
+            EPSILON
+        );
+    }
+
+    private static int waitForHealthDrop(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        float initialHealth,
+        int maxTicks,
+        String id
+    ) {
+        for (int tick = 1; tick <= maxTicks; tick++) {
+            context.waitTick();
+            float health = singleplayer.getServer().computeOnServer(server ->
+                SurvivalValidationClientGameTest.onlyPlayer(server).getHealth()
+            );
+            if (health < initialHealth) return tick;
+        }
+        throw new AssertionError(id + " did not damage the player within " + maxTicks + " ticks");
+    }
+
     private static DamageSourceSnapshot generic(float rawDamage) {
         return new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
@@ -206,5 +291,8 @@ final class ExtendedValidationScenarios {
     }
 
     private record PopChainState(float health, boolean mainConsumed, boolean offConsumed) {
+    }
+
+    private record BurnPrediction(ThreatEvent event, float initialHealth, float predictedHealth) {
     }
 }
