@@ -25,7 +25,11 @@ public record PlaceObsidian(BlockPos pos) implements CombatAction {
         if (!state.geometry().getBlockState(pos).isAir()) {
             return ActionLegality.denied("support position is not conservatively empty");
         }
-        return ActionChecks.requireFreeBlockSpace(state, pos);
+        ActionLegality freeSpace = ActionChecks.requireFreeBlockSpace(state, pos);
+        if (!freeSpace.legal()) {
+            return freeSpace;
+        }
+        return ActionChecks.requireAdjacentPlacementSupport(state, pos);
     }
 
     @Override
