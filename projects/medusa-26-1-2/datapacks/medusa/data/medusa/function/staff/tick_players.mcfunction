@@ -4,3 +4,4 @@ execute as @a if items entity @s weapon.mainhand minecraft:breeze_rod[minecraft:
 execute as @a[scores={md_use=1..,md_staff_seen=..0}] run function medusa:staff/end_use
 execute as @a[tag=md.staff_blocked_until_release,scores={md_staff_seen=..0}] run function medusa:staff/end_use
 execute as @e[tag=md.staff_petrified] at @s run function medusa:staff/target/tick_petrification
+execute as @e[type=minecraft:block_display,tag=md.staff_spike] at @s run function medusa:staff/spikes/cleanup

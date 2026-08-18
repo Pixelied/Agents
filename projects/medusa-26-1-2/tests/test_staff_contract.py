@@ -76,3 +76,33 @@ class StaffBossResistanceContract(unittest.TestCase):
         boss_tick = FN / "boss/tick_one.mcfunction"
         self.assertTrue(boss_tick.is_file())
         self.assertIn("unless entity @s[tag=md.staff_petrified]", boss_tick.read_text())
+
+class StoneSpikesContract(unittest.TestCase):
+    def test_spikes_cost_four_and_cluster_never_edits_terrain(self):
+        start = FN / "staff/spikes/start.mcfunction"
+        cluster = FN / "staff/spikes/spawn_cluster.mcfunction"
+        self.assertTrue(start.is_file(), "Stone Spikes start function is missing")
+        self.assertTrue(cluster.is_file(), "Stone Spikes cluster function is missing")
+        self.assertIn("remove @s md_staff 4", start.read_text())
+        cluster_text = cluster.read_text()
+        self.assertNotIn(" setblock ", cluster_text)
+        self.assertNotIn(" fill ", cluster_text)
+
+    def test_spikes_trace_ground_before_spending_charges(self):
+        start = FN / "staff/spikes/start.mcfunction"
+        ray = FN / "staff/spikes/ground_ray.mcfunction"
+        self.assertTrue(start.is_file(), "Stone Spikes start function is missing")
+        self.assertTrue(ray.is_file(), "Stone Spikes ground ray is missing")
+        text = start.read_text()
+        self.assertIn("md_staff_hit", text)
+        self.assertIn("matches 1", text)
+        self.assertIn("..23", ray.read_text())
+
+class StoneSpikesChargeSafetyContract(unittest.TestCase):
+    def test_spike_cluster_requires_successful_four_charge_payment(self):
+        start = FN / "staff/spikes/start.mcfunction"
+        self.assertTrue(start.is_file())
+        text = start.read_text()
+        self.assertIn("$spikes_paid", text)
+        self.assertIn("if score $spikes_paid md_tmp matches 1", text)
+        self.assertIn("run function medusa:staff/spikes/spawn_cluster", text)
