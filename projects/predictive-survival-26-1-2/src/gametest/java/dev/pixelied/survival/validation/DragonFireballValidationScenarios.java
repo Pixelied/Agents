@@ -21,6 +21,7 @@ import net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -188,21 +189,42 @@ final class DragonFireballValidationScenarios {
     }
 
     private static String cloudApi(Entity cloud) {
-        return Arrays.stream(cloud.getClass().getMethods())
-            .filter(method -> {
-                String name = method.getName().toLowerCase();
-                return name.contains("potion")
-                    || name.contains("effect")
-                    || name.contains("radius")
-                    || name.contains("wait")
-                    || name.contains("duration")
-                    || name.contains("reapplication")
-                    || name.contains("owner");
-            })
+        String methods = Arrays.stream(cloud.getClass().getMethods())
+            .filter(method -> relevant(method.getName(), method.getReturnType().getSimpleName()))
             .map(DragonFireballValidationScenarios::methodSignature)
             .sorted()
             .distinct()
             .collect(Collectors.joining(","));
+        String fields = Arrays.stream(cloud.getClass().getDeclaredFields())
+            .filter(field -> relevant(field.getName(), field.getType().getSimpleName()))
+            .map(field -> fieldValue(field, cloud))
+            .sorted()
+            .collect(Collectors.joining(","));
+        return "methods=[" + methods + "] fields=[" + fields + "]";
+    }
+
+    private static boolean relevant(String name, String type) {
+        String lowerName = name.toLowerCase();
+        String lowerType = type.toLowerCase();
+        return lowerName.contains("potion")
+            || lowerName.contains("effect")
+            || lowerName.contains("radius")
+            || lowerName.contains("wait")
+            || lowerName.contains("duration")
+            || lowerName.contains("reapplication")
+            || lowerName.contains("victim")
+            || lowerType.contains("potion")
+            || lowerType.contains("effect");
+    }
+
+    private static String fieldValue(Field field, Entity cloud) {
+        try {
+            if (!field.trySetAccessible()) return field.getName() + ":" + field.getType().getSimpleName() + "=<inaccessible>";
+            Object value = field.get(cloud);
+            return field.getName() + ":" + field.getType().getSimpleName() + "=" + value;
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            return field.getName() + ":" + field.getType().getSimpleName() + "=<" + exception.getClass().getSimpleName() + ">";
+        }
     }
 
     private static String methodSignature(Method method) {
