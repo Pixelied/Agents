@@ -66,6 +66,7 @@ final class InventoryValidationScenarios {
         context.waitFor(minecraft -> minecraft.player != null
             && minecraft.player.getOffhandItem().is(Items.TOTEM_OF_UNDYING)
             && minecraft.player.getInventory().getItem(sourceInventoryIndex).is(Items.GOLDEN_APPLE));
+        waitForServerSwap(context, singleplayer, sourceInventoryIndex);
 
         PopAfterSwap state = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
@@ -94,6 +95,23 @@ final class InventoryValidationScenarios {
             player.containerMenu.broadcastChanges();
         });
         context.waitTick();
+    }
+
+    private static void waitForServerSwap(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        int sourceInventoryIndex
+    ) {
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            boolean serverConfirmed = singleplayer.getServer().computeOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                return player.getOffhandItem().is(Items.TOTEM_OF_UNDYING)
+                    && player.getInventory().getItem(sourceInventoryIndex).is(Items.GOLDEN_APPLE);
+            });
+            if (serverConfirmed) return;
+            context.waitTick();
+        }
+        throw new AssertionError("server did not confirm offhand SWAP before timeout");
     }
 
     private record PopAfterSwap(float health, boolean offhandConsumed) {
