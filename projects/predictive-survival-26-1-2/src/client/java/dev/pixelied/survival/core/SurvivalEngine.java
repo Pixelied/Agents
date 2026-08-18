@@ -119,9 +119,11 @@ public final class SurvivalEngine {
 
     private boolean shouldReplaceActivePlan(SurvivalAction active, EngineFrame frame) {
         String refreshedScheduleFingerprint = scheduleFingerprint(frame);
-        if (refreshedScheduleFingerprint.equals(activeThreatScheduleFingerprint)) return false;
+        boolean sameAbsoluteSchedule = refreshedScheduleFingerprint.equals(activeThreatScheduleFingerprint);
 
-        var refreshed = planner.simulate(frame.context(), frame.timeline(), active, config.safetyMode());
+        var refreshed = sameAbsoluteSchedule
+            ? planner.simulateInFlight(frame.context(), frame.timeline(), active, config.safetyMode())
+            : planner.simulate(frame.context(), frame.timeline(), active, config.safetyMode());
         if (refreshed.feasible() && refreshed.result().survived()) {
             activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
             return false;
