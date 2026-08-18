@@ -21,6 +21,12 @@ import java.util.Optional;
 
 public final class ProjectilePredictor implements ThreatPredictor {
     private static final double EPSILON = 1.0E-9d;
+    private static final String DRAGON_FIREBALL_TYPE = "minecraft:dragon_fireball";
+    private static final float DRAGON_BREATH_RAW_DAMAGE = 6f;
+    private static final double DRAGON_BREATH_RADIUS = 3.05d;
+    private static final double DRAGON_BREATH_HEIGHT = 0.5d;
+    private static final int DRAGON_BREATH_REAPPLICATION_TICKS = 20;
+
     private final ExplosionExposure explosionExposure = new ExplosionExposure();
 
     @Override
@@ -55,8 +61,10 @@ public final class ProjectilePredictor implements ThreatPredictor {
             Collision block = firstBlockCollision(context.world().blocks(), bounds, current.position(), next.position());
 
             if (block != null && block.t() <= playerT + EPSILON) {
-                Optional<ThreatEvent> explosion = collisionExplosion(context, entity, block.position(), next.tick());
-                return explosion.map(List::of).orElseGet(List::of);
+                List<ThreatEvent> events = new ArrayList<>();
+                collisionExplosion(context, entity, block.position(), next.tick()).ifPresent(events::add);
+                events.addAll(collisionAreaHazards(context, entity, block.position(), next.tick()));
+                return List.copyOf(events);
             }
 
             if (Double.isFinite(playerT)) {
@@ -68,6 +76,10 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 };
                 directHit(entity, family, impactVelocity, impact, next.tick()).ifPresent(events::add);
                 collisionExplosion(context, entity, impact, next.tick()).ifPresent(events::add);
+                Vec3Snapshot areaOrigin = isDragonFireball(entity)
+                    ? playerPositionAt(context.player(), next.tick())
+                    : impact;
+                events.addAll(collisionAreaHazards(context, entity, areaOrigin, next.tick()));
                 return List.copyOf(events);
             }
 
@@ -222,6 +234,73 @@ public final class ProjectilePredictor implements ThreatPredictor {
         ));
     }
 
+    private List<ThreatEvent> collisionAreaHazards(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot entity,
+        Vec3Snapshot areaOrigin,
+        long modeledCollisionTick
+    ) {
+        if (!isDragonFireball(entity)) return List.of();
+
+        TickWindow collisionWindow = observedImpactWindow(entity, modeledCollisionTick);
+        long horizon = context.limits().maxProjectileHorizonTicks();
+        long earliest = collisionWindow.earliest();
+        long latest = Math.min(horizon, saturatingAdd(collisionWindow.latest(), DRAGON_BREATH_REAPPLICATION_TICKS));
+        List<ThreatEvent> events = new ArrayList<>();
+        int application = 0;
+
+        while (earliest <= horizon && earliest <= latest) {
+            if (couldOccupyDragonBreath(context.player(), areaOrigin, earliest, latest)) {
+                DamageSourceSnapshot source = new DamageSourceSnapshot(
+                    DamageRange.exact(DRAGON_BREATH_RAW_DAMAGE),
+                    EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
+                    false,
+                    1f,
+                    false,
+                    Optional.of(areaOrigin),
+                    "minecraft:indirect_magic"
+                );
+                events.add(new ThreatEvent(
+                    "projectile:" + entity.id() + ":dragon_breath:" + application,
+                    ThreatKind.ENVIRONMENT,
+                    new TickWindow(earliest, latest),
+                    source,
+                    Confidence.BOUNDED,
+                    Optional.of(entity.position()),
+                    Optional.of(areaOrigin),
+                    true,
+                    false,
+                    true,
+                    false
+                ));
+            }
+
+            if (latest >= horizon) break;
+            earliest = latest + 1L;
+            latest = Math.min(horizon, saturatingAdd(latest, DRAGON_BREATH_REAPPLICATION_TICKS));
+            application++;
+        }
+        return List.copyOf(events);
+    }
+
+    private static boolean couldOccupyDragonBreath(
+        PlayerSnapshot player,
+        Vec3Snapshot areaOrigin,
+        long earliest,
+        long latest
+    ) {
+        AabbSnapshot path = sweptPlayerBox(player, earliest, latest);
+        double minX = areaOrigin.x() - DRAGON_BREATH_RADIUS;
+        double maxX = areaOrigin.x() + DRAGON_BREATH_RADIUS;
+        double minZ = areaOrigin.z() - DRAGON_BREATH_RADIUS;
+        double maxZ = areaOrigin.z() + DRAGON_BREATH_RADIUS;
+        double minY = areaOrigin.y();
+        double maxY = areaOrigin.y() + DRAGON_BREATH_HEIGHT;
+        return path.maxX() >= minX && path.minX() <= maxX
+            && path.maxZ() >= minZ && path.minZ() <= maxZ
+            && path.maxY() >= minY && path.minY() <= maxY;
+    }
+
     private Optional<ThreatEvent> timedExplosion(
         PredictionContext context,
         WorldSnapshot.EntitySnapshot entity,
@@ -296,18 +375,35 @@ public final class ProjectilePredictor implements ThreatPredictor {
     }
 
     private static AabbSnapshot sweptPlayerBox(PlayerSnapshot player, long tick) {
+        return sweptPlayerBox(player, 0L, tick);
+    }
+
+    private static AabbSnapshot sweptPlayerBox(PlayerSnapshot player, long startTick, long endTick) {
         AabbSnapshot box = player.boundingBox();
         Vec3Snapshot velocity = player.velocity();
-        double dx = velocity.x() * tick;
-        double dy = velocity.y() * tick;
-        double dz = velocity.z() * tick;
+        double startX = velocity.x() * startTick;
+        double startY = velocity.y() * startTick;
+        double startZ = velocity.z() * startTick;
+        double endX = velocity.x() * endTick;
+        double endY = velocity.y() * endTick;
+        double endZ = velocity.z() * endTick;
         return new AabbSnapshot(
-            Math.min(box.minX(), box.minX() + dx),
-            Math.min(box.minY(), box.minY() + dy),
-            Math.min(box.minZ(), box.minZ() + dz),
-            Math.max(box.maxX(), box.maxX() + dx),
-            Math.max(box.maxY(), box.maxY() + dy),
-            Math.max(box.maxZ(), box.maxZ() + dz)
+            Math.min(box.minX() + startX, box.minX() + endX),
+            Math.min(box.minY() + startY, box.minY() + endY),
+            Math.min(box.minZ() + startZ, box.minZ() + endZ),
+            Math.max(box.maxX() + startX, box.maxX() + endX),
+            Math.max(box.maxY() + startY, box.maxY() + endY),
+            Math.max(box.maxZ() + startZ, box.maxZ() + endZ)
+        );
+    }
+
+    private static Vec3Snapshot playerPositionAt(PlayerSnapshot player, long tick) {
+        Vec3Snapshot position = player.position();
+        Vec3Snapshot velocity = player.velocity();
+        return new Vec3Snapshot(
+            position.x() + velocity.x() * tick,
+            position.y() + velocity.y() * tick,
+            position.z() + velocity.z() * tick
         );
     }
 
@@ -346,6 +442,15 @@ public final class ProjectilePredictor implements ThreatPredictor {
         double dy = a.y() - b.y();
         double dz = a.z() - b.z();
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static boolean isDragonFireball(WorldSnapshot.EntitySnapshot entity) {
+        return DRAGON_FIREBALL_TYPE.equals(entity.typeKey());
+    }
+
+    private static long saturatingAdd(long value, long increment) {
+        if (increment > 0 && value > Long.MAX_VALUE - increment) return Long.MAX_VALUE;
+        return value + increment;
     }
 
     private static String defaultSourceKey(WorldSnapshot.EntitySnapshot entity, ProjectileFamily family) {
