@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LingeringStatusProjectilePredictorTest {
-    private final ProjectilePredictor predictor = new ProjectilePredictor();
+    private final LingeringStatusProjectilePredictor predictor = new LingeringStatusProjectilePredictor();
 
     @Test
     void lingeringWitherTwoHundredSchedulesQuarterDurationFirstTick() {
