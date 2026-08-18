@@ -74,7 +74,8 @@ final class WallSplashPoisonValidationScenarios {
                 && minecraft.level.getBlockState(setup.wallBase().above()).is(Blocks.STONE));
             anchorBoth(context, singleplayer, setup.playerAnchor());
 
-            SurvivalEngine.EngineFrame frame = context.computeOnClient(minecraft -> new MinecraftSurvivalRuntime().capture());
+            MinecraftSurvivalRuntime runtime = context.computeOnClient(MinecraftSurvivalRuntime::new);
+            SurvivalEngine.EngineFrame frame = context.computeOnClient(minecraft -> runtime.capture());
             ThreatEvent predicted = frame.timeline().events().stream()
                 .filter(event -> event.id().startsWith("projectile:" + setup.projectileId() + ":poison:"))
                 .findFirst()
