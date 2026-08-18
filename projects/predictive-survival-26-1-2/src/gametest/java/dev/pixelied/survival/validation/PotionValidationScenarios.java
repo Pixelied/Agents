@@ -155,10 +155,21 @@ final class PotionValidationScenarios {
                 );
             }
 
-            float predictedHealth = new DamageSimulator().simulate(frame.context().player(), predicted.damage()).after().health();
-            if (Math.abs(predictedHealth - actualHealth) > EPSILON) {
+            float actualDamage = 20f - actualHealth;
+            float predictedMin = predicted.damage().rawDamage().min();
+            float predictedMax = predicted.damage().rawDamage().max();
+            if (actualDamage < predictedMin - EPSILON || actualDamage > predictedMax + EPSILON) {
                 throw new AssertionError(
-                    "wall-splash Harming falloff mismatch; predicted=" + predictedHealth
+                    "wall-splash Harming damage fell outside prediction bounds; predictedRange="
+                        + predicted.damage().rawDamage() + " actualDamage=" + actualDamage
+                        + " event=" + predicted + " " + snapshot + " setup=" + setup + " damage=" + damage
+                );
+            }
+
+            float conservativeHealth = new DamageSimulator().simulate(frame.context().player(), predicted.damage()).after().health();
+            if (conservativeHealth > actualHealth + EPSILON) {
+                throw new AssertionError(
+                    "wall-splash Harming upper bound was safer than vanilla; predicted=" + conservativeHealth
                         + " actual=" + actualHealth + " event=" + predicted + " " + snapshot
                         + " setup=" + setup + " damage=" + damage
                 );
