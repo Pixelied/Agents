@@ -22,6 +22,7 @@ import java.util.Optional;
 public final class ProjectilePredictor implements ThreatPredictor {
     private static final double EPSILON = 1.0E-9d;
     private static final String DRAGON_FIREBALL_TYPE = "minecraft:dragon_fireball";
+    private static final String SPLASH_POTION_TYPE = "minecraft:splash_potion";
     private static final float DRAGON_BREATH_RAW_DAMAGE = 6f;
     private static final double DRAGON_BREATH_RADIUS = 3.05d;
     private static final double DRAGON_BREATH_HEIGHT = 0.5d;
@@ -62,6 +63,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
 
             if (block != null && block.t() <= playerT + EPSILON) {
                 List<ThreatEvent> events = new ArrayList<>();
+                splashPotionImpact(context, entity, block.position(), next.tick(), false).ifPresent(events::add);
                 collisionExplosion(context, entity, block.position(), next.tick()).ifPresent(events::add);
                 events.addAll(collisionAreaHazards(context, entity, block.position(), next.tick()));
                 return List.copyOf(events);
@@ -75,6 +77,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                     default -> next.velocity();
                 };
                 directHit(entity, family, impactVelocity, impact, next.tick()).ifPresent(events::add);
+                splashPotionImpact(context, entity, impact, next.tick(), true).ifPresent(events::add);
                 collisionExplosion(context, entity, impact, next.tick()).ifPresent(events::add);
                 Vec3Snapshot areaOrigin = isDragonFireball(entity)
                     ? playerPositionAt(context.player(), next.tick())
@@ -192,6 +195,56 @@ public final class ProjectilePredictor implements ThreatPredictor {
         Float max = finiteFloat(properties.get("raw_damage_max"));
         if (min != null && max != null && min >= 0f && max >= min) return Optional.of(new DamageRange(min, max));
         return Optional.empty();
+    }
+
+    private Optional<ThreatEvent> splashPotionImpact(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot entity,
+        Vec3Snapshot impact,
+        long tick,
+        boolean directPlayerHit
+    ) {
+        if (!isSplashPotion(entity)) return Optional.empty();
+        Float fullDamage = finiteFloat(entity.properties().get("potion_instant_damage"));
+        if (fullDamage == null || fullDamage <= 0f) return Optional.empty();
+
+        double intensity = 1d;
+        if (!directPlayerHit) {
+            double radius = finiteNonNegative(entity.properties().get("potion_splash_radius"), 4d);
+            if (radius <= 0d) return Optional.empty();
+            double distance = distance(playerPositionAt(context.player(), tick), impact);
+            if (distance >= radius) return Optional.empty();
+            intensity = Math.max(0d, 1d - distance / radius);
+        }
+
+        double scaled = fullDamage * intensity;
+        float raw = scaled >= Float.MAX_VALUE
+            ? Float.MAX_VALUE
+            : (float) Math.floor(scaled + 0.5d);
+        if (raw <= 0f) return Optional.empty();
+
+        DamageSourceSnapshot source = new DamageSourceSnapshot(
+            DamageRange.exact(raw),
+            EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
+            false,
+            1f,
+            false,
+            Optional.of(impact),
+            entity.properties().getOrDefault("potion_source_key", "minecraft:indirect_magic")
+        );
+        return Optional.of(new ThreatEvent(
+            "projectile:" + entity.id() + ":splash_magic",
+            ThreatKind.PROJECTILE,
+            observedImpactWindow(entity, tick),
+            source,
+            directPlayerHit ? Confidence.EXACT : Confidence.BOUNDED,
+            Optional.of(entity.position()),
+            Optional.of(impact),
+            true,
+            false,
+            true,
+            false
+        ));
     }
 
     private Optional<ThreatEvent> collisionExplosion(
@@ -446,6 +499,11 @@ public final class ProjectilePredictor implements ThreatPredictor {
 
     private static boolean isDragonFireball(WorldSnapshot.EntitySnapshot entity) {
         return DRAGON_FIREBALL_TYPE.equals(entity.typeKey());
+    }
+
+    private static boolean isSplashPotion(WorldSnapshot.EntitySnapshot entity) {
+        return SPLASH_POTION_TYPE.equals(entity.typeKey())
+            || "minecraft:potion".equals(entity.typeKey()) && entity.properties().containsKey("potion_splash_radius");
     }
 
     private static long saturatingAdd(long value, long increment) {
