@@ -1,6 +1,7 @@
 package dev.pixelied.survival.threat;
 
 import dev.pixelied.survival.core.AabbSnapshot;
+import dev.pixelied.survival.core.Confidence;
 import dev.pixelied.survival.core.DifficultySnapshot;
 import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.PlayerSnapshot;
@@ -74,6 +75,25 @@ class PeriodicHazardPredictorTest {
 
         ThreatEvent fire = findSource(EnvironmentPredictorRegistry.defaults().predict(playerContext(player)), "minecraft:on_fire");
         assertEquals(new TickWindow(3, 3), fire.impact());
+    }
+
+    @Test
+    void clientBurningFlagWithoutServerCountdownUsesPotentialWindow() {
+        PlayerSnapshot player = player(
+            20f,
+            DifficultySnapshot.NORMAL,
+            Map.of(
+                "remaining_fire_ticks", "0",
+                "on_fire", "true",
+                "in_lava", "false",
+                "fire_immune", "false"
+            ),
+            StatusEffectsSnapshot.none()
+        );
+
+        ThreatEvent fire = findSource(EnvironmentPredictorRegistry.defaults().predict(playerContext(player)), "minecraft:on_fire");
+        assertEquals(new TickWindow(1, 20), fire.impact());
+        assertEquals(Confidence.POTENTIAL, fire.confidence());
     }
 
     @Test
