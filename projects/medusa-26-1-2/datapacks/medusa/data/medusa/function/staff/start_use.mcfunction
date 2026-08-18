@@ -7,4 +7,6 @@ execute if score @s md_tmp matches 1 run function medusa:staff/write_charges wit
 execute if score @s md_tmp matches 1 run function medusa:staff/quick_pulse
 execute if score @s md_tmp matches 1 run scoreboard players set @s md_use 1
 execute if score @s md_tmp matches 1 run tag @s add md.staff_session
+execute if score @s md_tmp matches 1 run tag @s add md.staff_started_now
+execute if score @s md_tmp matches 1 run function medusa:staff/target/raycast_start
 execute if score @s md_tmp matches 0 run title @s actionbar {"text":"The Medusa Staff is dormant.","color":"dark_gray"}

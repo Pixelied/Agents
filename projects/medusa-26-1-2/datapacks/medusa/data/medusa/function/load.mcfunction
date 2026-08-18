@@ -58,3 +58,8 @@ scoreboard objectives add md_roll dummy
 scoreboard objectives add md_reset dummy
 scoreboard objectives add md_killed dummy
 scoreboard objectives add md_staff_seen dummy
+scoreboard objectives add md_staff_hit dummy
+scoreboard objectives add md_staff_stone_timer dummy
+scoreboard objectives add md_staff_stone_limit dummy
+scoreboard objectives add md_staff_beam_tick dummy
+scoreboard players set $20 md_tmp 20

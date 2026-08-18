@@ -32,3 +32,47 @@ class StaffChargeSafetyContract(unittest.TestCase):
         self.assertIn("scoreboard players set @s md_tmp 0", text)
         self.assertIn("if score @s md_staff matches 1.. run scoreboard players set @s md_tmp 1", text)
         self.assertNotIn("matches 0..63 run function medusa:staff/quick_pulse", text)
+
+class StaffChannelContract(unittest.TestCase):
+    def test_channel_timing_and_interrupt_lock_contract(self):
+        channel = FN / "staff/channel/tick.mcfunction"
+        interrupt = FN / "staff/channel/interrupt.mcfunction"
+        self.assertTrue(channel.is_file(), "Staff channel tick is missing")
+        self.assertTrue(interrupt.is_file(), "Staff channel interrupt is missing")
+        text = channel.read_text()
+        for tick in ["20", "40", "60", "100"]:
+            self.assertIn(tick, text)
+        self.assertIn("md_lock", interrupt.read_text())
+
+    def test_target_raycast_assigns_stable_target_ids(self):
+        start = FN / "staff/target/raycast_start.mcfunction"
+        ray = FN / "staff/target/raycast.mcfunction"
+        register = FN / "staff/target/register_id.mcfunction"
+        for path in (start, ray, register):
+            self.assertTrue(path.is_file(), f"missing Staff target function: {path.name}")
+        self.assertIn("$next_tid", register.read_text())
+        self.assertIn("md_tid", register.read_text())
+        self.assertIn("md_lock", start.read_text())
+        self.assertIn("..31", ray.read_text())
+
+    def test_full_petrification_has_normal_and_boss_release_limits(self):
+        full = FN / "staff/channel/full_petrify.mcfunction"
+        release_tick = FN / "staff/target/tick_petrification.mcfunction"
+        self.assertTrue(full.is_file(), "Staff full-petrify function is missing")
+        self.assertTrue(release_tick.is_file(), "Staff petrification release tick is missing")
+        text = full.read_text()
+        self.assertIn("100", text)
+        self.assertIn("30", text)
+        self.assertIn("md.boss", text)
+        self.assertIn("release_target", release_tick.read_text())
+
+    def test_channel_interrupts_when_caster_was_hurt(self):
+        channel = FN / "staff/channel/tick.mcfunction"
+        self.assertTrue(channel.is_file(), "Staff channel tick is missing")
+        self.assertIn("md.staff_interrupted", channel.read_text())
+
+class StaffBossResistanceContract(unittest.TestCase):
+    def test_medusa_boss_director_pauses_while_staff_petrified(self):
+        boss_tick = FN / "boss/tick_one.mcfunction"
+        self.assertTrue(boss_tick.is_file())
+        self.assertIn("unless entity @s[tag=md.staff_petrified]", boss_tick.read_text())
