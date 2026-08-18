@@ -9,14 +9,20 @@ import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.SurvivalDebugHud;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
 public final class PredictiveSurvivalClient implements ClientModInitializer {
+    private static final Identifier DEBUG_HUD_ID = Identifier.fromNamespaceAndPath("predictive_survival", "debug");
+
     private SurvivalEngine engine;
     private MinecraftSurvivalRuntime runtime;
 
@@ -37,21 +43,28 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
             }
         });
 
-        HudRenderCallback.EVENT.register((graphics, tickCounter) -> {
-            if (!engine.config().debugEnabled()) return;
-            runtime.lastFrame().ifPresent(frame -> {
-                var lines = SurvivalDebugHud.lines(
-                    engine.config(),
-                    frame,
-                    engine.currentPlan(),
-                    engine.executionStatus()
-                );
-                int y = 6;
-                for (String line : lines) {
-                    graphics.drawString(minecraft.font, line, 6, y, 0xFFFFFF, true);
-                    y += 10;
-                }
-            });
+        HudElementRegistry.attachElementBefore(
+            VanillaHudElements.CHAT,
+            DEBUG_HUD_ID,
+            this::extractDebugHud
+        );
+    }
+
+    private void extractDebugHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+        if (!engine.config().debugEnabled()) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        runtime.lastFrame().ifPresent(frame -> {
+            var lines = SurvivalDebugHud.lines(
+                engine.config(),
+                frame,
+                engine.currentPlan(),
+                engine.executionStatus()
+            );
+            int y = 6;
+            for (String line : lines) {
+                graphics.text(minecraft.font, line, 6, y, 0xFFFFFFFF, true);
+                y += 10;
+            }
         });
     }
 
