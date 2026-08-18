@@ -87,6 +87,11 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("critical", Boolean.toString(arrow.isCritArrow()));
             properties.put("pierce_level", Byte.toString(arrow.getPierceLevel()));
             properties.put("in_ground", Boolean.toString(accessor.predictiveSurvival$isInGround()));
+            Entity owner = arrow.getOwner();
+            properties.put(
+                "scales_with_difficulty",
+                Boolean.toString(owner instanceof LivingEntity && !(owner instanceof Player))
+            );
             if (entity instanceof ThrownTrident) {
                 properties.put("raw_damage", "8");
             }
