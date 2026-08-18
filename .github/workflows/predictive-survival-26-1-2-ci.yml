@@ -38,6 +38,14 @@ jobs:
         working-directory: projects/predictive-survival-26-1-2
         run: gradle --no-daemon clean test build
 
+      - name: Compile client GameTests
+        working-directory: projects/predictive-survival-26-1-2
+        run: gradle --no-daemon compileGametestJava processGametestResources
+
+      - name: Run exact-runtime client GameTests
+        working-directory: projects/predictive-survival-26-1-2
+        run: xvfb-run -a gradle --no-daemon runClientGameTest
+
       - name: Upload production jar
         if: success()
         uses: actions/upload-artifact@v4
