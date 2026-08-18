@@ -4,10 +4,12 @@
   "task_id": "design-medusa-boss-26-1-2",
   "scope": "docs/superpowers/specs/2026-08-18-medusa-boss-26-1-2-design.md",
   "owner": "openai-medusa-design-5a4c",
-  "state": "active",
+  "state": "released",
   "intent": "Write and self-review the approved Minecraft 26.1.2 Medusa boss design specification before implementation planning.",
   "claimed_at": "2026-08-18T14:51:20+00:00",
   "heartbeat_at": "2026-08-18T14:51:20+00:00",
   "expires_at": "2026-08-18T15:51:20+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-18T14:58:45+00:00",
+  "release_reason": "The approved Medusa design spec is written and self-reviewed; scope is released while awaiting human review before implementation planning."
 }
