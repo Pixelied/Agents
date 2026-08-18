@@ -47,6 +47,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             results.addAll(ExperimentalValidationScenarios.runtimeSlice(singleplayer));
             InventoryValidationScenarios.validateOffhandSwapAndLethalPop(context, singleplayer);
             NonTotemCandidateValidationScenarios.validateLiveItemCapabilities(context, singleplayer);
+            results.addAll(LiveExplosionScalingValidationScenarios.runtimeSlice(context, singleplayer));
             validateHurtCooldown(singleplayer);
             validateDeathProtection(singleplayer, InteractionHand.MAIN_HAND);
             validateDeathProtection(singleplayer, InteractionHand.OFF_HAND);
