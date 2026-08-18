@@ -54,6 +54,7 @@ final class PotionValidationScenarios {
             return new Setup(
                 potion.getId(),
                 owner.getId(),
+                player.position(),
                 player.position().toString(),
                 player.getBoundingBox().toString(),
                 potion.position().toString(),
@@ -322,9 +323,29 @@ final class PotionValidationScenarios {
         TestSingleplayerContext singleplayer,
         int projectileId,
         String snapshot,
-        Object setup
+        Setup setup
     ) {
-        return awaitDamageDetailed(context, singleplayer, projectileId, snapshot, setup).health();
+        Observation lastPresent = null;
+        Observation current = null;
+        int disappearedAt = -1;
+        for (int tick = 1; tick <= 30; tick++) {
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                Vec3 anchor = setup.playerAnchor();
+                player.setPos(anchor.x, anchor.y, anchor.z);
+                player.setDeltaMovement(Vec3.ZERO);
+            });
+            context.waitTick();
+            current = singleplayer.getServer().computeOnServer(server -> observe(server, projectileId));
+            if (current.present()) lastPresent = current;
+            if (!current.present() && disappearedAt < 0) disappearedAt = tick;
+            if (current.health() < 20f) return current.health();
+        }
+        throw new AssertionError(
+            "anchored splash Harming fixture produced no server damage within 30 ticks; "
+                + snapshot + " setup=" + setup + " disappearedAt=" + disappearedAt
+                + " lastPresent=" + lastPresent + " current=" + current
+        );
     }
 
     private static DamageObservation awaitDamageDetailed(
@@ -454,6 +475,7 @@ final class PotionValidationScenarios {
     private record Setup(
         int projectileId,
         int ownerId,
+        Vec3 playerAnchor,
         String playerPosition,
         String playerBox,
         String potionPosition,
