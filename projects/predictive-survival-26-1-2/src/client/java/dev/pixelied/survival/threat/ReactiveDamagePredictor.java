@@ -74,13 +74,21 @@ public final class ReactiveDamagePredictor implements ThreatPredictor {
     }
 
     private static void addOwnPearls(PredictionContext context, List<ThreatEvent> events) {
-        long horizon = context.limits().maxDecisionHistory();
+        long horizon = context.limits().maxProjectileHorizonTicks();
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             if (!"minecraft:ender_pearl".equals(entity.typeKey())) continue;
             if (!Boolean.parseBoolean(entity.properties().getOrDefault("owner_is_local_player", "false"))) continue;
 
-            Long impactTick = nonNegativeLong(entity.properties().get("predicted_impact_tick"));
-            if (impactTick == null || impactTick > horizon) continue;
+            Long exactImpactTick = nonNegativeLong(entity.properties().get("predicted_impact_tick"));
+            TickWindow impact;
+            Confidence confidence;
+            if (exactImpactTick != null && exactImpactTick <= horizon) {
+                impact = new TickWindow(exactImpactTick, exactImpactTick);
+                confidence = Confidence.MATCHED;
+            } else {
+                impact = new TickWindow(1L, horizon);
+                confidence = Confidence.BOUNDED;
+            }
 
             DamageSourceSnapshot source = new DamageSourceSnapshot(
                 DamageRange.exact(5f),
@@ -94,9 +102,9 @@ public final class ReactiveDamagePredictor implements ThreatPredictor {
             events.add(new ThreatEvent(
                 "reactive:ender_pearl:" + entity.id(),
                 ThreatKind.REACTIVE,
-                new TickWindow(impactTick, impactTick),
+                impact,
                 source,
-                Confidence.MATCHED,
+                confidence,
                 Optional.of(entity.position()),
                 Optional.empty(),
                 false,
