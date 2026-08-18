@@ -1,15 +1,13 @@
 {
-  "claimed_at": "2026-08-01T15:48:00+00:00",
-  "expires_at": "2026-08-01T19:48:00+00:00",
-  "generation": 1,
-  "heartbeat_at": "2026-08-01T15:48:00+00:00",
-  "intent": "Implement and verify post-first-run hardening only within this declared scope.",
-  "owner": "openai-workspace-maint-b7e2",
+  "claimed_at": "2026-08-18T11:21:00+00:00",
+  "expires_at": "2026-08-18T15:21:00+00:00",
+  "generation": 2,
+  "heartbeat_at": "2026-08-18T11:21:00+00:00",
+  "intent": "Repair recurring Git checkout validation failures in the workspace core without touching project implementation scopes.",
+  "owner": "openai-workspace-repair-8c31",
   "protocol_version": "1.0",
-  "release_reason": "Hardening merged and CI verified",
-  "released_at": "2026-08-01T16:18:13+00:00",
   "schema_version": 1,
   "scope": "src/agent_workspace",
-  "state": "released",
+  "state": "active",
   "task_id": "harden-agent-workspace-after-first-run"
 }
