@@ -21,7 +21,9 @@ import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.FireworkRocketEntity;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import net.minecraft.world.entity.projectile.hurtingprojectile.AbstractHurtingProjectile;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
@@ -75,6 +77,9 @@ public final class MinecraftWorldSnapshotFactory {
         properties.put("in_water", Boolean.toString(entity.isInWater()));
         properties.put("in_liquid", Boolean.toString(entity.isInWater()));
         properties.put("horizontal_collision", Boolean.toString(entity.horizontalCollision));
+        if (entity instanceof Projectile) {
+            properties.put("observation_age_ticks", "1");
+        }
 
         if (entity instanceof AbstractArrow arrow) {
             AbstractArrowAccessor accessor = (AbstractArrowAccessor) (Object) arrow;
@@ -82,6 +87,9 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("critical", Boolean.toString(arrow.isCritArrow()));
             properties.put("pierce_level", Byte.toString(arrow.getPierceLevel()));
             properties.put("in_ground", Boolean.toString(accessor.predictiveSurvival$isInGround()));
+            if (entity instanceof ThrownTrident) {
+                properties.put("raw_damage", "8");
+            }
         }
 
         if (entity instanceof AbstractHurtingProjectile hurtingProjectile) {
