@@ -6,6 +6,7 @@ import dev.pixelied.survival.core.MinecraftWorldSnapshotFactory;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
+import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.timing.TimingSnapshot;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -16,6 +17,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 final class DragonFireballValidationScenarios {
@@ -64,26 +66,40 @@ final class DragonFireballValidationScenarios {
                     .anyMatch(event -> event.id().startsWith("projectile:" + setup.projectileId() + ":"));
             });
 
-            boolean damaged = false;
-            float actualHealth = 20f;
-            for (int tick = 0; tick < 40; tick++) {
+            ImpactObservation impact = null;
+            CloudObservation firstCloud = null;
+            for (int tick = 1; tick <= 40; tick++) {
                 context.waitTick();
-                actualHealth = singleplayer.getServer().computeOnServer(server ->
-                    SurvivalValidationClientGameTest.onlyPlayer(server).getHealth()
+                ImpactObservation observation = singleplayer.getServer().computeOnServer(server ->
+                    observe(server, setup.projectileId())
                 );
-                if (actualHealth < 20f) {
-                    damaged = true;
+                if (firstCloud == null && observation.cloud() != null) {
+                    firstCloud = observation.cloud();
+                }
+                if (observation.health() < 20f) {
+                    impact = new ImpactObservation(
+                        observation.health(),
+                        observation.projectilePresent(),
+                        observation.cloud(),
+                        tick
+                    );
                     break;
                 }
             }
 
-            if (!damaged) {
-                throw new AssertionError("dragon-fireball fixture produced no server damage within 40 ticks");
+            if (impact == null) {
+                throw new AssertionError(
+                    "dragon-fireball fixture produced no server damage within 40 ticks; firstCloud=" + firstCloud
+                );
             }
             if (!predictedThreat) {
                 throw new AssertionError(
-                    "live dragon fireball caused server damage but the pre-impact production predictor emitted no threat; actualHealth="
-                        + actualHealth
+                    "live dragon fireball caused server damage but the pre-impact production predictor emitted no threat; "
+                        + "actualHealth=" + impact.health()
+                        + " damageTick=" + impact.tick()
+                        + " projectilePresent=" + impact.projectilePresent()
+                        + " firstCloud=" + firstCloud
+                        + " impactCloud=" + impact.cloud()
                 );
             }
         } finally {
@@ -105,6 +121,53 @@ final class DragonFireballValidationScenarios {
         }
     }
 
+    private static ImpactObservation observe(net.minecraft.server.MinecraftServer server, int projectileId) {
+        ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+        ServerLevel level = (ServerLevel) player.level();
+        Entity cloud = level.getEntities(
+            player,
+            player.getBoundingBox().inflate(16d),
+            entity -> entity.getType() == EntityType.AREA_EFFECT_CLOUD
+        ).stream().findFirst().orElse(null);
+        CloudObservation cloudObservation = cloud == null ? null : cloud(cloud, player);
+        return new ImpactObservation(
+            player.getHealth(),
+            level.getEntity(projectileId) != null,
+            cloudObservation,
+            -1
+        );
+    }
+
+    private static CloudObservation cloud(Entity cloud, ServerPlayer player) {
+        AABB box = cloud.getBoundingBox();
+        return new CloudObservation(
+            new Vec3Snapshot(cloud.getX(), cloud.getY(), cloud.getZ()),
+            box.maxX - box.minX,
+            box.maxY - box.minY,
+            box.maxZ - box.minZ,
+            Math.sqrt(player.distanceToSqr(cloud)),
+            cloud.tickCount
+        );
+    }
+
     private record Setup(int projectileId, int ownerId) {
+    }
+
+    private record ImpactObservation(
+        float health,
+        boolean projectilePresent,
+        CloudObservation cloud,
+        int tick
+    ) {
+    }
+
+    private record CloudObservation(
+        Vec3Snapshot position,
+        double width,
+        double height,
+        double depth,
+        double playerDistance,
+        int ageTicks
+    ) {
     }
 }
