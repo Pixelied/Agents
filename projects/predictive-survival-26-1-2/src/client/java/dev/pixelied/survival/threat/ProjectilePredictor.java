@@ -208,23 +208,30 @@ public final class ProjectilePredictor implements ThreatPredictor {
         Float fullDamage = finiteFloat(entity.properties().get("potion_instant_damage"));
         if (fullDamage == null || fullDamage <= 0f) return Optional.empty();
 
-        double intensity = 1d;
-        if (!directPlayerHit) {
+        DamageRange damage;
+        Confidence confidence;
+        if (directPlayerHit) {
+            damage = DamageRange.exact(fullDamage);
+            confidence = Confidence.EXACT;
+        } else {
             double radius = finiteNonNegative(entity.properties().get("potion_splash_radius"), 4d);
             if (radius <= 0d) return Optional.empty();
-            double distance = distance(playerPositionAt(context.player(), tick), impact);
-            if (distance >= radius) return Optional.empty();
-            intensity = Math.max(0d, 1d - distance / radius);
+
+            if (hasMotion(context.player().velocity())) {
+                double minimumDistance = distanceToAabb(impact, sweptPlayerBox(context.player(), tick));
+                float maximumRaw = splashRawDamage(fullDamage, radius, minimumDistance);
+                if (maximumRaw <= 0f) return Optional.empty();
+                damage = new DamageRange(0f, maximumRaw);
+            } else {
+                float raw = splashRawDamage(fullDamage, radius, distance(context.player().position(), impact));
+                if (raw <= 0f) return Optional.empty();
+                damage = DamageRange.exact(raw);
+            }
+            confidence = Confidence.BOUNDED;
         }
 
-        double scaled = fullDamage * intensity;
-        float raw = scaled >= Float.MAX_VALUE
-            ? Float.MAX_VALUE
-            : (float) Math.floor(scaled + 0.5d);
-        if (raw <= 0f) return Optional.empty();
-
         DamageSourceSnapshot source = new DamageSourceSnapshot(
-            DamageRange.exact(raw),
+            damage,
             EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
             false,
             1f,
@@ -237,7 +244,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
             ThreatKind.PROJECTILE,
             observedImpactWindow(entity, tick),
             source,
-            directPlayerHit ? Confidence.EXACT : Confidence.BOUNDED,
+            confidence,
             Optional.of(entity.position()),
             Optional.of(impact),
             true,
@@ -458,6 +465,34 @@ public final class ProjectilePredictor implements ThreatPredictor {
             position.y() + velocity.y() * tick,
             position.z() + velocity.z() * tick
         );
+    }
+
+    private static float splashRawDamage(float fullDamage, double radius, double distance) {
+        if (distance >= radius) return 0f;
+        double intensity = Math.max(0d, 1d - distance / radius);
+        double scaled = fullDamage * intensity;
+        return scaled >= Float.MAX_VALUE
+            ? Float.MAX_VALUE
+            : (float) Math.floor(scaled + 0.5d);
+    }
+
+    private static boolean hasMotion(Vec3Snapshot velocity) {
+        return Math.abs(velocity.x()) > EPSILON
+            || Math.abs(velocity.y()) > EPSILON
+            || Math.abs(velocity.z()) > EPSILON;
+    }
+
+    private static double distanceToAabb(Vec3Snapshot point, AabbSnapshot box) {
+        double dx = axisDistance(point.x(), box.minX(), box.maxX());
+        double dy = axisDistance(point.y(), box.minY(), box.maxY());
+        double dz = axisDistance(point.z(), box.minZ(), box.maxZ());
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static double axisDistance(double value, double min, double max) {
+        if (value < min) return min - value;
+        if (value > max) return value - max;
+        return 0d;
     }
 
     private static double segmentAabbEntry(Vec3Snapshot from, Vec3Snapshot to, AabbSnapshot box) {
