@@ -15,5 +15,7 @@
     "documentation"
   ],
   "registered_at": "2026-08-17T18:46:00+00:00",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-08-18T13:07:30+00:00",
+  "state_reason": "Crystal + Anchor Combat Optimizer task completed, merged, verified, and all leases released."
 }
