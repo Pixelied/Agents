@@ -3,12 +3,17 @@ package dev.pixelied.survival.core;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MinecraftBlockingAdapter;
 import dev.pixelied.survival.damage.MinecraftEquipmentAdapter;
+import dev.pixelied.survival.mixin.FoodDataAccessor;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -48,6 +53,11 @@ public final class MinecraftSnapshotFactory {
             ? Math.min(gravity, 0.01)
             : gravity;
 
+        BlockPos eyeBlock = BlockPos.containing(player.getX(), player.getEyeY(), player.getZ());
+        boolean eyeInWater = player.isEyeInFluid(FluidTags.WATER);
+        boolean eyeInBubbleColumn = player.level().getBlockState(eyeBlock).is(Blocks.BUBBLE_COLUMN);
+        WorldBorder border = player.level().getWorldBorder();
+
         Map<String, String> state = new LinkedHashMap<>();
         state.put("fall_distance", Double.toString(player.fallDistance));
         state.put("safe_fall_distance", Double.toString(player.getAttributeValue(Attributes.SAFE_FALL_DISTANCE)));
@@ -58,6 +68,34 @@ public final class MinecraftSnapshotFactory {
         state.put("world_min_y", Integer.toString(player.level().getMinY()));
         state.put("fall_flying", Boolean.toString(player.isFallFlying()));
         state.put("suppressing_bounce", Boolean.toString(player.isSuppressingBounce()));
+
+        state.put("remaining_fire_ticks", Integer.toString(player.getRemainingFireTicks()));
+        state.put("fire_immune", Boolean.toString(player.fireImmune()));
+        state.put("in_lava", Boolean.toString(player.isInLava()));
+
+        state.put("air_supply", Integer.toString(player.getAirSupply()));
+        state.put("max_air_supply", Integer.toString(player.getMaxAirSupply()));
+        state.put("eye_in_water", Boolean.toString(eyeInWater));
+        state.put("eye_in_bubble_column", Boolean.toString(eyeInBubbleColumn));
+        state.put("can_breathe_underwater", Boolean.toString(player.canBreatheUnderwater()));
+        state.put("oxygen_bonus", Double.toString(player.getAttributeValue(Attributes.OXYGEN_BONUS)));
+
+        state.put("tick_count", Integer.toString(player.tickCount));
+        state.put("fully_frozen", Boolean.toString(player.isFullyFrozen()));
+        state.put("can_freeze", Boolean.toString(player.canFreeze()));
+        state.put("in_wall", Boolean.toString(player.isInWall()));
+
+        state.put("food_level", Integer.toString(player.getFoodData().getFoodLevel()));
+        state.put(
+            "food_tick_timer",
+            Integer.toString(((FoodDataAccessor) (Object) player.getFoodData()).predictiveSurvival$getTickTimer())
+        );
+
+        state.put(
+            "border_distance_plus_safe_zone",
+            Double.toString(border.getDistanceToBorder(player) + border.getSafeZone())
+        );
+        state.put("border_damage_per_block", Double.toString(border.getDamagePerBlock()));
 
         return new PlayerSnapshot(
             player.getHealth(),

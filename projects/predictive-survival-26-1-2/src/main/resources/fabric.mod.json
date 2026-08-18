@@ -12,6 +12,9 @@
       "dev.pixelied.survival.PredictiveSurvivalClient"
     ]
   },
+  "mixins": [
+    "predictive_survival.client.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.19.3",
     "minecraft": "~26.1.2",
