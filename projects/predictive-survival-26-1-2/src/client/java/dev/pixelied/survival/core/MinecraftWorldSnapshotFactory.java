@@ -218,20 +218,35 @@ public final class MinecraftWorldSnapshotFactory {
         if (contents == null) return;
 
         float instantDamage = 0f;
+        int poisonDuration = 0;
+        int poisonAmplifier = -1;
         for (MobEffectInstance effect : contents.getAllEffects()) {
-            if (!effect.getEffect().is(MobEffects.INSTANT_DAMAGE)) continue;
-            int amplifier = Math.max(0, effect.getAmplifier());
-            double damage = Math.scalb(6d, amplifier);
-            if (!Double.isFinite(damage) || damage >= Float.MAX_VALUE - instantDamage) {
-                instantDamage = Float.MAX_VALUE;
-                break;
+            if (effect.getEffect().is(MobEffects.INSTANT_DAMAGE)) {
+                int amplifier = Math.max(0, effect.getAmplifier());
+                double damage = Math.scalb(6d, amplifier);
+                if (!Double.isFinite(damage) || damage >= Float.MAX_VALUE - instantDamage) {
+                    instantDamage = Float.MAX_VALUE;
+                } else {
+                    instantDamage += (float) damage;
+                }
             }
-            instantDamage += (float) damage;
+            if (effect.getEffect().is(MobEffects.POISON)) {
+                int amplifier = Math.max(0, effect.getAmplifier());
+                int duration = Math.max(0, effect.getDuration());
+                if (amplifier > poisonAmplifier || amplifier == poisonAmplifier && duration > poisonDuration) {
+                    poisonAmplifier = amplifier;
+                    poisonDuration = duration;
+                }
+            }
         }
 
         if (instantDamage > 0f) {
             properties.put("potion_instant_damage", Float.toString(instantDamage));
             properties.put("potion_source_key", "minecraft:indirect_magic");
+        }
+        if (poisonAmplifier >= 0 && poisonDuration > 0) {
+            properties.put("potion_poison_duration_ticks", Integer.toString(poisonDuration));
+            properties.put("potion_poison_amplifier", Integer.toString(poisonAmplifier));
         }
     }
 
