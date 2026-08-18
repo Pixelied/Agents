@@ -44,18 +44,38 @@ jobs:
 
       - name: Run exact-runtime client GameTests
         working-directory: projects/predictive-survival-26-1-2
-        run: xvfb-run -a gradle --no-daemon runClientGameTest
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a gradle --no-daemon --console=plain runClientGameTest > gametest-console.log 2>&1
+          status=$?
+          set -e
+          exit "$status"
 
       - name: Print client GameTest diagnostics
         if: failure()
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
-          echo '--- run/logs/latest.log ---'
-          if [ -f run/logs/latest.log ]; then tail -n 500 run/logs/latest.log; else echo 'latest.log not found'; fi
+          echo '--- focused GameTest console errors ---'
+          if [ -f gametest-console.log ]; then
+            grep -Ein 'assert|exception|error|failed|failure|caused by|gametest|game test|crash|mixin' gametest-console.log | tail -n 160 || true
+          else
+            echo 'gametest-console.log not found'
+          fi
+          echo '--- focused Minecraft latest.log errors ---'
+          if [ -f run/logs/latest.log ]; then
+            grep -Ein 'assert|exception|error|failed|failure|caused by|gametest|game test|crash|mixin' run/logs/latest.log | tail -n 200 || true
+          else
+            echo 'latest.log not found'
+          fi
           echo '--- crash reports ---'
           if [ -d run/crash-reports ]; then
-            find run/crash-reports -type f -maxdepth 1 -print -exec sh -c 'echo "--- $1 ---"; tail -n 500 "$1"' sh {} \;
+            for report in run/crash-reports/*; do
+              [ -f "$report" ] || continue
+              echo "--- $report ---"
+              tail -n 220 "$report"
+            done
           else
             echo 'crash-reports directory not found'
           fi
