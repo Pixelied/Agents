@@ -6,8 +6,10 @@
   "intent": "Clarify Git-tracked versus materialized runtime directories in the agent operating manual.",
   "owner": "openai-workspace-repair-8c31",
   "protocol_version": "1.0",
+  "release_reason": "Work complete",
+  "released_at": "2026-08-18T11:31:43+00:00",
   "schema_version": 1,
   "scope": "AGENTS.md",
-  "state": "active",
+  "state": "released",
   "task_id": "harden-agent-workspace-after-first-run"
 }
