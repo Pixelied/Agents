@@ -1,0 +1,16 @@
+{
+  "criteria": {
+    "interacted": {
+      "trigger": "minecraft:player_interacted_with_entity",
+      "conditions": {
+        "entity": {
+          "type": "minecraft:interaction",
+          "nbt": "{Tags:[\"md.pedestal_interaction\"]}"
+        }
+      }
+    }
+  },
+  "rewards": {
+    "function": "medusa:arena/pedestal/interact"
+  }
+}

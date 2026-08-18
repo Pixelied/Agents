@@ -42,3 +42,4 @@ scoreboard objectives add md_p2_bl dummy
 scoreboard objectives add md_p2_br dummy
 scoreboard objectives add md_p3_timer dummy
 scoreboard objectives add md_p3_zone dummy
+scoreboard objectives add md_eye_state dummy
