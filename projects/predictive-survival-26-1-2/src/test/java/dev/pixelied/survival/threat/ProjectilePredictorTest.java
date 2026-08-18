@@ -92,10 +92,7 @@ class ProjectilePredictorTest {
     @Test
     void modernSplashAndLingeringPotionTypesRemainThrowableFamilies() {
         assertEquals(ProjectileFamily.THROWABLE, ProjectileFamily.from(splashHarming()).orElseThrow());
-        assertEquals(
-            ProjectileFamily.THROWABLE,
-            ProjectileFamily.from(potion("lingering:1", "minecraft:lingering_potion", Map.of())).orElseThrow()
-        );
+        assertEquals(ProjectileFamily.THROWABLE, ProjectileFamily.from(lingeringHarming()).orElseThrow());
     }
 
     @Test
@@ -156,6 +153,21 @@ class ProjectilePredictorTest {
         );
 
         assertTrue(predictor.predict(context(List.of(splashHarming()), List.of(wall))).isEmpty());
+    }
+
+    @Test
+    void lingeringHarmingForecastsHalfStrengthCloudTenTicksAfterImpact() {
+        ThreatEvent event = predictor.predict(context(List.of(lingeringHarming()), List.of())).stream()
+            .filter(candidate -> candidate.id().endsWith(":lingering_cloud:0"))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals(DamageRange.exact(6f), event.damage().rawDamage());
+        assertEquals("minecraft:indirect_magic", event.damage().sourceKey());
+        assertTrue(event.damage().has(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(event.damage().has(DamageFlag.BYPASSES_SHIELD));
+        assertEquals(new TickWindow(15, 15), event.impact());
+        assertFalse(event.blockable());
     }
 
     @Test
@@ -283,6 +295,18 @@ class ProjectilePredictorTest {
             Map.of(
                 "potion_instant_damage", "12.0",
                 "potion_splash_radius", "4.0",
+                "potion_source_key", "minecraft:indirect_magic"
+            )
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot lingeringHarming() {
+        return potion(
+            "lingering:1",
+            "minecraft:lingering_potion",
+            Map.of(
+                "potion_instant_damage", "12.0",
+                "potion_lingering", "true",
                 "potion_source_key", "minecraft:indirect_magic"
             )
         );
