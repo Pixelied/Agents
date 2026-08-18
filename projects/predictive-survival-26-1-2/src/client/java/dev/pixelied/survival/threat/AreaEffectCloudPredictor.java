@@ -40,19 +40,31 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
         if (rawDamage <= 0f) return;
         if (!intersects(context.player().boundingBox(), cloud.boundingBox())) return;
 
-        int reapplicationDelay = Math.max(
-            1,
-            nonNegativeInt(
-                cloud.properties().get("cloud_reapplication_delay_ticks"),
-                DEFAULT_REAPPLICATION_DELAY
-            )
-        );
-        long latest = Math.min((long) context.limits().maxDecisionHistory(), reapplicationDelay);
+        long horizon = context.limits().maxDecisionHistory();
+        TickWindow impact = preservedFirstDamageWindow(cloud, horizon).orElseGet(() -> {
+            int reapplicationDelay = Math.max(
+                1,
+                nonNegativeInt(
+                    cloud.properties().get("cloud_reapplication_delay_ticks"),
+                    DEFAULT_REAPPLICATION_DELAY
+                )
+            );
+            return new TickWindow(0L, Math.min(horizon, reapplicationDelay));
+        });
+        if (impact.earliest() > horizon) return;
 
-        // The live cloud entity and its causal attribution are observable, but the server's exact wait/victim
-        // reapplication phase is not synchronized. Never credit that unknown phase as safety. Emit one bounded
-        // imminent application and let the runtime re-capture/re-evaluate the cloud on the next client frame.
-        output.add(event(cloud, new TickWindow(0L, latest), rawDamage));
+        output.add(event(cloud, impact, rawDamage));
+    }
+
+    private static Optional<TickWindow> preservedFirstDamageWindow(
+        WorldSnapshot.EntitySnapshot cloud,
+        long horizon
+    ) {
+        Long earliest = nonNegativeLong(cloud.properties().get("cloud_first_damage_earliest_ticks"));
+        Long latest = nonNegativeLong(cloud.properties().get("cloud_first_damage_latest_ticks"));
+        if (earliest == null || latest == null) return Optional.empty();
+        long orderedLatest = Math.max(earliest, latest);
+        return Optional.of(new TickWindow(earliest, Math.min(horizon, orderedLatest)));
     }
 
     private static ThreatEvent event(
@@ -60,6 +72,10 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
         TickWindow impact,
         float rawDamage
     ) {
+        float healthThreshold = finiteNonNegativeFloat(
+            cloud.properties().get("cloud_application_health_threshold_exclusive"),
+            0f
+        );
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
             EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
@@ -67,14 +83,15 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
             1f,
             false,
             Optional.of(cloud.position()),
-            cloud.properties().getOrDefault("cloud_source_key", "minecraft:indirect_magic")
+            cloud.properties().getOrDefault("cloud_source_key", "minecraft:indirect_magic"),
+            healthThreshold
         );
         return new ThreatEvent(
             "env:area_effect_cloud:" + cloud.id() + ":0",
             ThreatKind.ENVIRONMENT,
             impact,
             source,
-            Confidence.BOUNDED,
+            impact.earliest() == impact.latest() ? Confidence.EXACT : Confidence.BOUNDED,
             Optional.of(cloud.position()),
             Optional.of(cloud.position()),
             true,
@@ -100,11 +117,31 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
         }
     }
 
+    private static Long nonNegativeLong(String value) {
+        if (value == null) return null;
+        try {
+            long parsed = Long.parseLong(value);
+            return parsed >= 0L ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private static float finitePositiveFloat(String value, float fallback) {
         if (value == null) return fallback;
         try {
             float parsed = Float.parseFloat(value);
             return Float.isFinite(parsed) && parsed > 0f ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static float finiteNonNegativeFloat(String value, float fallback) {
+        if (value == null) return fallback;
+        try {
+            float parsed = Float.parseFloat(value);
+            return Float.isFinite(parsed) && parsed >= 0f ? parsed : fallback;
         } catch (NumberFormatException ignored) {
             return fallback;
         }
