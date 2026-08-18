@@ -22,7 +22,7 @@ public final class AreaEffectCloudAttributionTracker {
     private static final int DEFAULT_REAPPLICATION_DELAY_TICKS = 20;
 
     private final Map<String, PendingAttribution> pendingByProjectile = new HashMap<>();
-    private final Map<String, CloudAttribution> activeByCloud = new HashMap<>();
+    private final Map<String, CloudAttributions> activeByCloud = new HashMap<>();
 
     public void observePredictedThreats(long clientTick, List<ThreatEvent> threats) {
         if (threats == null) throw new NullPointerException("threats");
@@ -44,7 +44,9 @@ public final class AreaEffectCloudAttributionTracker {
                 int marker = threat.id().indexOf(LINGERING_STATUS_MARKER);
                 if (marker < 0 || !threat.id().endsWith(":0")) continue;
                 projectileKey = threat.id().substring(0, marker);
-                attribution = CloudAttribution.lingeringStatus(clientTick, threat);
+                String statusKey = statusKey(threat.id(), marker + LINGERING_STATUS_MARKER.length());
+                if (statusKey.isEmpty()) continue;
+                attribution = CloudAttribution.lingeringStatus(clientTick, statusKey, threat);
                 if (attribution.rawDamage() <= 0f) continue;
             }
 
@@ -52,16 +54,12 @@ public final class AreaEffectCloudAttributionTracker {
                 clientTick,
                 saturatingAdd(Math.max(0L, threat.impact().latest()), NETWORK_GRACE_TICKS)
             );
-            PendingAttribution candidate = new PendingAttribution(
+            PendingAttribution candidate = PendingAttribution.single(
                 threat.impactPosition().get(),
                 expiresAt,
                 attribution
             );
-            pendingByProjectile.merge(
-                projectileKey,
-                candidate,
-                (previous, next) -> next.expiresAt() >= previous.expiresAt() ? next : previous
-            );
+            pendingByProjectile.merge(projectileKey, candidate, PendingAttribution::merge);
         }
     }
 
@@ -91,7 +89,7 @@ public final class AreaEffectCloudAttributionTracker {
             }
             if (bestKey != null) {
                 PendingAttribution matched = pendingByProjectile.get(bestKey);
-                activeByCloud.put(entity.id(), matched.cloud());
+                activeByCloud.put(entity.id(), new CloudAttributions(List.copyOf(matched.hazards().values())));
                 consumedPending.add(bestKey);
             }
         }
@@ -99,27 +97,20 @@ public final class AreaEffectCloudAttributionTracker {
 
         List<WorldSnapshot.EntitySnapshot> annotated = new ArrayList<>(world.entities().size());
         for (WorldSnapshot.EntitySnapshot entity : world.entities()) {
-            CloudAttribution attribution = activeByCloud.get(entity.id());
-            if (attribution == null || !CLOUD_TYPE.equals(entity.typeKey())) {
+            CloudAttributions attributions = activeByCloud.get(entity.id());
+            if (attributions == null || attributions.hazards().isEmpty() || !CLOUD_TYPE.equals(entity.typeKey())) {
                 annotated.add(entity);
                 continue;
             }
 
             Map<String, String> properties = new LinkedHashMap<>(entity.properties());
-            properties.put("cloud_instant_damage", Float.toString(attribution.rawDamage()));
-            properties.put("cloud_source_key", attribution.sourceKey());
-            properties.put("cloud_reapplication_delay_ticks", Integer.toString(attribution.reapplicationDelayTicks()));
-            properties.put("cloud_attribution", attribution.attributionKey());
-            properties.put(
-                "cloud_application_health_threshold_exclusive",
-                Float.toString(attribution.applicationHealthThresholdExclusive())
-            );
-            if (attribution.firstDamageEarliestTick() >= 0L) {
-                long earliest = Math.max(0L, attribution.firstDamageEarliestTick() - clientTick);
-                long latest = Math.max(earliest, attribution.firstDamageLatestTick() - clientTick);
-                properties.put("cloud_first_damage_earliest_ticks", Long.toString(earliest));
-                properties.put("cloud_first_damage_latest_ticks", Long.toString(latest));
+            properties.put("cloud_hazard_count", Integer.toString(attributions.hazards().size()));
+            for (int i = 0; i < attributions.hazards().size(); i++) {
+                writeHazardProperties(properties, "cloud_hazard_" + i + "_", attributions.hazards().get(i), clientTick);
             }
+
+            // Keep the legacy single-hazard view for older snapshot/tests and external diagnostics.
+            writeHazardProperties(properties, "cloud_", attributions.hazards().getFirst(), clientTick);
             annotated.add(new WorldSnapshot.EntitySnapshot(
                 entity.id(),
                 entity.typeKey(),
@@ -132,8 +123,36 @@ public final class AreaEffectCloudAttributionTracker {
         return new WorldSnapshot(annotated, world.blocks());
     }
 
+    private static void writeHazardProperties(
+        Map<String, String> properties,
+        String prefix,
+        CloudAttribution attribution,
+        long clientTick
+    ) {
+        properties.put(prefix + "instant_damage", Float.toString(attribution.rawDamage()));
+        properties.put(prefix + "source_key", attribution.sourceKey());
+        properties.put(prefix + "reapplication_delay_ticks", Integer.toString(attribution.reapplicationDelayTicks()));
+        properties.put(prefix + "attribution", attribution.attributionKey());
+        properties.put(
+            prefix + "application_health_threshold_exclusive",
+            Float.toString(attribution.applicationHealthThresholdExclusive())
+        );
+        if (attribution.firstDamageEarliestTick() >= 0L) {
+            long earliest = Math.max(0L, attribution.firstDamageEarliestTick() - clientTick);
+            long latest = Math.max(earliest, attribution.firstDamageLatestTick() - clientTick);
+            properties.put(prefix + "first_damage_earliest_ticks", Long.toString(earliest));
+            properties.put(prefix + "first_damage_latest_ticks", Long.toString(latest));
+        }
+    }
+
     private void expirePending(long clientTick) {
         pendingByProjectile.entrySet().removeIf(entry -> entry.getValue().expiresAt() < clientTick);
+    }
+
+    private static String statusKey(String threatId, int start) {
+        int end = threatId.lastIndexOf(':');
+        if (end <= start) return "";
+        return threatId.substring(start, end);
     }
 
     private static double distanceSquared(Vec3Snapshot first, Vec3Snapshot second) {
@@ -152,11 +171,36 @@ public final class AreaEffectCloudAttributionTracker {
     private record PendingAttribution(
         Vec3Snapshot origin,
         long expiresAt,
-        CloudAttribution cloud
+        LinkedHashMap<String, CloudAttribution> hazards
     ) {
+        private static PendingAttribution single(
+            Vec3Snapshot origin,
+            long expiresAt,
+            CloudAttribution attribution
+        ) {
+            LinkedHashMap<String, CloudAttribution> hazards = new LinkedHashMap<>();
+            hazards.put(attribution.hazardKey(), attribution);
+            return new PendingAttribution(origin, expiresAt, hazards);
+        }
+
+        private static PendingAttribution merge(PendingAttribution previous, PendingAttribution next) {
+            LinkedHashMap<String, CloudAttribution> merged = new LinkedHashMap<>(previous.hazards());
+            for (Map.Entry<String, CloudAttribution> entry : next.hazards().entrySet()) {
+                merged.put(entry.getKey(), entry.getValue());
+            }
+            return new PendingAttribution(
+                next.expiresAt() >= previous.expiresAt() ? next.origin() : previous.origin(),
+                Math.max(previous.expiresAt(), next.expiresAt()),
+                merged
+            );
+        }
+    }
+
+    private record CloudAttributions(List<CloudAttribution> hazards) {
     }
 
     private record CloudAttribution(
+        String hazardKey,
         float rawDamage,
         String sourceKey,
         int reapplicationDelayTicks,
@@ -167,6 +211,7 @@ public final class AreaEffectCloudAttributionTracker {
     ) {
         private static CloudAttribution dragonBreath() {
             return new CloudAttribution(
+                "dragon_breath",
                 6f,
                 "minecraft:indirect_magic",
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
@@ -179,6 +224,7 @@ public final class AreaEffectCloudAttributionTracker {
 
         private static CloudAttribution lingeringPotion(ThreatEvent threat) {
             return new CloudAttribution(
+                "lingering_potion",
                 threat.damage().rawDamage().max(),
                 threat.damage().sourceKey(),
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
@@ -189,8 +235,9 @@ public final class AreaEffectCloudAttributionTracker {
             );
         }
 
-        private static CloudAttribution lingeringStatus(long clientTick, ThreatEvent threat) {
+        private static CloudAttribution lingeringStatus(long clientTick, String statusKey, ThreatEvent threat) {
             return new CloudAttribution(
+                "lingering_status:" + statusKey,
                 threat.damage().rawDamage().max(),
                 threat.damage().sourceKey(),
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
