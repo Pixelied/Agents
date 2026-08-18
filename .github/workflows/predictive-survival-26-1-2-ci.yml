@@ -43,6 +43,7 @@ jobs:
         run: gradle --no-daemon compileGametestJava processGametestResources
 
       - name: Run exact-runtime client GameTests
+        timeout-minutes: 5
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
