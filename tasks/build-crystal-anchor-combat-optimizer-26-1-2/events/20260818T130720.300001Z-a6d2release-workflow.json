@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2releaseworkflow20260818",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "release",
+  "message": "Released project CI workflow scope after the verified optimizer was merged into main.",
+  "data": {
+    "scope": ".github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml",
+    "reason": "Implementation merged and task completed",
+    "merge_commit": "e1d193f0e6aa7d0cab9fe60027554ecb47016f99"
+  },
+  "created_at": "2026-08-18T13:07:20+00:00"
+}
