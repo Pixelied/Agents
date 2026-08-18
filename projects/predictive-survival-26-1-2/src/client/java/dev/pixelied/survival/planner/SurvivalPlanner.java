@@ -66,7 +66,7 @@ public final class SurvivalPlanner {
         Objects.requireNonNull(mode, "mode");
 
         TimelineResult baselineResult = timelineSimulator.simulate(context.player(), timeline);
-        String rejection = hardConstraintFailure(context, timeline, action, mode);
+        String rejection = hardConstraintFailure(context, timeline, action, mode, baselineResult);
         if (rejection != null) {
             return new ActionSimulation(
                 action, baselineResult, false, action.reliability(),
@@ -92,7 +92,8 @@ public final class SurvivalPlanner {
         PredictionContext context,
         ThreatTimeline timeline,
         SurvivalAction action,
-        SafetyMode mode
+        SafetyMode mode,
+        TimelineResult baselineResult
     ) {
         if (!action.legal()) return "illegal";
         if (!action.authoritativePrerequisitesSatisfied()) return "authoritative prerequisites missing";
@@ -103,23 +104,43 @@ public final class SurvivalPlanner {
             return "shield block is not guaranteed";
         }
         if (action.requiredServerTicks() > 0) {
-            TickWindow firstImpact = earliestAbsoluteImpact(context, timeline);
-            if (firstImpact != null && !context.timing().canCompleteBefore(action.requiredServerTicks(), firstImpact)) {
+            TickWindow requiredImpact = requiredImpactForAction(context, timeline, action, baselineResult);
+            if (requiredImpact != null && !context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) {
                 return "server deadline missed";
             }
         }
         return null;
     }
 
+    private static TickWindow requiredImpactForAction(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        SurvivalAction action,
+        TimelineResult baselineResult
+    ) {
+        if (action instanceof SurvivalAction.EquipDeathProtection && baselineResult.firstLethalEventId().isPresent()) {
+            String lethalId = baselineResult.firstLethalEventId().get();
+            ThreatEvent lethal = timeline.events().stream()
+                .filter(event -> event.id().equals(lethalId))
+                .findFirst()
+                .orElse(null);
+            if (lethal != null) return absoluteImpact(context, lethal);
+        }
+        return earliestAbsoluteImpact(context, timeline);
+    }
+
     private static TickWindow earliestAbsoluteImpact(PredictionContext context, ThreatTimeline timeline) {
         ThreatEvent earliest = timeline.events().stream()
             .min(Comparator.comparingLong(event -> event.impact().earliest()))
             .orElse(null);
-        if (earliest == null) return null;
+        return earliest == null ? null : absoluteImpact(context, earliest);
+    }
+
+    private static TickWindow absoluteImpact(PredictionContext context, ThreatEvent event) {
         long base = context.timing().clientTick();
         return new TickWindow(
-            saturatingAdd(base, earliest.impact().earliest()),
-            saturatingAdd(base, earliest.impact().latest())
+            saturatingAdd(base, event.impact().earliest()),
+            saturatingAdd(base, event.impact().latest())
         );
     }
 
