@@ -186,17 +186,16 @@ class PeriodicHazardPredictorTest {
     }
 
     @Test
-    void waitingAreaEffectCloudEmitsBoundedInstantHarmWindow() {
+    void waitingAttributedCloudUsesConservativeReapplicationWindowWithoutDurationMetadata() {
         PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
         WorldSnapshot.EntitySnapshot cloud = cloud(
             new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
             Map.of(
-                "cloud_wait_remaining_ticks", "20",
-                "cloud_duration_remaining_ticks", "620",
+                "cloud_waiting", "true",
                 "cloud_reapplication_delay_ticks", "20",
                 "cloud_instant_damage", "6",
                 "cloud_source_key", "minecraft:indirect_magic",
-                "observation_age_ticks", "1"
+                "cloud_attribution", "dragon_breath"
             )
         );
 
@@ -205,7 +204,7 @@ class PeriodicHazardPredictorTest {
             "minecraft:indirect_magic"
         );
 
-        assertEquals(new TickWindow(19, 20), event.impact());
+        assertEquals(new TickWindow(0, 20), event.impact());
         assertEquals(6f, event.damage().rawDamage().max(), 0.0001f);
         assertEquals(Confidence.BOUNDED, event.confidence());
         assertTrue(event.damage().has(DamageFlag.BYPASSES_ARMOR));
@@ -214,17 +213,16 @@ class PeriodicHazardPredictorTest {
     }
 
     @Test
-    void activeAreaEffectCloudNeverCreditsUnknownVictimCooldownAsSafe() {
+    void activeAttributedCloudNeverCreditsUnknownVictimCooldownAsSafe() {
         PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
         WorldSnapshot.EntitySnapshot cloud = cloud(
             new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
             Map.of(
-                "cloud_wait_remaining_ticks", "0",
-                "cloud_duration_remaining_ticks", "580",
+                "cloud_waiting", "false",
                 "cloud_reapplication_delay_ticks", "20",
                 "cloud_instant_damage", "6",
                 "cloud_source_key", "minecraft:indirect_magic",
-                "observation_age_ticks", "1"
+                "cloud_attribution", "dragon_breath"
             )
         );
 
@@ -243,11 +241,11 @@ class PeriodicHazardPredictorTest {
         WorldSnapshot.EntitySnapshot cloud = cloud(
             new AabbSnapshot(8, 0, 8, 14, 0.5, 14),
             Map.of(
-                "cloud_wait_remaining_ticks", "0",
-                "cloud_duration_remaining_ticks", "580",
+                "cloud_waiting", "false",
                 "cloud_reapplication_delay_ticks", "20",
                 "cloud_instant_damage", "6",
-                "cloud_source_key", "minecraft:indirect_magic"
+                "cloud_source_key", "minecraft:indirect_magic",
+                "cloud_attribution", "dragon_breath"
             )
         );
 
@@ -258,39 +256,15 @@ class PeriodicHazardPredictorTest {
     }
 
     @Test
-    void harmlessAreaEffectCloudDoesNotInventDamage() {
+    void unattributedAreaEffectCloudDoesNotInventDamage() {
         PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
         WorldSnapshot.EntitySnapshot cloud = cloud(
             new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
-            Map.of(
-                "cloud_wait_remaining_ticks", "0",
-                "cloud_duration_remaining_ticks", "580",
-                "cloud_reapplication_delay_ticks", "20"
-            )
+            Map.of("cloud_waiting", "false")
         );
 
         assertTrue(EnvironmentPredictorRegistry.defaults().predict(context(player, List.of(cloud))).stream()
             .noneMatch(event -> event.id().startsWith("env:area_effect_cloud:cloud:1:")));
-    }
-
-    @Test
-    void expiredAreaEffectCloudDoesNotEmitDamageThreat() {
-        PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
-        WorldSnapshot.EntitySnapshot cloud = cloud(
-            new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
-            Map.of(
-                "cloud_wait_remaining_ticks", "0",
-                "cloud_duration_remaining_ticks", "0",
-                "cloud_reapplication_delay_ticks", "20",
-                "cloud_instant_damage", "6",
-                "cloud_source_key", "minecraft:indirect_magic"
-            )
-        );
-
-        assertFalse(hasSource(
-            EnvironmentPredictorRegistry.defaults().predict(context(player, List.of(cloud))),
-            "minecraft:indirect_magic"
-        ));
     }
 
     private static PredictionContext playerContext(PlayerSnapshot player) {
