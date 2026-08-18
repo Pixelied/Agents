@@ -1,6 +1,7 @@
 package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.mixin.AbstractArrowAccessor;
+import dev.pixelied.survival.mixin.FallingBlockEntityAccessor;
 import dev.pixelied.survival.mixin.FireworkRocketAccessor;
 import dev.pixelied.survival.mixin.PrimedTntAccessor;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -8,12 +9,14 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.player.Player;
@@ -23,9 +26,11 @@ import net.minecraft.world.entity.projectile.hurtingprojectile.AbstractHurtingPr
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RespawnAnchorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -102,6 +107,30 @@ public final class MinecraftWorldSnapshotFactory {
             if (fireworks != null) {
                 properties.put("firework_explosions", Integer.toString(fireworks.explosions().size()));
             }
+        }
+
+        if (entity instanceof ThrownEnderpearl pearl) {
+            Entity owner = pearl.getOwner();
+            properties.put(
+                "owner_is_local_player",
+                Boolean.toString(owner != null && owner.getUUID().equals(player.getUUID()))
+            );
+        }
+
+        if (entity instanceof FallingBlockEntity falling) {
+            FallingBlockEntityAccessor accessor = (FallingBlockEntityAccessor) (Object) falling;
+            String damageSource = falling.getBlockState().is(BlockTags.ANVIL)
+                ? "minecraft:falling_anvil"
+                : falling.getBlockState().is(Blocks.POINTED_DRIPSTONE)
+                    ? "minecraft:falling_stalactite"
+                    : "minecraft:falling_block";
+            properties.putAll(new FallingBlockDamageSnapshot(
+                accessor.predictiveSurvival$getHurtEntities(),
+                accessor.predictiveSurvival$getFallDamageMax(),
+                accessor.predictiveSurvival$getFallDamagePerDistance(),
+                Math.max(0d, falling.fallDistance),
+                damageSource
+            ).properties());
         }
 
         if (entity instanceof PrimedTnt tnt) {
