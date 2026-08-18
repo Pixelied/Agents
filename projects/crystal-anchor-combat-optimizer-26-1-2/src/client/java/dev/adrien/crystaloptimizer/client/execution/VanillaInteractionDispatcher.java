@@ -81,6 +81,9 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
             if (!(entity instanceof EndCrystal)) {
                 return DispatchReceipt.failed("server-observed crystal entity is no longer present");
             }
+            if (!aimAt(entity.getBoundingBox().getCenter())) {
+                return DispatchReceipt.deferred("real rotation still converging");
+            }
             minecraft.gameMode.attack(player, entity);
             player.swing(InteractionHand.MAIN_HAND);
             return DispatchReceipt.sent("attacked known crystal " + attack.entityId());
@@ -113,9 +116,20 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
     }
 
     private DispatchReceipt useItemOn(LocalPlayer player, BlockHitResult hit, String detail) {
+        if (!aimAt(hit.getLocation())) {
+            return DispatchReceipt.deferred("real rotation still converging");
+        }
         minecraft.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit);
         player.swing(InteractionHand.MAIN_HAND);
         return DispatchReceipt.sent(detail);
+    }
+
+    private boolean aimAt(Vec3 target) {
+        return rotations.updateToward(
+            target,
+            rotationMode,
+            scheduler.phase() == CommitPhase.COMMITTED
+        );
     }
 
     private static BlockHitResult topHit(BlockPos pos) {
