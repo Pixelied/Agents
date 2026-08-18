@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["SHS", "SNF", "SB "],
+  "key": {
+    "H": {"items": "minecraft:heart_of_the_sea", "components": {"minecraft:custom_data": {"md_item": "medusa_heart"}}},
+    "S": {"items": "minecraft:scute", "components": {"minecraft:custom_data": {"md_item": "gorgon_scale"}}},
+    "F": {"items": "minecraft:flint", "components": {"minecraft:custom_data": {"md_item": "serpent_fang"}}},
+    "N": "minecraft:netherite_ingot",
+    "B": "minecraft:breeze_rod"
+  },
+  "result": {
+    "id": "minecraft:breeze_rod",
+    "count": 1,
+    "components": {
+      "minecraft:custom_data": {"md_item": "medusa_staff", "charges": 64},
+      "minecraft:custom_name": {"text": "Medusa Staff", "color": "dark_green", "italic": false},
+      "minecraft:lore": [
+        {"text": "Gorgon Charges: 64 / 64", "color": "gray", "italic": false},
+        {"text": "Hold use to petrify • Sneak-use for Stone Spikes", "color": "dark_gray", "italic": false}
+      ],
+      "minecraft:item_model": "medusa:medusa_staff",
+      "minecraft:max_stack_size": 1,
+      "minecraft:consumable": {
+        "consume_seconds": 1000000.0,
+        "animation": "none",
+        "sound": "minecraft:block.beacon.ambient",
+        "has_consume_particles": false
+      }
+    }
+  },
+  "show_notification": true
+}
