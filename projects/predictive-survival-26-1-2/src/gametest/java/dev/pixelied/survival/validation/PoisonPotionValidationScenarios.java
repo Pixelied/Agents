@@ -19,6 +19,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.List;
+
 final class PoisonPotionValidationScenarios {
     private PoisonPotionValidationScenarios() {
     }
@@ -71,29 +74,30 @@ final class PoisonPotionValidationScenarios {
                 .orElse("<projectile missing from snapshot>");
 
             Observation firstPoison = null;
-            Observation firstDamage = null;
             int projectileGoneTick = -1;
-            for (int tick = 1; tick <= 100; tick++) {
+            float previousHealth = 20f;
+            List<DamageSample> damageSamples = new ArrayList<>();
+            for (int tick = 1; tick <= 105; tick++) {
                 anchor(singleplayer, setup.playerAnchor());
                 context.waitTick();
                 Observation observation = singleplayer.getServer().computeOnServer(server -> observe(server, setup.projectileId()));
                 if (!observation.projectilePresent() && projectileGoneTick < 0) projectileGoneTick = tick;
                 if (firstPoison == null && observation.poisonDuration() >= 0) firstPoison = observation;
-                if (observation.health() < 20f) {
-                    firstDamage = observation;
-                    break;
+                if (observation.health() < previousHealth) {
+                    damageSamples.add(new DamageSample(tick, observation));
+                    previousHealth = observation.health();
                 }
             }
 
             if (firstPoison == null) {
                 throw new AssertionError(
-                    "splash Poison fixture never applied Poison within 100 ticks; "
+                    "splash Poison fixture never applied Poison within 105 ticks; "
                         + snapshot + " projectileGoneTick=" + projectileGoneTick
                 );
             }
-            if (firstDamage == null) {
+            if (damageSamples.isEmpty()) {
                 throw new AssertionError(
-                    "splash Poison fixture applied Poison but caused no vanilla damage within 100 ticks; "
+                    "splash Poison fixture applied Poison but caused no vanilla damage within 105 ticks; "
                         + snapshot + " projectileGoneTick=" + projectileGoneTick
                         + " firstPoison=" + firstPoison
                 );
@@ -102,7 +106,7 @@ final class PoisonPotionValidationScenarios {
                 throw new AssertionError(
                     "live splash Poison caused vanilla damage but production emitted no pre-impact projectile threat; "
                         + snapshot + " projectileGoneTick=" + projectileGoneTick
-                        + " firstPoison=" + firstPoison + " firstDamage=" + firstDamage
+                        + " firstPoison=" + firstPoison + " damageSamples=" + damageSamples
                 );
             }
         } finally {
@@ -147,5 +151,8 @@ final class PoisonPotionValidationScenarios {
         int poisonDuration,
         int poisonAmplifier
     ) {
+    }
+
+    private record DamageSample(int tick, Observation observation) {
     }
 }
