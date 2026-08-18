@@ -1,0 +1,13 @@
+{
+  "claimed_at": "2026-08-18T11:30:10+00:00",
+  "expires_at": "2026-08-18T15:30:10+00:00",
+  "generation": 1,
+  "heartbeat_at": "2026-08-18T11:30:10+00:00",
+  "intent": "Upgrade only the universal validation workflow to supported Node 24-based GitHub Actions releases.",
+  "owner": "openai-workspace-repair-8c31",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "scope": ".github/workflows/validate.yml",
+  "state": "active",
+  "task_id": "refresh-workspace-validation-actions"
+}
