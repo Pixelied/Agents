@@ -80,6 +80,22 @@ class WorkspaceTests(unittest.TestCase):
         self.assertTrue((self.root / "tasks" / "improve-readme" / "leases").is_dir())
         self.assertTrue((self.root / "tasks" / "improve-readme" / "handoffs").is_dir())
 
+    def test_validate_allows_missing_empty_handoffs_after_git_checkout(self):
+        self.ws.register_agent("agent-a", "openai", "a", [])
+        self.ws.create_task("task-1", "Task", "agent-a", "Do work", ["src"])
+        (self.root / "tasks" / "task-1" / "handoffs").rmdir()
+        self.assertEqual(self.ws.validate(), [])
+
+    def test_validate_still_requires_task_events_directory(self):
+        self.ws.register_agent("agent-a", "openai", "a", [])
+        self.ws.create_task("task-1", "Task", "agent-a", "Do work", ["src"])
+        events_dir = self.root / "tasks" / "task-1" / "events"
+        for event in events_dir.glob("*.json"):
+            event.unlink()
+        events_dir.rmdir()
+        errors = self.ws.validate()
+        self.assertTrue(any("missing events/ directory" in error for error in errors))
+
     def test_active_exclusive_lease_blocks_other_agent(self):
         self.ws.register_agent("agent-a", "openai", "a", [])
         self.ws.register_agent("agent-b", "anthropic", "b", [])
