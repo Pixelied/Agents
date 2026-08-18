@@ -17,7 +17,7 @@
       "rolls": 1,
       "entries": [{
         "type": "minecraft:item",
-        "name": "minecraft:scute",
+        "name": "minecraft:turtle_scute",
         "functions": [
           {"function": "minecraft:set_components", "components": {
             "minecraft:custom_data": {"md_item": "gorgon_scale"},

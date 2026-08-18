@@ -8,11 +8,18 @@ DP = ROOT / "datapacks/medusa/data/medusa"
 class RewardContract(unittest.TestCase):
     def test_staff_recipe_has_approved_counts(self):
         recipe = DP / "recipe/medusa_staff.json"
+        advancement = DP / "advancement/events/medusa_staff_crafted.json"
+        staff_loot = DP / "loot_table/items/medusa_staff.json"
         self.assertTrue(recipe.is_file(), "Medusa Staff recipe is missing")
-        text = recipe.read_text()
-        for token in ["medusa_heart", "gorgon_scale", "serpent_fang", "netherite_ingot", "breeze_rod"]:
-            self.assertIn(token, text)
-        self.assertIn('"pattern": ["SHS", "SNF", "SB "]', text.replace("\n", " "))
+        self.assertTrue(advancement.is_file(), "Medusa Staff validation advancement is missing")
+        recipe_text = recipe.read_text()
+        validation_text = advancement.read_text()
+        for token in ["netherite_ingot", "breeze_rod"]:
+            self.assertIn(token, recipe_text)
+        for token in ["medusa_heart", "gorgon_scale", "serpent_fang"]:
+            self.assertIn(token, validation_text)
+        self.assertIn('"pattern": ["SHS", "SNF", "SB "]', recipe_text.replace("\n", " "))
+        self.assertIn('"charges": 64', staff_loot.read_text())
 
     def test_staff_recipe_validates_all_custom_boss_materials_before_activation(self):
         recipe = (DP / "recipe/medusa_staff.json").read_text()

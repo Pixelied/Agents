@@ -1,5 +1,5 @@
 function medusa:staff/read_charges
-execute if score @s md_staff matches ..63 run clear @s minecraft:scute[minecraft:custom_data~{md_item:"gorgon_scale"}] 1
+execute if score @s md_staff matches ..63 run clear @s minecraft:turtle_scute[minecraft:custom_data~{md_item:"gorgon_scale"}] 1
 execute if score @s md_staff matches ..63 run scoreboard players add @s md_staff 8
 execute if score @s md_staff matches 65.. run scoreboard players set @s md_staff 64
 execute if score @s md_staff matches 1..64 store result storage medusa:macro staff.charges int 1 run scoreboard players get @s md_staff
