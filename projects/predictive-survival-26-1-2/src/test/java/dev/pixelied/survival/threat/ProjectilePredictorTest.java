@@ -107,7 +107,7 @@ class ProjectilePredictorTest {
     }
 
     @Test
-    void splashHarmingNearbyWallCollisionStillEmitsReducedMagicDamage() {
+    void splashHarmingWallUsesBlockFaceAndNearestPlayerBounds() {
         WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
             new Vec3Snapshot(5, 0, 0),
             "minecraft:stone",
@@ -116,8 +116,9 @@ class ProjectilePredictorTest {
         );
 
         ThreatEvent event = predictor.predict(context(List.of(splashHarming()), List.of(wall))).getFirst();
-        assertTrue(event.damage().rawDamage().max() > 0f);
-        assertTrue(event.damage().rawDamage().max() < 12f);
+
+        assertEquals(5d, event.impactPosition().orElseThrow().x(), 0.0000001d);
+        assertEquals(DamageRange.exact(7f), event.damage().rawDamage());
         assertFalse(event.blockable());
     }
 
