@@ -75,18 +75,25 @@ jobs:
             sleep 40
             echo 'function medusa:debug/create_test_temple'
             sleep 3
+            echo 'execute if entity @e[type=minecraft:marker,tag=md.instance,limit=1] run say MEDUSA_INSTANCE_OK'
+            echo 'execute unless entity @e[type=minecraft:marker,tag=md.instance,limit=1] run say MEDUSA_INSTANCE_MISSING'
             echo 'function medusa:debug/start_test_boss'
             sleep 2
+            echo 'execute if entity @e[tag=md.boss,limit=1] run say MEDUSA_BOSS_OK'
+            echo 'execute unless entity @e[tag=md.boss,limit=1] run say MEDUSA_BOSS_MISSING'
             echo 'data get entity @e[tag=md.boss,limit=1] Health'
             echo 'scoreboard players get @e[tag=md.boss,limit=1] md_phase'
             echo 'function medusa:debug/give_test_items'
             echo 'function medusa:debug/test_petrification_damage'
             sleep 2
+            echo 'forceload remove all'
             echo 'stop'
           } | timeout 100s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
           grep -q 'Done (' server.log
-          grep -q 'MEDUSA_PETRIFICATION_BYPASS_OK' server.log
-          ! grep -q 'MEDUSA_PETRIFICATION_BYPASS_FAILED' server.log
+          grep -q 'MEDUSA_INSTANCE_OK' server.log
+          grep -q 'MEDUSA_BOSS_OK' server.log
+          grep -q 'MEDUSA_PETRIFICATION_DAMAGE_OK' server.log
+          ! grep -Eq 'MEDUSA_INSTANCE_MISSING|MEDUSA_BOSS_MISSING|MEDUSA_PETRIFICATION_DAMAGE_FAILED' server.log
           ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs|Could not load' server.log
 
   package:
