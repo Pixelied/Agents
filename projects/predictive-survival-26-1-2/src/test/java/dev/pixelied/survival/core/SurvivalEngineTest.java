@@ -69,6 +69,28 @@ class SurvivalEngineTest {
     }
 
     @Test
+    void normalCountdownPreservesProgressOfPendingMultiTickAction() {
+        SurvivalAction shield = warmupShield();
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection), 100, 4));
+        SurvivalEngine engine = new SurvivalEngine(
+            SurvivalConfig.defaults(), runtime, new DecisionHistory(128)
+        );
+
+        engine.tick();
+        assertEquals(1, runtime.beginCount);
+
+        runtime.frame = frame(List.of(shield, protection), 101, 3);
+        engine.tick();
+        runtime.frame = frame(List.of(shield, protection), 102, 2);
+        engine.tick();
+
+        assertEquals(1, runtime.beginCount, "normal countdown must preserve progress already made by a pending action");
+        assertEquals(2, runtime.observeCount, "the pending executor must keep reconciling while its absolute deadline is unchanged");
+        assertInstanceOf(SurvivalAction.RaiseShield.class, engine.currentPlan().orElseThrow().action());
+    }
+
+    @Test
     void tightenedSameThreatDeadlineReplansPendingAction() {
         SurvivalAction shield = warmupShield();
         SurvivalAction protection = protection();
