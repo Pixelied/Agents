@@ -24,3 +24,20 @@ class DungeonContract(unittest.TestCase):
         path = ROOT / "datapacks/medusa/data/medusa/function/admin/place_temple.mcfunction"
         self.assertTrue(path.is_file(), "admin placement function is missing")
         self.assertIn("function medusa:instance/register", path.read_text())
+
+class PuzzleContract(unittest.TestCase):
+    def test_required_puzzles_exist(self):
+        fn = ROOT / "datapacks/medusa/data/medusa/function/puzzle"
+        for rel in [
+            "averted_eyes/tick.mcfunction",
+            "borrowed_gaze/tick.mcfunction",
+            "blind_passage/tick.mcfunction",
+        ]:
+            self.assertTrue((fn / rel).is_file(), f"missing required puzzle function: {rel}")
+
+    def test_generated_temple_contains_puzzle_controls(self):
+        text = OUT.read_text()
+        self.assertIn("minecraft:stone_button", text)
+        self.assertIn("# Averted Eyes controls", text)
+        self.assertIn("# Borrowed Gaze controls", text)
+        self.assertIn("# Blind Passage", text)
