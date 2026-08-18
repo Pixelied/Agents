@@ -29,6 +29,7 @@ import dev.adrien.crystaloptimizer.prediction.PredictionSet;
 import dev.adrien.crystaloptimizer.prediction.TargetPredictor;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionKind;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
+import dev.adrien.crystaloptimizer.sim.model.TimingState;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -66,6 +67,8 @@ public final class ClientCombatRuntime {
     private final Map<UUID, ArrayDeque<MovementSample>> movementHistory = new HashMap<>();
 
     private UUID previousTarget;
+    private String lastTargetName = "";
+    private TimingState lastTiming = TimingState.unknown();
     private boolean enabled;
 
     public ClientCombatRuntime(Minecraft minecraft) {
@@ -110,6 +113,22 @@ public final class ClientCombatRuntime {
         return enabled;
     }
 
+    public ClientCombatDiagnostics diagnostics() {
+        var plan = engine.lastPlan();
+        return new ClientCombatDiagnostics(
+            enabled,
+            lastTargetName,
+            engine.phase(),
+            plan.map(value -> value.actions().size()).orElse(0),
+            plan.map(value -> value.lethal()).orElse(false),
+            plan.map(value -> value.robustness()).orElse(0.0),
+            engine.lastReconciliationStatus().map(Enum::name).orElse(""),
+            engine.lastAbortReason().map(Enum::name).orElse(""),
+            lastTiming.roundTripMillis(),
+            lastTiming.jitterMillis()
+        );
+    }
+
     public void setEnabled(boolean enabled) {
         if (this.enabled == enabled) {
             return;
@@ -118,6 +137,8 @@ public final class ClientCombatRuntime {
         if (!enabled) {
             engine.abort(CommitAbortReason.RECONCILIATION_INVALIDATED);
             previousTarget = null;
+            lastTargetName = "";
+            lastTiming = TimingState.unknown();
             movementHistory.clear();
         }
     }
@@ -132,6 +153,8 @@ public final class ClientCombatRuntime {
         if (self == null || level == null || minecraft.gameMode == null) {
             engine.abort(CommitAbortReason.RECONCILIATION_INVALIDATED);
             previousTarget = null;
+            lastTargetName = "";
+            lastTiming = TimingState.unknown();
             movementHistory.clear();
             return;
         }
@@ -146,6 +169,7 @@ public final class ClientCombatRuntime {
                 engine.abort(CommitAbortReason.TARGET_OUTSIDE_VIABLE_GEOMETRY);
             }
             previousTarget = null;
+            lastTargetName = "";
             return;
         }
 
@@ -153,14 +177,18 @@ public final class ClientCombatRuntime {
         if (snapshot.isEmpty()) {
             engine.abort(CommitAbortReason.TARGET_OUTSIDE_VIABLE_GEOMETRY);
             previousTarget = null;
+            lastTargetName = "";
             return;
         }
 
+        var currentSnapshot = snapshot.orElseThrow();
+        lastTargetName = target.getName().getString();
+        lastTiming = currentSnapshot.timing();
         long nowNanos = System.nanoTime();
         recordMovement(target, nowNanos);
-        PredictionSet predictions = predict(target.getUUID(), snapshot.orElseThrow().timing());
+        PredictionSet predictions = predict(target.getUUID(), currentSnapshot.timing());
         RuntimeFrame frame = new RuntimeFrame(
-            snapshot.orElseThrow(),
+            currentSnapshot,
             target.getUUID(),
             predictions
         );
@@ -253,7 +281,7 @@ public final class ClientCombatRuntime {
         movementHistory.keySet().removeIf(id -> !id.equals(target.getUUID()));
     }
 
-    private PredictionSet predict(UUID targetId, dev.adrien.crystaloptimizer.sim.model.TimingState timing) {
+    private PredictionSet predict(UUID targetId, TimingState timing) {
         ArrayDeque<MovementSample> history = movementHistory.get(targetId);
         if (history == null || history.isEmpty()) {
             throw new IllegalStateException("movement history must contain the selected target");
