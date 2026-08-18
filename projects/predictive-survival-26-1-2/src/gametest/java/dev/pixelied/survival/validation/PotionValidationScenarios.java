@@ -12,9 +12,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownLingeringPotion;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -190,6 +192,75 @@ final class PotionValidationScenarios {
         }
     }
 
+    static void validateLingeringHarmingHasPreImpactThreat(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer
+    ) {
+        Setup setup = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            SurvivalValidationClientGameTest.reset(player, 20f);
+            player.setDeltaMovement(Vec3.ZERO);
+            player.setNoGravity(true);
+            ServerLevel level = (ServerLevel) player.level();
+
+            Creeper owner = new Creeper(EntityType.CREEPER, level);
+            owner.setNoAi(true);
+            owner.setPos(player.getX() + 12d, player.getY(), player.getZ() + 12d);
+            level.addFreshEntity(owner);
+
+            ThrownLingeringPotion potion = lingeringHarming(level, owner);
+            potion.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 5d);
+            potion.setDeltaMovement(0d, 0d, -1.0d);
+            level.addFreshEntity(potion);
+            return new Setup(
+                potion.getId(),
+                owner.getId(),
+                player.position().toString(),
+                player.getBoundingBox().toString(),
+                potion.position().toString(),
+                String.valueOf(potion.getItem().get(DataComponents.POTION_CONTENTS))
+            );
+        });
+
+        try {
+            context.waitFor(minecraft -> minecraft.level != null && minecraft.level.getEntity(setup.projectileId()) != null);
+            MinecraftSurvivalRuntime runtime = context.computeOnClient(MinecraftSurvivalRuntime::new);
+            SurvivalEngine.EngineFrame frame = context.computeOnClient(minecraft -> runtime.capture());
+            ThreatEvent predicted = frame.timeline().events().stream()
+                .filter(event -> event.id().startsWith("projectile:" + setup.projectileId() + ":"))
+                .findFirst()
+                .orElse(null);
+            String snapshot = snapshot(frame, setup.projectileId());
+
+            DamageObservation damage = awaitDamageDetailed(
+                context, singleplayer, setup.projectileId(), snapshot, setup, 80
+            );
+            if (predicted == null) {
+                throw new AssertionError(
+                    "live lingering Harming II caused server damage but production emitted no pre-impact threat; "
+                        + "actualHealth=" + damage.health() + " " + snapshot + " setup=" + setup + " damage=" + damage
+                );
+            }
+        } finally {
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                ServerLevel level = (ServerLevel) player.level();
+                Entity projectile = level.getEntity(setup.projectileId());
+                if (projectile != null) projectile.discard();
+                Entity owner = level.getEntity(setup.ownerId());
+                if (owner != null) owner.discard();
+                for (AreaEffectCloud cloud : level.getEntitiesOfClass(
+                    AreaEffectCloud.class, player.getBoundingBox().inflate(8d)
+                )) {
+                    cloud.discard();
+                }
+                player.setNoGravity(false);
+                SurvivalValidationClientGameTest.reset(player, 20f);
+            });
+            context.waitTick();
+        }
+    }
+
     private static ThrownSplashPotion splashHarming(ServerLevel level, Creeper owner) {
         ItemStack stack = new ItemStack(Items.SPLASH_POTION);
         stack.set(
@@ -197,6 +268,15 @@ final class PotionValidationScenarios {
             PotionContents.EMPTY.withEffectAdded(new MobEffectInstance(MobEffects.INSTANT_DAMAGE, 1, 1))
         );
         return new ThrownSplashPotion(level, owner, stack);
+    }
+
+    private static ThrownLingeringPotion lingeringHarming(ServerLevel level, Creeper owner) {
+        ItemStack stack = new ItemStack(Items.LINGERING_POTION);
+        stack.set(
+            DataComponents.POTION_CONTENTS,
+            PotionContents.EMPTY.withEffectAdded(new MobEffectInstance(MobEffects.INSTANT_DAMAGE, 1, 1))
+        );
+        return new ThrownLingeringPotion(level, owner, stack);
     }
 
     private static String snapshot(SurvivalEngine.EngineFrame frame, int projectileId) {
@@ -253,10 +333,21 @@ final class PotionValidationScenarios {
         String snapshot,
         Object setup
     ) {
+        return awaitDamageDetailed(context, singleplayer, projectileId, snapshot, setup, 30);
+    }
+
+    private static DamageObservation awaitDamageDetailed(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        int projectileId,
+        String snapshot,
+        Object setup,
+        int maxTicks
+    ) {
         Observation lastPresent = null;
         Observation current = null;
         int disappearedAt = -1;
-        for (int tick = 1; tick <= 30; tick++) {
+        for (int tick = 1; tick <= maxTicks; tick++) {
             context.waitTick();
             current = singleplayer.getServer().computeOnServer(server -> observe(server, projectileId));
             if (current.present()) lastPresent = current;
@@ -266,7 +357,7 @@ final class PotionValidationScenarios {
             }
         }
         throw new AssertionError(
-            "splash Harming II fixture produced no server damage within 30 ticks; "
+            "harmful potion fixture produced no server damage within " + maxTicks + " ticks; "
                 + snapshot + " setup=" + setup + " disappearedAt=" + disappearedAt
                 + " lastPresent=" + lastPresent + " current=" + current
         );
@@ -287,6 +378,15 @@ final class PotionValidationScenarios {
         ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
         Entity entity = player.level().getEntity(projectileId);
         if (entity instanceof ThrownSplashPotion potion) {
+            return new Observation(
+                player.getHealth(),
+                true,
+                potion.position().toString(),
+                potion.getDeltaMovement().toString(),
+                String.valueOf(potion.getItem().get(DataComponents.POTION_CONTENTS))
+            );
+        }
+        if (entity instanceof ThrownLingeringPotion potion) {
             return new Observation(
                 player.getHealth(),
                 true,
