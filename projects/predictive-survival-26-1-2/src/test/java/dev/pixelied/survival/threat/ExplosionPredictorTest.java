@@ -61,16 +61,48 @@ class ExplosionPredictorTest {
         assertTrue(ExplosionPredictor.canUseUnitCubeOcclusion(confirmedFullCube));
     }
 
+    @Test
+    void groundFaceTouchMovingAwayDoesNotCreateFakeExplosionCover() {
+        WorldSnapshot.EntitySnapshot tnt = new WorldSnapshot.EntitySnapshot(
+            "tnt:ground-boundary",
+            "minecraft:tnt",
+            new Vec3Snapshot(0.3, 0.9, 6.5),
+            new Vec3Snapshot(0, 0, 0),
+            new AabbSnapshot(0.25, 0.85, 6.45, 0.35, 0.95, 6.55),
+            Map.of("explosion_radius", "4.0", "fuse_ticks", "1")
+        );
+        WorldSnapshot.BlockSnapshot ground = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(0.5, -0.5, 0.5),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        float openRaw = new ExplosionPredictor().predict(context(List.of(tnt), List.of())).getFirst()
+            .damage().rawDamage().max();
+        float groundedRaw = new ExplosionPredictor().predict(context(List.of(tnt), List.of(ground))).getFirst()
+            .damage().rawDamage().max();
+
+        assertEquals(openRaw, groundedRaw, 0.000001f);
+    }
+
     private static PredictionContext context(List<WorldSnapshot.EntitySnapshot> entities) {
+        return context(entities, List.of());
+    }
+
+    private static PredictionContext context(
+        List<WorldSnapshot.EntitySnapshot> entities,
+        List<WorldSnapshot.BlockSnapshot> blocks
+    ) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
             DeathProtectionSnapshot.none(), new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
-            new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
+            new Vec3Snapshot(0.3, 0, 0.3), new Vec3Snapshot(0, 0, 0), Map.of()
         );
         return new PredictionContext(
             player,
-            new WorldSnapshot(entities, List.of()),
+            new WorldSnapshot(entities, blocks),
             new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
             EngineLimits.defaults()
         );
