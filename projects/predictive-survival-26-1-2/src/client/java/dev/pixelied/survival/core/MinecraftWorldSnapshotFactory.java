@@ -230,7 +230,7 @@ public final class MinecraftWorldSnapshotFactory {
     private static float areaEffectCloudInstantHarmDamage(PotionContents contents) {
         float maximum = 0f;
         for (MobEffectInstance effect : contents.customEffects()) {
-            if (!effect.getEffect().is(MobEffects.HARM)) continue;
+            if (!effect.getEffect().is(MobEffects.INSTANT_DAMAGE)) continue;
             int amplifier = Math.max(0, effect.getAmplifier());
             double fullStrength = Math.scalb(6d, amplifier);
             double cloudStrength = Math.floor(fullStrength * 0.5d + 0.5d);
