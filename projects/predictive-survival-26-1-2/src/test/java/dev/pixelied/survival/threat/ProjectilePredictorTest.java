@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProjectilePredictorTest {
@@ -86,6 +87,53 @@ class ProjectilePredictorTest {
             List.of(arrow(Map.of("base_damage", "6.0", "critical", "false"))),
             List.of(wall)
         )).isEmpty());
+    }
+
+    @Test
+    void modernSplashAndLingeringPotionTypesRemainThrowableFamilies() {
+        assertEquals(ProjectileFamily.THROWABLE, ProjectileFamily.from(splashHarming()).orElseThrow());
+        assertEquals(
+            ProjectileFamily.THROWABLE,
+            ProjectileFamily.from(potion("lingering:1", "minecraft:lingering_potion", Map.of())).orElseThrow()
+        );
+    }
+
+    @Test
+    void splashHarmingDirectPlayerCollisionUsesFullMagicDamage() {
+        ThreatEvent event = predictor.predict(context(List.of(splashHarming()), List.of())).getFirst();
+
+        assertEquals(DamageRange.exact(12f), event.damage().rawDamage());
+        assertEquals("minecraft:indirect_magic", event.damage().sourceKey());
+        assertTrue(event.damage().has(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(event.damage().has(DamageFlag.BYPASSES_SHIELD));
+        assertFalse(event.blockable());
+    }
+
+    @Test
+    void splashHarmingNearbyWallCollisionStillEmitsReducedMagicDamage() {
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(5, 1, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        ThreatEvent event = predictor.predict(context(List.of(splashHarming()), List.of(wall))).getFirst();
+        assertTrue(event.damage().rawDamage().max() > 0f);
+        assertTrue(event.damage().rawDamage().max() < 12f);
+        assertFalse(event.blockable());
+    }
+
+    @Test
+    void splashHarmingWallCollisionOutsideFourBlockRadiusDoesNotInventThreat() {
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(2, 1, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        assertTrue(predictor.predict(context(List.of(splashHarming()), List.of(wall))).isEmpty());
     }
 
     @Test
@@ -194,6 +242,33 @@ class ProjectilePredictorTest {
             new Vec3Snapshot(0, 1.9, 0.3),
             new Vec3Snapshot(1, 0, 0),
             new AabbSnapshot(-0.125, 1.775, 0.175, 0.125, 2.025, 0.425),
+            properties
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot splashHarming() {
+        return potion(
+            "splash:1",
+            "minecraft:splash_potion",
+            Map.of(
+                "potion_instant_damage", "12.0",
+                "potion_splash_radius", "4.0",
+                "potion_source_key", "minecraft:indirect_magic"
+            )
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot potion(
+        String id,
+        String type,
+        Map<String, String> properties
+    ) {
+        return new WorldSnapshot.EntitySnapshot(
+            id,
+            type,
+            new Vec3Snapshot(0, 1.0, 0.3),
+            new Vec3Snapshot(1.5, 0, 0),
+            new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
             properties
         );
     }
