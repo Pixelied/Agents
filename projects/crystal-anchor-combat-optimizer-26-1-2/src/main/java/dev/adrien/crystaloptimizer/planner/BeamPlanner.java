@@ -2,7 +2,11 @@ package dev.adrien.crystaloptimizer.planner;
 
 import dev.adrien.crystaloptimizer.action.ActionOutcome;
 import dev.adrien.crystaloptimizer.action.ActionStatus;
+import dev.adrien.crystaloptimizer.action.ChargeAnchor;
 import dev.adrien.crystaloptimizer.action.CombatAction;
+import dev.adrien.crystaloptimizer.action.PlaceAnchor;
+import dev.adrien.crystaloptimizer.action.PlaceCrystal;
+import dev.adrien.crystaloptimizer.action.PlaceObsidian;
 import dev.adrien.crystaloptimizer.action.SimulationServices;
 import dev.adrien.crystaloptimizer.candidate.Candidate;
 import dev.adrien.crystaloptimizer.candidate.CandidateBudget;
@@ -64,6 +68,8 @@ public final class BeamPlanner {
             targetPredictions
         );
         Node best = rootNode;
+        Node bestPreparation = null;
+        PreparationScore bestPreparationScore = null;
         List<Node> beam = List.of(rootNode);
         long deadline = saturatingAdd(System.nanoTime(), budget.maxNanos());
         CandidateBudget candidateBudget = new CandidateBudget(
@@ -93,6 +99,13 @@ public final class BeamPlanner {
                     Node child = expand(node, candidate);
                     if (child != null) {
                         expanded.add(child);
+                        PreparationScore preparation = preparationScore(root, child);
+                        if (preparation != null
+                            && !child.score().unacceptableSelfDeath()
+                            && (bestPreparationScore == null || preparation.compareTo(bestPreparationScore) > 0)) {
+                            bestPreparation = child;
+                            bestPreparationScore = preparation;
+                        }
                     }
                 }
                 if (!expanded.isEmpty() && System.nanoTime() >= deadline) {
@@ -115,13 +128,14 @@ public final class BeamPlanner {
             }
         }
 
-        PacketDependencyGraph graph = PacketDependencyGraph.fromActions(best.actions());
+        Node selected = hasPressure(best) || bestPreparation == null ? best : bestPreparation;
+        PacketDependencyGraph graph = PacketDependencyGraph.fromActions(selected.actions());
         return new CombatPlan(
-            best.actions(),
-            best.score(),
+            selected.actions(),
+            selected.score(),
             graph,
-            best.state().target().dead(),
-            best.robustness()
+            selected.state().target().dead(),
+            selected.robustness()
         );
     }
 
@@ -323,6 +337,52 @@ public final class BeamPlanner {
         );
     }
 
+    private static boolean hasPressure(Node node) {
+        return node.score().targetDeathProbability() > 1.0e-9
+            || node.score().totemDenialProbability() > 1.0e-9
+            || node.score().threatNeutralization() > 1.0e-9;
+    }
+
+    private static PreparationScore preparationScore(CombatState root, Node node) {
+        int placedAnchors = 0;
+        int chargedAnchors = 0;
+        int placedCrystals = 0;
+        int placedObsidian = 0;
+        for (CombatAction action : node.actions()) {
+            if (action instanceof PlaceAnchor) {
+                placedAnchors++;
+            } else if (action instanceof ChargeAnchor) {
+                chargedAnchors++;
+            } else if (action instanceof PlaceCrystal) {
+                placedCrystals++;
+            } else if (action instanceof PlaceObsidian) {
+                placedObsidian++;
+            }
+        }
+        if (placedAnchors + chargedAnchors + placedCrystals + placedObsidian == 0) {
+            return null;
+        }
+
+        int rootReadyAnchors = (int) root.anchors().values().stream().filter(anchor -> anchor.charged()).count();
+        int nextReadyAnchors = (int) node.state().anchors().values().stream().filter(anchor -> anchor.charged()).count();
+        int rootCharges = root.anchors().values().stream().mapToInt(anchor -> anchor.charges()).sum();
+        int nextCharges = node.state().anchors().values().stream().mapToInt(anchor -> anchor.charges()).sum();
+        int readyAnchorGain = Math.max(0, nextReadyAnchors - rootReadyAnchors);
+        int anchorChargeGain = Math.max(0, nextCharges - rootCharges);
+        int anchorCountGain = Math.max(0, node.state().anchors().size() - root.anchors().size());
+        int feedbackBoundaries = PacketDependencyGraph.fromActions(node.actions()).feedbackBoundaryCount();
+        return new PreparationScore(
+            readyAnchorGain,
+            anchorChargeGain,
+            anchorCountGain,
+            placedCrystals,
+            placedObsidian,
+            node.robustness(),
+            feedbackBoundaries,
+            node.actions().size()
+        );
+    }
+
     private static PlanScore scoreRoot(CombatState root) {
         return PlanScore.root(futureGeometry(root));
     }
@@ -375,6 +435,36 @@ public final class BeamPlanner {
         boolean targetPopped,
         double positionRobustness
     ) {
+    }
+
+    private record PreparationScore(
+        int readyAnchorGain,
+        int anchorChargeGain,
+        int anchorCountGain,
+        int placedCrystals,
+        int placedObsidian,
+        double robustness,
+        int feedbackBoundaries,
+        int actionCount
+    ) implements Comparable<PreparationScore> {
+        @Override
+        public int compareTo(PreparationScore other) {
+            int result = Integer.compare(readyAnchorGain, other.readyAnchorGain);
+            if (result != 0) return result;
+            result = Integer.compare(anchorChargeGain, other.anchorChargeGain);
+            if (result != 0) return result;
+            result = Integer.compare(anchorCountGain, other.anchorCountGain);
+            if (result != 0) return result;
+            result = Integer.compare(placedCrystals, other.placedCrystals);
+            if (result != 0) return result;
+            result = Integer.compare(placedObsidian, other.placedObsidian);
+            if (result != 0) return result;
+            result = Double.compare(robustness, other.robustness);
+            if (result != 0) return result;
+            result = Integer.compare(other.feedbackBoundaries, feedbackBoundaries);
+            if (result != 0) return result;
+            return Integer.compare(other.actionCount, actionCount);
+        }
     }
 
     private record Node(
