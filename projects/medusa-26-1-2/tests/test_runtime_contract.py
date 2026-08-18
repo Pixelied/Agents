@@ -3,6 +3,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parents[1]
 DP = ROOT / "datapacks/medusa"
 FN = DP / "data/medusa/function"
 
@@ -35,6 +36,13 @@ class RuntimeEntrypointContract(unittest.TestCase):
         self.assertGreater(boss_pos, temple_pos, "boss smoke must run after the blocking temple build returns")
         self.assertGreater(damage_pos, boss_pos, "damage smoke must run after boss bootstrap")
         self.assertGreater(done_pos, damage_pos, "smoke completion marker must be emitted last")
+
+    def test_exact_runtime_workflow_waits_for_in_game_smoke_completion(self):
+        workflow = (REPO / ".github/workflows/medusa-26-1-2-ci.yml").read_text()
+        self.assertIn("grep -q 'MEDUSA_SMOKE_DONE' server.log", workflow)
+        self.assertNotIn("echo 'function medusa:debug/start_test_boss'", workflow)
+        self.assertNotIn("echo 'function medusa:debug/test_petrification_damage'", workflow)
+        self.assertIn("Serialization errors", workflow, "runtime gate must reject entity/data serialization warnings")
 
     def test_pedestal_display_uses_complete_26_1_2_transformation(self):
         text = (FN / "arena/pedestal/spawn_eye.mcfunction").read_text()
