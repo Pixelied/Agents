@@ -44,6 +44,7 @@ final class ProjectileValidationScenarios {
         results.add(validateArrow(context, singleplayer));
         results.add(validateTrident(context, singleplayer));
         results.add(validateMobOwnedArrowHardScaling(context, singleplayer));
+        results.add(validateMobOwnedTridentHardScaling(context, singleplayer));
         return List.copyOf(results);
     }
 
@@ -95,6 +96,21 @@ final class ProjectileValidationScenarios {
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer
     ) {
+        return validateMobOwnedProjectileHardScaling(context, singleplayer, false);
+    }
+
+    private static ValidationResult validateMobOwnedTridentHardScaling(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer
+    ) {
+        return validateMobOwnedProjectileHardScaling(context, singleplayer, true);
+    }
+
+    private static ValidationResult validateMobOwnedProjectileHardScaling(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        boolean trident
+    ) {
         singleplayer.getServer().runOnServer(server -> server.setDifficulty(Difficulty.HARD, true));
         context.waitFor(minecraft -> minecraft.level != null && minecraft.level.getDifficulty() == Difficulty.HARD);
 
@@ -110,22 +126,33 @@ final class ProjectileValidationScenarios {
             level.addFreshEntity(owner);
 
             Vec3 spawn = new Vec3(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 6d);
-            Arrow arrow = new Arrow(level, spawn.x, spawn.y, spawn.z, new ItemStack(Items.ARROW), null);
-            arrow.setOwner(owner);
-            arrow.setDeltaMovement(0d, 0d, -1.5d);
-            level.addFreshEntity(arrow);
-            return new ProjectileSetup(arrow.getId(), owner.getId());
+            Entity projectile;
+            if (trident) {
+                ThrownTrident thrown = new ThrownTrident(
+                    level,
+                    spawn.x,
+                    spawn.y,
+                    spawn.z,
+                    new ItemStack(Items.TRIDENT)
+                );
+                thrown.setOwner(owner);
+                thrown.setDeltaMovement(0d, 0d, -1.5d);
+                projectile = thrown;
+            } else {
+                Arrow arrow = new Arrow(level, spawn.x, spawn.y, spawn.z, new ItemStack(Items.ARROW), null);
+                arrow.setOwner(owner);
+                arrow.setDeltaMovement(0d, 0d, -1.5d);
+                projectile = arrow;
+            }
+            level.addFreshEntity(projectile);
+            return new ProjectileSetup(projectile.getId(), owner.getId());
         });
 
+        String sourceKey = trident ? "minecraft:trident" : "minecraft:arrow";
+        String id = trident ? "mob_trident_hard_scaling" : "mob_arrow_hard_scaling";
         ValidationResult result;
         try {
-            result = validateLiveProjectile(
-                context,
-                singleplayer,
-                setup.projectileId(),
-                "minecraft:arrow",
-                "mob_arrow_hard_scaling"
-            );
+            result = validateLiveProjectile(context, singleplayer, setup.projectileId(), sourceKey, id);
         } finally {
             discard(singleplayer, setup.ownerId());
             singleplayer.getServer().runOnServer(server -> server.setDifficulty(Difficulty.NORMAL, true));
