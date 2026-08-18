@@ -48,6 +48,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             PotionValidationScenarios.validateLingeringHarmingHasPreImpactThreat(context, singleplayer);
             LingeringPotionCloudHandoffValidationScenarios.validateLiveCloudRetainsHarmingThreat(context, singleplayer);
             PoisonPotionValidationScenarios.validateSplashPoisonHasPreImpactThreat(context, singleplayer);
+            PoisonPersistenceValidationScenarios.validateActivePoisonRetainsFutureThreat(context, singleplayer);
             results.addAll(ExtendedValidationScenarios.runtimeSlice(context, singleplayer));
             results.addAll(FallRescueValidationScenarios.runtimeSlice(context, singleplayer));
             results.addAll(ExperimentalValidationScenarios.runtimeSlice(singleplayer));
