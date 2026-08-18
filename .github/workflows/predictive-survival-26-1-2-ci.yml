@@ -46,6 +46,20 @@ jobs:
         working-directory: projects/predictive-survival-26-1-2
         run: xvfb-run -a gradle --no-daemon runClientGameTest
 
+      - name: Print client GameTest diagnostics
+        if: failure()
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          echo '--- run/logs/latest.log ---'
+          if [ -f run/logs/latest.log ]; then tail -n 500 run/logs/latest.log; else echo 'latest.log not found'; fi
+          echo '--- crash reports ---'
+          if [ -d run/crash-reports ]; then
+            find run/crash-reports -type f -maxdepth 1 -print -exec sh -c 'echo "--- $1 ---"; tail -n 500 "$1"' sh {} \;
+          else
+            echo 'crash-reports directory not found'
+          fi
+
       - name: Upload production jar
         if: success()
         uses: actions/upload-artifact@v4
