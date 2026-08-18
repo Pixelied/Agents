@@ -47,3 +47,8 @@ scoreboard players set $75 md_tmp 75
 scoreboard players set $60 md_tmp 60
 scoreboard players set $28 md_tmp 28
 scoreboard players set $100 md_tmp 100
+scoreboard objectives add md_gaze_tick dummy
+scoreboard objectives add md_gaze_hit dummy
+scoreboard objectives add md_ray dummy
+scoreboard objectives add md_gorgon_active dummy
+scoreboard players set $10 md_tmp 10

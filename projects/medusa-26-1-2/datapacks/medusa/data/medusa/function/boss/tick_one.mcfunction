@@ -1,4 +1,5 @@
 execute store result score @s md_hp run data get entity @s Health 1
+function medusa:gaze/tick_for_boss
 execute if score @s md_timer matches 1.. run function medusa:boss/transition/tick
 execute unless score @s md_timer matches 1.. if score @s md_phase matches 1 if score @s md_hp <= @s md_p2hp run function medusa:boss/transition/start_phase2
 execute unless score @s md_timer matches 1.. if score @s md_phase matches 2 if score @s md_hp <= @s md_p3hp run function medusa:boss/transition/start_phase3
