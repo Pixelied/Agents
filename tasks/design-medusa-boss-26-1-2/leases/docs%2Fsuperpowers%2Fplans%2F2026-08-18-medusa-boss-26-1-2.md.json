@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "design-medusa-boss-26-1-2",
+  "scope": "docs/superpowers/plans/2026-08-18-medusa-boss-26-1-2.md",
+  "owner": "openai-medusa-design-5a4c",
+  "state": "active",
+  "intent": "Write and self-review the implementation plan for the human-approved Minecraft 26.1.2 Medusa boss design.",
+  "claimed_at": "2026-08-18T15:00:30+00:00",
+  "heartbeat_at": "2026-08-18T15:00:30+00:00",
+  "expires_at": "2026-08-18T16:00:30+00:00",
+  "generation": 1
+}
