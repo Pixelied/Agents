@@ -16,6 +16,7 @@ public final class AreaEffectCloudAttributionTracker {
     private static final String CLOUD_TYPE = "minecraft:area_effect_cloud";
     private static final String DRAGON_BREATH_MARKER = ":dragon_breath:0";
     private static final String LINGERING_POTION_MARKER = ":lingering_cloud:0";
+    private static final String LINGERING_STATUS_MARKER = ":lingering_status:";
     private static final double MATCH_DISTANCE_SQUARED = 4d;
     private static final long NETWORK_GRACE_TICKS = 2L;
     private static final int DEFAULT_REAPPLICATION_DELAY_TICKS = 20;
@@ -30,20 +31,23 @@ public final class AreaEffectCloudAttributionTracker {
         for (ThreatEvent threat : threats) {
             if (threat == null || threat.impactPosition().isEmpty()) continue;
 
-            String marker;
+            String projectileKey;
             CloudAttribution attribution;
             if (threat.id().endsWith(DRAGON_BREATH_MARKER)) {
-                marker = DRAGON_BREATH_MARKER;
+                projectileKey = threat.id().substring(0, threat.id().length() - DRAGON_BREATH_MARKER.length());
                 attribution = CloudAttribution.dragonBreath();
             } else if (threat.id().endsWith(LINGERING_POTION_MARKER)) {
-                marker = LINGERING_POTION_MARKER;
+                projectileKey = threat.id().substring(0, threat.id().length() - LINGERING_POTION_MARKER.length());
                 attribution = CloudAttribution.lingeringPotion(threat);
                 if (attribution.rawDamage() <= 0f) continue;
             } else {
-                continue;
+                int marker = threat.id().indexOf(LINGERING_STATUS_MARKER);
+                if (marker < 0 || !threat.id().endsWith(":0")) continue;
+                projectileKey = threat.id().substring(0, marker);
+                attribution = CloudAttribution.lingeringStatus(clientTick, threat);
+                if (attribution.rawDamage() <= 0f) continue;
             }
 
-            String projectileKey = threat.id().substring(0, threat.id().length() - marker.length());
             long expiresAt = saturatingAdd(
                 clientTick,
                 saturatingAdd(Math.max(0L, threat.impact().latest()), NETWORK_GRACE_TICKS)
@@ -106,6 +110,16 @@ public final class AreaEffectCloudAttributionTracker {
             properties.put("cloud_source_key", attribution.sourceKey());
             properties.put("cloud_reapplication_delay_ticks", Integer.toString(attribution.reapplicationDelayTicks()));
             properties.put("cloud_attribution", attribution.attributionKey());
+            properties.put(
+                "cloud_application_health_threshold_exclusive",
+                Float.toString(attribution.applicationHealthThresholdExclusive())
+            );
+            if (attribution.firstDamageEarliestTick() >= 0L) {
+                long earliest = Math.max(0L, attribution.firstDamageEarliestTick() - clientTick);
+                long latest = Math.max(earliest, attribution.firstDamageLatestTick() - clientTick);
+                properties.put("cloud_first_damage_earliest_ticks", Long.toString(earliest));
+                properties.put("cloud_first_damage_latest_ticks", Long.toString(latest));
+            }
             annotated.add(new WorldSnapshot.EntitySnapshot(
                 entity.id(),
                 entity.typeKey(),
@@ -146,14 +160,20 @@ public final class AreaEffectCloudAttributionTracker {
         float rawDamage,
         String sourceKey,
         int reapplicationDelayTicks,
-        String attributionKey
+        String attributionKey,
+        float applicationHealthThresholdExclusive,
+        long firstDamageEarliestTick,
+        long firstDamageLatestTick
     ) {
         private static CloudAttribution dragonBreath() {
             return new CloudAttribution(
                 6f,
                 "minecraft:indirect_magic",
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
-                "dragon_breath"
+                "dragon_breath",
+                0f,
+                -1L,
+                -1L
             );
         }
 
@@ -162,7 +182,22 @@ public final class AreaEffectCloudAttributionTracker {
                 threat.damage().rawDamage().max(),
                 threat.damage().sourceKey(),
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
-                "lingering_potion"
+                "lingering_potion",
+                threat.damage().applicationHealthThresholdExclusive(),
+                -1L,
+                -1L
+            );
+        }
+
+        private static CloudAttribution lingeringStatus(long clientTick, ThreatEvent threat) {
+            return new CloudAttribution(
+                threat.damage().rawDamage().max(),
+                threat.damage().sourceKey(),
+                DEFAULT_REAPPLICATION_DELAY_TICKS,
+                "lingering_status",
+                threat.damage().applicationHealthThresholdExclusive(),
+                saturatingAdd(clientTick, Math.max(0L, threat.impact().earliest())),
+                saturatingAdd(clientTick, Math.max(0L, threat.impact().latest()))
             );
         }
     }
