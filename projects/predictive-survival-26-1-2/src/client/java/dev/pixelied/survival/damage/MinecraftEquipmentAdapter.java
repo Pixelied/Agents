@@ -27,21 +27,7 @@ public final class MinecraftEquipmentAdapter {
             if (!slot.isArmor() || slot == EquipmentSlot.BODY) continue;
             ItemStack stack = player.getItemBySlot(slot);
             if (stack.isEmpty()) continue;
-
-            double[] armorAndToughness = {0d, 0d};
-            stack.forEachModifier(slot, (attribute, modifier) -> accumulateAddValue(attribute, modifier, armorAndToughness));
-
-            int remainingDurability = stack.isDamageableItem()
-                ? Math.max(0, stack.getMaxDamage() - stack.getDamageValue())
-                : Integer.MAX_VALUE;
-            pieces.add(new ArmorPieceSnapshot(
-                slotFor(slot),
-                (float) armorAndToughness[0],
-                (float) armorAndToughness[1],
-                0,
-                remainingDurability,
-                stack.isDamageableItem()
-            ));
+            pieces.add(armorPiece(stack, slot, stack.isDamageableItem()));
         }
 
         ItemStack head = player.getItemBySlot(EquipmentSlot.HEAD);
@@ -60,6 +46,30 @@ public final class MinecraftEquipmentAdapter {
             helmetPresent,
             helmetDurability,
             pieces
+        );
+    }
+
+    public ArmorPieceSnapshot armorPiece(ItemStack stack, EquipmentSlot slot, boolean damageOnHurt) {
+        if (stack == null) throw new NullPointerException("stack");
+        if (slot == null) throw new NullPointerException("slot");
+        if (stack.isEmpty()) throw new IllegalArgumentException("stack must not be empty");
+        if (!slot.isArmor() || slot == EquipmentSlot.BODY) {
+            throw new IllegalArgumentException("Not humanoid armor: " + slot);
+        }
+
+        double[] armorAndToughness = {0d, 0d};
+        stack.forEachModifier(slot, (attribute, modifier) -> accumulateAddValue(attribute, modifier, armorAndToughness));
+        int remainingDurability = stack.isDamageableItem()
+            ? Math.max(0, stack.getMaxDamage() - stack.getDamageValue())
+            : Integer.MAX_VALUE;
+
+        return new ArmorPieceSnapshot(
+            slotFor(slot),
+            (float) armorAndToughness[0],
+            (float) armorAndToughness[1],
+            0,
+            remainingDurability,
+            damageOnHurt
         );
     }
 
