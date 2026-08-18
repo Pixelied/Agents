@@ -6,8 +6,10 @@ import dev.pixelied.survival.core.MinecraftWorldSnapshotFactory;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
+import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.DamageSimulator;
+import dev.pixelied.survival.threat.ExplosionExposure;
 import dev.pixelied.survival.threat.ExplosionPredictor;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timing.TimingSnapshot;
@@ -33,6 +35,7 @@ final class LiveExplosionScalingValidationScenarios {
     private static final float EPSILON = 0.0001f;
     private static final EngineLimits LIMITS = EngineLimits.defaults();
     private static final DamageSimulator SIMULATOR = new DamageSimulator();
+    private static final ExplosionExposure EXPOSURE = new ExplosionExposure();
 
     private LiveExplosionScalingValidationScenarios() {
     }
@@ -98,8 +101,45 @@ final class LiveExplosionScalingValidationScenarios {
             if (!event.damage().scalesWithDifficulty()) {
                 throw new AssertionError("live TNT explosion prediction did not scale with difficulty");
             }
-            return new LivePrediction(player, event);
+            return new LivePrediction(player, event, tntSnapshot.position());
         });
+
+        ServerBlastObservation serverBlast = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            ServerLevel level = (ServerLevel) player.level();
+            Entity entity = level.getEntity(entityId);
+            if (!(entity instanceof PrimedTnt tnt)) {
+                throw new AssertionError("server TNT disappeared before difficulty scaling validation");
+            }
+            Vec3 center = tnt.position();
+            float seen = ServerExplosion.getSeenPercent(center, player);
+            double distance = Math.sqrt(player.distanceToSqr(center));
+            float rawDamage = EXPOSURE.rawEntityDamage(4f, distance, seen);
+            boolean scalesWithDifficulty = player.damageSources().explosion(tnt, null).scalesWithDifficulty();
+            return new ServerBlastObservation(
+                vec(center),
+                vec(player.position()),
+                seen,
+                rawDamage,
+                scalesWithDifficulty
+            );
+        });
+
+        if (!serverBlast.scalesWithDifficulty()) {
+            throw new AssertionError("vanilla TNT damage source did not scale with difficulty");
+        }
+        float clientRaw = prediction.event().damage().rawDamage().max();
+        if (Math.abs(clientRaw - serverBlast.rawDamage()) > EPSILON) {
+            throw new AssertionError(
+                "live_tnt_raw_damage client=" + clientRaw
+                    + " server=" + serverBlast.rawDamage()
+                    + " clientTnt=" + prediction.tntPosition()
+                    + " serverTnt=" + serverBlast.tntPosition()
+                    + " clientPlayer=" + prediction.player().position()
+                    + " serverPlayer=" + serverBlast.playerPosition()
+                    + " vanillaExposure=" + serverBlast.exposure()
+            );
+        }
 
         float predictedHealth = SIMULATOR.simulate(prediction.player(), prediction.event().damage()).after().health();
         float actualHealth = singleplayer.getServer().computeOnServer(server -> {
@@ -214,13 +254,26 @@ final class LiveExplosionScalingValidationScenarios {
         }
     }
 
+    private static Vec3Snapshot vec(Vec3 value) {
+        return new Vec3Snapshot(value.x, value.y, value.z);
+    }
+
     private static void assertDifficultyScaled(String id, String value) {
         if (!Boolean.parseBoolean(value)) {
             throw new AssertionError(id + " did not expose scales_with_difficulty=true");
         }
     }
 
-    private record LivePrediction(PlayerSnapshot player, ThreatEvent event) {
+    private record LivePrediction(PlayerSnapshot player, ThreatEvent event, Vec3Snapshot tntPosition) {
+    }
+
+    private record ServerBlastObservation(
+        Vec3Snapshot tntPosition,
+        Vec3Snapshot playerPosition,
+        float exposure,
+        float rawDamage,
+        boolean scalesWithDifficulty
+    ) {
     }
 
     private record AnchorSetup(BlockPos pos, BlockState original) {
