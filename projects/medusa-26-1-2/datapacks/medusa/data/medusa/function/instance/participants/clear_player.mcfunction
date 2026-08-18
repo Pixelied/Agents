@@ -1,3 +1,4 @@
+function medusa:petrify/clear_player
 tag @s remove md.participant
 tag @s remove md.petrified
 tag @s remove md.staff_channel

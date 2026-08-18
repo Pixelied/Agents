@@ -52,3 +52,4 @@ scoreboard objectives add md_gaze_hit dummy
 scoreboard objectives add md_ray dummy
 scoreboard objectives add md_gorgon_active dummy
 scoreboard players set $10 md_tmp 10
+scoreboard objectives add md_stone_timer dummy
