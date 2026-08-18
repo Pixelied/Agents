@@ -6,8 +6,10 @@
   "intent": "Upgrade only the universal validation workflow to supported Node 24-based GitHub Actions releases.",
   "owner": "openai-workspace-repair-8c31",
   "protocol_version": "1.0",
+  "release_reason": "Work complete",
+  "released_at": "2026-08-18T11:31:45+00:00",
   "schema_version": 1,
   "scope": ".github/workflows/validate.yml",
-  "state": "active",
+  "state": "released",
   "task_id": "refresh-workspace-validation-actions"
 }
