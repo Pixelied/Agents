@@ -60,13 +60,37 @@ public final class SurvivalPlanner {
         SurvivalAction action,
         SafetyMode mode
     ) {
+        return simulate(context, timeline, action, mode, true);
+    }
+
+    /**
+     * Re-evaluates an action that has already been dispatched. The original packet/warmup deadline was
+     * proven when execution began, so normal countdown must not charge the full action duration again.
+     * All other legality and survival constraints are still evaluated against the latest frame.
+     */
+    public ActionSimulation simulateInFlight(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        SurvivalAction action,
+        SafetyMode mode
+    ) {
+        return simulate(context, timeline, action, mode, false);
+    }
+
+    private ActionSimulation simulate(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        SurvivalAction action,
+        SafetyMode mode,
+        boolean enforceDeadline
+    ) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(mode, "mode");
 
         TimelineResult baselineResult = timelineSimulator.simulate(context.player(), timeline);
-        String rejection = hardConstraintFailure(context, timeline, action, mode, baselineResult);
+        String rejection = hardConstraintFailure(context, timeline, action, mode, baselineResult, enforceDeadline);
         if (rejection != null) {
             return new ActionSimulation(
                 action, baselineResult, false, action.reliability(),
@@ -93,20 +117,24 @@ public final class SurvivalPlanner {
         ThreatTimeline timeline,
         SurvivalAction action,
         SafetyMode mode,
-        TimelineResult baselineResult
+        TimelineResult baselineResult,
+        boolean enforceDeadline
     ) {
         if (!action.legal()) return "illegal";
         if (!action.authoritativePrerequisitesSatisfied()) return "authoritative prerequisites missing";
         if (mode != SafetyMode.EXPERIMENTAL && action.deliberateDamage()) {
             return "safety mode forbids deliberate damage";
         }
-        if (action instanceof SurvivalAction.RaiseShield shield && !shield.guaranteedBlock()) {
-            return "shield block is not guaranteed";
+        if (action instanceof SurvivalAction.RaiseShield shield) {
+            if (!shield.guaranteedBlock()) return "shield block is not guaranteed";
+            boolean currentTimelineGuaranteed = timeline.events().stream()
+                .allMatch(event -> event.blockable() && !event.canDisableBlocking());
+            if (!currentTimelineGuaranteed) return "current threat timeline is not guaranteed shield-blockable";
         }
 
         boolean requiresPacketWindow = action.requiredServerTicks() > 0
             || action instanceof SurvivalAction.EquipDeathProtection;
-        if (requiresPacketWindow) {
+        if (enforceDeadline && requiresPacketWindow) {
             TickWindow requiredImpact = requiredImpactForAction(context, timeline, action, baselineResult);
             if (requiredImpact != null && !context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) {
                 return "server deadline missed";
