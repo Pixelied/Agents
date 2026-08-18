@@ -115,7 +115,7 @@ final class ExtendedValidationScenarios {
         PopChainState actual = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             SurvivalValidationClientGameTest.reset(player, 4f);
-            player.setMainHandItem(new ItemStack(Items.TOTEM_OF_UNDYING));
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(Items.TOTEM_OF_UNDYING));
             player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, new ItemStack(Items.TOTEM_OF_UNDYING));
             ServerLevel level = (ServerLevel) player.level();
             DamageSource source = player.damageSources().generic();
