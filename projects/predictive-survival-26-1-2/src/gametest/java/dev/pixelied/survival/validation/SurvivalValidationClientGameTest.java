@@ -38,6 +38,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             waitForServerClientLoaded(context, singleplayer);
 
             results.add(validateGenericDamage(singleplayer));
+            results.addAll(DamageValidationScenarios.firstRuntimeSlice(context, singleplayer));
             validateHurtCooldown(singleplayer);
             validateDeathProtection(singleplayer, InteractionHand.MAIN_HAND);
             validateDeathProtection(singleplayer, InteractionHand.OFF_HAND);
@@ -117,7 +118,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
         }
     }
 
-    private static void reset(ServerPlayer player, float health) {
+    static void reset(ServerPlayer player, float health) {
         player.removeAllEffects();
         player.setAbsorptionAmount(0f);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
@@ -126,7 +127,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
         player.setHealth(health);
     }
 
-    private static ServerPlayer onlyPlayer(net.minecraft.server.MinecraftServer server) {
+    static ServerPlayer onlyPlayer(net.minecraft.server.MinecraftServer server) {
         List<ServerPlayer> players = server.getPlayerList().getPlayers();
         if (players.size() != 1) {
             throw new AssertionError("expected one gametest player, found " + players.size());
@@ -143,7 +144,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
         );
     }
 
-    private static void assertClose(String id, float expected, float actual, float tolerance) {
+    static void assertClose(String id, float expected, float actual, float tolerance) {
         if (Math.abs(expected - actual) > tolerance) {
             throw new AssertionError(id + " expected=" + expected + " actual=" + actual);
         }
