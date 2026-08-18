@@ -57,11 +57,10 @@ jobs:
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
-          for file in gametest-console.log run/logs/latest.log; do
-            [ -f "$file" ] || continue
-            echo "--- $file assertions ---"
-            grep -Ein 'AssertionError|expected=|timed out|timeout|test failed|gametest failed|game test failed' "$file" | tail -n 20 || true
-          done
+          echo '--- gametest-console.log tail ---'
+          if [ -f gametest-console.log ]; then tail -n 120 gametest-console.log; else echo 'gametest-console.log not found'; fi
+          echo '--- run/logs/latest.log tail ---'
+          if [ -f run/logs/latest.log ]; then tail -n 120 run/logs/latest.log; else echo 'latest.log not found'; fi
 
       - name: Upload production jar
         if: success()
