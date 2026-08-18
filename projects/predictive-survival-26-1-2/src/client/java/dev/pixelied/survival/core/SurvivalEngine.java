@@ -159,16 +159,11 @@ public final class SurvivalEngine {
     }
 
     private static String fingerprint(ThreatTimeline timeline) {
-        StringBuilder builder = new StringBuilder();
-        for (ThreatEvent event : timeline.events()) {
-            builder.append(event.id())
-                .append('@').append(event.impact().earliest())
-                .append('-').append(event.impact().latest())
-                .append(':').append(event.damage().sourceKey())
-                .append(':').append(event.damage().rawDamage().max())
-                .append(';');
-        }
-        return builder.toString();
+        List<String> identities = timeline.events().stream()
+            .map(event -> event.id() + '|' + event.kind() + '|' + event.damage().sourceKey())
+            .sorted()
+            .toList();
+        return String.join(";", identities);
     }
 
     private static String threatSummary(ThreatTimeline timeline) {
