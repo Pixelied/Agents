@@ -212,6 +212,12 @@ Never begin exclusive work based only on an unmerged claim. Refresh immediately 
 - `tasks/<task-id>/artifacts/` — small task evidence and references, not an unrestricted binary dump.
 - `templates/` and `schemas/` — protocol contracts; changes require tests and protocol review.
 
+### Git-tracked records versus runtime directories
+
+Git does not preserve empty directories. A clean checkout may therefore omit an empty `leases/`, `handoffs/`, `artifacts/`, `inbox/`, or `notes/` directory even though the workspace creates those directories locally. That is valid workspace state: writers recreate parent directories when the first record is written.
+
+`events/` is different for a normal task because `task-create` immediately writes a tracked `task_created` event. A missing task `events/` directory is therefore treated as suspicious, while a missing empty `handoffs/` directory is not. Do not add validator failures or placeholder files solely to force optional empty runtime directories into Git.
+
 ## Artifact storage
 
 The coordination repository is an index and audit trail, not a binary warehouse.
