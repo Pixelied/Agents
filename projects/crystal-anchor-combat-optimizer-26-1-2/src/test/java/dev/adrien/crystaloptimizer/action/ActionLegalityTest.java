@@ -178,7 +178,7 @@ class ActionLegalityTest {
             Optional.empty()
         );
         var initial = state(
-            CombatRegion.empty(),
+            CombatRegion.singleBlock(BASE.below(), Blocks.OBSIDIAN.defaultBlockState()),
             List.of(),
             Map.of(),
             setupInventory,
