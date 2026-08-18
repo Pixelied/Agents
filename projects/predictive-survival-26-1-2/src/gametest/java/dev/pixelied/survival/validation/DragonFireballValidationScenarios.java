@@ -7,13 +7,17 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
+import dev.pixelied.survival.core.WorldSnapshot;
+import dev.pixelied.survival.mixin.AreaEffectCloudAccessor;
 import dev.pixelied.survival.threat.EnvironmentPredictorRegistry;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.timing.TimingSnapshot;
+import dev.pixelied.survival.timeline.ThreatEvent;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Creeper;
@@ -24,6 +28,8 @@ import net.minecraft.world.phys.Vec3;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 final class DragonFireballValidationScenarios {
@@ -74,7 +80,7 @@ final class DragonFireballValidationScenarios {
 
             ImpactObservation impact = null;
             CloudObservation firstCloud = null;
-            Boolean cloudPredictedThreat = null;
+            ClientCloudObservation clientCloud = null;
             for (int tick = 1; tick <= 40; tick++) {
                 context.waitTick();
                 ImpactObservation observation = singleplayer.getServer().computeOnServer(server ->
@@ -86,22 +92,7 @@ final class DragonFireballValidationScenarios {
                     context.waitFor(minecraft ->
                         minecraft.level != null && minecraft.level.getEntity(capturedCloud.entityId()) != null
                     );
-                    cloudPredictedThreat = context.computeOnClient(minecraft -> {
-                        if (minecraft.player == null || minecraft.level == null) {
-                            throw new AssertionError("client player/level unavailable for area-cloud validation");
-                        }
-                        PlayerSnapshot player = new MinecraftSnapshotFactory().capture(minecraft.player);
-                        PredictionContext predictionContext = new PredictionContext(
-                            player,
-                            new MinecraftWorldSnapshotFactory().capture(minecraft.level, minecraft.player, LIMITS),
-                            new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
-                            LIMITS
-                        );
-                        return EnvironmentPredictorRegistry.defaults().predict(predictionContext).stream()
-                            .anyMatch(event -> event.id().startsWith(
-                                "env:area_effect_cloud:" + capturedCloud.entityId() + ":"
-                            ));
-                    });
+                    clientCloud = context.computeOnClient(minecraft -> inspectClientCloud(minecraft, capturedCloud.entityId()));
                 }
                 if (observation.health() < 20f) {
                     impact = new ImpactObservation(
@@ -129,12 +120,13 @@ final class DragonFireballValidationScenarios {
                         + " impactCloud=" + impact.cloud()
                 );
             }
-            if (!Boolean.TRUE.equals(cloudPredictedThreat)) {
+            if (clientCloud == null || !clientCloud.predictedThreat()) {
                 throw new AssertionError(
                     "live dragon-breath area effect cloud caused server damage but the production environment registry "
                         + "emitted no cloud threat; actualHealth=" + impact.health()
                         + " damageTick=" + impact.tick()
                         + " firstCloud=" + firstCloud
+                        + " clientCloud=" + clientCloud
                         + " impactCloud=" + impact.cloud()
                 );
             }
@@ -155,6 +147,39 @@ final class DragonFireballValidationScenarios {
             });
             context.waitTick();
         }
+    }
+
+    private static ClientCloudObservation inspectClientCloud(net.minecraft.client.Minecraft minecraft, int cloudId) {
+        if (minecraft.player == null || minecraft.level == null) {
+            throw new AssertionError("client player/level unavailable for area-cloud validation");
+        }
+        Entity entity = minecraft.level.getEntity(cloudId);
+        if (!(entity instanceof AreaEffectCloud cloud)) {
+            throw new AssertionError("client entity " + cloudId + " is not an AreaEffectCloud: " + entity);
+        }
+
+        PlayerSnapshot player = new MinecraftSnapshotFactory().capture(minecraft.player);
+        WorldSnapshot world = new MinecraftWorldSnapshotFactory().capture(minecraft.level, minecraft.player, LIMITS);
+        WorldSnapshot.EntitySnapshot cloudSnapshot = world.entities().stream()
+            .filter(snapshot -> snapshot.id().equals(Integer.toString(cloudId)))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("client world snapshot omitted cloud " + cloudId));
+        PredictionContext predictionContext = new PredictionContext(
+            player,
+            world,
+            new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
+            LIMITS
+        );
+        List<ThreatEvent> predicted = EnvironmentPredictorRegistry.defaults().predict(predictionContext).stream()
+            .filter(event -> event.id().startsWith("env:area_effect_cloud:" + cloudId + ":"))
+            .toList();
+        String payload = ((AreaEffectCloudAccessor) (Object) cloud).predictiveSurvival$getPotionContents().toString();
+        return new ClientCloudObservation(
+            !predicted.isEmpty(),
+            payload,
+            cloudSnapshot.properties(),
+            predicted.stream().map(event -> event.id() + "=" + event.damage()).toList()
+        );
     }
 
     private static ImpactObservation observe(net.minecraft.server.MinecraftServer server, int projectileId) {
@@ -241,6 +266,14 @@ final class DragonFireballValidationScenarios {
         boolean projectilePresent,
         CloudObservation cloud,
         int tick
+    ) {
+    }
+
+    private record ClientCloudObservation(
+        boolean predictedThreat,
+        String potionContents,
+        Map<String, String> snapshotProperties,
+        List<String> predictedEvents
     ) {
     }
 
