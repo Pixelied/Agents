@@ -10,12 +10,16 @@ import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
+import dev.pixelied.survival.damage.ArmorPieceSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.inventory.ConsumableSurvivalSnapshot;
+import dev.pixelied.survival.inventory.EquippableSurvivalSnapshot;
 import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
@@ -117,6 +121,81 @@ class SurvivalCandidateGeneratorTest {
         assertTrue(candidates.stream().noneMatch(SurvivalAction.RaiseShield.class::isInstance));
     }
 
+    @Test
+    void heldGuaranteedConsumableEffectsCreateExecutableCandidate() {
+        ConsumableSurvivalSnapshot consumable = new ConsumableSurvivalSnapshot(
+            32,
+            true,
+            List.of(
+                new EffectInstanceSnapshot("minecraft:resistance", 6000, 0),
+                new EffectInstanceSnapshot("minecraft:absorption", 2400, 0)
+            )
+        );
+        InventorySlotSnapshot held = new InventorySlotSnapshot(
+            0,
+            "test:survival_food",
+            1,
+            false,
+            Optional.of(consumable),
+            Optional.empty()
+        );
+        InventorySnapshot inventory = new InventorySnapshot(0, Map.of(0, held), false);
+        MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36));
+
+        List<SurvivalAction> candidates = generator.generate(
+            context(DeathProtectionSnapshot.none(), BlockingSnapshot.none()),
+            timeline(false, 40),
+            inventory,
+            menu
+        );
+
+        SurvivalAction.ApplyEffects action = assertInstanceOf(
+            SurvivalAction.ApplyEffects.class,
+            candidates.stream().filter(SurvivalAction.ApplyEffects.class::isInstance).findFirst().orElseThrow()
+        );
+        assertEquals("test:survival_food", action.itemKey());
+        assertEquals(32, action.requiredServerTicks());
+        assertEquals(0, action.statusEffectsAfter().resistanceAmplifier());
+        assertEquals(4f, action.absorptionGain(), 0.0001f);
+    }
+
+    @Test
+    void heldSwappableArmorCreatesRuntimeStatEquipmentCandidate() {
+        ArmorPieceSnapshot chest = new ArmorPieceSnapshot(
+            ArmorPieceSnapshot.Slot.CHEST,
+            8f,
+            3f,
+            0,
+            500,
+            true
+        );
+        InventorySlotSnapshot held = new InventorySlotSnapshot(
+            0,
+            "test:heavy_chestplate",
+            1,
+            false,
+            Optional.empty(),
+            Optional.of(new EquippableSurvivalSnapshot(chest, true))
+        );
+        InventorySnapshot inventory = new InventorySnapshot(0, Map.of(0, held), false);
+        MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36));
+
+        List<SurvivalAction> candidates = generator.generate(
+            context(DeathProtectionSnapshot.none(), BlockingSnapshot.none()),
+            timeline(false, 5),
+            inventory,
+            menu
+        );
+
+        SurvivalAction.SwapEquipment action = assertInstanceOf(
+            SurvivalAction.SwapEquipment.class,
+            candidates.stream().filter(SurvivalAction.SwapEquipment.class::isInstance).findFirst().orElseThrow()
+        );
+        assertEquals("test:heavy_chestplate", action.equipmentUpdates().get("chest"));
+        assertEquals(8f, action.mitigationAfter().armor(), 0.0001f);
+        assertEquals(3f, action.mitigationAfter().toughness(), 0.0001f);
+    }
+
     private static PredictionContext context(DeathProtectionSnapshot protection, BlockingSnapshot blocking) {
         PlayerSnapshot player = new PlayerSnapshot(
             5f, 0f, false, false, false, DifficultySnapshot.NORMAL,
@@ -129,11 +208,15 @@ class SurvivalCandidateGeneratorTest {
     }
 
     private static ThreatTimeline timeline(boolean blockable) {
+        return timeline(blockable, 3);
+    }
+
+    private static ThreatTimeline timeline(boolean blockable, long impactTick) {
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(10f), Set.of(), false, 1f, false, Optional.empty(), "test:incoming"
         );
         return new ThreatTimeline(List.of(new ThreatEvent(
-            "incoming", ThreatKind.OTHER, new TickWindow(3, 3), damage, Confidence.EXACT,
+            "incoming", ThreatKind.OTHER, new TickWindow(impactTick, impactTick), damage, Confidence.EXACT,
             Optional.empty(), Optional.empty(), true, blockable, true, false
         )));
     }
