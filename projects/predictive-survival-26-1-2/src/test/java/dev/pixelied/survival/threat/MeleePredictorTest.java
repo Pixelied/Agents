@@ -68,6 +68,70 @@ class MeleePredictorTest {
         assertEquals(24f, WeaponSnapshot.maceSmashBonus(10), 0.0001f);
     }
 
+    @Test
+    void spearRelativeSpeedRaisesKineticDamage() {
+        ThreatEvent slow = predictor.predict(context(spearAttacker(6.0, 0.0))).getFirst();
+        ThreatEvent fast = predictor.predict(context(spearAttacker(12.0, 0.0))).getFirst();
+
+        assertEquals("minecraft:spear", fast.damage().sourceKey());
+        assertTrue(fast.damage().rawDamage().max() > slow.damage().rawDamage().max());
+        assertEquals(15f, fast.damage().rawDamage().max(), 0.0001f);
+    }
+
+    @Test
+    void spearBelowRelativeSpeedConditionProducesNoDamageThreat() {
+        WorldSnapshot.EntitySnapshot attacker = attacker(Map.ofEntries(
+            Map.entry("melee_capable", "true"),
+            Map.entry("attack_range", "4.5"),
+            Map.entry("weapon_key", "minecraft:netherite_spear"),
+            Map.entry("spear_base_mob_damage", "1"),
+            Map.entry("spear_damage_multiplier", "1.2"),
+            Map.entry("spear_damage_max_use_ticks", "102"),
+            Map.entry("spear_damage_min_speed", "0"),
+            Map.entry("spear_damage_min_relative_speed", "4.6"),
+            Map.entry("spear_ticks_used", "20"),
+            Map.entry("spear_attacker_speed_projection", "4.5"),
+            Map.entry("spear_target_speed_projection", "0")
+        ));
+
+        assertTrue(predictor.predict(context(attacker)).isEmpty());
+    }
+
+    @Test
+    void spearOutsideDamageUseWindowProducesNoDamageThreat() {
+        WorldSnapshot.EntitySnapshot attacker = attacker(Map.ofEntries(
+            Map.entry("melee_capable", "true"),
+            Map.entry("attack_range", "4.5"),
+            Map.entry("weapon_key", "minecraft:netherite_spear"),
+            Map.entry("spear_base_mob_damage", "1"),
+            Map.entry("spear_damage_multiplier", "1.2"),
+            Map.entry("spear_damage_max_use_ticks", "102"),
+            Map.entry("spear_damage_min_speed", "0"),
+            Map.entry("spear_damage_min_relative_speed", "4.6"),
+            Map.entry("spear_ticks_used", "103"),
+            Map.entry("spear_attacker_speed_projection", "12"),
+            Map.entry("spear_target_speed_projection", "0")
+        ));
+
+        assertTrue(predictor.predict(context(attacker)).isEmpty());
+    }
+
+    private static WorldSnapshot.EntitySnapshot spearAttacker(double attackerProjection, double targetProjection) {
+        return attacker(Map.ofEntries(
+            Map.entry("melee_capable", "true"),
+            Map.entry("attack_range", "4.5"),
+            Map.entry("weapon_key", "minecraft:netherite_spear"),
+            Map.entry("spear_base_mob_damage", "1"),
+            Map.entry("spear_damage_multiplier", "1.2"),
+            Map.entry("spear_damage_max_use_ticks", "102"),
+            Map.entry("spear_damage_min_speed", "0"),
+            Map.entry("spear_damage_min_relative_speed", "4.6"),
+            Map.entry("spear_ticks_used", "20"),
+            Map.entry("spear_attacker_speed_projection", Double.toString(attackerProjection)),
+            Map.entry("spear_target_speed_projection", Double.toString(targetProjection))
+        ));
+    }
+
     private static PredictionContext context(WorldSnapshot.EntitySnapshot attacker) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
