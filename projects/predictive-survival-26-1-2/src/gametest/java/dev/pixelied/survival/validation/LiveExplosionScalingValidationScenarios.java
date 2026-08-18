@@ -33,6 +33,7 @@ import java.util.List;
 
 final class LiveExplosionScalingValidationScenarios {
     private static final float EPSILON = 0.0001f;
+    private static final double POSITION_EPSILON = 0.0001d;
     private static final EngineLimits LIMITS = EngineLimits.defaults();
     private static final DamageSimulator SIMULATOR = new DamageSimulator();
     private static final ExplosionExposure EXPOSURE = new ExplosionExposure();
@@ -56,10 +57,21 @@ final class LiveExplosionScalingValidationScenarios {
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer
     ) {
-        int entityId = singleplayer.getServer().computeOnServer(server -> {
+        singleplayer.getServer().runOnServer(server -> {
             server.setDifficulty(Difficulty.HARD, true);
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             SurvivalValidationClientGameTest.reset(player, 20f);
+            player.resetCurrentImpulseContext();
+            player.setDeltaMovement(Vec3.ZERO);
+            player.fallDistance = 0d;
+        });
+        context.waitFor(minecraft -> minecraft.player != null
+            && minecraft.level != null
+            && minecraft.level.getDifficulty() == Difficulty.HARD);
+        waitForPlayerPositionSync(context, singleplayer, "live_tnt_pre_spawn");
+
+        int entityId = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             player.setDeltaMovement(Vec3.ZERO);
             ServerLevel level = (ServerLevel) player.level();
             Vec3 spawn = player.position().add(0d, 0.9d, 6.5d);
@@ -75,6 +87,7 @@ final class LiveExplosionScalingValidationScenarios {
             && minecraft.level != null
             && minecraft.level.getDifficulty() == Difficulty.HARD
             && minecraft.level.getEntity(entityId) != null);
+        waitForPlayerPositionSync(context, singleplayer, "live_tnt_prediction");
 
         LivePrediction prediction = context.computeOnClient(minecraft -> {
             if (minecraft.player == null || minecraft.level == null) {
@@ -173,6 +186,33 @@ final class LiveExplosionScalingValidationScenarios {
             ValidationStatus.RUNTIME_CONFIRMED,
             EPSILON
         );
+    }
+
+    private static void waitForPlayerPositionSync(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        String id
+    ) {
+        Vec3Snapshot lastClient = null;
+        Vec3Snapshot lastServer = null;
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            lastClient = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null) throw new AssertionError("client player unavailable while synchronizing " + id);
+                return vec(minecraft.player.position());
+            });
+            lastServer = singleplayer.getServer().computeOnServer(server ->
+                vec(SurvivalValidationClientGameTest.onlyPlayer(server).position())
+            );
+            if (positionsClose(lastClient, lastServer)) return;
+            context.waitTick();
+        }
+        throw new AssertionError(id + " player positions did not synchronize: client=" + lastClient + " server=" + lastServer);
+    }
+
+    private static boolean positionsClose(Vec3Snapshot left, Vec3Snapshot right) {
+        return Math.abs(left.x() - right.x()) <= POSITION_EPSILON
+            && Math.abs(left.y() - right.y()) <= POSITION_EPSILON
+            && Math.abs(left.z() - right.z()) <= POSITION_EPSILON;
     }
 
     private static void validateCrystalSnapshot(
