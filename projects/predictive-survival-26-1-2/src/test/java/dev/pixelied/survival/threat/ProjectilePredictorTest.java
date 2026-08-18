@@ -39,7 +39,7 @@ class ProjectilePredictorTest {
     }
 
     @Test
-    void oneTickObservedServerLeadPullsImpactForwardWithoutChangingDamage() {
+    void observedServerLeadWidensImpactWindowWithoutChangingDamage() {
         ThreatEvent event = predictor.predict(context(
             List.of(arrow(Map.of(
                 "base_damage", "6.0",
@@ -49,7 +49,7 @@ class ProjectilePredictorTest {
             List.of()
         )).getFirst();
 
-        assertEquals(new TickWindow(6, 6), event.impact());
+        assertEquals(new TickWindow(6, 7), event.impact());
         assertEquals(DamageRange.exact(6f), event.damage().rawDamage());
     }
 
