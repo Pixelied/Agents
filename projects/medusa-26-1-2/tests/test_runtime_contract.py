@@ -17,9 +17,13 @@ class RuntimeEntrypointContract(unittest.TestCase):
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing runtime debug entrypoint: {rel}")
 
-    def test_debug_harness_loads_the_remote_arena_chunks(self):
+    def test_debug_harness_loads_then_schedules_the_remote_arena(self):
         text = (FN / "debug/create_test_temple.mcfunction").read_text()
         self.assertIn("forceload add 0 0 96 96", text)
+        self.assertIn("schedule function medusa:debug/create_test_temple_loaded 5t replace", text)
+        loaded = FN / "debug/create_test_temple_loaded.mcfunction"
+        self.assertTrue(loaded.is_file(), "scheduled loaded-chunk temple creation function is missing")
+        self.assertIn("function medusa:admin/place_temple", loaded.read_text())
 
     def test_mcfunction_macro_lines_have_variables(self):
         bad = []
