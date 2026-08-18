@@ -20,6 +20,9 @@ public record PlaceCrystal(BlockPos basePos) implements CombatAction {
         if (state.inventory().count(Items.END_CRYSTAL) <= 0) {
             return ActionLegality.denied("no end crystal resource is known available");
         }
+        if (state.inventory().selectedItem().filter(Items.END_CRYSTAL::equals).isEmpty()) {
+            return ActionLegality.denied("end crystal is not selected in the real main hand");
+        }
         var baseState = state.geometry().getBlockState(basePos);
         if (!baseState.is(Blocks.OBSIDIAN) && !baseState.is(Blocks.BEDROCK)) {
             return ActionLegality.denied("end crystal base is not obsidian or bedrock");
