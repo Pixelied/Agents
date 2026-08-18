@@ -43,3 +43,7 @@ scoreboard objectives add md_p2_br dummy
 scoreboard objectives add md_p3_timer dummy
 scoreboard objectives add md_p3_zone dummy
 scoreboard objectives add md_eye_state dummy
+scoreboard players set $75 md_tmp 75
+scoreboard players set $60 md_tmp 60
+scoreboard players set $28 md_tmp 28
+scoreboard players set $100 md_tmp 100
