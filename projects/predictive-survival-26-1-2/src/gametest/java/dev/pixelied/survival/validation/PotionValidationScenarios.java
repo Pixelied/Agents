@@ -22,6 +22,8 @@ import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.List;
+
 final class PotionValidationScenarios {
     private static final float EPSILON = 0.0001f;
 
@@ -112,7 +114,15 @@ final class PotionValidationScenarios {
             potion.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 5d);
             potion.setDeltaMovement(0d, 0d, -0.6d);
             level.addFreshEntity(potion);
-            return new WallSetup(potion.getId(), owner.getId(), wallBase);
+            return new WallSetup(
+                potion.getId(),
+                owner.getId(),
+                wallBase,
+                player.position().toString(),
+                player.getBoundingBox().toString(),
+                potion.position().toString(),
+                potion.getDeltaMovement().toString()
+            );
         });
 
         try {
@@ -127,19 +137,21 @@ final class PotionValidationScenarios {
                 .filter(event -> event.id().equals("projectile:" + setup.projectileId() + ":splash_magic"))
                 .findFirst()
                 .orElse(null);
-            String snapshot = snapshot(frame, setup.projectileId());
+            String snapshot = wallSnapshot(frame, setup.projectileId(), setup.wallBase());
 
-            float actualHealth = awaitDamage(context, singleplayer, setup.projectileId(), snapshot, setup);
+            DamageObservation damage = awaitDamageDetailed(context, singleplayer, setup.projectileId(), snapshot, setup);
+            float actualHealth = damage.health();
             if (!(actualHealth > 8f && actualHealth < 20f)) {
                 throw new AssertionError(
                     "wall-splash fixture did not produce reduced Harming damage; actualHealth=" + actualHealth
-                        + " " + snapshot + " setup=" + setup
+                        + " " + snapshot + " setup=" + setup + " damage=" + damage
                 );
             }
             if (predicted == null) {
                 throw new AssertionError(
                     "wall-splash Harming caused vanilla damage but production emitted no splash_magic threat; "
-                        + "actualHealth=" + actualHealth + " " + snapshot + " setup=" + setup
+                        + "actualHealth=" + actualHealth + " " + snapshot + " setup=" + setup + " damage=" + damage
+                        + " projectileEvents=" + projectileEvents(frame, setup.projectileId())
                 );
             }
 
@@ -147,7 +159,8 @@ final class PotionValidationScenarios {
             if (Math.abs(predictedHealth - actualHealth) > EPSILON) {
                 throw new AssertionError(
                     "wall-splash Harming falloff mismatch; predicted=" + predictedHealth
-                        + " actual=" + actualHealth + " event=" + predicted + " " + snapshot + " setup=" + setup
+                        + " actual=" + actualHealth + " event=" + predicted + " " + snapshot
+                        + " setup=" + setup + " damage=" + damage
                 );
             }
         } finally {
@@ -178,9 +191,38 @@ final class PotionValidationScenarios {
     private static String snapshot(SurvivalEngine.EngineFrame frame, int projectileId) {
         return frame.context().world().entities().stream()
             .filter(entity -> entity.id().equals(Integer.toString(projectileId)))
-            .map(entity -> "type=" + entity.typeKey() + " properties=" + entity.properties())
+            .map(entity -> "type=" + entity.typeKey()
+                + " position=" + entity.position()
+                + " velocity=" + entity.velocity()
+                + " box=" + entity.boundingBox()
+                + " properties=" + entity.properties()
+                + " playerPosition=" + frame.context().player().position()
+                + " playerVelocity=" + frame.context().player().velocity())
             .findFirst()
             .orElse("<projectile missing from snapshot>");
+    }
+
+    private static String wallSnapshot(SurvivalEngine.EngineFrame frame, int projectileId, BlockPos wallBase) {
+        List<String> wallBlocks = frame.context().world().blocks().stream()
+            .filter(block -> block.blockId().equals("minecraft:stone"))
+            .filter(block -> matches(block.position(), wallBase) || matches(block.position(), wallBase.above()))
+            .map(block -> block.position() + " properties=" + block.properties())
+            .toList();
+        return snapshot(frame, projectileId) + " wallBase=" + wallBase + " wallSnapshots=" + wallBlocks;
+    }
+
+    private static boolean matches(dev.pixelied.survival.core.Vec3Snapshot center, BlockPos pos) {
+        return Math.floor(center.x()) == pos.getX()
+            && Math.floor(center.y()) == pos.getY()
+            && Math.floor(center.z()) == pos.getZ();
+    }
+
+    private static List<String> projectileEvents(SurvivalEngine.EngineFrame frame, int projectileId) {
+        String prefix = "projectile:" + projectileId + ":";
+        return frame.timeline().events().stream()
+            .filter(event -> event.id().startsWith(prefix))
+            .map(Object::toString)
+            .toList();
     }
 
     private static float awaitDamage(
@@ -190,19 +232,32 @@ final class PotionValidationScenarios {
         String snapshot,
         Object setup
     ) {
-        float actualHealth = 20f;
-        Observation last = null;
+        return awaitDamageDetailed(context, singleplayer, projectileId, snapshot, setup).health();
+    }
+
+    private static DamageObservation awaitDamageDetailed(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        int projectileId,
+        String snapshot,
+        Object setup
+    ) {
+        Observation lastPresent = null;
+        Observation current = null;
         int disappearedAt = -1;
         for (int tick = 1; tick <= 30; tick++) {
             context.waitTick();
-            last = singleplayer.getServer().computeOnServer(server -> observe(server, projectileId));
-            actualHealth = last.health();
-            if (!last.present() && disappearedAt < 0) disappearedAt = tick;
-            if (actualHealth < 20f) return actualHealth;
+            current = singleplayer.getServer().computeOnServer(server -> observe(server, projectileId));
+            if (current.present()) lastPresent = current;
+            if (!current.present() && disappearedAt < 0) disappearedAt = tick;
+            if (current.health() < 20f) {
+                return new DamageObservation(current.health(), tick, disappearedAt, lastPresent, current);
+            }
         }
         throw new AssertionError(
             "splash Harming II fixture produced no server damage within 30 ticks; "
-                + snapshot + " setup=" + setup + " disappearedAt=" + disappearedAt + " last=" + last
+                + snapshot + " setup=" + setup + " disappearedAt=" + disappearedAt
+                + " lastPresent=" + lastPresent + " current=" + current
         );
     }
 
@@ -242,7 +297,15 @@ final class PotionValidationScenarios {
     ) {
     }
 
-    private record WallSetup(int projectileId, int ownerId, BlockPos wallBase) {
+    private record WallSetup(
+        int projectileId,
+        int ownerId,
+        BlockPos wallBase,
+        String serverPlayerPosition,
+        String serverPlayerBox,
+        String serverPotionPosition,
+        String serverPotionVelocity
+    ) {
     }
 
     private record Observation(
@@ -251,6 +314,15 @@ final class PotionValidationScenarios {
         String position,
         String velocity,
         String potionContents
+    ) {
+    }
+
+    private record DamageObservation(
+        float health,
+        int damageTick,
+        int disappearedAt,
+        Observation lastPresent,
+        Observation atDamage
     ) {
     }
 }
