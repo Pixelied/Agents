@@ -36,7 +36,6 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.item.Item;
@@ -223,7 +222,7 @@ public final class ClientCombatSnapshotBuilder {
 
             double[] armor = {0.0};
             double[] toughness = {0.0};
-            stack.forEachModifier(slot, (Holder<Attribute> attribute, var modifier) -> {
+            stack.forEachModifier(slot, (attribute, modifier) -> {
                 if (attribute.is(Attributes.ARMOR)) {
                     armor[0] += modifier.amount();
                 } else if (attribute.is(Attributes.ARMOR_TOUGHNESS)) {
