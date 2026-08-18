@@ -118,6 +118,11 @@ public final class MinecraftWorldSnapshotFactory {
                 properties.put("raw_damage_min", "5");
                 properties.put("raw_damage_max", "8");
                 properties.put("explosion_radius", "1");
+                Entity owner = hurtingProjectile.getOwner();
+                properties.put(
+                    "scales_with_difficulty",
+                    Boolean.toString(owner instanceof LivingEntity && !(owner instanceof Player))
+                );
             }
         }
 
