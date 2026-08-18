@@ -52,6 +52,25 @@ class SplashStatusFalloffPredictorTest {
     }
 
     @Test
+    void futureImpactUsesVanillaProjectileMarginFromPredictedAge() {
+        List<ThreatEvent> poison = EnvironmentPredictorRegistry.defaults().predict(context(
+            splashPoison(Map.of(
+                "potion_poison_duration_ticks", "200",
+                "potion_poison_amplifier", "0",
+                "potion_duration_scale", "1.0",
+                "potion_splash_radius", "4.0",
+                "projectile_age_ticks", "2"
+            )),
+            wallAt(5)
+        )).stream().filter(event -> event.id().contains(":splash_status:poison:")).toList();
+
+        assertFalse(poison.isEmpty());
+        // Collision is four modeled ticks away, so vanilla margin at impact is (2 + 4 - 2) / 20 = 0.2.
+        // Effective x gap becomes 6.5 - 5.125 = 1.375; rounded duration is 131; 131 % 25 = 6.
+        assertEquals(new TickWindow(10, 10), poison.getFirst().impact());
+    }
+
+    @Test
     void staleWallSplashPoisonKeepsConservativeFutureDamage() {
         List<ThreatEvent> poison = EnvironmentPredictorRegistry.defaults().predict(context(
             splashPoison(Map.of(
