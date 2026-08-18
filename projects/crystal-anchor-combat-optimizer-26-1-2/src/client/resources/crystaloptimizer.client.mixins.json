@@ -3,6 +3,7 @@
   "package": "dev.adrien.crystaloptimizer.client.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "ClientCommonPacketListenerImplMixin",
     "ClientPacketListenerMixin"
   ],
   "injectors": {
