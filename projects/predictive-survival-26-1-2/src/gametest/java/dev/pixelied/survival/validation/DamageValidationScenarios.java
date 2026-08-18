@@ -145,36 +145,62 @@ final class DamageValidationScenarios {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             SurvivalValidationClientGameTest.reset(player, 20f);
             player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.SHIELD));
-            player.setYRot(0f);
-            player.setYHeadRot(0f);
-            player.startUsingItem(InteractionHand.OFF_HAND);
         });
-        context.waitTicks(elapsedUseTicks);
+        context.waitFor(minecraft -> minecraft.player != null && minecraft.player.getOffhandItem().is(Items.SHIELD));
+        context.getInput().lookAt(0f, 0f);
+        context.getInput().holdKey(options -> options.keyUse);
 
-        return singleplayer.getServer().computeOnServer(server -> {
-            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
-            int observedUseTicks = player.getTicksUsingItem();
-            if (observedUseTicks != elapsedUseTicks) {
+        try {
+            waitForShieldUseTicks(context, singleplayer, elapsedUseTicks);
+            return singleplayer.getServer().computeOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                int observedUseTicks = player.getTicksUsingItem();
+                if (observedUseTicks != elapsedUseTicks) {
+                    throw new AssertionError(
+                        "shield timing expected " + elapsedUseTicks + " use ticks but server observed " + observedUseTicks
+                    );
+                }
+
+                ServerLevel level = (ServerLevel) player.level();
+                var playerAttackType = level.registryAccess()
+                    .lookupOrThrow(Registries.DAMAGE_TYPE)
+                    .getOrThrow(DamageTypes.PLAYER_ATTACK);
+                DamageSource actualSource = new DamageSource(playerAttackType, player.position().add(0d, 0d, 5d));
+
+                BlockingSnapshot blocking = new BlockingSnapshot(true, 1f, elapsedUseTicks, 5);
+                float predicted = SIMULATOR.simulate(
+                    cleanSnapshot(20f, MitigationSnapshot.none(), StatusEffectsSnapshot.none(), blocking, HurtState.unknown()),
+                    source(6f, "minecraft:player_attack")
+                ).after().health();
+
+                player.hurtServer(level, actualSource, 6f);
+                return result("shield_use_ticks_" + elapsedUseTicks, predicted, player.getHealth());
+            });
+        } finally {
+            context.getInput().releaseKey(options -> options.keyUse);
+            context.waitTick();
+        }
+    }
+
+    private static void waitForShieldUseTicks(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        int expectedUseTicks
+    ) {
+        for (int wait = 0; wait < ClientGameTestContext.DEFAULT_TIMEOUT; wait++) {
+            int observed = singleplayer.getServer().computeOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                return player.isUsingItem() ? player.getTicksUsingItem() : -1;
+            });
+            if (observed == expectedUseTicks) return;
+            if (observed > expectedUseTicks) {
                 throw new AssertionError(
-                    "shield timing expected " + elapsedUseTicks + " use ticks but server observed " + observedUseTicks
+                    "shield use skipped target " + expectedUseTicks + " and reached " + observed
                 );
             }
-
-            ServerLevel level = (ServerLevel) player.level();
-            var playerAttackType = level.registryAccess()
-                .lookupOrThrow(Registries.DAMAGE_TYPE)
-                .getOrThrow(DamageTypes.PLAYER_ATTACK);
-            DamageSource actualSource = new DamageSource(playerAttackType, player.position().add(0d, 0d, 5d));
-
-            BlockingSnapshot blocking = new BlockingSnapshot(true, 1f, elapsedUseTicks, 5);
-            float predicted = SIMULATOR.simulate(
-                cleanSnapshot(20f, MitigationSnapshot.none(), StatusEffectsSnapshot.none(), blocking, HurtState.unknown()),
-                source(6f, "minecraft:player_attack")
-            ).after().health();
-
-            player.hurtServer(level, actualSource, 6f);
-            return result("shield_use_ticks_" + elapsedUseTicks, predicted, player.getHealth());
-        });
+            context.waitTick();
+        }
+        throw new AssertionError("shield never reached " + expectedUseTicks + " authoritative use ticks");
     }
 
     private static DamageSourceSnapshot source(float rawDamage, String sourceKey) {
