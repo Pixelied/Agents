@@ -3,7 +3,6 @@
   "package": "dev.pixelied.survival.mixin",
   "client": [
     "AbstractArrowAccessor",
-    "AreaEffectCloudAccessor",
     "FallingBlockEntityAccessor",
     "FireworkRocketAccessor",
     "FoodDataAccessor",
