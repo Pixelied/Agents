@@ -90,6 +90,26 @@ class SurvivalPlannerSafeModeTest {
     }
 
     @Test
+    void zeroWarmupEquipmentSwapStillNeedsNextServerProcessingWindow() {
+        PredictionContext context = context(EngineLimits.defaults(), new TickWindow(2, 2));
+        SurvivalAction swap = new SurvivalAction.SwapEquipment(
+            new MitigationSnapshot(20f, 8f, 1f, 0, false, 0),
+            Map.of("chest", "minecraft:netherite_chestplate"),
+            0,
+            true,
+            true,
+            1.0,
+            0,
+            1
+        );
+
+        ActionSimulation simulation = planner.simulate(context, lethalTimeline(1, false), swap, SafetyMode.SAFE);
+
+        assertFalse(simulation.feasible());
+        assertEquals("server deadline missed", simulation.reason());
+    }
+
+    @Test
     void safeModeUsesAlreadyActiveGuaranteedBlockWithoutWastingProtection() {
         PredictionContext context = context(EngineLimits.defaults());
         ThreatTimeline timeline = lethalTimeline(3, false);
