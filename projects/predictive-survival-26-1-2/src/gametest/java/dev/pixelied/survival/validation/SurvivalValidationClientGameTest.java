@@ -18,6 +18,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -119,10 +120,12 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
     }
 
     static void reset(ServerPlayer player, float health) {
+        player.stopUsingItem();
         player.removeAllEffects();
         player.setAbsorptionAmount(0f);
-        player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
-        player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        for (EquipmentSlot slot : EquipmentSlot.VALUES) {
+            player.setItemSlot(slot, ItemStack.EMPTY);
+        }
         player.invulnerableTime = 0;
         player.setHealth(health);
     }
