@@ -220,6 +220,8 @@ public final class MinecraftWorldSnapshotFactory {
         float instantDamage = 0f;
         int poisonDuration = 0;
         int poisonAmplifier = -1;
+        int witherDuration = 0;
+        int witherAmplifier = -1;
         for (MobEffectInstance effect : contents.getAllEffects()) {
             if (effect.getEffect().is(MobEffects.INSTANT_DAMAGE)) {
                 int amplifier = Math.max(0, effect.getAmplifier());
@@ -238,6 +240,14 @@ public final class MinecraftWorldSnapshotFactory {
                     poisonDuration = duration;
                 }
             }
+            if (effect.getEffect().is(MobEffects.WITHER)) {
+                int amplifier = Math.max(0, effect.getAmplifier());
+                int duration = Math.max(0, effect.getDuration());
+                if (amplifier > witherAmplifier || amplifier == witherAmplifier && duration > witherDuration) {
+                    witherAmplifier = amplifier;
+                    witherDuration = duration;
+                }
+            }
         }
 
         if (instantDamage > 0f) {
@@ -247,6 +257,10 @@ public final class MinecraftWorldSnapshotFactory {
         if (poisonAmplifier >= 0 && poisonDuration > 0) {
             properties.put("potion_poison_duration_ticks", Integer.toString(poisonDuration));
             properties.put("potion_poison_amplifier", Integer.toString(poisonAmplifier));
+        }
+        if (witherAmplifier >= 0 && witherDuration > 0) {
+            properties.put("potion_wither_duration_ticks", Integer.toString(witherDuration));
+            properties.put("potion_wither_amplifier", Integer.toString(witherAmplifier));
         }
     }
 
