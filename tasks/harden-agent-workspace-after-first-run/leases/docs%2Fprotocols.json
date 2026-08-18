@@ -6,8 +6,10 @@
   "intent": "Document Git checkout semantics for optional empty coordination collections so agents do not recreate validator failures.",
   "owner": "openai-workspace-repair-8c31",
   "protocol_version": "1.0",
+  "release_reason": "Work complete",
+  "released_at": "2026-08-18T11:31:42+00:00",
   "schema_version": 1,
   "scope": "docs/protocols",
-  "state": "active",
+  "state": "released",
   "task_id": "harden-agent-workspace-after-first-run"
 }
