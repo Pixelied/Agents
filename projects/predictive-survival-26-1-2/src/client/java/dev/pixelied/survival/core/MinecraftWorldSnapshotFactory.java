@@ -1,6 +1,7 @@
 package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.mixin.AbstractArrowAccessor;
+import dev.pixelied.survival.mixin.AreaEffectCloudAccessor;
 import dev.pixelied.survival.mixin.FallingBlockEntityAccessor;
 import dev.pixelied.survival.mixin.FireworkRocketAccessor;
 import dev.pixelied.survival.mixin.PrimedTntAccessor;
@@ -12,6 +13,9 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.attribute.EnvironmentAttributes;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -30,6 +34,7 @@ import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
@@ -77,7 +82,7 @@ public final class MinecraftWorldSnapshotFactory {
         properties.put("in_water", Boolean.toString(entity.isInWater()));
         properties.put("in_liquid", Boolean.toString(entity.isInWater()));
         properties.put("horizontal_collision", Boolean.toString(entity.horizontalCollision));
-        if (entity instanceof Projectile) {
+        if (entity instanceof Projectile || entity instanceof AreaEffectCloud) {
             properties.put("observation_age_ticks", "1");
         }
 
@@ -107,6 +112,33 @@ public final class MinecraftWorldSnapshotFactory {
                 properties.put("raw_damage_max", "8");
                 properties.put("explosion_radius", "1");
                 properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(hurtingProjectile.getOwner())));
+            }
+        }
+
+        if (entity instanceof AreaEffectCloud cloud) {
+            AreaEffectCloudAccessor accessor = (AreaEffectCloudAccessor) (Object) cloud;
+            int waitTime = Math.max(0, cloud.getWaitTime());
+            int waitRemaining = Math.max(0, waitTime - cloud.tickCount);
+            int duration = cloud.getDuration();
+            int durationRemaining = duration < 0
+                ? Integer.MAX_VALUE
+                : saturatedNonNegative(waitTime, duration, -cloud.tickCount);
+
+            properties.put("cloud_wait_remaining_ticks", Integer.toString(waitRemaining));
+            properties.put("cloud_duration_remaining_ticks", Integer.toString(durationRemaining));
+            properties.put(
+                "cloud_reapplication_delay_ticks",
+                Integer.toString(Math.max(1, accessor.predictiveSurvival$getReapplicationDelay()))
+            );
+            properties.put(
+                "cloud_potion_duration_scale",
+                Float.toString(Math.max(0f, accessor.predictiveSurvival$getPotionDurationScale()))
+            );
+
+            float instantDamage = areaEffectCloudInstantHarmDamage(accessor.predictiveSurvival$getPotionContents());
+            if (instantDamage > 0f) {
+                properties.put("cloud_instant_damage", Float.toString(instantDamage));
+                properties.put("cloud_source_key", "minecraft:indirect_magic");
             }
         }
 
@@ -193,6 +225,28 @@ public final class MinecraftWorldSnapshotFactory {
             new AabbSnapshot(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ),
             properties
         );
+    }
+
+    private static float areaEffectCloudInstantHarmDamage(PotionContents contents) {
+        float maximum = 0f;
+        for (MobEffectInstance effect : contents.customEffects()) {
+            if (!effect.getEffect().is(MobEffects.HARM)) continue;
+            int amplifier = Math.max(0, effect.getAmplifier());
+            double fullStrength = Math.scalb(6d, amplifier);
+            double cloudStrength = Math.floor(fullStrength * 0.5d + 0.5d);
+            maximum = Math.max(
+                maximum,
+                cloudStrength >= Float.MAX_VALUE ? Float.MAX_VALUE : (float) cloudStrength
+            );
+        }
+        return maximum;
+    }
+
+    private static int saturatedNonNegative(int first, int second, int third) {
+        long value = (long) first + second + third;
+        if (value <= 0L) return 0;
+        if (value >= Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        return (int) value;
     }
 
     private static List<WorldSnapshot.BlockSnapshot> captureBlocks(ClientLevel level, BlockPos center) {
