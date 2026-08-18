@@ -23,12 +23,14 @@ public final class CommitPolicy {
 
     public boolean shouldCommit(CombatPlan plan) {
         Objects.requireNonNull(plan, "plan");
+        double totemDenial = plan.score().totemDenialProbability();
+        boolean denialCertified = totemDenial == 0.0 || totemDenial >= minimumTotemDenialProbability;
         return !plan.actions().isEmpty()
             && plan.lethal()
             && !plan.score().unacceptableSelfDeath()
             && plan.dependencyGraph().zeroFeedbackCriticalPath()
             && plan.score().targetDeathProbability() >= minimumDeathProbability
-            && plan.score().totemDenialProbability() >= minimumTotemDenialProbability
+            && denialCertified
             && plan.robustness() >= minimumRobustness
             && plan.score().robustness() >= minimumRobustness;
     }
