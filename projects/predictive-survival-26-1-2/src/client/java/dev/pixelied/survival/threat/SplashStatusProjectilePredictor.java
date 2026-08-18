@@ -111,7 +111,7 @@ public final class SplashStatusProjectilePredictor implements ThreatPredictor {
         double scaledBaseDuration
     ) {
         AabbSnapshot potion = moveBox(entity.boundingBox(), entity.position(), impact.position());
-        double margin = finiteNonNegativeDouble(entity.properties().get("projectile_margin"), 0d);
+        double margin = projectileMarginAtImpact(entity, impact, false);
         AabbSnapshot target = inflate(player.boundingBox(), margin, margin, margin);
         return scaledDuration(scaledBaseDuration, distanceBetweenAabbs(potion, target), splashRadius(entity));
     }
@@ -127,9 +127,31 @@ public final class SplashStatusProjectilePredictor implements ThreatPredictor {
         double extentZ = maxExtent(entity.boundingBox().minZ() - entity.position().z(), entity.boundingBox().maxZ() - entity.position().z());
         AabbSnapshot possiblePotion = inflate(impact.blockBounds(), extentX, extentY, extentZ);
         AabbSnapshot possiblePlayer = sweptPlayerBox(player, impact.window().latest());
-        double margin = finiteNonNegativeDouble(entity.properties().get("projectile_margin"), 0d);
+        double margin = projectileMarginAtImpact(entity, impact, true);
         possiblePlayer = inflate(possiblePlayer, margin, margin, margin);
         return scaledDuration(scaledBaseDuration, distanceBetweenAabbs(possiblePotion, possiblePlayer), splashRadius(entity));
+    }
+
+    private static double projectileMarginAtImpact(
+        WorldSnapshot.EntitySnapshot entity,
+        BlockImpact impact,
+        boolean conservative
+    ) {
+        String ageProperty = entity.properties().get("projectile_age_ticks");
+        if (ageProperty == null) {
+            return finiteNonNegativeDouble(entity.properties().get("projectile_margin"), 0d);
+        }
+
+        int baseAge = positiveInt(ageProperty, 0);
+        long futureAge = saturatingAdd(baseAge, impact.window().latest());
+        if (conservative) {
+            futureAge = saturatingAdd(
+                futureAge,
+                positiveInt(entity.properties().get("observation_age_ticks"), 0)
+            );
+        }
+        double margin = (futureAge - 2d) / 20d;
+        return Math.max(0d, Math.min(0.3d, margin));
     }
 
     private static void addExactEvents(
