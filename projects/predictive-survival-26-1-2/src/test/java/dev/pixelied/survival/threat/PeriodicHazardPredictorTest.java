@@ -10,6 +10,7 @@ import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.HurtState;
@@ -184,12 +185,138 @@ class PeriodicHazardPredictorTest {
         assertEquals(new TickWindow(1, 1), lava.impact());
     }
 
+    @Test
+    void waitingAreaEffectCloudEmitsBoundedInstantHarmWindow() {
+        PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
+        WorldSnapshot.EntitySnapshot cloud = cloud(
+            new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
+            Map.of(
+                "cloud_wait_remaining_ticks", "20",
+                "cloud_duration_remaining_ticks", "620",
+                "cloud_reapplication_delay_ticks", "20",
+                "cloud_instant_damage", "6",
+                "cloud_source_key", "minecraft:indirect_magic",
+                "observation_age_ticks", "1"
+            )
+        );
+
+        ThreatEvent event = findSource(
+            EnvironmentPredictorRegistry.defaults().predict(context(player, List.of(cloud))),
+            "minecraft:indirect_magic"
+        );
+
+        assertEquals(new TickWindow(19, 20), event.impact());
+        assertEquals(6f, event.damage().rawDamage().max(), 0.0001f);
+        assertEquals(Confidence.BOUNDED, event.confidence());
+        assertTrue(event.damage().has(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(event.damage().has(DamageFlag.BYPASSES_SHIELD));
+        assertFalse(event.blockable());
+    }
+
+    @Test
+    void activeAreaEffectCloudNeverCreditsUnknownVictimCooldownAsSafe() {
+        PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
+        WorldSnapshot.EntitySnapshot cloud = cloud(
+            new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
+            Map.of(
+                "cloud_wait_remaining_ticks", "0",
+                "cloud_duration_remaining_ticks", "580",
+                "cloud_reapplication_delay_ticks", "20",
+                "cloud_instant_damage", "6",
+                "cloud_source_key", "minecraft:indirect_magic",
+                "observation_age_ticks", "1"
+            )
+        );
+
+        ThreatEvent event = findSource(
+            EnvironmentPredictorRegistry.defaults().predict(context(player, List.of(cloud))),
+            "minecraft:indirect_magic"
+        );
+
+        assertEquals(new TickWindow(0, 20), event.impact());
+        assertEquals(Confidence.BOUNDED, event.confidence());
+    }
+
+    @Test
+    void areaEffectCloudOutsidePlayerDoesNotEmitDamageThreat() {
+        PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
+        WorldSnapshot.EntitySnapshot cloud = cloud(
+            new AabbSnapshot(8, 0, 8, 14, 0.5, 14),
+            Map.of(
+                "cloud_wait_remaining_ticks", "0",
+                "cloud_duration_remaining_ticks", "580",
+                "cloud_reapplication_delay_ticks", "20",
+                "cloud_instant_damage", "6",
+                "cloud_source_key", "minecraft:indirect_magic"
+            )
+        );
+
+        assertFalse(hasSource(
+            EnvironmentPredictorRegistry.defaults().predict(context(player, List.of(cloud))),
+            "minecraft:indirect_magic"
+        ));
+    }
+
+    @Test
+    void harmlessAreaEffectCloudDoesNotInventDamage() {
+        PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
+        WorldSnapshot.EntitySnapshot cloud = cloud(
+            new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
+            Map.of(
+                "cloud_wait_remaining_ticks", "0",
+                "cloud_duration_remaining_ticks", "580",
+                "cloud_reapplication_delay_ticks", "20"
+            )
+        );
+
+        assertTrue(EnvironmentPredictorRegistry.defaults().predict(context(player, List.of(cloud))).stream()
+            .noneMatch(event -> event.id().startsWith("env:area_effect_cloud:cloud:1:")));
+    }
+
+    @Test
+    void expiredAreaEffectCloudDoesNotEmitDamageThreat() {
+        PlayerSnapshot player = player(20f, DifficultySnapshot.NORMAL, Map.of(), StatusEffectsSnapshot.none());
+        WorldSnapshot.EntitySnapshot cloud = cloud(
+            new AabbSnapshot(-2.7, 0, -2.7, 3.3, 0.5, 3.3),
+            Map.of(
+                "cloud_wait_remaining_ticks", "0",
+                "cloud_duration_remaining_ticks", "0",
+                "cloud_reapplication_delay_ticks", "20",
+                "cloud_instant_damage", "6",
+                "cloud_source_key", "minecraft:indirect_magic"
+            )
+        );
+
+        assertFalse(hasSource(
+            EnvironmentPredictorRegistry.defaults().predict(context(player, List.of(cloud))),
+            "minecraft:indirect_magic"
+        ));
+    }
+
     private static PredictionContext playerContext(PlayerSnapshot player) {
+        return context(player, List.of());
+    }
+
+    private static PredictionContext context(
+        PlayerSnapshot player,
+        List<WorldSnapshot.EntitySnapshot> entities
+    ) {
         return new PredictionContext(
             player,
-            WorldSnapshot.empty(),
+            new WorldSnapshot(entities, List.of()),
             new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
             EngineLimits.defaults()
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot cloud(AabbSnapshot box, Map<String, String> properties) {
+        return new WorldSnapshot.EntitySnapshot(
+            "cloud:1",
+            "minecraft:area_effect_cloud",
+            new Vec3Snapshot((box.minX() + box.maxX()) * 0.5, box.minY(), (box.minZ() + box.maxZ()) * 0.5),
+            new Vec3Snapshot(0, 0, 0),
+            box,
+            properties
         );
     }
 
