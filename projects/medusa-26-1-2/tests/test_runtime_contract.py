@@ -25,6 +25,23 @@ class RuntimeEntrypointContract(unittest.TestCase):
         self.assertTrue(loaded.is_file(), "scheduled loaded-chunk temple creation function is missing")
         self.assertIn("function medusa:admin/place_temple", loaded.read_text())
 
+    def test_scheduled_loaded_harness_runs_smoke_after_temple_build(self):
+        text = (FN / "debug/create_test_temple_loaded.mcfunction").read_text()
+        temple_pos = text.find("function medusa:admin/place_temple")
+        boss_pos = text.find("function medusa:debug/start_test_boss")
+        damage_pos = text.find("function medusa:debug/test_petrification_damage")
+        done_pos = text.find("MEDUSA_SMOKE_DONE")
+        self.assertGreaterEqual(temple_pos, 0)
+        self.assertGreater(boss_pos, temple_pos, "boss smoke must run after the blocking temple build returns")
+        self.assertGreater(damage_pos, boss_pos, "damage smoke must run after boss bootstrap")
+        self.assertGreater(done_pos, damage_pos, "smoke completion marker must be emitted last")
+
+    def test_pedestal_display_uses_complete_26_1_2_transformation(self):
+        text = (FN / "arena/pedestal/spawn_eye.mcfunction").read_text()
+        self.assertNotIn("transformation:{scale:", text, "partial display transformations fail 26.1.2 serialization")
+        for key in ["translation", "left_rotation", "scale", "right_rotation"]:
+            self.assertIn(key, text)
+
     def test_mcfunction_macro_lines_have_variables(self):
         bad = []
         for path in FN.rglob("*.mcfunction"):
