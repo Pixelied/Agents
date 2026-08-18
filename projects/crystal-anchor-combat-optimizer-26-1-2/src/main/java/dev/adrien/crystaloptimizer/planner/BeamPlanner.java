@@ -16,6 +16,7 @@ import dev.adrien.crystaloptimizer.sim.damage.ExplosionContext;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionDamageCalculator26;
 import dev.adrien.crystaloptimizer.sim.damage.VanillaDamageSimulator;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
+import dev.adrien.crystaloptimizer.sim.model.HurtWindowState;
 import dev.adrien.crystaloptimizer.sim.model.KnownCrystal;
 import dev.adrien.crystaloptimizer.timing.PacketDependency;
 import dev.adrien.crystaloptimizer.timing.PacketDependencyGraph;
@@ -206,12 +207,16 @@ public final class BeamPlanner {
             selfSpatial.position(),
             state.geometry()
         );
-        var selfResult = VanillaDamageSimulator.apply(
-            state.self(),
-            DamageRequest.explosion(selfIncoming)
-                .withDifficulty(state.base().difficulty())
-                .withSourcePosition(explosion.center())
-        );
+        DamageRequest selfRequest = DamageRequest.explosion(selfIncoming)
+            .withDifficulty(state.base().difficulty())
+            .withSourcePosition(explosion.center());
+        DamageResult selfResult = VanillaDamageSimulator.apply(state.self(), selfRequest);
+        if (selfResult.uncertain()) {
+            selfResult = VanillaDamageSimulator.apply(
+                state.self().withHurtWindow(new HurtWindowState(0, 0.0f)),
+                selfRequest
+            );
+        }
 
         double positionRobustness = positionRobustness(
             state,
