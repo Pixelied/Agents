@@ -142,7 +142,8 @@ final class PoisonPotionValidationScenarios {
             player.getHealth(),
             player.level().getEntity(projectileId) != null,
             poison == null ? -1 : poison.getDuration(),
-            poison == null ? -1 : poison.getAmplifier()
+            poison == null ? -1 : poison.getAmplifier(),
+            String.valueOf(player.getLastDamageSource())
         );
     }
 
@@ -153,7 +154,8 @@ final class PoisonPotionValidationScenarios {
         float health,
         boolean projectilePresent,
         int poisonDuration,
-        int poisonAmplifier
+        int poisonAmplifier,
+        String lastDamageSource
     ) {
     }
 
