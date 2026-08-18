@@ -40,3 +40,24 @@ class GoldenEyeContract(unittest.TestCase):
     def test_awakening_has_start_tick_finish(self):
         for rel in ["arena/awakening/start.mcfunction", "arena/awakening/tick.mcfunction", "arena/awakening/finish.mcfunction"]:
             self.assertTrue((FN / rel).is_file(), f"missing awakening function: {rel}")
+
+class LifecycleContract(unittest.TestCase):
+    def test_reward_guard_and_ritual_material_checks_exist(self):
+        reward = FN / "reward/distribute.mcfunction"
+        ritual = FN / "ritual/validate_offering.mcfunction"
+        self.assertTrue(reward.is_file(), "reward distribution is missing")
+        self.assertTrue(ritual.is_file(), "ritual validation is missing")
+        self.assertIn("md_rewarded", reward.read_text())
+        text = ritual.read_text()
+        self.assertIn("gorgon_scale", text)
+        self.assertIn("serpent_fang", text)
+
+    def test_reset_and_death_entrypoints_exist(self):
+        for rel in [
+            "arena/reset/start.mcfunction",
+            "arena/reset/finish.mcfunction",
+            "boss/death/start.mcfunction",
+            "boss/death/finish.mcfunction",
+            "ritual/commit.mcfunction",
+        ]:
+            self.assertTrue((FN / rel).is_file(), f"missing lifecycle function: {rel}")

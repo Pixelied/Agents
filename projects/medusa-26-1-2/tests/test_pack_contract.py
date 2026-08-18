@@ -31,3 +31,15 @@ class ValidatorContract(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("medusa static validation passed", result.stdout)
+
+class CommandSyntaxGuard(unittest.TestCase):
+    def test_score_matches_never_uses_comma_lists(self):
+        import re
+        function_root = DP / "data/medusa/function"
+        bad = []
+        pattern = re.compile(r"\bmatches\s+[^\s]+,")
+        for path in function_root.rglob("*.mcfunction"):
+            for line_no, line in enumerate(path.read_text().splitlines(), 1):
+                if pattern.search(line):
+                    bad.append(f"{path.relative_to(ROOT)}:{line_no}: {line}")
+        self.assertEqual(bad, [], "scoreboard 'matches' accepts one value/range, not comma lists:\n" + "\n".join(bad))

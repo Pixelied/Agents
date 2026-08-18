@@ -55,3 +55,5 @@ scoreboard players set $10 md_tmp 10
 scoreboard objectives add md_stone_timer dummy
 scoreboard objectives add md_atk_timer dummy
 scoreboard objectives add md_roll dummy
+scoreboard objectives add md_reset dummy
+scoreboard objectives add md_killed dummy
