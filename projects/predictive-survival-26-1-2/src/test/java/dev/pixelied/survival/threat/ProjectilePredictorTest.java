@@ -112,7 +112,7 @@ class ProjectilePredictorTest {
     @Test
     void splashHarmingNearbyWallCollisionStillEmitsReducedMagicDamage() {
         WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
-            new Vec3Snapshot(5, 1, 0),
+            new Vec3Snapshot(5, 0, 0),
             "minecraft:stone",
             true,
             Map.of("full_collision_cube", "true")
