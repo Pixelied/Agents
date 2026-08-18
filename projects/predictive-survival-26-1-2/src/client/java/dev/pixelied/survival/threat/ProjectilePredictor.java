@@ -134,7 +134,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         return Optional.of(new ThreatEvent(
             "projectile:" + entity.id() + ":direct",
             ThreatKind.PROJECTILE,
-            new TickWindow(tick, tick),
+            observedImpactWindow(entity, tick),
             source,
             confidence,
             Optional.of(entity.position()),
@@ -152,6 +152,9 @@ public final class ProjectilePredictor implements ThreatPredictor {
         Vec3Snapshot impactVelocity
     ) {
         Map<String, String> properties = entity.properties();
+        Float exact = finiteFloat(properties.get("raw_damage"));
+        if (exact != null && exact >= 0f) return Optional.of(DamageRange.exact(exact));
+
         if (family == ProjectileFamily.ARROW_LIKE) {
             Float baseDamage = finiteFloat(properties.get("base_damage"));
             if (baseDamage == null || baseDamage < 0f) {
@@ -173,8 +176,6 @@ public final class ProjectilePredictor implements ThreatPredictor {
         if (family == ProjectileFamily.LLAMA_SPIT) return Optional.of(DamageRange.exact(1f));
         if (family == ProjectileFamily.WIND_CHARGE) return Optional.of(DamageRange.exact(1f));
 
-        Float exact = finiteFloat(properties.get("raw_damage"));
-        if (exact != null && exact >= 0f) return Optional.of(DamageRange.exact(exact));
         Float min = finiteFloat(properties.get("raw_damage_min"));
         Float max = finiteFloat(properties.get("raw_damage_max"));
         if (min != null && max != null && min >= 0f && max >= min) return Optional.of(new DamageRange(min, max));
@@ -209,7 +210,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         return Optional.of(new ThreatEvent(
             "projectile:" + entity.id() + ":explosion",
             ThreatKind.PROJECTILE,
-            new TickWindow(tick, tick),
+            observedImpactWindow(entity, tick),
             source,
             Confidence.BOUNDED,
             Optional.of(entity.position()),
@@ -252,7 +253,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         return Optional.of(new ThreatEvent(
             "projectile:" + entity.id() + ":firework",
             ThreatKind.PROJECTILE,
-            new TickWindow(step.tick(), step.tick()),
+            observedImpactWindow(entity, step.tick()),
             source,
             Confidence.BOUNDED,
             Optional.of(entity.position()),
@@ -262,6 +263,12 @@ public final class ProjectilePredictor implements ThreatPredictor {
             true,
             false
         ));
+    }
+
+    private static TickWindow observedImpactWindow(WorldSnapshot.EntitySnapshot entity, long modeledTick) {
+        int observationAge = positiveInt(entity.properties().get("observation_age_ticks"), 0);
+        long observedTick = Math.max(0L, modeledTick - observationAge);
+        return new TickWindow(observedTick, observedTick);
     }
 
     private static Collision firstBlockCollision(
