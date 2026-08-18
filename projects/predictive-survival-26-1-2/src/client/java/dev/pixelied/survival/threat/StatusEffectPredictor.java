@@ -33,7 +33,7 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
         long horizon = Math.min(horizon(context), duration);
 
         for (long tick = 1; tick <= horizon; tick++) {
-            int remainingDuration = duration - (int) tick + 1;
+            int remainingDuration = duration - (int) tick;
             boolean applies = interval <= 0 || remainingDuration % interval == 0;
             if (!applies) continue;
 
