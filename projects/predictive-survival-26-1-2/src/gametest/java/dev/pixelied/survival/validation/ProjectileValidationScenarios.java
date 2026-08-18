@@ -6,6 +6,7 @@ import dev.pixelied.survival.core.MinecraftWorldSnapshotFactory;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
+import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -98,6 +99,8 @@ final class ProjectileValidationScenarios {
             if (minecraft.player == null || minecraft.level == null) {
                 throw new AssertionError("client player/level unavailable while capturing " + id);
             }
+            Entity clientEntity = minecraft.level.getEntity(entityId);
+            if (clientEntity == null) throw new AssertionError("client projectile missing for " + id);
             PlayerSnapshot playerSnapshot = new MinecraftSnapshotFactory().capture(minecraft.player);
             PredictionContext predictionContext = new PredictionContext(
                 playerSnapshot,
@@ -110,7 +113,18 @@ final class ProjectileValidationScenarios {
                 .filter(candidate -> candidate.damage().sourceKey().equals(sourceKey))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no live projectile prediction for " + id));
-            return new LivePrediction(playerSnapshot, event);
+            return new LivePrediction(
+                playerSnapshot,
+                event,
+                vec(clientEntity.position()),
+                vec(clientEntity.getDeltaMovement())
+            );
+        });
+        ProjectileState serverAtPrediction = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            Entity entity = ((ServerLevel) player.level()).getEntity(entityId);
+            if (entity == null) throw new AssertionError("server projectile missing for " + id);
+            return new ProjectileState(vec(entity.position()), vec(entity.getDeltaMovement()));
         });
 
         int actualImpactTicks = waitForDamage(context, singleplayer, 20f, id);
@@ -121,6 +135,10 @@ final class ProjectileValidationScenarios {
         if (actualImpactTicks < prediction.impact().earliest() || actualImpactTicks > prediction.impact().latest()) {
             throw new AssertionError(
                 id + " impact predicted=" + prediction.impact() + " actualTick=" + actualImpactTicks
+                    + " clientPos=" + livePrediction.projectilePosition()
+                    + " serverPos=" + serverAtPrediction.position()
+                    + " clientVelocity=" + livePrediction.projectileVelocity()
+                    + " serverVelocity=" + serverAtPrediction.velocity()
             );
         }
 
@@ -160,6 +178,18 @@ final class ProjectileValidationScenarios {
         });
     }
 
-    private record LivePrediction(PlayerSnapshot player, ThreatEvent event) {
+    private static Vec3Snapshot vec(Vec3 value) {
+        return new Vec3Snapshot(value.x, value.y, value.z);
+    }
+
+    private record LivePrediction(
+        PlayerSnapshot player,
+        ThreatEvent event,
+        Vec3Snapshot projectilePosition,
+        Vec3Snapshot projectileVelocity
+    ) {
+    }
+
+    private record ProjectileState(Vec3Snapshot position, Vec3Snapshot velocity) {
     }
 }
