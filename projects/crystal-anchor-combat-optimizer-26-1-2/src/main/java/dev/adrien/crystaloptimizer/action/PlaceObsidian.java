@@ -19,6 +19,9 @@ public record PlaceObsidian(BlockPos pos) implements CombatAction {
         if (state.inventory().count(Items.OBSIDIAN) <= 0) {
             return ActionLegality.denied("no obsidian resource is known available");
         }
+        if (state.inventory().selectedItem().filter(Items.OBSIDIAN::equals).isEmpty()) {
+            return ActionLegality.denied("obsidian is not selected in the real main hand");
+        }
         if (!state.geometry().getBlockState(pos).isAir()) {
             return ActionLegality.denied("support position is not conservatively empty");
         }
