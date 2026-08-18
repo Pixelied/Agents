@@ -14,7 +14,7 @@ public record ReconciliationResult(
         }
     }
 
-    public static ReconciliationResult valid() {
+    public static ReconciliationResult accepted() {
         return new ReconciliationResult(true, List.of(), false);
     }
 
