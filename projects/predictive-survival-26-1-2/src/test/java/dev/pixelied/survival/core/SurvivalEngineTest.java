@@ -22,20 +22,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class SurvivalEngineTest {
     @Test
     void engineEscalatesWhenShieldExecutionMissesDeadline() {
-        SurvivalAction shield = new SurvivalAction.RaiseShield(
-            0, true, true, true, 1d, 1f, 5, 5, 0
-        );
-        SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
-            DeathProtectionSnapshot.ProtectionItem.generic(),
-            SurvivalAction.Hand.OFF_HAND,
-            0, true, true, 1d, 1, 1
-        );
-        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection)));
+        SurvivalAction shield = shield();
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection), 0, 2));
         SurvivalEngine engine = new SurvivalEngine(
             SurvivalConfig.defaults(),
             runtime,
@@ -53,17 +48,53 @@ class SurvivalEngineTest {
     }
 
     @Test
+    void approachingSameThreatDoesNotRestartPendingExecutor() {
+        SurvivalAction shield = shield();
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection), 100, 5));
+        SurvivalEngine engine = new SurvivalEngine(
+            SurvivalConfig.defaults(), runtime, new DecisionHistory(128)
+        );
+
+        engine.tick();
+        assertEquals(1, runtime.beginCount);
+        assertEquals(0, runtime.observeCount);
+
+        runtime.frame = frame(List.of(shield, protection), 101, 4);
+        engine.tick();
+
+        assertEquals(1, runtime.beginCount, "the same approaching threat must not restart execution");
+        assertEquals(1, runtime.observeCount, "pending execution must be reconciled on the next frame");
+        assertInstanceOf(SurvivalAction.RaiseShield.class, engine.currentPlan().orElseThrow().action());
+    }
+
+    @Test
+    void approachingSameThreatStillEscalatesAfterExecutionFailure() {
+        SurvivalAction shield = shield();
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection), 100, 5));
+        SurvivalEngine engine = new SurvivalEngine(
+            SurvivalConfig.defaults(), runtime, new DecisionHistory(128)
+        );
+
+        engine.tick();
+        runtime.failObservedAction = true;
+        runtime.frame = frame(List.of(shield, protection), 101, 4);
+        engine.tick();
+
+        assertEquals(1, runtime.observeCount);
+        assertEquals(2, runtime.beginCount);
+        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, engine.currentPlan().orElseThrow().action());
+    }
+
+    @Test
     void defaultConfigFiltersAutomaticMovementCandidates() {
         SurvivalAction relocate = new SurvivalAction.Relocate(
             new Vec3Snapshot(4, 0, 0), Set.of("incoming"),
             0, true, true, 1d, 0, 0
         );
-        SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
-            DeathProtectionSnapshot.ProtectionItem.generic(),
-            SurvivalAction.Hand.OFF_HAND,
-            0, true, true, 1d, 1, 1
-        );
-        FakeRuntime runtime = new FakeRuntime(frame(List.of(relocate, protection)));
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(relocate, protection), 0, 2));
         SurvivalEngine engine = new SurvivalEngine(
             SurvivalConfig.defaults(), runtime, new DecisionHistory(128)
         );
@@ -73,7 +104,23 @@ class SurvivalEngineTest {
         assertInstanceOf(SurvivalAction.EquipDeathProtection.class, engine.currentPlan().orElseThrow().action());
     }
 
-    private static SurvivalEngine.EngineFrame frame(List<SurvivalAction> candidates) {
+    private static SurvivalAction shield() {
+        return new SurvivalAction.RaiseShield(0, true, true, true, 1d, 1f, 5, 5, 0);
+    }
+
+    private static SurvivalAction protection() {
+        return new SurvivalAction.EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem.generic(),
+            SurvivalAction.Hand.OFF_HAND,
+            0, true, true, 1d, 1, 1
+        );
+    }
+
+    private static SurvivalEngine.EngineFrame frame(
+        List<SurvivalAction> candidates,
+        long clientTick,
+        long impactTick
+    ) {
         PlayerSnapshot player = new PlayerSnapshot(
             5f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
@@ -83,23 +130,25 @@ class SurvivalEngineTest {
         PredictionContext context = new PredictionContext(
             player,
             WorldSnapshot.empty(),
-            new TimingSnapshot(0, 50, 0, new TickWindow(0, 0)),
+            new TimingSnapshot(clientTick, 50, 0, new TickWindow(clientTick, clientTick)),
             EngineLimits.defaults()
         );
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(10f), Set.of(), false, 1f, false, Optional.empty(), "test:incoming"
         );
         ThreatTimeline timeline = new ThreatTimeline(List.of(new ThreatEvent(
-            "incoming", ThreatKind.OTHER, new TickWindow(1, 1), damage, Confidence.EXACT,
+            "incoming", ThreatKind.OTHER, new TickWindow(impactTick, impactTick), damage, Confidence.EXACT,
             Optional.empty(), Optional.empty(), true, true, true, false
         )));
         return new SurvivalEngine.EngineFrame(context, timeline, candidates);
     }
 
     private static final class FakeRuntime implements SurvivalEngine.RuntimeAdapter {
-        private final SurvivalEngine.EngineFrame frame;
+        private SurvivalEngine.EngineFrame frame;
         private SurvivalAction active;
         private boolean failObservedAction;
+        private int beginCount;
+        private int observeCount;
 
         private FakeRuntime(SurvivalEngine.EngineFrame frame) {
             this.frame = frame;
@@ -112,12 +161,14 @@ class SurvivalEngineTest {
 
         @Override
         public ExecutionStatus begin(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
+            beginCount++;
             active = action;
             return new ExecutionStatus.WaitingForServer("sent");
         }
 
         @Override
         public ExecutionStatus observe(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
+            observeCount++;
             if (failObservedAction && action.equals(active)) {
                 return new ExecutionStatus.Failed("deadline missed", true);
             }
