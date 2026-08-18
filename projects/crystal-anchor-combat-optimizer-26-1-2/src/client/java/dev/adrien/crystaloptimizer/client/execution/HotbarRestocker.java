@@ -1,21 +1,59 @@
 package dev.adrien.crystaloptimizer.client.execution;
 
 import dev.adrien.crystaloptimizer.execution.CommitPhase;
+import dev.adrien.crystaloptimizer.execution.HotbarRestockPlanner;
 import dev.adrien.crystaloptimizer.execution.InventoryCoordinator;
+import dev.adrien.crystaloptimizer.execution.InventoryStackView;
 import dev.adrien.crystaloptimizer.execution.ReservationRequest;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 public final class HotbarRestocker {
     private final Minecraft minecraft;
     private final InventoryCoordinator reservations;
+    private final HotbarRestockPlanner planner = new HotbarRestockPlanner();
 
     public HotbarRestocker(Minecraft minecraft, InventoryCoordinator reservations) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
         this.reservations = Objects.requireNonNull(reservations, "reservations");
+    }
+
+    public boolean restockOne(LocalPlayer player) {
+        Objects.requireNonNull(player, "player");
+        if (minecraft.gameMode == null
+            || minecraft.screen != null
+            || player.containerMenu != player.inventoryMenu) {
+            return false;
+        }
+
+        List<ItemStack> items = player.getInventory().getNonEquipmentItems();
+        List<InventoryStackView> stacks = new ArrayList<>();
+        for (int slot = 0; slot < items.size(); slot++) {
+            ItemStack stack = items.get(slot);
+            if (!stack.isEmpty()) {
+                stacks.add(new InventoryStackView(slot, stack.getItem(), stack.getCount()));
+            }
+        }
+
+        var decision = planner.choose(stacks);
+        if (decision.isEmpty() || reservedByOtherSystem(decision.orElseThrow().hotbarSlot())) {
+            return false;
+        }
+        var restock = decision.orElseThrow();
+        minecraft.gameMode.handleContainerInput(
+            player.containerMenu.containerId,
+            restock.sourceInventorySlot(),
+            restock.hotbarSlot(),
+            ContainerInput.SWAP,
+            player
+        );
+        return true;
     }
 
     public boolean restock(Item item, int hotbarSlot, CommitPhase phase) {
@@ -32,7 +70,10 @@ public final class HotbarRestocker {
         }
 
         LocalPlayer player = minecraft.player;
-        if (player == null || minecraft.gameMode == null) {
+        if (player == null
+            || minecraft.gameMode == null
+            || minecraft.screen != null
+            || player.containerMenu != player.inventoryMenu) {
             return false;
         }
         if (player.getInventory().getItem(hotbarSlot).is(item)) {
@@ -44,7 +85,7 @@ public final class HotbarRestocker {
                 continue;
             }
             minecraft.gameMode.handleContainerInput(
-                player.inventoryMenu.containerId,
+                player.containerMenu.containerId,
                 inventoryIndex,
                 hotbarSlot,
                 ContainerInput.SWAP,
