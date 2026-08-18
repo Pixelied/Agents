@@ -50,19 +50,24 @@ public final class SurvivalEngine {
 
         if (currentPlan.isPresent()) {
             SurvivalAction active = currentPlan.get().action();
-            ExecutionStatus observed = Objects.requireNonNull(runtime.observe(active, frame), "execution status");
-            executionStatus = Optional.of(observed);
-            record(frame, active, observed, statusReason(observed));
+            if (shouldReplaceActivePlan(active, frame)) {
+                currentPlan = Optional.empty();
+                executionStatus = Optional.empty();
+            } else {
+                ExecutionStatus observed = Objects.requireNonNull(runtime.observe(active, frame), "execution status");
+                executionStatus = Optional.of(observed);
+                record(frame, active, observed, statusReason(observed));
 
-            if (observed instanceof ExecutionStatus.WaitingForServer) return;
-            if (observed instanceof ExecutionStatus.Confirmed) {
-                currentPlan = Optional.empty();
-                return;
-            }
-            if (observed instanceof ExecutionStatus.Failed failed) {
-                currentPlan = Optional.empty();
-                if (!failed.replanRequired()) return;
-                failedActions.add(active);
+                if (observed instanceof ExecutionStatus.WaitingForServer) return;
+                if (observed instanceof ExecutionStatus.Confirmed) {
+                    currentPlan = Optional.empty();
+                    return;
+                }
+                if (observed instanceof ExecutionStatus.Failed failed) {
+                    currentPlan = Optional.empty();
+                    if (!failed.replanRequired()) return;
+                    failedActions.add(active);
+                }
             }
         }
 
@@ -110,6 +115,20 @@ public final class SurvivalEngine {
 
     public SurvivalConfig config() {
         return config;
+    }
+
+    private boolean shouldReplaceActivePlan(SurvivalAction active, EngineFrame frame) {
+        var refreshed = planner.simulate(frame.context(), frame.timeline(), active, config.safetyMode());
+        if (refreshed.feasible() && refreshed.result().survived()) return false;
+
+        SurvivalPlan replacement = planner.plan(
+            frame.context(),
+            frame.timeline(),
+            filteredCandidates(frame.candidates()),
+            config.safetyMode()
+        );
+        return !(replacement.action() instanceof SurvivalAction.NoAction)
+            && !replacement.action().equals(active);
     }
 
     private List<SurvivalAction> filteredCandidates(List<SurvivalAction> candidates) {
