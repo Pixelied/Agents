@@ -2,6 +2,7 @@ package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.config.SurvivalConfig;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
@@ -91,6 +92,27 @@ class SurvivalEngineTest {
     }
 
     @Test
+    void sameScheduleButShieldBypassChangeReplansPendingAction() {
+        SurvivalAction shield = shield();
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection), 100, 4, false));
+        SurvivalEngine engine = new SurvivalEngine(
+            SurvivalConfig.defaults(), runtime, new DecisionHistory(128)
+        );
+
+        engine.tick();
+        assertInstanceOf(SurvivalAction.RaiseShield.class, engine.currentPlan().orElseThrow().action());
+        assertEquals(1, runtime.beginCount);
+
+        runtime.frame = frame(List.of(shield, protection), 101, 3, true);
+        engine.tick();
+
+        assertEquals(0, runtime.observeCount, "a newly shield-bypassing threat must invalidate the stale shield before observation");
+        assertEquals(2, runtime.beginCount, "changed damage capabilities at the same absolute impact must trigger replanning");
+        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, engine.currentPlan().orElseThrow().action());
+    }
+
+    @Test
     void tightenedSameThreatDeadlineReplansPendingAction() {
         SurvivalAction shield = warmupShield();
         SurvivalAction protection = protection();
@@ -168,6 +190,15 @@ class SurvivalEngineTest {
         long clientTick,
         long impactTick
     ) {
+        return frame(candidates, clientTick, impactTick, false);
+    }
+
+    private static SurvivalEngine.EngineFrame frame(
+        List<SurvivalAction> candidates,
+        long clientTick,
+        long impactTick,
+        boolean bypassShield
+    ) {
         PlayerSnapshot player = new PlayerSnapshot(
             5f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
@@ -181,11 +212,17 @@ class SurvivalEngineTest {
             EngineLimits.defaults()
         );
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
-            DamageRange.exact(10f), Set.of(), false, 1f, false, Optional.empty(), "test:incoming"
+            DamageRange.exact(10f),
+            bypassShield ? Set.of(DamageFlag.BYPASSES_SHIELD) : Set.of(),
+            false,
+            1f,
+            false,
+            Optional.empty(),
+            "test:incoming"
         );
         ThreatTimeline timeline = new ThreatTimeline(List.of(new ThreatEvent(
             "incoming", ThreatKind.OTHER, new TickWindow(impactTick, impactTick), damage, Confidence.EXACT,
-            Optional.empty(), Optional.empty(), true, true, true, false
+            Optional.empty(), Optional.empty(), true, !bypassShield, true, false
         )));
         return new SurvivalEngine.EngineFrame(context, timeline, candidates);
     }
