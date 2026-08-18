@@ -145,10 +145,12 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("explosion_radius", Float.toString(((PrimedTntAccessor) (Object) tnt).predictiveSurvival$getExplosionPower()));
             properties.put("fuse_ticks", Integer.toString(Math.max(0, tnt.getFuse())));
             properties.put("source_key", "minecraft:explosion");
+            properties.put("scales_with_difficulty", "true");
         } else if (entity instanceof EndCrystal) {
             properties.put("explosion_radius", "6");
             properties.put("triggerable", "true");
             properties.put("source_key", "minecraft:explosion");
+            properties.put("scales_with_difficulty", "true");
         } else if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) {
             float progress = Math.max(0f, Math.min(1f, creeper.getSwelling(1f)));
             int conservativeRemaining = Math.max(0, (int) Math.floor((1f - progress) * 28f));
@@ -208,6 +210,7 @@ public final class MinecraftWorldSnapshotFactory {
                             properties.put("explosion_radius", "5");
                             properties.put("triggerable", "true");
                             properties.put("source_key", "minecraft:bad_respawn_point");
+                            properties.put("scales_with_difficulty", "true");
                         }
                     } else if (state.getBlock() instanceof RespawnAnchorBlock) {
                         boolean works = (Boolean) level.environmentAttributes().getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, pos);
@@ -215,6 +218,7 @@ public final class MinecraftWorldSnapshotFactory {
                             properties.put("explosion_radius", "5");
                             properties.put("triggerable", "true");
                             properties.put("source_key", "minecraft:bad_respawn_point");
+                            properties.put("scales_with_difficulty", "true");
                         }
                     }
 
