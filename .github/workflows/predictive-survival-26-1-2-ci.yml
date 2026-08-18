@@ -62,6 +62,20 @@ jobs:
           echo '--- run/logs/latest.log tail ---'
           if [ -f run/logs/latest.log ]; then tail -n 120 run/logs/latest.log; else echo 'latest.log not found'; fi
 
+      - name: Verify production jar isolation
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          jar_file=$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          if [ -z "$jar_file" ]; then
+            echo 'production jar not found'
+            exit 1
+          fi
+          if jar tf "$jar_file" | grep -q '^dev/pixelied/survival/validation/'; then
+            echo 'GameTest validation classes leaked into production jar'
+            exit 1
+          fi
+
       - name: Upload production jar
         if: success()
         uses: actions/upload-artifact@v4
