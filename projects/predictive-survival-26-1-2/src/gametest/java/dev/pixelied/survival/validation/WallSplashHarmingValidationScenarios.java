@@ -162,11 +162,14 @@ final class WallSplashHarmingValidationScenarios {
 
     private static Observation observe(net.minecraft.server.MinecraftServer server, int projectileId) {
         ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+        var source = player.getLastDamageSource();
         return new Observation(
             player.getHealth(),
             player.level().getEntity(projectileId) != null,
             player.position(),
-            player.getDeltaMovement()
+            player.getDeltaMovement(),
+            String.valueOf(source),
+            source == null ? "<none>" : String.valueOf(source.getSourcePosition())
         );
     }
 
@@ -239,7 +242,9 @@ final class WallSplashHarmingValidationScenarios {
         float health,
         boolean projectilePresent,
         Vec3 playerPosition,
-        Vec3 playerVelocity
+        Vec3 playerVelocity,
+        String lastDamageSource,
+        String damageSourcePosition
     ) {
     }
 
