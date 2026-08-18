@@ -51,7 +51,14 @@ final class PotionValidationScenarios {
             potion.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 6d);
             potion.setDeltaMovement(0d, 0d, -1.5d);
             level.addFreshEntity(potion);
-            return new Setup(potion.getId(), owner.getId());
+            return new Setup(
+                potion.getId(),
+                owner.getId(),
+                player.position().toString(),
+                player.getBoundingBox().toString(),
+                potion.position().toString(),
+                String.valueOf(potion.getItem().get(DataComponents.POTION_CONTENTS))
+            );
         });
 
         try {
@@ -70,16 +77,24 @@ final class PotionValidationScenarios {
                 .orElse("<projectile missing from snapshot>");
 
             float actualHealth = 20f;
-            for (int tick = 0; tick < 30; tick++) {
+            Observation last = null;
+            int disappearedAt = -1;
+            for (int tick = 1; tick <= 30; tick++) {
                 context.waitTick();
-                actualHealth = singleplayer.getServer().computeOnServer(server ->
-                    SurvivalValidationClientGameTest.onlyPlayer(server).getHealth()
-                );
+                last = singleplayer.getServer().computeOnServer(server -> observe(server, setup.projectileId()));
+                actualHealth = last.health();
+                if (!last.present() && disappearedAt < 0) disappearedAt = tick;
                 if (actualHealth < 20f) break;
             }
 
             if (actualHealth >= 20f) {
-                throw new AssertionError("splash Harming II fixture produced no server damage within 30 ticks; " + snapshot);
+                throw new AssertionError(
+                    "splash Harming II fixture produced no server damage within 30 ticks; "
+                        + snapshot
+                        + " setup=" + setup
+                        + " disappearedAt=" + disappearedAt
+                        + " last=" + last
+                );
             }
             if (predicted == null) {
                 throw new AssertionError(
@@ -109,6 +124,37 @@ final class PotionValidationScenarios {
         }
     }
 
-    private record Setup(int projectileId, int ownerId) {
+    private static Observation observe(net.minecraft.server.MinecraftServer server, int projectileId) {
+        ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+        Entity entity = player.level().getEntity(projectileId);
+        if (entity instanceof ThrownSplashPotion potion) {
+            return new Observation(
+                player.getHealth(),
+                true,
+                potion.position().toString(),
+                potion.getDeltaMovement().toString(),
+                String.valueOf(potion.getItem().get(DataComponents.POTION_CONTENTS))
+            );
+        }
+        return new Observation(player.getHealth(), false, "<gone>", "<gone>", "<gone>");
+    }
+
+    private record Setup(
+        int projectileId,
+        int ownerId,
+        String playerPosition,
+        String playerBox,
+        String potionPosition,
+        String potionContents
+    ) {
+    }
+
+    private record Observation(
+        float health,
+        boolean present,
+        String position,
+        String velocity,
+        String potionContents
+    ) {
     }
 }
