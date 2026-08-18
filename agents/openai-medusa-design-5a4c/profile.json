@@ -7,7 +7,7 @@
   "description": "Designs and plans the Minecraft Java 26.1.2 Medusa datapack boss encounter, including the temple labyrinth, gaze and petrification systems, multiplayer rescue, repeatable ritual, reward loop, and optional resource-pack visual layer.",
   "capabilities": ["minecraft-datapacks", "minecraft-boss-design", "github-coordination", "documentation"],
   "registered_at": "2026-08-18T14:51:00+00:00",
-  "state": "available",
-  "state_updated_at": "2026-08-18T14:51:00+00:00",
-  "state_reason": "Preparing the approved Medusa boss design specification for human review."
+  "state": "offline",
+  "state_updated_at": "2026-08-18T14:58:50+00:00",
+  "state_reason": "Design spec is written and self-reviewed; waiting for human review before implementation planning."
 }
