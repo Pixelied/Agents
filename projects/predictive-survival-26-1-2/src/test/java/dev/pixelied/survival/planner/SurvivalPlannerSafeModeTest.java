@@ -75,6 +75,21 @@ class SurvivalPlannerSafeModeTest {
     }
 
     @Test
+    void zeroWarmupTotemStillNeedsNextServerProcessingWindow() {
+        PredictionContext context = context(EngineLimits.defaults(), new TickWindow(2, 2));
+        SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem.vanillaTotem(),
+            SurvivalAction.Hand.OFF_HAND,
+            0, true, true, 1.0, 1, 1
+        );
+
+        ActionSimulation simulation = planner.simulate(context, lethalTimeline(1, false), protection, SafetyMode.SAFE);
+
+        assertFalse(simulation.feasible());
+        assertEquals("server deadline missed", simulation.reason());
+    }
+
+    @Test
     void safeModeUsesAlreadyActiveGuaranteedBlockWithoutWastingProtection() {
         PredictionContext context = context(EngineLimits.defaults());
         ThreatTimeline timeline = lethalTimeline(3, false);
@@ -139,6 +154,10 @@ class SurvivalPlannerSafeModeTest {
     }
 
     private static PredictionContext context(EngineLimits limits) {
+        return context(limits, new TickWindow(1, 1));
+    }
+
+    private static PredictionContext context(EngineLimits limits, TickWindow packetWindow) {
         PlayerSnapshot player = new PlayerSnapshot(
             5f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
@@ -148,7 +167,7 @@ class SurvivalPlannerSafeModeTest {
         return new PredictionContext(
             player,
             WorldSnapshot.empty(),
-            new TimingSnapshot(0, 50, 0, new TickWindow(1, 1)),
+            new TimingSnapshot(0, 50, 0, packetWindow),
             limits
         );
     }
