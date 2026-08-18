@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2completed20260818e1d193f0",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "task_state",
+  "message": "Task completed after merging the verified Crystal + Anchor Combat Optimizer into main. All acceptance criteria were reviewed against the implemented branch; the full Java 25 clean/test/build/GameTest gate passed and both required Minecraft GameTests passed.",
+  "data": {
+    "state": "completed",
+    "merge_commit": "e1d193f0e6aa7d0cab9fe60027554ecb47016f99",
+    "verified_pr_merge_commit": "13feb31664183aaa15adf489e80b7ff11000736e",
+    "tree_sha": "2d2049651d0d3460c98c81133fb00fb417bb7928",
+    "verification_run_id": 32139718774,
+    "verification_command": "gradle --no-daemon clean test build runGameTest --stacktrace",
+    "required_gametests_passed": 2
+  },
+  "created_at": "2026-08-18T13:07:00+00:00"
+}
