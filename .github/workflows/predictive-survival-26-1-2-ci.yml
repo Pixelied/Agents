@@ -57,27 +57,11 @@ jobs:
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
-          echo '--- focused GameTest console errors ---'
           if [ -f gametest-console.log ]; then
-            grep -Ein 'assert|exception|error|failed|failure|caused by|gametest|game test|crash|mixin' gametest-console.log | tail -n 160 || true
-          else
-            echo 'gametest-console.log not found'
+            grep -F 'hurt_cooldown_delta expected=' gametest-console.log | tail -n 3 || true
           fi
-          echo '--- focused Minecraft latest.log errors ---'
           if [ -f run/logs/latest.log ]; then
-            grep -Ein 'assert|exception|error|failed|failure|caused by|gametest|game test|crash|mixin' run/logs/latest.log | tail -n 200 || true
-          else
-            echo 'latest.log not found'
-          fi
-          echo '--- crash reports ---'
-          if [ -d run/crash-reports ]; then
-            for report in run/crash-reports/*; do
-              [ -f "$report" ] || continue
-              echo "--- $report ---"
-              tail -n 220 "$report"
-            done
-          else
-            echo 'crash-reports directory not found'
+            grep -F 'hurt_cooldown_delta expected=' run/logs/latest.log | tail -n 3 || true
           fi
 
       - name: Upload production jar
