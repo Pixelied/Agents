@@ -24,6 +24,7 @@ import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
+import net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
@@ -50,6 +51,7 @@ final class ProjectileValidationScenarios {
         results.add(validateMobOwnedTridentHardScaling(context, singleplayer));
         validateMobOwnedLargeFireballDifficultyMetadata(context, singleplayer);
         validateMobOwnedSmallFireballDifficultyMetadata(context, singleplayer);
+        validateMobOwnedWitherSkullDifficultyMetadata(context, singleplayer);
         return List.copyOf(results);
     }
 
@@ -170,56 +172,79 @@ final class ProjectileValidationScenarios {
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer
     ) {
-        FireballSetup setup = singleplayer.getServer().computeOnServer(server -> {
+        HurtingProjectileSetup setup = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             ServerLevel level = (ServerLevel) player.level();
+            Creeper owner = createOwner(level, player);
 
-            Creeper owner = new Creeper(EntityType.CREEPER, level);
-            owner.setNoAi(true);
-            owner.setPos(player.getX() + 12d, player.getY(), player.getZ() + 12d);
-            level.addFreshEntity(owner);
-
-            LargeFireball fireball = new LargeFireball(EntityType.FIREBALL, level);
-            fireball.setOwner(owner);
-            fireball.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 6d);
-            fireball.setDeltaMovement(0d, 0d, -1.5d);
-            level.addFreshEntity(fireball);
-            boolean serverScales = player.damageSources().fireball(fireball, owner).scalesWithDifficulty();
-            return new FireballSetup(fireball.getId(), owner.getId(), serverScales);
+            LargeFireball projectile = new LargeFireball(EntityType.FIREBALL, level);
+            projectile.setOwner(owner);
+            placeProjectile(projectile, player);
+            level.addFreshEntity(projectile);
+            boolean serverScales = player.damageSources().fireball(projectile, owner).scalesWithDifficulty();
+            return new HurtingProjectileSetup(projectile.getId(), owner.getId(), serverScales);
         });
 
-        validateFireballDifficultyMetadata(context, singleplayer, setup, "large_fireball");
+        validateHurtingProjectileDifficultyMetadata(context, singleplayer, setup, "large_fireball");
     }
 
     private static void validateMobOwnedSmallFireballDifficultyMetadata(
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer
     ) {
-        FireballSetup setup = singleplayer.getServer().computeOnServer(server -> {
+        HurtingProjectileSetup setup = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             ServerLevel level = (ServerLevel) player.level();
+            Creeper owner = createOwner(level, player);
 
-            Creeper owner = new Creeper(EntityType.CREEPER, level);
-            owner.setNoAi(true);
-            owner.setPos(player.getX() + 12d, player.getY(), player.getZ() + 12d);
-            level.addFreshEntity(owner);
-
-            SmallFireball fireball = new SmallFireball(EntityType.SMALL_FIREBALL, level);
-            fireball.setOwner(owner);
-            fireball.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 6d);
-            fireball.setDeltaMovement(0d, 0d, -1.5d);
-            level.addFreshEntity(fireball);
-            boolean serverScales = player.damageSources().fireball(fireball, owner).scalesWithDifficulty();
-            return new FireballSetup(fireball.getId(), owner.getId(), serverScales);
+            SmallFireball projectile = new SmallFireball(EntityType.SMALL_FIREBALL, level);
+            projectile.setOwner(owner);
+            placeProjectile(projectile, player);
+            level.addFreshEntity(projectile);
+            boolean serverScales = player.damageSources().fireball(projectile, owner).scalesWithDifficulty();
+            return new HurtingProjectileSetup(projectile.getId(), owner.getId(), serverScales);
         });
 
-        validateFireballDifficultyMetadata(context, singleplayer, setup, "small_fireball");
+        validateHurtingProjectileDifficultyMetadata(context, singleplayer, setup, "small_fireball");
     }
 
-    private static void validateFireballDifficultyMetadata(
+    private static void validateMobOwnedWitherSkullDifficultyMetadata(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer
+    ) {
+        HurtingProjectileSetup setup = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            ServerLevel level = (ServerLevel) player.level();
+            Creeper owner = createOwner(level, player);
+
+            WitherSkull projectile = new WitherSkull(EntityType.WITHER_SKULL, level);
+            projectile.setOwner(owner);
+            placeProjectile(projectile, player);
+            level.addFreshEntity(projectile);
+            boolean serverScales = player.damageSources().witherSkull(projectile, owner).scalesWithDifficulty();
+            return new HurtingProjectileSetup(projectile.getId(), owner.getId(), serverScales);
+        });
+
+        validateHurtingProjectileDifficultyMetadata(context, singleplayer, setup, "wither_skull");
+    }
+
+    private static Creeper createOwner(ServerLevel level, ServerPlayer player) {
+        Creeper owner = new Creeper(EntityType.CREEPER, level);
+        owner.setNoAi(true);
+        owner.setPos(player.getX() + 12d, player.getY(), player.getZ() + 12d);
+        level.addFreshEntity(owner);
+        return owner;
+    }
+
+    private static void placeProjectile(Entity projectile, ServerPlayer player) {
+        projectile.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 6d);
+        projectile.setDeltaMovement(0d, 0d, -1.5d);
+    }
+
+    private static void validateHurtingProjectileDifficultyMetadata(
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer,
-        FireballSetup setup,
+        HurtingProjectileSetup setup,
         String id
     ) {
         try {
@@ -229,12 +254,12 @@ final class ProjectileValidationScenarios {
                     throw new AssertionError("client player/level unavailable for mob " + id + " difficulty validation");
                 }
                 WorldSnapshot world = new MinecraftWorldSnapshotFactory().capture(minecraft.level, minecraft.player, LIMITS);
-                WorldSnapshot.EntitySnapshot fireball = world.entities().stream()
+                WorldSnapshot.EntitySnapshot projectile = world.entities().stream()
                     .filter(entity -> entity.id().equals(Integer.toString(setup.projectileId())))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("live mob-owned " + id + " missing from world snapshot"));
                 boolean snapshotScales = Boolean.parseBoolean(
-                    fireball.properties().getOrDefault("scales_with_difficulty", "false")
+                    projectile.properties().getOrDefault("scales_with_difficulty", "false")
                 );
                 if (snapshotScales != setup.serverScales()) {
                     throw new AssertionError(
@@ -380,6 +405,6 @@ final class ProjectileValidationScenarios {
     private record ProjectileSetup(int projectileId, int ownerId) {
     }
 
-    private record FireballSetup(int projectileId, int ownerId, boolean serverScales) {
+    private record HurtingProjectileSetup(int projectileId, int ownerId, boolean serverScales) {
     }
 }
