@@ -171,17 +171,25 @@ class ActionLegalityTest {
 
     @Test
     void predictedAnchorSetupMutatesOnlyTheBranchAndNeedsNoNewEntityId() {
+        var setupInventory = new InventoryState(
+            0,
+            Map.of(Items.RESPAWN_ANCHOR, 1, Items.GLOWSTONE, 1),
+            Map.of(0, Items.RESPAWN_ANCHOR, 1, Items.GLOWSTONE),
+            Optional.empty()
+        );
         var initial = state(
             CombatRegion.empty(),
             List.of(),
             Map.of(),
-            inventory(Map.of(Items.RESPAWN_ANCHOR, 1, Items.GLOWSTONE, 1)),
+            setupInventory,
             legality(false, List.of())
         );
 
         var placed = new PlaceAnchor(BASE).simulate(initial, SimulationServices.defaults());
-        var charged = new ChargeAnchor(BASE).simulate(placed.state(), SimulationServices.defaults());
-        var detonated = new DetonateAnchor(BASE).simulate(charged.state(), SimulationServices.defaults());
+        var glowstoneSelected = new SelectHotbarSlot(1).simulate(placed.state(), SimulationServices.defaults());
+        var charged = new ChargeAnchor(BASE).simulate(glowstoneSelected.state(), SimulationServices.defaults());
+        var emptyHandSelected = new SelectHotbarSlot(2).simulate(charged.state(), SimulationServices.defaults());
+        var detonated = new DetonateAnchor(BASE).simulate(emptyHandSelected.state(), SimulationServices.defaults());
 
         assertFalse(initial.anchors().containsKey(BASE));
         assertTrue(placed.state().geometry().getBlockState(BASE).is(Blocks.RESPAWN_ANCHOR));
@@ -238,6 +246,10 @@ class ActionLegalityTest {
     }
 
     private static InventoryState inventory(Map<Item, Integer> counts) {
+        if (counts.size() == 1) {
+            Item selected = counts.keySet().iterator().next();
+            return new InventoryState(0, counts, Map.of(0, selected), Optional.empty());
+        }
         return new InventoryState(0, counts, Map.of(), Optional.empty());
     }
 
