@@ -132,7 +132,7 @@ public final class MinecraftWorldSnapshotFactory {
                     : "1");
                 ItemStack weapon = living.getMainHandItem();
                 properties.put("weapon_key", itemKey(weapon));
-                properties.put("fall_distance", Float.toString(living.fallDistance));
+                properties.put("fall_distance", Double.toString(living.fallDistance));
                 properties.put("critical_possible", entity instanceof Player ? "unknown" : "false");
                 properties.put("line_of_sight", Boolean.toString(player.hasLineOfSight(entity)));
                 properties.put("scales_with_difficulty", Boolean.toString(!(entity instanceof Player)));
