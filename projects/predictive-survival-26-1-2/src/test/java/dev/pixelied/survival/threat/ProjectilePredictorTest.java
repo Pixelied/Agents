@@ -125,6 +125,28 @@ class ProjectilePredictorTest {
     }
 
     @Test
+    void splashHarmingDoesNotTreatCurrentVelocityAsGuaranteedEscape() {
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(5, 0, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        List<ThreatEvent> events = predictor.predict(context(
+            List.of(splashHarming()),
+            List.of(wall),
+            new Vec3Snapshot(1.0, 0, 0)
+        ));
+
+        assertFalse(events.isEmpty(), "current velocity alone cannot prove the player will escape a nearby splash");
+        DamageRange range = events.getFirst().damage().rawDamage();
+        assertEquals(0f, range.min(), 0.0001f);
+        assertTrue(range.max() > 0f);
+        assertTrue(range.max() <= 12f);
+    }
+
+    @Test
     void splashHarmingWallCollisionOutsideFourBlockRadiusDoesNotInventThreat() {
         WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
             new Vec3Snapshot(2, 1, 0),
@@ -221,11 +243,19 @@ class ProjectilePredictorTest {
         List<WorldSnapshot.EntitySnapshot> entities,
         List<WorldSnapshot.BlockSnapshot> blocks
     ) {
+        return context(entities, blocks, new Vec3Snapshot(0, 0, 0));
+    }
+
+    private static PredictionContext context(
+        List<WorldSnapshot.EntitySnapshot> entities,
+        List<WorldSnapshot.BlockSnapshot> blocks,
+        Vec3Snapshot playerVelocity
+    ) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
             DeathProtectionSnapshot.none(), new AabbSnapshot(6.7, 0, 0, 7.3, 1.8, 0.6),
-            new Vec3Snapshot(6.7, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
+            new Vec3Snapshot(6.7, 0, 0), playerVelocity, Map.of()
         );
         return new PredictionContext(
             player,
