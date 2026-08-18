@@ -15,8 +15,10 @@ import java.util.Set;
 public final class AreaEffectCloudAttributionTracker {
     private static final String CLOUD_TYPE = "minecraft:area_effect_cloud";
     private static final String DRAGON_BREATH_MARKER = ":dragon_breath:0";
+    private static final String LINGERING_POTION_MARKER = ":lingering_cloud:0";
     private static final double MATCH_DISTANCE_SQUARED = 4d;
     private static final long NETWORK_GRACE_TICKS = 2L;
+    private static final int DEFAULT_REAPPLICATION_DELAY_TICKS = 20;
 
     private final Map<String, PendingAttribution> pendingByProjectile = new HashMap<>();
     private final Map<String, CloudAttribution> activeByCloud = new HashMap<>();
@@ -26,10 +28,22 @@ public final class AreaEffectCloudAttributionTracker {
         expirePending(clientTick);
 
         for (ThreatEvent threat : threats) {
-            if (threat == null || !threat.id().contains(DRAGON_BREATH_MARKER)) continue;
-            if (!threat.id().endsWith(DRAGON_BREATH_MARKER) || threat.impactPosition().isEmpty()) continue;
+            if (threat == null || threat.impactPosition().isEmpty()) continue;
 
-            String projectileKey = threat.id().substring(0, threat.id().length() - DRAGON_BREATH_MARKER.length());
+            String marker;
+            CloudAttribution attribution;
+            if (threat.id().endsWith(DRAGON_BREATH_MARKER)) {
+                marker = DRAGON_BREATH_MARKER;
+                attribution = CloudAttribution.dragonBreath();
+            } else if (threat.id().endsWith(LINGERING_POTION_MARKER)) {
+                marker = LINGERING_POTION_MARKER;
+                attribution = CloudAttribution.lingeringPotion(threat);
+                if (attribution.rawDamage() <= 0f) continue;
+            } else {
+                continue;
+            }
+
+            String projectileKey = threat.id().substring(0, threat.id().length() - marker.length());
             long expiresAt = saturatingAdd(
                 clientTick,
                 saturatingAdd(Math.max(0L, threat.impact().latest()), NETWORK_GRACE_TICKS)
@@ -37,7 +51,7 @@ public final class AreaEffectCloudAttributionTracker {
             PendingAttribution candidate = new PendingAttribution(
                 threat.impactPosition().get(),
                 expiresAt,
-                CloudAttribution.dragonBreath()
+                attribution
             );
             pendingByProjectile.merge(
                 projectileKey,
@@ -135,7 +149,21 @@ public final class AreaEffectCloudAttributionTracker {
         String attributionKey
     ) {
         private static CloudAttribution dragonBreath() {
-            return new CloudAttribution(6f, "minecraft:indirect_magic", 20, "dragon_breath");
+            return new CloudAttribution(
+                6f,
+                "minecraft:indirect_magic",
+                DEFAULT_REAPPLICATION_DELAY_TICKS,
+                "dragon_breath"
+            );
+        }
+
+        private static CloudAttribution lingeringPotion(ThreatEvent threat) {
+            return new CloudAttribution(
+                threat.damage().rawDamage().max(),
+                threat.damage().sourceKey(),
+                DEFAULT_REAPPLICATION_DELAY_TICKS,
+                "lingering_potion"
+            );
         }
     }
 }
