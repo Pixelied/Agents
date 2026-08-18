@@ -2,7 +2,10 @@
   "required": true,
   "package": "dev.pixelied.survival.mixin",
   "client": [
-    "FoodDataAccessor"
+    "AbstractArrowAccessor",
+    "FireworkRocketAccessor",
+    "FoodDataAccessor",
+    "PrimedTntAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
