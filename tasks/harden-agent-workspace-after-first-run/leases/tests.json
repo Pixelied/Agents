@@ -6,8 +6,10 @@
   "intent": "Add regression coverage for Git checkout-safe workspace validation without altering project implementation tests.",
   "owner": "openai-workspace-repair-8c31",
   "protocol_version": "1.0",
+  "release_reason": "Regression coverage added and passing in fresh PR merge CI",
+  "released_at": "2026-08-18T11:31:41+00:00",
   "schema_version": 1,
   "scope": "tests",
-  "state": "active",
+  "state": "released",
   "task_id": "harden-agent-workspace-after-first-run"
 }
