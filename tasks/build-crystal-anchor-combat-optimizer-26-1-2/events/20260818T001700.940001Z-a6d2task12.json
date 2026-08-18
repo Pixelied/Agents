@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2task12green001700",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 12 GREEN: commit freezing, AutoTotem-priority reservations, adaptive real rotations, real hotbar selection, ordinary gameMode attack/useItemOn dispatch, out-of-commit restocking, explicit no-movement/no-fake-packet guards, and passive outgoing block-interaction sequence observation all pass the full Java 25 test/build/GameTest gate.",
+  "data": {
+    "green_run_id": 32083816746,
+    "green_head": "eca6142156a8dedf0cb07c9210640faa2cfb4967",
+    "dispatch_green_head": "27649cfedbfd0296b5c0dc4c8ffa6d71e8241309",
+    "rotation_green_head": "4fe05979f2593a09ec1941bdfb70363307209b17",
+    "sequence_send_hook": "ClientCommonPacketListenerImpl#send HEAD observes ServerboundUseItemOnPacket#getSequence",
+    "sequence_ack_hook": "ClientPacketListener#handleBlockChangedAck TAIL"
+  },
+  "created_at": "2026-08-18T00:17:00+00:00"
+}
