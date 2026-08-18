@@ -1,0 +1,3 @@
+scoreboard players add @s md_ray 1
+execute if block ~ ~ ~ #medusa:gaze_passable if entity @e[tag=!md.staff_caster,type=!minecraft:marker,type=!minecraft:item,type=!minecraft:item_display,type=!minecraft:block_display,type=!minecraft:text_display,type=!minecraft:interaction,type=!minecraft:armor_stand,distance=..0.8,limit=1,sort=nearest] run function medusa:staff/quick/hit
+execute if block ~ ~ ~ #medusa:gaze_passable unless entity @e[tag=!md.staff_caster,type=!minecraft:marker,type=!minecraft:item,type=!minecraft:item_display,type=!minecraft:block_display,type=!minecraft:text_display,type=!minecraft:interaction,type=!minecraft:armor_stand,distance=..0.8,limit=1,sort=nearest] if score @s md_ray matches ..31 positioned ^ ^ ^0.5 run function medusa:staff/quick/ray

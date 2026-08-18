@@ -57,3 +57,4 @@ scoreboard objectives add md_atk_timer dummy
 scoreboard objectives add md_roll dummy
 scoreboard objectives add md_reset dummy
 scoreboard objectives add md_killed dummy
+scoreboard objectives add md_staff_seen dummy
