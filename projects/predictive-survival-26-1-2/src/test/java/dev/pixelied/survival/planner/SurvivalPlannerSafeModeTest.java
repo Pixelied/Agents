@@ -32,6 +32,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SurvivalPlannerSafeModeTest {
     private final SurvivalPlanner planner = new SurvivalPlanner();
@@ -52,6 +53,25 @@ class SurvivalPlannerSafeModeTest {
         SurvivalPlan plan = planner.plan(context, timeline, candidates, SafetyMode.SAFE);
 
         assertInstanceOf(SurvivalAction.EquipDeathProtection.class, plan.action());
+    }
+
+    @Test
+    void harmlessEarlierThreatDoesNotStealDeadlineFromLaterLethalHit() {
+        PredictionContext context = context(EngineLimits.defaults());
+        ThreatTimeline timeline = new ThreatTimeline(List.of(
+            threat("chip", 1, 1f, Set.of(DamageFlag.BYPASSES_COOLDOWN)),
+            threat("lethal", 5, 20f, Set.of(DamageFlag.BYPASSES_COOLDOWN))
+        ));
+        SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem.vanillaTotem(),
+            SurvivalAction.Hand.OFF_HAND,
+            2, true, true, 1.0, 1, 1
+        );
+
+        ActionSimulation simulation = planner.simulate(context, timeline, protection, SafetyMode.SAFE);
+
+        assertTrue(simulation.feasible(), simulation.reason());
+        assertTrue(simulation.result().survived());
     }
 
     @Test
@@ -145,5 +165,23 @@ class SurvivalPlannerSafeModeTest {
             "lethal", ThreatKind.OTHER, new TickWindow(impactTick, impactTick), damage,
             Confidence.EXACT, Optional.empty(), Optional.empty(), true, true, true, false
         )));
+    }
+
+    private static ThreatEvent threat(String id, long tick, float damage, Set<DamageFlag> flags) {
+        return new ThreatEvent(
+            id,
+            ThreatKind.OTHER,
+            new TickWindow(tick, tick),
+            new DamageSourceSnapshot(
+                DamageRange.exact(damage), flags, false, 1f, false, Optional.empty(), "minecraft:generic"
+            ),
+            Confidence.EXACT,
+            Optional.empty(),
+            Optional.empty(),
+            true,
+            false,
+            true,
+            false
+        );
     }
 }
