@@ -37,6 +37,10 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
         List<ValidationResult> results = new ArrayList<>();
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             context.waitFor(minecraft -> minecraft.player != null && minecraft.level != null);
+            context.waitFor(minecraft -> singleplayer.getServer().computeOnServer(server -> {
+                List<ServerPlayer> players = server.getPlayerList().getPlayers();
+                return players.size() == 1 && players.getFirst().connection.hasClientLoaded();
+            }));
 
             results.add(validateGenericDamage(singleplayer));
             validateHurtCooldown(singleplayer);
