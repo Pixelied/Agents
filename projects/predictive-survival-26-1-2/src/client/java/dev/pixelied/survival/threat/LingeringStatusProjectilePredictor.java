@@ -28,7 +28,7 @@ import java.util.Optional;
  */
 public final class LingeringStatusProjectilePredictor implements ThreatPredictor {
     private static final String LINGERING_POTION_TYPE = "minecraft:lingering_potion";
-    private static final int CLOUD_DURATION_DIVISOR = 4;
+    private static final float DEFAULT_LINGERING_DURATION_SCALE = 0.25f;
     private static final int POISON_BASE_INTERVAL_TICKS = 25;
     private static final int WITHER_BASE_INTERVAL_TICKS = 40;
     private static final float STATUS_RAW_DAMAGE = 1f;
@@ -127,7 +127,11 @@ public final class LingeringStatusProjectilePredictor implements ThreatPredictor
         float healthFloor,
         List<ThreatEvent> output
     ) {
-        int cloudDuration = sourceDuration / CLOUD_DURATION_DIVISOR;
+        float durationScale = finiteNonNegativeFloat(
+            entity.properties().get("potion_duration_scale"),
+            DEFAULT_LINGERING_DURATION_SCALE
+        );
+        int cloudDuration = scaledDuration(sourceDuration, durationScale);
         if (cloudDuration <= 0) return;
 
         int interval = intervalTicks(baseInterval, amplifier);
@@ -168,6 +172,13 @@ public final class LingeringStatusProjectilePredictor implements ThreatPredictor
         }
     }
 
+    private static int scaledDuration(int sourceDuration, float scale) {
+        if (sourceDuration <= 0 || !Float.isFinite(scale) || scale <= 0f) return 0;
+        double scaled = Math.floor(sourceDuration * (double) scale);
+        if (!Double.isFinite(scaled) || scaled >= Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        return Math.max(1, (int) scaled);
+    }
+
     private static int intervalTicks(int baseInterval, int amplifier) {
         int shift = Math.min(30, Math.max(0, amplifier));
         return Math.max(1, baseInterval >> shift);
@@ -183,6 +194,16 @@ public final class LingeringStatusProjectilePredictor implements ThreatPredictor
         try {
             int parsed = Integer.parseInt(value);
             return parsed >= 0 ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static float finiteNonNegativeFloat(String value, float fallback) {
+        if (value == null) return fallback;
+        try {
+            float parsed = Float.parseFloat(value);
+            return Float.isFinite(parsed) && parsed >= 0f ? parsed : fallback;
         } catch (NumberFormatException ignored) {
             return fallback;
         }
