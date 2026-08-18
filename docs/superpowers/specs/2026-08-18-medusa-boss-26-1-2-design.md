@@ -5,6 +5,8 @@
 **Gameplay layer:** Datapack-first, multiplayer-safe  
 **Visual layer:** Swappable resource pack; ETF/EMF may be used if useful for entity presentation, but gameplay must remain correct without the visual layer
 
+Numeric values explicitly described as initial tuning targets are implementation defaults for the first playable build. Playtesting may tune those values without changing the approved mechanics or encounter structure.
+
 ## 1. Design goals
 
 Medusa is a full mini-dungeon encounter rather than a boss placed in a room. Players enter a ruined surface temple, descend into an underground Gorgon labyrinth, solve a small number of simple themed puzzles, survive snakes and traps, and finally enter a purpose-built arena where Medusa is released from a giant stone prison.
@@ -254,7 +256,7 @@ Multiplayer behavior is server-authoritative and instance-local.
 
 - Late joiners who enter an active arena become participants in that instance.
 - Dead, disconnected, or departed players have personal petrification/channel state cleared.
-- If every living participant is dead or outside the encounter for a short timeout, the fight resets to a valid retry/rematch state.
+- If every living participant is dead or outside the encounter for **10 continuous seconds**, the fight resets to a valid retry/rematch state.
 - Temporary snakes, venom zones, display entities, particles/controllers, staff channel markers, and statue shells are removed on cleanup.
 - Phase transitions can trigger only once per spawn.
 - Reward resolution has a one-shot guard so unusual death timing cannot duplicate loot.
@@ -304,20 +306,20 @@ Preferred interaction: Medusa Staff in the main hand, Gorgon Scale in the offhan
 
 ### 13.2 Quick petrify
 
-A quick use on a valid target costs **1 charge** and applies a strong temporary partial petrification: heavy Slowness, Weakness, stone particles, and cracking feedback without fully disabling the target.
+A quick use on a valid target costs **1 charge** and applies **4 seconds** of strong partial petrification: roughly **60% movement reduction**, **Weakness II-equivalent combat reduction**, stone particles, and cracking feedback without fully disabling the target.
 
-Initial range target: about **16 blocks** with clear line of sight.
+Initial range target is **16 blocks** with clear line of sight.
 
 ### 13.3 Channeled petrification
 
-Holding use channels the staff onto the aimed target. The caster is heavily slowed and cannot sprint while channeling.
+Holding use channels the staff onto the aimed target at a maximum range of **16 blocks**. The caster is heavily slowed and cannot sprint while channeling.
 
 Counterplay is mandatory:
 
 - breaking line of sight interrupts the channel;
-- taking damage interrupts the caster's channel;
-- moving the crosshair off the target breaks the lock after a very short tolerance;
-- partial petrification decays gradually after interruption rather than disappearing instantly.
+- taking any successful damage interrupts the caster's channel;
+- moving the crosshair off the target breaks the lock after a very short tolerance of about **0.25 seconds**;
+- after interruption, accumulated channel progress waits **0.5 seconds** and then decays at roughly **1 second of accumulated progress per second**.
 
 The staff consumes **1 charge per completed second of channeling**.
 
@@ -328,9 +330,9 @@ Channel progression:
 - about 3 seconds: full petrification;
 - about 5 seconds of uninterrupted total channeling: suffocation/crushing damage begins while the beam is maintained.
 
-Normal mobs and players remain fully petrified for about **5 seconds** after the beam stops, then automatically crack free. Continuing to channel after the full-petrification point is what turns the move from control into damage.
+Normal mobs and players remain fully petrified for **5 seconds** after the beam stops, then automatically crack free. If the caster maintains the beam beyond 5 total channel seconds, the target takes **2 health points (1 heart) per second** of suffocation/crushing damage until the beam breaks or the target dies.
 
-Boss-class targets use the same buildup so the staff feels consistent, but automatically crack free after about **1.5 seconds** of full petrification and are immune to the staff's suffocation finisher. This prevents the staff from deleting other boss mechanics while still rewarding a successful channel.
+Boss-class targets use the same buildup so the staff feels consistent, but automatically crack free after **1.5 seconds** of full petrification and are immune to the staff's suffocation finisher. This prevents the staff from deleting other boss mechanics while still rewarding a successful channel.
 
 ### 13.4 Stone Spikes
 
@@ -361,7 +363,7 @@ To summon Medusa again:
 
 If the ritual is interrupted before Medusa actually spawns, its offering is not lost. If the boss fully spawns and the party later wipes, the offering remains spent.
 
-Required puzzle doors stay open after first clear so rematches do not require repeating the full labyrinth. Ambient traps/snakes may reset after roughly 15 minutes with no players inside the dungeon.
+Required puzzle doors stay open after first clear so rematches do not require repeating the full labyrinth. Ambient traps/snakes may reset after **15 continuous minutes** with no players inside the dungeon.
 
 ## 15. Technical boundaries
 
