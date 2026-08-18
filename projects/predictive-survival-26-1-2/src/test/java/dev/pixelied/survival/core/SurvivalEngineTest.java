@@ -69,6 +69,27 @@ class SurvivalEngineTest {
     }
 
     @Test
+    void tightenedSameThreatDeadlineReplansPendingAction() {
+        SurvivalAction shield = warmupShield();
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection), 100, 4));
+        SurvivalEngine engine = new SurvivalEngine(
+            SurvivalConfig.defaults(), runtime, new DecisionHistory(128)
+        );
+
+        engine.tick();
+        assertInstanceOf(SurvivalAction.RaiseShield.class, engine.currentPlan().orElseThrow().action());
+        assertEquals(1, runtime.beginCount);
+
+        runtime.frame = frame(List.of(shield, protection), 101, 1);
+        engine.tick();
+
+        assertEquals(0, runtime.observeCount, "an infeasible stale action must be invalidated before observation");
+        assertEquals(2, runtime.beginCount, "the tightened deadline must trigger an immediate replacement action");
+        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, engine.currentPlan().orElseThrow().action());
+    }
+
+    @Test
     void approachingSameThreatStillEscalatesAfterExecutionFailure() {
         SurvivalAction shield = shield();
         SurvivalAction protection = protection();
@@ -106,6 +127,10 @@ class SurvivalEngineTest {
 
     private static SurvivalAction shield() {
         return new SurvivalAction.RaiseShield(0, true, true, true, 1d, 1f, 5, 5, 0);
+    }
+
+    private static SurvivalAction warmupShield() {
+        return new SurvivalAction.RaiseShield(3, true, true, true, 1d, 1f, 2, 5, 0);
     }
 
     private static SurvivalAction protection() {
