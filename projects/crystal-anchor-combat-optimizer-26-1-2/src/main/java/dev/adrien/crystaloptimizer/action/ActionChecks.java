@@ -3,6 +3,7 @@ package dev.adrien.crystaloptimizer.action;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import dev.adrien.crystaloptimizer.world.LegalitySnapshot;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.phys.AABB;
 
 final class ActionChecks {
@@ -16,6 +17,16 @@ final class ActionChecks {
         return hasEntityCollision(state.base().legality(), blockBox(pos))
             ? ActionLegality.denied("entity collision blocks placement")
             : ActionLegality.allowed();
+    }
+
+    static ActionLegality requireAdjacentPlacementSupport(CombatState state, BlockPos pos) {
+        for (Direction direction : Direction.values()) {
+            var supportState = state.geometry().getBlockState(pos.relative(direction));
+            if (!supportState.isAir() && !supportState.canBeReplaced()) {
+                return ActionLegality.allowed();
+            }
+        }
+        return ActionLegality.denied("no adjacent non-replaceable support face is available");
     }
 
     static boolean hasEntityCollision(LegalitySnapshot legality, AABB box) {
