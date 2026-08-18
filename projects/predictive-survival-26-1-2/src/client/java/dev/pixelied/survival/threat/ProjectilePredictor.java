@@ -71,7 +71,9 @@ public final class ProjectilePredictor implements ThreatPredictor {
 
             if (block != null && block.t() <= playerT + EPSILON) {
                 List<ThreatEvent> events = new ArrayList<>();
-                splashPotionImpact(context, entity, block.position(), next.tick(), false).ifPresent(events::add);
+                splashPotionImpact(
+                    context, entity, block.position(), block.blockBounds(), next.tick(), false
+                ).ifPresent(events::add);
                 events.addAll(poisonPotionImpacts(context, entity, block.position(), next.tick(), false));
                 lingeringPotionImpact(context, entity, block.position(), next.tick()).ifPresent(events::add);
                 collisionExplosion(context, entity, block.position(), next.tick()).ifPresent(events::add);
@@ -87,7 +89,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                     default -> next.velocity();
                 };
                 directHit(entity, family, impactVelocity, impact, next.tick()).ifPresent(events::add);
-                splashPotionImpact(context, entity, impact, next.tick(), true).ifPresent(events::add);
+                splashPotionImpact(context, entity, impact, null, next.tick(), true).ifPresent(events::add);
                 events.addAll(poisonPotionImpacts(context, entity, impact, next.tick(), true));
                 lingeringPotionImpact(context, entity, impact, next.tick()).ifPresent(events::add);
                 collisionExplosion(context, entity, impact, next.tick()).ifPresent(events::add);
@@ -213,6 +215,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         PredictionContext context,
         WorldSnapshot.EntitySnapshot entity,
         Vec3Snapshot impact,
+        AabbSnapshot blockBounds,
         long tick,
         boolean directPlayerHit
     ) {
@@ -229,7 +232,17 @@ public final class ProjectilePredictor implements ThreatPredictor {
             double radius = finiteNonNegative(entity.properties().get("potion_splash_radius"), 4d);
             if (radius <= 0d) return Optional.empty();
 
-            if (hasMotion(context.player().velocity())) {
+            boolean movingPlayer = hasMotion(context.player().velocity());
+            int observationAge = positiveInt(entity.properties().get("observation_age_ticks"), 0);
+            if (observationAge > 0 && blockBounds != null) {
+                AabbSnapshot possiblePlayerBounds = movingPlayer
+                    ? sweptPlayerBox(context.player(), tick)
+                    : context.player().boundingBox();
+                double minimumDistance = distanceBetweenAabbs(blockBounds, possiblePlayerBounds);
+                float maximumRaw = splashRawDamage(fullDamage, radius, minimumDistance);
+                if (maximumRaw <= 0f) return Optional.empty();
+                damage = new DamageRange(0f, maximumRaw);
+            } else if (movingPlayer) {
                 double minimumDistance = distanceToAabb(impact, sweptPlayerBox(context.player(), tick));
                 float maximumRaw = splashRawDamage(fullDamage, radius, minimumDistance);
                 if (maximumRaw <= 0f) return Optional.empty();
@@ -569,7 +582,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                         Math.max(cube.minZ(), Math.min(center.z(), cube.maxZ()))
                     );
                 }
-                best = new Collision(bodyT, impact);
+                best = new Collision(bodyT, impact, cube);
             }
         }
         return best;
@@ -628,6 +641,19 @@ public final class ProjectilePredictor implements ThreatPredictor {
         double dy = axisDistance(point.y(), box.minY(), box.maxY());
         double dz = axisDistance(point.z(), box.minZ(), box.maxZ());
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static double distanceBetweenAabbs(AabbSnapshot first, AabbSnapshot second) {
+        double dx = axisGap(first.minX(), first.maxX(), second.minX(), second.maxX());
+        double dy = axisGap(first.minY(), first.maxY(), second.minY(), second.maxY());
+        double dz = axisGap(first.minZ(), first.maxZ(), second.minZ(), second.maxZ());
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static double axisGap(double firstMin, double firstMax, double secondMin, double secondMax) {
+        if (firstMax < secondMin) return secondMin - firstMax;
+        if (secondMax < firstMin) return firstMin - secondMax;
+        return 0d;
     }
 
     private static double axisDistance(double value, double min, double max) {
@@ -731,7 +757,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         }
     }
 
-    private record Collision(double t, Vec3Snapshot position) {
+    private record Collision(double t, Vec3Snapshot position, AabbSnapshot blockBounds) {
     }
 
     private record ProjectileBounds(
