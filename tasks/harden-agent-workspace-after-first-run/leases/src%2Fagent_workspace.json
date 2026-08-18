@@ -6,8 +6,10 @@
   "intent": "Repair recurring Git checkout validation failures in the workspace core without touching project implementation scopes.",
   "owner": "openai-workspace-repair-8c31",
   "protocol_version": "1.0",
+  "release_reason": "Validator contract repaired, regression-covered, documented, and verified in fresh PR merge CI",
+  "released_at": "2026-08-18T11:31:40+00:00",
   "schema_version": 1,
   "scope": "src/agent_workspace",
-  "state": "active",
+  "state": "released",
   "task_id": "harden-agent-workspace-after-first-run"
 }
