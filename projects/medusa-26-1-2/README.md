@@ -86,7 +86,7 @@ python3 -m unittest discover -s tests -v
 python3 scripts/validate_medusa.py
 ```
 
-GitHub Actions additionally downloads Mojang's exact 26.1.2 dedicated server, verifies its SHA-1 and Java-25 requirement, boots the pack, exercises the debug entrypoints, checks that Medusa spawns, and proves custom petrification damage bypasses Resistance as intended.
+GitHub Actions additionally downloads Mojang's exact 26.1.2 dedicated server, verifies its SHA-1 and Java-25 requirement, boots the pack, exercises the debug entrypoints, checks that the temple instance and Medusa spawn, and verifies the controlled petrification-suffocation damage window removes Resistance only around the custom damage call and restores it immediately afterward.
 
 ## Manual acceptance gates
 
