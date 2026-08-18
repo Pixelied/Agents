@@ -1,16 +1,25 @@
 package dev.pixelied.survival.planner;
 
 import dev.pixelied.survival.core.PredictionContext;
+import dev.pixelied.survival.damage.ArmorPieceSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
+import dev.pixelied.survival.damage.MitigationSnapshot;
+import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.inventory.ConsumableSurvivalSnapshot;
 import dev.pixelied.survival.inventory.DeathProtectionRoute;
 import dev.pixelied.survival.inventory.DeathProtectionRoutePlanner;
+import dev.pixelied.survival.inventory.EquippableSurvivalSnapshot;
+import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 public final class SurvivalCandidateGenerator {
@@ -45,6 +54,7 @@ public final class SurvivalCandidateGenerator {
         }
 
         addShieldCandidate(candidates, context, timeline, inventory);
+        addHeldNonTotemCandidates(candidates, context, inventory);
         return List.copyOf(candidates);
     }
 
@@ -116,5 +126,118 @@ public final class SurvivalCandidateGenerator {
             required,
             0
         ));
+    }
+
+    private static void addHeldNonTotemCandidates(
+        List<SurvivalAction> candidates,
+        PredictionContext context,
+        InventorySnapshot inventory
+    ) {
+        inventory.slot(inventory.selectedHotbarIndex())
+            .ifPresent(slot -> addHeldItemCandidates(candidates, context, slot));
+        inventory.slot(40).ifPresent(slot -> addHeldItemCandidates(candidates, context, slot));
+    }
+
+    private static void addHeldItemCandidates(
+        List<SurvivalAction> candidates,
+        PredictionContext context,
+        InventorySlotSnapshot slot
+    ) {
+        slot.consumable().ifPresent(consumable -> addConsumableCandidate(candidates, context, slot, consumable));
+        slot.equippable().ifPresent(equippable -> addEquipmentCandidate(candidates, context, slot, equippable));
+    }
+
+    private static void addConsumableCandidate(
+        List<SurvivalAction> candidates,
+        PredictionContext context,
+        InventorySlotSnapshot slot,
+        ConsumableSurvivalSnapshot consumable
+    ) {
+        if (!consumable.usable() || consumable.guaranteedEffects().isEmpty()) return;
+
+        StatusEffectsSnapshot effectsAfter = context.player().statusEffects().apply(consumable.guaranteedEffects());
+        float absorptionFloor = context.player().absorption();
+        for (EffectInstanceSnapshot effect : consumable.guaranteedEffects()) {
+            if ("minecraft:absorption".equals(effect.effectKey())) {
+                absorptionFloor = Math.max(absorptionFloor, 4f * (effect.amplifier() + 1));
+            }
+        }
+        float absorptionGain = Math.max(0f, absorptionFloor - context.player().absorption());
+
+        candidates.add(new SurvivalAction.ApplyEffects(
+            effectsAfter,
+            0f,
+            absorptionGain,
+            slot.stackKey(),
+            consumable.consumeTicks(),
+            true,
+            true,
+            1d,
+            1,
+            1
+        ));
+    }
+
+    private static void addEquipmentCandidate(
+        List<SurvivalAction> candidates,
+        PredictionContext context,
+        InventorySlotSnapshot slot,
+        EquippableSurvivalSnapshot equippable
+    ) {
+        if (!equippable.usable() || !equippable.armorPiece().present()) return;
+        ArmorPieceSnapshot piece = equippable.armorPiece();
+        MitigationSnapshot mitigationAfter = replaceArmorPiece(context.player().mitigation(), piece);
+        String equipmentSlot = piece.slot().name().toLowerCase(Locale.ROOT);
+
+        candidates.add(new SurvivalAction.SwapEquipment(
+            mitigationAfter,
+            Map.of(equipmentSlot, slot.stackKey()),
+            0,
+            true,
+            true,
+            1d,
+            0,
+            2
+        ));
+    }
+
+    private static MitigationSnapshot replaceArmorPiece(
+        MitigationSnapshot current,
+        ArmorPieceSnapshot replacement
+    ) {
+        List<ArmorPieceSnapshot> pieces = new ArrayList<>(current.armorPieces().size() + 1);
+        ArmorPieceSnapshot replaced = null;
+        for (ArmorPieceSnapshot piece : current.armorPieces()) {
+            if (piece.slot() == replacement.slot()) {
+                replaced = piece;
+            } else {
+                pieces.add(piece);
+            }
+        }
+        pieces.add(replacement);
+
+        float armor = current.armor() - (replaced == null ? 0f : replaced.armor()) + replacement.armor();
+        float toughness = current.toughness() - (replaced == null ? 0f : replaced.toughness()) + replacement.toughness();
+        int protection = current.enchantmentProtection()
+            - (replaced == null ? 0 : replaced.enchantmentProtection())
+            + replacement.enchantmentProtection();
+        protection = Math.max(0, Math.min(20, protection));
+
+        boolean helmetPresent = current.helmetPresent();
+        int helmetDurability = current.helmetDurability();
+        if (replacement.slot() == ArmorPieceSnapshot.Slot.HEAD) {
+            helmetPresent = replacement.present();
+            helmetDurability = replacement.remainingDurability();
+        }
+
+        return new MitigationSnapshot(
+            Math.max(0f, armor),
+            Math.max(0f, toughness),
+            current.armorEffectivenessMultiplier(),
+            protection,
+            helmetPresent,
+            helmetDurability,
+            pieces
+        );
     }
 }
