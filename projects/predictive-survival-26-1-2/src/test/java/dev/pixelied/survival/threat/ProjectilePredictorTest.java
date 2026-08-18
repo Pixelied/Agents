@@ -10,6 +10,7 @@ import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
@@ -88,6 +89,55 @@ class ProjectilePredictorTest {
     }
 
     @Test
+    void dragonFireballDirectCollisionProducesLingeringBreathThreat() {
+        List<ThreatEvent> events = predictor.predict(context(
+            List.of(dragonFireball()),
+            List.of()
+        ));
+
+        assertTrue(!events.isEmpty(), "a visible dragon fireball that collides with the player must predict its breath cloud");
+        ThreatEvent first = events.getFirst();
+        assertEquals(DamageRange.exact(6f), first.damage().rawDamage());
+        assertEquals("minecraft:indirect_magic", first.damage().sourceKey());
+        assertTrue(first.damage().has(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(first.damage().has(DamageFlag.BYPASSES_SHIELD));
+        assertEquals(20L, first.impact().latest() - first.impact().earliest());
+    }
+
+    @Test
+    void dragonFireballWallCollisionNearPlayerStillProducesBreathThreat() {
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(5, 1, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        List<ThreatEvent> events = predictor.predict(context(
+            List.of(dragonFireball()),
+            List.of(wall)
+        ));
+
+        assertTrue(!events.isEmpty(), "dragon breath remains dangerous when the projectile hits nearby cover first");
+        assertEquals(DamageRange.exact(6f), events.getFirst().damage().rawDamage());
+    }
+
+    @Test
+    void dragonFireballWallCollisionOutsideCloudRadiusDoesNotInventThreat() {
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(2, 1, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        assertTrue(predictor.predict(context(
+            List.of(dragonFireball()),
+            List.of(wall)
+        )).isEmpty());
+    }
+
+    @Test
     void unknownCriticalStateWidensDamageRange() {
         ThreatEvent event = predictor.predict(context(
             List.of(arrow(Map.of("base_damage", "6.0", "critical", "unknown"))),
@@ -145,6 +195,17 @@ class ProjectilePredictorTest {
             new Vec3Snapshot(1, 0, 0),
             new AabbSnapshot(-0.125, 1.775, 0.175, 0.125, 2.025, 0.425),
             properties
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot dragonFireball() {
+        return new WorldSnapshot.EntitySnapshot(
+            "dragon:1",
+            "minecraft:dragon_fireball",
+            new Vec3Snapshot(0, 1.0, 0.3),
+            new Vec3Snapshot(1.5, 0, 0),
+            new AabbSnapshot(-0.5, 0.5, -0.2, 0.5, 1.5, 0.8),
+            Map.of("acceleration_power", "0.0")
         );
     }
 }
