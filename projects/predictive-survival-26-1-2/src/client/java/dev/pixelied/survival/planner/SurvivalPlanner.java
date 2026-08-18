@@ -103,7 +103,10 @@ public final class SurvivalPlanner {
         if (action instanceof SurvivalAction.RaiseShield shield && !shield.guaranteedBlock()) {
             return "shield block is not guaranteed";
         }
-        if (action.requiredServerTicks() > 0) {
+
+        boolean requiresPacketWindow = action.requiredServerTicks() > 0
+            || action instanceof SurvivalAction.EquipDeathProtection;
+        if (requiresPacketWindow) {
             TickWindow requiredImpact = requiredImpactForAction(context, timeline, action, baselineResult);
             if (requiredImpact != null && !context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) {
                 return "server deadline missed";
