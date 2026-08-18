@@ -37,10 +37,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
         List<ValidationResult> results = new ArrayList<>();
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             context.waitFor(minecraft -> minecraft.player != null && minecraft.level != null);
-            context.waitFor(minecraft -> singleplayer.getServer().computeOnServer(server -> {
-                List<ServerPlayer> players = server.getPlayerList().getPlayers();
-                return players.size() == 1 && players.getFirst().connection.hasClientLoaded();
-            }));
+            waitForServerClientLoaded(context, singleplayer);
 
             results.add(validateGenericDamage(singleplayer));
             validateHurtCooldown(singleplayer);
@@ -57,6 +54,18 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
                 }
             }
         }
+    }
+
+    private static void waitForServerClientLoaded(ClientGameTestContext context, TestSingleplayerContext singleplayer) {
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            boolean loaded = singleplayer.getServer().computeOnServer(server -> {
+                List<ServerPlayer> players = server.getPlayerList().getPlayers();
+                return players.size() == 1 && players.getFirst().connection.hasClientLoaded();
+            });
+            if (loaded) return;
+            context.waitTick();
+        }
+        throw new AssertionError("server player did not report client-loaded readiness before timeout");
     }
 
     private static ValidationResult validateGenericDamage(TestSingleplayerContext singleplayer) {
