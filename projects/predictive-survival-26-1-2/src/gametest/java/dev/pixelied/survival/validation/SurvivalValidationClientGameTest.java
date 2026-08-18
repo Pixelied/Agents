@@ -15,9 +15,11 @@ import dev.pixelied.survival.damage.StatusEffectsSnapshot;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -82,6 +84,12 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             ServerLevel level = (ServerLevel) player.level();
             boolean abilityInvulnerable = player.getAbilities().invulnerable;
             int beforeInvulnerability = player.invulnerableTime;
+            float armor = player.getArmorValue();
+            double toughness = player.getAttributeValue(Attributes.ARMOR_TOUGHNESS);
+            float absorption = player.getAbsorptionAmount();
+            int activeEffects = player.getActiveEffects().size();
+            boolean usingItem = player.isUsingItem();
+            String useItem = itemKey(player.getUseItem());
             boolean firstAccepted = player.hurtServer(level, player.damageSources().generic(), 5f);
             float afterFirst = player.getHealth();
             int afterFirstInvulnerability = player.invulnerableTime;
@@ -94,6 +102,12 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             return new CooldownTrace(
                 abilityInvulnerable,
                 beforeInvulnerability,
+                armor,
+                toughness,
+                absorption,
+                activeEffects,
+                usingItem,
+                useItem,
                 firstAccepted,
                 afterFirst,
                 afterFirstInvulnerability,
@@ -166,6 +180,10 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
         );
     }
 
+    private static String itemKey(ItemStack stack) {
+        return stack.isEmpty() ? "minecraft:air" : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+    }
+
     private static void assertClose(String id, float expected, float actual, float tolerance) {
         if (Math.abs(expected - actual) > tolerance) {
             throw new AssertionError(id + " expected=" + expected + " actual=" + actual);
@@ -178,6 +196,12 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
     private record CooldownTrace(
         boolean abilityInvulnerable,
         int beforeInvulnerability,
+        float armor,
+        double toughness,
+        float absorption,
+        int activeEffects,
+        boolean usingItem,
+        String useItem,
         boolean firstAccepted,
         float afterFirst,
         int afterFirstInvulnerability,
