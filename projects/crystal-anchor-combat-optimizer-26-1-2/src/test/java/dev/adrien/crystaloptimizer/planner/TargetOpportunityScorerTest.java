@@ -71,7 +71,7 @@ class TargetOpportunityScorerTest {
             7.5
         );
 
-        assertEquals(0.75, priority.threatScore());
+        assertEquals(0.75, priority.threat());
         assertEquals(7.5, priority.distance());
     }
 
