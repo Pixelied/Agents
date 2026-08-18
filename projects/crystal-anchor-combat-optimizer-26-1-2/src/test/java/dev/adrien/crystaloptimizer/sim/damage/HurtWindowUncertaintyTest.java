@@ -46,7 +46,7 @@ class HurtWindowUncertaintyTest {
         SimCombatant target = SimCombatant.testPlayer(20.0f)
             .withHurtWindow(HurtWindowState.unknownThreshold(20));
 
-        DamageResult result = VanillaDamageSimulator.apply(target, DamageRequest.generic(12.0f));
+        DamageResult result = VanillaDamageSimulator.apply(target, DamageRequest.explosion(12.0f));
 
         assertFalse(result.accepted());
         assertTrue(result.uncertain());
