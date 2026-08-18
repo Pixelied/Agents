@@ -1,0 +1,19 @@
+{
+  "acceptance_criteria": [
+    "The universal validation workflow uses GitHub Actions releases that run on Node 24.",
+    "The workflow still runs the complete workspace unittest suite and agentctl validator.",
+    "Project-specific workflows are not modified."
+  ],
+  "created_at": "2026-08-18T11:30:00+00:00",
+  "created_by": "openai-workspace-repair-8c31",
+  "objective": "Remove deprecated Node 20 action dependencies from the universal workspace validation workflow without changing project-owned CI.",
+  "priority": "normal",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "scopes": [
+    ".github/workflows/validate.yml"
+  ],
+  "status": "open",
+  "task_id": "refresh-workspace-validation-actions",
+  "title": "Refresh workspace validation Actions"
+}
