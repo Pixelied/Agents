@@ -34,6 +34,8 @@ final class PoisonPotionValidationScenarios {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             SurvivalValidationClientGameTest.reset(player, 20f);
             player.setDeltaMovement(Vec3.ZERO);
+            player.getFoodData().setFoodLevel(17);
+            player.getFoodData().setSaturation(0f);
             ServerLevel level = (ServerLevel) player.level();
 
             Creeper owner = new Creeper(EntityType.CREEPER, level);
@@ -117,6 +119,8 @@ final class PoisonPotionValidationScenarios {
                 Entity owner = player.level().getEntity(setup.ownerId());
                 if (owner != null) owner.discard();
                 SurvivalValidationClientGameTest.reset(player, 20f);
+                player.getFoodData().setFoodLevel(20);
+                player.getFoodData().setSaturation(5f);
                 player.setDeltaMovement(Vec3.ZERO);
             });
             context.waitTick();
