@@ -87,11 +87,7 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("critical", Boolean.toString(arrow.isCritArrow()));
             properties.put("pierce_level", Byte.toString(arrow.getPierceLevel()));
             properties.put("in_ground", Boolean.toString(accessor.predictiveSurvival$isInGround()));
-            Entity owner = arrow.getOwner();
-            properties.put(
-                "scales_with_difficulty",
-                Boolean.toString(owner instanceof LivingEntity && !(owner instanceof Player))
-            );
+            properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(arrow.getOwner())));
             if (entity instanceof ThrownTrident) {
                 properties.put("raw_damage", "8");
             }
@@ -102,27 +98,15 @@ public final class MinecraftWorldSnapshotFactory {
             if (entity instanceof LargeFireball) {
                 properties.put("raw_damage", "6");
                 properties.put("explosion_radius", "1");
-                Entity owner = hurtingProjectile.getOwner();
-                properties.put(
-                    "scales_with_difficulty",
-                    Boolean.toString(owner instanceof LivingEntity && !(owner instanceof Player))
-                );
+                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(hurtingProjectile.getOwner())));
             } else if (entity instanceof SmallFireball) {
                 properties.put("raw_damage", "5");
-                Entity owner = hurtingProjectile.getOwner();
-                properties.put(
-                    "scales_with_difficulty",
-                    Boolean.toString(owner instanceof LivingEntity && !(owner instanceof Player))
-                );
+                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(hurtingProjectile.getOwner())));
             } else if (entity instanceof WitherSkull) {
                 properties.put("raw_damage_min", "5");
                 properties.put("raw_damage_max", "8");
                 properties.put("explosion_radius", "1");
-                Entity owner = hurtingProjectile.getOwner();
-                properties.put(
-                    "scales_with_difficulty",
-                    Boolean.toString(owner instanceof LivingEntity && !(owner instanceof Player))
-                );
+                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(hurtingProjectile.getOwner())));
             }
         }
 
@@ -253,6 +237,10 @@ public final class MinecraftWorldSnapshotFactory {
             }
         }
         return List.copyOf(blocks);
+    }
+
+    private static boolean scalesWithDifficulty(Entity owner) {
+        return owner instanceof LivingEntity && !(owner instanceof Player);
     }
 
     private static String itemKey(ItemStack stack) {
