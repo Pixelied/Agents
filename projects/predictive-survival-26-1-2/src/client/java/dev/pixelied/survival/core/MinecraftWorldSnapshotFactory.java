@@ -12,6 +12,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.attribute.EnvironmentAttributes;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -30,7 +32,10 @@ import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
 import net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownLingeringPotion;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
@@ -113,6 +118,14 @@ public final class MinecraftWorldSnapshotFactory {
 
         if (entity instanceof AreaEffectCloud cloud) {
             properties.put("cloud_waiting", Boolean.toString(cloud.isWaiting()));
+        }
+
+        if (entity instanceof ThrownSplashPotion potion) {
+            snapshotPotionContents(potion.getItem(), properties);
+            properties.put("potion_splash_radius", "4.0");
+        } else if (entity instanceof ThrownLingeringPotion potion) {
+            snapshotPotionContents(potion.getItem(), properties);
+            properties.put("potion_lingering", "true");
         }
 
         if (entity instanceof FireworkRocketEntity firework) {
@@ -198,6 +211,28 @@ public final class MinecraftWorldSnapshotFactory {
             new AabbSnapshot(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ),
             properties
         );
+    }
+
+    private static void snapshotPotionContents(ItemStack stack, Map<String, String> properties) {
+        PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
+        if (contents == null) return;
+
+        float instantDamage = 0f;
+        for (MobEffectInstance effect : contents.getAllEffects()) {
+            if (!effect.getEffect().is(MobEffects.INSTANT_DAMAGE)) continue;
+            int amplifier = Math.max(0, effect.getAmplifier());
+            double damage = Math.scalb(6d, amplifier);
+            if (!Double.isFinite(damage) || damage >= Float.MAX_VALUE - instantDamage) {
+                instantDamage = Float.MAX_VALUE;
+                break;
+            }
+            instantDamage += (float) damage;
+        }
+
+        if (instantDamage > 0f) {
+            properties.put("potion_instant_damage", Float.toString(instantDamage));
+            properties.put("potion_source_key", "minecraft:indirect_magic");
+        }
     }
 
     private static List<WorldSnapshot.BlockSnapshot> captureBlocks(ClientLevel level, BlockPos center) {
