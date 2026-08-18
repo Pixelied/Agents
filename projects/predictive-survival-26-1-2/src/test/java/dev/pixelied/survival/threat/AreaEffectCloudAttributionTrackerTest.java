@@ -40,6 +40,29 @@ class AreaEffectCloudAttributionTrackerTest {
     }
 
     @Test
+    void lingeringPotionForecastAttributesOnlyMatchingCloud() {
+        AreaEffectCloudAttributionTracker tracker = new AreaEffectCloudAttributionTracker();
+        tracker.observePredictedThreats(100, List.of(lingeringCloud(
+            "52",
+            new Vec3Snapshot(4, 0, 2),
+            new TickWindow(14, 14),
+            6f
+        )));
+
+        WorldSnapshot annotated = tracker.annotate(105, world(
+            cloud("81", new Vec3Snapshot(4.3, 0, 2.1)),
+            cloud("82", new Vec3Snapshot(8, 0, 8))
+        ));
+
+        WorldSnapshot.EntitySnapshot matched = entity(annotated, "81");
+        assertEquals("6.0", matched.properties().get("cloud_instant_damage"));
+        assertEquals("minecraft:indirect_magic", matched.properties().get("cloud_source_key"));
+        assertEquals("20", matched.properties().get("cloud_reapplication_delay_ticks"));
+        assertEquals("lingering_potion", matched.properties().get("cloud_attribution"));
+        assertFalse(entity(annotated, "82").properties().containsKey("cloud_instant_damage"));
+    }
+
+    @Test
     void matchedAttributionPersistsUntilCloudDisappears() {
         AreaEffectCloudAttributionTracker tracker = new AreaEffectCloudAttributionTracker();
         tracker.observePredictedThreats(50, List.of(dragonBreath("9", new Vec3Snapshot(0, 0, 0), new TickWindow(1, 21))));
@@ -64,7 +87,7 @@ class AreaEffectCloudAttributionTrackerTest {
     }
 
     @Test
-    void nonDragonThreatNeverAttributesCloud() {
+    void nonCloudProjectileThreatNeverAttributesCloud() {
         AreaEffectCloudAttributionTracker tracker = new AreaEffectCloudAttributionTracker();
         ThreatEvent ordinary = new ThreatEvent(
             "projectile:5:direct",
@@ -95,6 +118,35 @@ class AreaEffectCloudAttributionTrackerTest {
             impact,
             new DamageSourceSnapshot(
                 DamageRange.exact(6f),
+                EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
+                false,
+                1f,
+                false,
+                Optional.of(origin),
+                "minecraft:indirect_magic"
+            ),
+            Confidence.BOUNDED,
+            Optional.of(new Vec3Snapshot(0, 0, 0)),
+            Optional.of(origin),
+            true,
+            false,
+            true,
+            false
+        );
+    }
+
+    private static ThreatEvent lingeringCloud(
+        String projectileId,
+        Vec3Snapshot origin,
+        TickWindow impact,
+        float rawDamage
+    ) {
+        return new ThreatEvent(
+            "projectile:" + projectileId + ":lingering_cloud:0",
+            ThreatKind.ENVIRONMENT,
+            impact,
+            new DamageSourceSnapshot(
+                DamageRange.exact(rawDamage),
                 EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
                 false,
                 1f,
