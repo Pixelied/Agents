@@ -1,12 +1,15 @@
 package dev.pixelied.survival.inventory;
 
 import java.util.Objects;
+import java.util.Optional;
 
 public record InventorySlotSnapshot(
     int inventoryIndex,
     String stackKey,
     int count,
-    boolean deathProtection
+    boolean deathProtection,
+    Optional<ConsumableSurvivalSnapshot> consumable,
+    Optional<EquippableSurvivalSnapshot> equippable
 ) {
     public InventorySlotSnapshot {
         if (inventoryIndex < 0 || inventoryIndex > 40) {
@@ -15,9 +18,15 @@ public record InventorySlotSnapshot(
         stackKey = Objects.requireNonNull(stackKey, "stackKey");
         if (stackKey.isBlank()) throw new IllegalArgumentException("stackKey must not be blank");
         if (count < 0) throw new IllegalArgumentException("count must be non-negative");
-        if (count == 0 && deathProtection) {
-            throw new IllegalArgumentException("empty slot cannot provide death protection");
+        consumable = Objects.requireNonNull(consumable, "consumable");
+        equippable = Objects.requireNonNull(equippable, "equippable");
+        if (count == 0 && (deathProtection || consumable.isPresent() || equippable.isPresent())) {
+            throw new IllegalArgumentException("empty slot cannot provide survival capabilities");
         }
+    }
+
+    public InventorySlotSnapshot(int inventoryIndex, String stackKey, int count, boolean deathProtection) {
+        this(inventoryIndex, stackKey, count, deathProtection, Optional.empty(), Optional.empty());
     }
 
     public boolean empty() {
