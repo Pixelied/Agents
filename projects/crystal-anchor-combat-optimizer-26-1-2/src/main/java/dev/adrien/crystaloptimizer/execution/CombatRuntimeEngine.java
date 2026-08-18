@@ -91,6 +91,15 @@ public final class CombatRuntimeEngine {
         return Optional.ofNullable(lastPlan);
     }
 
+    public Optional<CommitAbortReason> lastAbortReason() {
+        return controller.lastAbortReason();
+    }
+
+    public void abort(CommitAbortReason reason) {
+        controller.abort(Objects.requireNonNull(reason, "reason"));
+        clearReconciliationContext();
+    }
+
     private int reconcile(RuntimeFrame frame, long nowNanos) {
         if (reconciliationGate == null || pinnedTargetId == null) {
             throw new IllegalStateException("reconciling phase has no pinned baseline");
