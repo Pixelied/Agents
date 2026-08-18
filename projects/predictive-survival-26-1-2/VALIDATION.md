@@ -13,8 +13,12 @@ The dedicated Fabric client GameTest source set launches Minecraft Java 26.1.2 w
 - Mainhand and offhand Totem of Undying activation independently.
 - A repeated lethal sequence with a Totem in each hand, including consumption of the first protection, carried hurt-cooldown/effect state, and consumption of the second protection on the follow-up.
 - Explosion exposure and final-health parity for radius-4 TNT-scale and radius-6 crystal-scale explosions, both unobstructed and behind real obsidian cover. The test compares `ExplosionExposure.seenPercent` directly with vanilla `ServerExplosion.getSeenPercent` before applying the explosion.
+- A live Hard-difficulty TNT case through the production client world snapshot and `ExplosionPredictor`. The test synchronizes client/server player position, requires the predictor's pre-difficulty raw blast damage to equal the server's vanilla exposure calculation, and then requires exact final-health parity after vanilla Hard difficulty scaling.
+- Live TNT, End Crystal, and explosive respawn-anchor snapshot metadata for difficulty-scaled explosion damage. Crystal and bad-respawn metadata are compared at the production snapshot boundary rather than inferred only from unit fixtures.
 - Live arrow prediction through the actual client world snapshot + `ProjectilePredictor`, including impact-window containment and final-health parity.
 - Live trident prediction through the same path, including Minecraft 26.1.2's fixed 8 raw entity-hit damage and impact-window containment.
+- Hard-difficulty mob-owned arrow and mob-owned trident cases. A real non-player `LivingEntity` owns each projectile, and final predicted health must equal the authoritative server hit after vanilla difficulty scaling.
+- Owner-sensitive difficulty metadata for mob-owned Large Fireballs, Small Fireballs, and Wither Skulls. Each test asks the server's actual `DamageSource.scalesWithDifficulty()` result, requires the production client snapshot to expose the same value, and requires every `ProjectilePredictor` threat emitted for that projectile to preserve it.
 - Runtime damage-source/tag + final-health parity for fall, Ender Pearl, wind charge, mace smash, lava, on-fire, drowning, freezing, Wither, Thorns, suffocation/in-wall, and starvation damage.
 - A real burning-client observability case where the client receives `isOnFire == true` while its local `remainingFireTicks == 0`. The live predictor must still produce a bounded potential `minecraft:on_fire` event whose window contains the authoritative server damage tick and whose final-damage result matches the server.
 
@@ -31,15 +35,17 @@ The following behavior is derived from the supplied Minecraft 26.1.2 source and 
 - Conservative hurt-cooldown uncertainty handling when server `lastHurt` is not confidently known. Unknown state is never credited as protection.
 - Shield angle checks, bypass-shield behavior, piercing-projectile behavior, and conservative server-confirmed use warmup.
 - Multi-hit chronological simulation, including carried cooldown state, armor durability, absorption/effects, death-protection consumption, and continued simulation after a pop.
-- Explosions for crystals, primed TNT, charged/normal creepers, beds/respawn anchors where explosive, fireworks, and explosion-capable projectiles. Cover is credited only when collision geometry is proven; unknown or partial shapes do not grant optimistic blast safety.
+- Explosions for crystals, primed TNT, charged/normal creepers, beds/respawn anchors where explosive, fireworks, and explosion-capable projectiles. Cover is credited only when collision geometry is proven; unknown or partial shapes do not grant optimistic blast safety. Merely touching a block face at the ray origin while moving away does not count as blast cover.
 - Projectile motion/collision families including arrows, tridents, thrown projectiles, hurting projectiles, fireworks, projectile-size-aware swept collision, wall interception, live-observation-age compensation, and conservative unknown projectile metadata.
+- Projectile difficulty ownership is captured explicitly for the runtime-proven families: arrows/tridents and Large Fireballs, Small Fireballs, and Wither Skulls scale when owned by a non-player `LivingEntity`, while player/ownerless variants do not receive that optimistic assumption.
 - Potential melee, mace smash, mob attacks, and Minecraft 26.1.2 spear/KineticWeapon conditions. Uncommitted enemy attacks remain potential rather than being treated as guaranteed future clicks.
 - Falls, void damage, elytra wall collision, stalagmite/falling-object damage, and exact private falling-block damage coefficients captured through narrow mixin accessors.
 - Periodic/environmental hazards including lava, fire, drowning, suffocation/cramming, freezing, starvation, world border, poison-floor behavior, and lethal Wither ticking.
 - When the client knows an exact remaining fire countdown, on-fire damage uses that exact phase. When only the synchronized burning flag is observable, the predictor emits 20-tick bounded `POTENTIAL` windows instead of inventing a server countdown or dropping the threat.
 - Reactive Thorns bounds and the guaranteed 5 raw self-damage from a locally owned Ender Pearl. If an exact pearl collision tick is unavailable, the live predictor uses a bounded projectile-horizon window instead of dropping the damage.
 - Death-protection routing across selected main hand, offhand, alternate hotbar selection, and server-valid menu `SWAP` routes. Active offhand shielding can force a mainhand protection route instead of destroying shield state.
-- Conservative server-authority timing for held-slot changes and item-use warmup based on the latest packet-processing bound.
+- Conservative server-authority timing for held-slot changes, inventory/equipment mutations, item use, cover placement, movement/rescue actions, and item-use warmup. A zero additional-warmup action still pays the next packet-processing window unless it is a true no-op/already-active state.
+- Pending multi-tick actions retain execution progress across a normal threat countdown. If the same threat's absolute impact schedule unexpectedly tightens, the engine revalidates the active action and can immediately replace it with another survival-producing plan instead of waiting on a now-impossible deadline.
 - Safe and Balanced planning are bounded by `EngineLimits.maxPlannerCandidates()` and compare complete simulated timelines instead of using a fixed "Totem first" priority.
 - Experimental deliberate hurt-cooldown manipulation remains rejected unless server hurt state is trusted, timing is exact/controllable, the individual strategy is explicitly runtime-validated, and its worst-case simulation materially beats doing nothing.
 
@@ -86,4 +92,4 @@ xvfb-run -a gradle --no-daemon runClientGameTest
 
 CI also verifies that the production JAR contains no `dev/pixelied/survival/validation/` GameTest classes and uploads the production JAR only after the project build, exact-runtime GameTests, and packaging-isolation checks pass.
 
-The repository-level workspace validator is a separate gate. At the time of this validation, its Python unit tests pass, while `agentctl.py validate` is blocked by unrelated pre-existing missing `handoffs/` directories in `tasks/build-fallen-knight-26-1-2` and `tasks/build-spear-client-26-1-2`.
+The repository-level workspace validator is a separate required gate. The current feature-branch validation workflow passes alongside the project build/runtime workflow; task and lease metadata are kept separate from the production JAR.
