@@ -90,6 +90,25 @@ class ThreatTimelineSimulatorTest {
         assertEquals(0, result.eventResult("two").damageResult().after().mitigation().armorPieces().getFirst().remainingDurability());
     }
 
+    @Test
+    void elapsedTimelineTicksPreservePlayerStateProperties() {
+        PlayerSnapshot start = new PlayerSnapshot(
+            20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
+            MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
+            DeathProtectionSnapshot.none(), new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
+            new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of(),
+            Map.of("food_tick_timer", "79", "remaining_fire_ticks", "3")
+        );
+
+        TimelineResult result = simulator.simulate(
+            start,
+            new ThreatTimeline(List.of(event("delayed", 1f, 5)))
+        );
+
+        assertEquals("79", result.eventResult("delayed").damageResult().after().state("food_tick_timer"));
+        assertEquals("3", result.eventResult("delayed").damageResult().after().state("remaining_fire_ticks"));
+    }
+
     private static ThreatEvent event(String id, float raw, long tick) {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(raw), Set.of(), false, 1f, false, Optional.empty(), "test:" + id
