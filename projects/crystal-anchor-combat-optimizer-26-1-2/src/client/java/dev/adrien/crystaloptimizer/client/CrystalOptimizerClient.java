@@ -19,6 +19,7 @@ public final class CrystalOptimizerClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         runtime = new ClientCombatRuntime(Minecraft.getInstance());
+        OptimizerHud.register(runtime);
         toggleKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.crystaloptimizer.toggle",
             InputConstants.Type.KEYSYM,
