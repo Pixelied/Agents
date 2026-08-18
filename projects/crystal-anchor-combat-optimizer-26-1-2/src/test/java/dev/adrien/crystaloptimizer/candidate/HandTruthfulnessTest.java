@@ -84,11 +84,11 @@ class HandTruthfulnessTest {
     }
 
     @Test
-    void anchorDetonationOnlyCaresAboutActualMainHandInteractionItem() {
+    void chargeableAnchorRejectsMainHandDetonationWhenOffhandHasGlowstone() {
         CombatState state = state(0, Optional.of(Items.GLOWSTONE));
 
-        assertTrue(new DetonateAnchor(ANCHOR).check(state).legal(),
-            "offhand glowstone must not block a dispatcher that explicitly interacts with MAIN_HAND");
+        assertFalse(new DetonateAnchor(ANCHOR).check(state).legal(),
+            "26.1.2 lets the offhand glowstone charge after MAIN_HAND returns PASS");
     }
 
     @Test
