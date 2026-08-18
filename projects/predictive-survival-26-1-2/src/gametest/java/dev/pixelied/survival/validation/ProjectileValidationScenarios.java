@@ -7,6 +7,7 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
+import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -21,6 +22,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
+import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
@@ -45,6 +47,7 @@ final class ProjectileValidationScenarios {
         results.add(validateTrident(context, singleplayer));
         results.add(validateMobOwnedArrowHardScaling(context, singleplayer));
         results.add(validateMobOwnedTridentHardScaling(context, singleplayer));
+        validateMobOwnedLargeFireballDifficultyMetadata(context, singleplayer);
         return List.copyOf(results);
     }
 
@@ -161,6 +164,77 @@ final class ProjectileValidationScenarios {
         return result;
     }
 
+    private static void validateMobOwnedLargeFireballDifficultyMetadata(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer
+    ) {
+        FireballSetup setup = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            ServerLevel level = (ServerLevel) player.level();
+
+            Creeper owner = new Creeper(EntityType.CREEPER, level);
+            owner.setNoAi(true);
+            owner.setPos(player.getX() + 12d, player.getY(), player.getZ() + 12d);
+            level.addFreshEntity(owner);
+
+            LargeFireball fireball = new LargeFireball(EntityType.FIREBALL, level);
+            fireball.setOwner(owner);
+            fireball.setPos(player.getX(), player.getEyeY() - 0.15d, player.getZ() + 6d);
+            fireball.setDeltaMovement(0d, 0d, -1.5d);
+            level.addFreshEntity(fireball);
+            boolean serverScales = player.damageSources().fireball(fireball, owner).scalesWithDifficulty();
+            return new FireballSetup(fireball.getId(), owner.getId(), serverScales);
+        });
+
+        try {
+            context.waitFor(minecraft -> minecraft.level != null && minecraft.level.getEntity(setup.projectileId()) != null);
+            context.runOnClient(minecraft -> {
+                if (minecraft.player == null || minecraft.level == null) {
+                    throw new AssertionError("client player/level unavailable for mob fireball difficulty validation");
+                }
+                WorldSnapshot world = new MinecraftWorldSnapshotFactory().capture(minecraft.level, minecraft.player, LIMITS);
+                WorldSnapshot.EntitySnapshot fireball = world.entities().stream()
+                    .filter(entity -> entity.id().equals(Integer.toString(setup.projectileId())))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("live mob-owned fireball missing from world snapshot"));
+                boolean snapshotScales = Boolean.parseBoolean(
+                    fireball.properties().getOrDefault("scales_with_difficulty", "false")
+                );
+                if (snapshotScales != setup.serverScales()) {
+                    throw new AssertionError(
+                        "mob_fireball_difficulty_metadata server=" + setup.serverScales()
+                            + " snapshot=" + snapshotScales
+                    );
+                }
+
+                PlayerSnapshot playerSnapshot = new MinecraftSnapshotFactory().capture(minecraft.player);
+                PredictionContext predictionContext = new PredictionContext(
+                    playerSnapshot,
+                    world,
+                    new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
+                    LIMITS
+                );
+                List<ThreatEvent> events = new ProjectilePredictor().predict(predictionContext).stream()
+                    .filter(event -> event.id().startsWith("projectile:" + setup.projectileId() + ":"))
+                    .toList();
+                if (events.isEmpty()) throw new AssertionError("live mob-owned fireball produced no projectile threat");
+                for (ThreatEvent event : events) {
+                    if (event.damage().scalesWithDifficulty() != setup.serverScales()) {
+                        throw new AssertionError(
+                            "mob_fireball_predictor_scaling event=" + event.id()
+                                + " server=" + setup.serverScales()
+                                + " predicted=" + event.damage().scalesWithDifficulty()
+                        );
+                    }
+                }
+            });
+        } finally {
+            discard(singleplayer, setup.projectileId());
+            discard(singleplayer, setup.ownerId());
+            context.waitTick();
+        }
+    }
+
     private static ValidationResult validateLiveProjectile(
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer,
@@ -268,5 +342,8 @@ final class ProjectileValidationScenarios {
     }
 
     private record ProjectileSetup(int projectileId, int ownerId) {
+    }
+
+    private record FireballSetup(int projectileId, int ownerId, boolean serverScales) {
     }
 }
