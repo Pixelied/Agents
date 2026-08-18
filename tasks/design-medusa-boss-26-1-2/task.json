@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "design-medusa-boss-26-1-2",
+  "title": "Design and plan Medusa datapack boss for Minecraft 26.1.2",
+  "objective": "Produce an implementation-ready design and implementation plan for a Minecraft Java 26.1.2 datapack-driven Medusa dungeon and boss encounter with a temple-to-underground labyrinth, gaze-based petrification, multiplayer rescue, three combat phases, renewable rematches, a charged Medusa Staff reward, and a swappable optional resource-pack visual layer.",
+  "created_by": "openai-medusa-design-5a4c",
+  "created_at": "2026-08-18T14:51:10+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "docs/superpowers/specs/2026-08-18-medusa-boss-26-1-2-design.md",
+    "docs/superpowers/plans/2026-08-18-medusa-boss-26-1-2.md",
+    "tasks/design-medusa-boss-26-1-2/artifacts"
+  ],
+  "acceptance_criteria": [
+    "The design targets Minecraft Java 26.1.2 and keeps gameplay datapack-driven and multiplayer-safe",
+    "The dungeon progression is a fixed critical route through a surface temple, underground labyrinth, inner lair, and final arena, with optional branches and three simple Gorgon-themed puzzles",
+    "The Medusa encounter implements gaze-based progressive petrification, a telegraphed Gorgon Gaze, full-statue suffocation, teammate shell-breaking rescue, three escalating phases, restrained serpent attacks, and reliable failure/reset behavior",
+    "The Golden Gorgon Eye uses the approved black-and-gold custom-head texture and remains a persistent ritual key rather than a consumed one-time item",
+    "The reward loop defines Medusa's Heart, Gorgon Scales, Serpent Fangs, vanilla treasure, and a Medusa Staff with 64 charges, scale-based recharging, channelled petrification, and 4-charge Stone Spikes",
+    "Repeat Medusa fights use the approved Golden Gorgon Eye plus offering ritual while dungeon enemies and traps can reset independently",
+    "The visual design uses the selected dark green Medusa skin as an under-layer with a custom serpent body, snake hair, claws, glowing eyes, and breakable stone shell details while the resource pack remains optional for gameplay correctness",
+    "Architecture boundaries, multiplayer state, cleanup/failsafes, testing scenarios, and asset-swapping boundaries are explicit",
+    "The written spec and later implementation plan contain no TODO/TBD placeholders or contradictory requirements and are ready for implementation after human review"
+  ]
+}
