@@ -26,54 +26,77 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
         List<ThreatEvent> events = new ArrayList<>();
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             if (!CLOUD_TYPE.equals(entity.typeKey())) continue;
-            addCloudThreat(context, entity, events);
+            addCloudThreats(context, entity, events);
         }
         return List.copyOf(events);
     }
 
-    private static void addCloudThreat(
+    private static void addCloudThreats(
         PredictionContext context,
         WorldSnapshot.EntitySnapshot cloud,
         List<ThreatEvent> output
     ) {
-        float rawDamage = finitePositiveFloat(cloud.properties().get("cloud_instant_damage"), 0f);
-        if (rawDamage <= 0f) return;
         if (!intersects(context.player().boundingBox(), cloud.boundingBox())) return;
 
-        long horizon = context.limits().maxDecisionHistory();
-        TickWindow impact = preservedFirstDamageWindow(cloud, horizon).orElseGet(() -> {
-            int reapplicationDelay = Math.max(
-                1,
-                nonNegativeInt(
-                    cloud.properties().get("cloud_reapplication_delay_ticks"),
-                    DEFAULT_REAPPLICATION_DELAY
-                )
-            );
-            return new TickWindow(0L, Math.min(horizon, reapplicationDelay));
-        });
-        if (impact.earliest() > horizon) return;
+        int hazardCount = nonNegativeInt(cloud.properties().get("cloud_hazard_count"), 0);
+        if (hazardCount > 0) {
+            for (int i = 0; i < hazardCount; i++) {
+                addHazard(context, cloud, "cloud_hazard_" + i + "_", i, output);
+            }
+            return;
+        }
 
-        output.add(event(cloud, impact, rawDamage));
+        addHazard(context, cloud, "cloud_", 0, output);
     }
 
-    private static Optional<TickWindow> preservedFirstDamageWindow(
+    private static void addHazard(
+        PredictionContext context,
         WorldSnapshot.EntitySnapshot cloud,
-        long horizon
+        String prefix,
+        int eventIndex,
+        List<ThreatEvent> output
     ) {
-        Long earliest = nonNegativeLong(cloud.properties().get("cloud_first_damage_earliest_ticks"));
-        Long latest = nonNegativeLong(cloud.properties().get("cloud_first_damage_latest_ticks"));
-        if (earliest == null || latest == null) return Optional.empty();
-        long orderedLatest = Math.max(earliest, latest);
-        return Optional.of(new TickWindow(earliest, Math.min(horizon, orderedLatest)));
+        float rawDamage = finitePositiveFloat(cloud.properties().get(prefix + "instant_damage"), 0f);
+        if (rawDamage <= 0f) return;
+
+        Optional<TickWindow> impact = impactWindow(context, cloud, prefix);
+        if (impact.isEmpty()) return;
+        output.add(event(cloud, prefix, eventIndex, impact.get(), rawDamage));
+    }
+
+    private static Optional<TickWindow> impactWindow(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot cloud,
+        String prefix
+    ) {
+        long horizon = context.limits().maxDecisionHistory();
+        Long earliest = nonNegativeLong(cloud.properties().get(prefix + "first_damage_earliest_ticks"));
+        Long latest = nonNegativeLong(cloud.properties().get(prefix + "first_damage_latest_ticks"));
+        if (earliest != null && latest != null) {
+            if (earliest > horizon) return Optional.empty();
+            long orderedLatest = Math.max(earliest, latest);
+            return Optional.of(new TickWindow(earliest, Math.min(horizon, orderedLatest)));
+        }
+
+        int reapplicationDelay = Math.max(
+            1,
+            nonNegativeInt(
+                cloud.properties().get(prefix + "reapplication_delay_ticks"),
+                DEFAULT_REAPPLICATION_DELAY
+            )
+        );
+        return Optional.of(new TickWindow(0L, Math.min(horizon, reapplicationDelay)));
     }
 
     private static ThreatEvent event(
         WorldSnapshot.EntitySnapshot cloud,
+        String prefix,
+        int eventIndex,
         TickWindow impact,
         float rawDamage
     ) {
         float healthThreshold = finiteNonNegativeFloat(
-            cloud.properties().get("cloud_application_health_threshold_exclusive"),
+            cloud.properties().get(prefix + "application_health_threshold_exclusive"),
             0f
         );
         DamageSourceSnapshot source = new DamageSourceSnapshot(
@@ -83,11 +106,11 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
             1f,
             false,
             Optional.of(cloud.position()),
-            cloud.properties().getOrDefault("cloud_source_key", "minecraft:indirect_magic"),
+            cloud.properties().getOrDefault(prefix + "source_key", "minecraft:indirect_magic"),
             healthThreshold
         );
         return new ThreatEvent(
-            "env:area_effect_cloud:" + cloud.id() + ":0",
+            "env:area_effect_cloud:" + cloud.id() + ":" + eventIndex,
             ThreatKind.ENVIRONMENT,
             impact,
             source,
