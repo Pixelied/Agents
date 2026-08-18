@@ -156,6 +156,46 @@ class ProjectilePredictorTest {
     }
 
     @Test
+    void splashPoisonOneSchedulesVanillaMagicTicksAndHealthFloor() {
+        List<ThreatEvent> poison = predictor.predict(context(
+            List.of(splashPoison(100, 0)),
+            List.of()
+        )).stream().filter(event -> event.id().contains(":poison:")) .toList();
+
+        assertEquals(4, poison.size());
+        assertEquals(List.of(
+            new TickWindow(5, 5),
+            new TickWindow(30, 30),
+            new TickWindow(55, 55),
+            new TickWindow(80, 80)
+        ), poison.stream().map(ThreatEvent::impact).toList());
+        for (ThreatEvent event : poison) {
+            assertEquals(DamageRange.exact(1f), event.damage().rawDamage());
+            assertEquals("minecraft:magic", event.damage().sourceKey());
+            assertEquals(1f, event.damage().applicationHealthThresholdExclusive(), 0.0001f);
+            assertTrue(event.damage().has(DamageFlag.BYPASSES_ARMOR));
+            assertTrue(event.damage().has(DamageFlag.BYPASSES_SHIELD));
+            assertFalse(event.blockable());
+        }
+    }
+
+    @Test
+    void splashPoisonTwoUsesTwelveTickVanillaInterval() {
+        List<ThreatEvent> poison = predictor.predict(context(
+            List.of(splashPoison(60, 1)),
+            List.of()
+        )).stream().filter(event -> event.id().contains(":poison:")) .toList();
+
+        assertEquals(List.of(
+            new TickWindow(5, 5),
+            new TickWindow(17, 17),
+            new TickWindow(29, 29),
+            new TickWindow(41, 41),
+            new TickWindow(53, 53)
+        ), poison.stream().map(ThreatEvent::impact).toList());
+    }
+
+    @Test
     void lingeringHarmingForecastsHalfStrengthCloudTenTicksAfterImpact() {
         ThreatEvent event = predictor.predict(context(List.of(lingeringHarming()), List.of())).stream()
             .filter(candidate -> candidate.id().endsWith(":lingering_cloud:0"))
@@ -296,6 +336,18 @@ class ProjectilePredictorTest {
                 "potion_instant_damage", "12.0",
                 "potion_splash_radius", "4.0",
                 "potion_source_key", "minecraft:indirect_magic"
+            )
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot splashPoison(int durationTicks, int amplifier) {
+        return potion(
+            "poison:1",
+            "minecraft:splash_potion",
+            Map.of(
+                "potion_poison_duration_ticks", Integer.toString(durationTicks),
+                "potion_poison_amplifier", Integer.toString(amplifier),
+                "potion_splash_radius", "4.0"
             )
         );
     }
