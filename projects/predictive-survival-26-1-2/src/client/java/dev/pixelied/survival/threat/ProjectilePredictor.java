@@ -555,15 +555,21 @@ public final class ProjectilePredictor implements ThreatPredictor {
             double y = Math.floor(block.position().y());
             double z = Math.floor(block.position().z());
             AabbSnapshot cube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
-            double t = segmentAabbEntry(from, to, bounds.expand(cube));
-            if (Double.isFinite(t) && (best == null || t < best.t())) {
-                Vec3Snapshot center = interpolate(from, to, t);
-                Vec3Snapshot impact = new Vec3Snapshot(
-                    Math.max(cube.minX(), Math.min(center.x(), cube.maxX())),
-                    Math.max(cube.minY(), Math.min(center.y(), cube.maxY())),
-                    Math.max(cube.minZ(), Math.min(center.z(), cube.maxZ()))
-                );
-                best = new Collision(t, impact);
+            double bodyT = segmentAabbEntry(from, to, bounds.expand(cube));
+            if (Double.isFinite(bodyT) && (best == null || bodyT < best.t())) {
+                double centerT = segmentAabbEntry(from, to, cube);
+                Vec3Snapshot impact;
+                if (Double.isFinite(centerT)) {
+                    impact = interpolate(from, to, centerT);
+                } else {
+                    Vec3Snapshot center = interpolate(from, to, bodyT);
+                    impact = new Vec3Snapshot(
+                        Math.max(cube.minX(), Math.min(center.x(), cube.maxX())),
+                        Math.max(cube.minY(), Math.min(center.y(), cube.maxY())),
+                        Math.max(cube.minZ(), Math.min(center.z(), cube.maxZ()))
+                    );
+                }
+                best = new Collision(bodyT, impact);
             }
         }
         return best;
