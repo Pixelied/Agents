@@ -126,6 +126,8 @@ public final class ExplosionPredictor implements ThreatPredictor {
     }
 
     private static final class SnapshotOcclusionView implements OcclusionView {
+        private static final double RAY_ORIGIN_EPSILON = 1.0E-9;
+
         private final List<WorldSnapshot.BlockSnapshot> blocks;
         private final List<CoverCandidate> candidates;
 
@@ -161,9 +163,10 @@ public final class ExplosionPredictor implements ThreatPredictor {
             double maxZ = minZ + 1.0;
 
             double[] range = {0.0, 1.0};
-            return slab(from.x(), to.x() - from.x(), minX, maxX, range)
+            boolean intersects = slab(from.x(), to.x() - from.x(), minX, maxX, range)
                 && slab(from.y(), to.y() - from.y(), minY, maxY, range)
                 && slab(from.z(), to.z() - from.z(), minZ, maxZ, range);
+            return intersects && range[1] > RAY_ORIGIN_EPSILON;
         }
 
         private static boolean slab(double origin, double direction, double min, double max, double[] range) {
