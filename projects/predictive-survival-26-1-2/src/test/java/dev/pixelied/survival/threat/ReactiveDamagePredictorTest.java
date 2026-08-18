@@ -35,15 +35,19 @@ class ReactiveDamagePredictorTest {
             "minecraft:player",
             Map.of("thorns_levels", "3,2")
         );
-        ThreatEvent event = predictor.predict(context(
+        List<ThreatEvent> events = predictor.predict(context(
             Map.of("outgoing_attack_target_id", "target:7"),
             List.of(target)
-        )).getFirst();
+        ));
 
-        assertEquals(Confidence.BOUNDED, event.confidence());
-        assertEquals("minecraft:thorns", event.damage().sourceKey());
-        assertEquals(0f, event.damage().rawDamage().min(), 0.0001f);
-        assertEquals(10f, event.damage().rawDamage().max(), 0.0001f);
+        assertEquals(2, events.size());
+        for (ThreatEvent event : events) {
+            assertEquals(Confidence.BOUNDED, event.confidence());
+            assertEquals("minecraft:thorns", event.damage().sourceKey());
+            assertEquals(0f, event.damage().rawDamage().min(), 0.0001f);
+            assertEquals(5f, event.damage().rawDamage().max(), 0.0001f);
+            assertEquals(new TickWindow(0, 0), event.impact());
+        }
     }
 
     @Test
