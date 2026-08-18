@@ -3,6 +3,7 @@ package dev.pixelied.survival.validation;
 import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.MinecraftSnapshotFactory;
 import dev.pixelied.survival.core.MinecraftWorldSnapshotFactory;
+import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.damage.DamageSimulator;
@@ -93,39 +94,37 @@ final class ProjectileValidationScenarios {
         String id
     ) {
         context.waitTick();
-        ThreatEvent prediction = context.computeOnClient(minecraft -> {
+        LivePrediction livePrediction = context.computeOnClient(minecraft -> {
             if (minecraft.player == null || minecraft.level == null) {
                 throw new AssertionError("client player/level unavailable while capturing " + id);
             }
+            PlayerSnapshot playerSnapshot = new MinecraftSnapshotFactory().capture(minecraft.player);
             PredictionContext predictionContext = new PredictionContext(
-                new MinecraftSnapshotFactory().capture(minecraft.player),
+                playerSnapshot,
                 new MinecraftWorldSnapshotFactory().capture(minecraft.level, minecraft.player, LIMITS),
                 new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
                 LIMITS
             );
-            return new ProjectilePredictor().predict(predictionContext).stream()
-                .filter(event -> event.id().startsWith("projectile:" + entityId + ":"))
-                .filter(event -> event.damage().sourceKey().equals(sourceKey))
+            ThreatEvent event = new ProjectilePredictor().predict(predictionContext).stream()
+                .filter(candidate -> candidate.id().startsWith("projectile:" + entityId + ":"))
+                .filter(candidate -> candidate.damage().sourceKey().equals(sourceKey))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no live projectile prediction for " + id));
+            return new LivePrediction(playerSnapshot, event);
         });
 
         int actualImpactTicks = waitForDamage(context, singleplayer, 20f, id);
         float actualHealth = singleplayer.getServer().computeOnServer(server ->
             SurvivalValidationClientGameTest.onlyPlayer(server).getHealth()
         );
+        ThreatEvent prediction = livePrediction.event();
         if (actualImpactTicks < prediction.impact().earliest() || actualImpactTicks > prediction.impact().latest()) {
             throw new AssertionError(
                 id + " impact predicted=" + prediction.impact() + " actualTick=" + actualImpactTicks
             );
         }
 
-        float predictedHealth = context.computeOnClient(minecraft -> {
-            if (minecraft.player == null) throw new AssertionError("client player unavailable for " + id);
-            var snapshot = new MinecraftSnapshotFactory().capture(minecraft.player);
-            return SIMULATOR.simulate(snapshot, prediction.damage()).after().health();
-        });
-
+        float predictedHealth = SIMULATOR.simulate(livePrediction.player(), prediction.damage()).after().health();
         discard(singleplayer, entityId);
         context.waitTick();
         return new ValidationResult(
@@ -159,5 +158,8 @@ final class ProjectileValidationScenarios {
             Entity entity = ((ServerLevel) player.level()).getEntity(entityId);
             if (entity != null) entity.discard();
         });
+    }
+
+    private record LivePrediction(PlayerSnapshot player, ThreatEvent event) {
     }
 }
