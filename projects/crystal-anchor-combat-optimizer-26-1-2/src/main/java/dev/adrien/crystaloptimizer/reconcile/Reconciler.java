@@ -27,7 +27,7 @@ public final class Reconciler {
             }
         }
         return failures.isEmpty()
-            ? ReconciliationResult.valid()
+            ? ReconciliationResult.accepted()
             : ReconciliationResult.invalid(failures, clearAll);
     }
 
