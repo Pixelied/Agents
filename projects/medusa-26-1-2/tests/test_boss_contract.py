@@ -29,3 +29,25 @@ class BossContract(unittest.TestCase):
             "boss/transition/finish.mcfunction",
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing transition function: {rel}")
+
+class AttackSuiteContract(unittest.TestCase):
+    def test_required_attack_pool_exists(self):
+        attack = FN / "boss/attack"
+        for rel in [
+            "claw/start.mcfunction",
+            "serpent_lash/start.mcfunction",
+            "venom_spit/start.mcfunction",
+            "brood_call/start.mcfunction",
+            "gorgon_gaze/start.mcfunction",
+            "large_serpent/start.mcfunction",
+        ]:
+            self.assertTrue((attack / rel).is_file(), f"missing Medusa attack: {rel}")
+
+    def test_gorgon_gaze_has_telegraph_and_empowered_window(self):
+        tick = FN / "boss/attack/gorgon_gaze/tick.mcfunction"
+        self.assertTrue(tick.is_file(), "Gorgon Gaze tick is missing")
+        text = tick.read_text()
+        self.assertIn("LOOK AWAY!", text)
+        self.assertIn("35..84", text)
+        self.assertIn("md_gorgon_active", text)
+        self.assertIn("85..", text)
