@@ -21,6 +21,17 @@ class CommitPolicyTest {
     }
 
     @Test
+    void robustLethalZeroFeedbackLineWithoutATotemPopCanFreeze() {
+        assertTrue(policy.shouldCommit(plan(true, 0.96, 0.0, 0.94, false)),
+            "totem-denial confidence is irrelevant when the lethal simulation never triggered a totem");
+    }
+
+    @Test
+    void observedTotemPopStillRequiresHighDenialConfidence() {
+        assertFalse(policy.shouldCommit(plan(true, 0.96, 0.60, 0.94, false)));
+    }
+
+    @Test
     void pressureOrSetupLineStaysReplannable() {
         assertFalse(policy.shouldCommit(plan(false, 0.0, 0.0, 0.98, false)));
     }
