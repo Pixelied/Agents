@@ -94,8 +94,8 @@ class PrepareModePlannerTest {
         SimCombatant target = SimCombatant.testPlayer(20.0f);
         Map<UUID, CombatantSpatialState> spatial = Map.of(
             SELF, new CombatantSpatialState(
-                new Vec3(0.5, 64.0, -5.0),
-                new AABB(0.2, 64.0, -5.3, 0.8, 65.8, -4.7),
+                new Vec3(0.5, 64.0, -7.0),
+                new AABB(0.2, 64.0, -7.3, 0.8, 65.8, -6.7),
                 Vec3.ZERO
             ),
             TARGET, new CombatantSpatialState(
@@ -114,7 +114,7 @@ class PrepareModePlannerTest {
             inventory,
             TimingState.unknown(),
             new LegalitySnapshot(
-                new Vec3(0.5, 65.5, -5.0),
+                new Vec3(0.5, 65.5, -7.0),
                 10.0,
                 10.0,
                 List.of(spatial.get(SELF).boundingBox(), spatial.get(TARGET).boundingBox()),
