@@ -132,15 +132,21 @@ public final class SurvivalPlanner {
             if (!currentTimelineGuaranteed) return "current threat timeline is not guaranteed shield-blockable";
         }
 
-        boolean requiresPacketWindow = action.requiredServerTicks() > 0
-            || action instanceof SurvivalAction.EquipDeathProtection;
-        if (enforceDeadline && requiresPacketWindow) {
+        if (enforceDeadline && requiresPacketWindow(action)) {
             TickWindow requiredImpact = requiredImpactForAction(context, timeline, action, baselineResult);
             if (requiredImpact != null && !context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) {
                 return "server deadline missed";
             }
         }
         return null;
+    }
+
+    private static boolean requiresPacketWindow(SurvivalAction action) {
+        if (action instanceof SurvivalAction.NoAction) return false;
+        if (action instanceof SurvivalAction.RaiseShield shield) {
+            return shield.requiredServerTicks() > 0;
+        }
+        return true;
     }
 
     private static TickWindow requiredImpactForAction(
