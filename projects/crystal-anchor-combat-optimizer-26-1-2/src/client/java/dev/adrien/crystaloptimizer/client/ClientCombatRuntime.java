@@ -5,11 +5,13 @@ import dev.adrien.crystaloptimizer.candidate.CandidateFeatureEstimator;
 import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
 import dev.adrien.crystaloptimizer.candidate.CandidatePruner;
 import dev.adrien.crystaloptimizer.client.execution.DispatchReceipt;
+import dev.adrien.crystaloptimizer.client.execution.HotbarRestocker;
 import dev.adrien.crystaloptimizer.client.execution.RotationController;
 import dev.adrien.crystaloptimizer.client.execution.VanillaInteractionDispatcher;
 import dev.adrien.crystaloptimizer.client.world.ClientCombatSnapshotBuilder;
 import dev.adrien.crystaloptimizer.execution.CombatRuntimeEngine;
 import dev.adrien.crystaloptimizer.execution.CommitAbortReason;
+import dev.adrien.crystaloptimizer.execution.CommitPhase;
 import dev.adrien.crystaloptimizer.execution.CommitPolicy;
 import dev.adrien.crystaloptimizer.execution.CommitScheduler;
 import dev.adrien.crystaloptimizer.execution.ExecutionFeedback;
@@ -60,6 +62,7 @@ public final class ClientCombatRuntime {
     private final BeamPlanner beamPlanner;
     private final CombatRuntimeEngine engine;
     private final VanillaInteractionDispatcher dispatcher;
+    private final HotbarRestocker restocker;
     private final Map<UUID, ArrayDeque<MovementSample>> movementHistory = new HashMap<>();
 
     private UUID previousTarget;
@@ -100,6 +103,7 @@ public final class ClientCombatRuntime {
             scheduler,
             RotationMode.ADAPTIVE
         );
+        this.restocker = new HotbarRestocker(minecraft, inventory);
     }
 
     public boolean enabled() {
@@ -129,6 +133,10 @@ public final class ClientCombatRuntime {
             engine.abort(CommitAbortReason.RECONCILIATION_INVALIDATED);
             previousTarget = null;
             movementHistory.clear();
+            return;
+        }
+
+        if (engine.phase() == CommitPhase.NORMAL && restocker.restockOne(self)) {
             return;
         }
 
