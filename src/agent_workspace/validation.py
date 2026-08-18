@@ -107,10 +107,11 @@ class ValidationMixin:
                         except (WorkspaceError, KeyError, ValueError, TypeError) as exc:
                             errors.append(f"{lease_path}: invalid lease: {exc}")
 
-                for collection in ("events", "handoffs"):
+                for collection, required in (("events", True), ("handoffs", False)):
                     target = directory / collection
                     if not target.is_dir():
-                        errors.append(f"{directory}: missing {collection}/ directory")
+                        if required:
+                            errors.append(f"{directory}: missing {collection}/ directory")
                         continue
                     for item in target.glob("*.json"):
                         try:
