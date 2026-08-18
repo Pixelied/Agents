@@ -18,7 +18,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.monster.Skeleton;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import net.minecraft.world.item.ItemStack;
@@ -104,7 +104,7 @@ final class ProjectileValidationScenarios {
             player.setDeltaMovement(Vec3.ZERO);
             ServerLevel level = (ServerLevel) player.level();
 
-            Skeleton owner = new Skeleton(EntityType.SKELETON, level);
+            Creeper owner = new Creeper(EntityType.CREEPER, level);
             owner.setNoAi(true);
             owner.setPos(player.getX() + 12d, player.getY(), player.getZ() + 12d);
             level.addFreshEntity(owner);
