@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a6d2task13green011700",
+  "task_id": "build-crystal-anchor-combat-optimizer-26-1-2",
+  "agent_id": "openai-crystal-github-a6d2",
+  "type": "progress",
+  "message": "Superpowers Task 13 GREEN: selective reconciliation tracks only relevant server-visible assumption changes; missing crystals, inventory desync, target divergence, degraded timing confidence, dimension changes, and simulator mismatches are classified explicitly, while unrelated world updates do not invalidate committed work.",
+  "data": {
+    "green_run_id": 32087594350,
+    "green_head": "5907c09192c55c02d900301aeab4b7cd178d2c2e",
+    "failure_kinds": ["STATE_RACE", "RESOURCE_FAILURE", "TARGET_DIVERGENCE", "NETWORK_UNCERTAINTY", "LEGALITY_FAILURE", "SIMULATION_MISMATCH"]
+  },
+  "created_at": "2026-08-18T01:17:00+00:00"
+}
