@@ -6,7 +6,7 @@ import dev.adrien.crystaloptimizer.execution.ReservationRequest;
 import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.Item;
 
 public final class HotbarRestocker {
@@ -43,11 +43,11 @@ public final class HotbarRestocker {
             if (!player.getInventory().getItem(inventoryIndex).is(item)) {
                 continue;
             }
-            minecraft.gameMode.handleInventoryMouseClick(
+            minecraft.gameMode.handleContainerInput(
                 player.inventoryMenu.containerId,
                 inventoryIndex,
                 hotbarSlot,
-                ClickType.SWAP,
+                ContainerInput.SWAP,
                 player
             );
             return true;
