@@ -36,7 +36,7 @@ public record ReservationRequest(
         return new ReservationRequest(Owner.AURA, PRIORITY_AURA, false, slots);
     }
 
-    public boolean autoTotemEmergency() {
+    public boolean isAutoTotemEmergency() {
         return owner == Owner.AUTO_TOTEM && priority >= PRIORITY_AUTOTOTEM_EMERGENCY;
     }
 

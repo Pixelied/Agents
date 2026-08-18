@@ -105,7 +105,7 @@ public final class CommitScheduler {
     }
 
     private void onReservationGranted(ReservationRequest request) {
-        if (!request.autoTotemEmergency()) {
+        if (!request.isAutoTotemEmergency()) {
             return;
         }
         if (phase == CommitPhase.ARMED) {
