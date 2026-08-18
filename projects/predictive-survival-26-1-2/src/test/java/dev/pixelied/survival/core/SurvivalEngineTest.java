@@ -130,7 +130,7 @@ class SurvivalEngineTest {
     }
 
     private static SurvivalAction warmupShield() {
-        return new SurvivalAction.RaiseShield(3, true, true, true, 1d, 1f, 2, 5, 0);
+        return new SurvivalAction.RaiseShield(3, true, true, true, 1d, 1f, 5, 5, 0);
     }
 
     private static SurvivalAction protection() {
