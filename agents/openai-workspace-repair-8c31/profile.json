@@ -12,7 +12,7 @@
   "provider": "openai",
   "registered_at": "2026-08-18T11:20:00+00:00",
   "schema_version": 1,
-  "state": "available",
-  "state_reason": "registered for workspace repair",
-  "state_updated_at": "2026-08-18T11:20:00+00:00"
+  "state": "offline",
+  "state_reason": "Workspace repair completed; all maintenance scopes released",
+  "state_updated_at": "2026-08-18T11:31:50+00:00"
 }
