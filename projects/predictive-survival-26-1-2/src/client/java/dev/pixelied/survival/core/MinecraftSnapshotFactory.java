@@ -70,6 +70,7 @@ public final class MinecraftSnapshotFactory {
         state.put("suppressing_bounce", Boolean.toString(player.isSuppressingBounce()));
 
         state.put("remaining_fire_ticks", Integer.toString(player.getRemainingFireTicks()));
+        state.put("on_fire", Boolean.toString(player.isOnFire()));
         state.put("fire_immune", Boolean.toString(player.fireImmune()));
         state.put("in_lava", Boolean.toString(player.isInLava()));
 
