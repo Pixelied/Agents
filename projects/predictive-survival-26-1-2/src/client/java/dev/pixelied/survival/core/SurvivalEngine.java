@@ -27,6 +27,7 @@ public final class SurvivalEngine {
     private Optional<SurvivalPlan> currentPlan = Optional.empty();
     private Optional<ExecutionStatus> executionStatus = Optional.empty();
     private String dangerFingerprint = "";
+    private String activeThreatScheduleFingerprint = "";
 
     public SurvivalEngine(SurvivalConfig config, RuntimeAdapter runtime, DecisionHistory history) {
         this(config, runtime, history, new SurvivalPlanner());
@@ -51,8 +52,7 @@ public final class SurvivalEngine {
         if (currentPlan.isPresent()) {
             SurvivalAction active = currentPlan.get().action();
             if (shouldReplaceActivePlan(active, frame)) {
-                currentPlan = Optional.empty();
-                executionStatus = Optional.empty();
+                clearCurrentPlan();
             } else {
                 ExecutionStatus observed = Objects.requireNonNull(runtime.observe(active, frame), "execution status");
                 executionStatus = Optional.of(observed);
@@ -60,11 +60,11 @@ public final class SurvivalEngine {
 
                 if (observed instanceof ExecutionStatus.WaitingForServer) return;
                 if (observed instanceof ExecutionStatus.Confirmed) {
-                    currentPlan = Optional.empty();
+                    clearCurrentPlan();
                     return;
                 }
                 if (observed instanceof ExecutionStatus.Failed failed) {
-                    currentPlan = Optional.empty();
+                    clearCurrentPlan();
                     if (!failed.replanRequired()) return;
                     failedActions.add(active);
                 }
@@ -77,26 +77,26 @@ public final class SurvivalEngine {
             SurvivalPlan plan = planner.plan(frame.context(), frame.timeline(), candidates, config.safetyMode());
 
             if (plan.action() instanceof SurvivalAction.NoAction) {
-                currentPlan = Optional.empty();
-                executionStatus = Optional.empty();
+                clearCurrentPlan();
                 record(frame, plan.action(), null, plan.simulation().reason());
                 return;
             }
 
             currentPlan = Optional.of(plan);
+            activeThreatScheduleFingerprint = scheduleFingerprint(frame);
             ExecutionStatus started = Objects.requireNonNull(runtime.begin(plan.action(), frame), "execution status");
             executionStatus = Optional.of(started);
             record(frame, plan.action(), started, statusReason(started));
 
             if (started instanceof ExecutionStatus.Failed failed && failed.replanRequired()) {
                 failedActions.add(plan.action());
-                currentPlan = Optional.empty();
+                clearCurrentPlan();
                 continue;
             }
             return;
         }
 
-        currentPlan = Optional.empty();
+        clearCurrentPlan();
         executionStatus = Optional.of(new ExecutionStatus.Failed("all bounded candidates failed execution", false));
         record(frame, new SurvivalAction.NoAction(), executionStatus.get(), "all bounded candidates failed execution");
     }
@@ -118,8 +118,14 @@ public final class SurvivalEngine {
     }
 
     private boolean shouldReplaceActivePlan(SurvivalAction active, EngineFrame frame) {
+        String refreshedScheduleFingerprint = scheduleFingerprint(frame);
+        if (refreshedScheduleFingerprint.equals(activeThreatScheduleFingerprint)) return false;
+
         var refreshed = planner.simulate(frame.context(), frame.timeline(), active, config.safetyMode());
-        if (refreshed.feasible() && refreshed.result().survived()) return false;
+        if (refreshed.feasible() && refreshed.result().survived()) {
+            activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
+            return false;
+        }
 
         SurvivalPlan replacement = planner.plan(
             frame.context(),
@@ -127,8 +133,10 @@ public final class SurvivalEngine {
             filteredCandidates(frame.candidates()),
             config.safetyMode()
         );
-        return !(replacement.action() instanceof SurvivalAction.NoAction)
+        boolean replace = !(replacement.action() instanceof SurvivalAction.NoAction)
             && !replacement.action().equals(active);
+        if (!replace) activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
+        return replace;
     }
 
     private List<SurvivalAction> filteredCandidates(List<SurvivalAction> candidates) {
@@ -150,9 +158,14 @@ public final class SurvivalEngine {
         if (!next.equals(dangerFingerprint)) {
             dangerFingerprint = next;
             failedActions.clear();
-            currentPlan = Optional.empty();
-            executionStatus = Optional.empty();
+            clearCurrentPlan();
         }
+    }
+
+    private void clearCurrentPlan() {
+        currentPlan = Optional.empty();
+        executionStatus = Optional.empty();
+        activeThreatScheduleFingerprint = "";
     }
 
     private void record(
@@ -183,6 +196,25 @@ public final class SurvivalEngine {
             .sorted()
             .toList();
         return String.join(";", identities);
+    }
+
+    private static String scheduleFingerprint(EngineFrame frame) {
+        long clientTick = frame.context().timing().clientTick();
+        List<String> schedule = frame.timeline().events().stream()
+            .map(event -> event.id()
+                + '|' + event.kind()
+                + '|' + event.damage().sourceKey()
+                + '|' + saturatingAdd(clientTick, event.impact().earliest())
+                + ':' + saturatingAdd(clientTick, event.impact().latest()))
+            .sorted()
+            .toList();
+        return String.join(";", schedule);
+    }
+
+    private static long saturatingAdd(long value, long increment) {
+        if (increment > 0 && value > Long.MAX_VALUE - increment) return Long.MAX_VALUE;
+        if (increment < 0 && value < Long.MIN_VALUE - increment) return Long.MIN_VALUE;
+        return value + increment;
     }
 
     private static String threatSummary(ThreatTimeline timeline) {
