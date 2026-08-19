@@ -4,9 +4,9 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.EvokerFangs;
 import net.minecraft.world.entity.monster.Guardian;
 import net.minecraft.world.entity.monster.warden.Warden;
+import net.minecraft.world.entity.projectile.EvokerFangs;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
