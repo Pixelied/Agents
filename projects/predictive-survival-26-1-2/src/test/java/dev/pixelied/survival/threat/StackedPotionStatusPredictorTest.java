@@ -51,15 +51,32 @@ class StackedPotionStatusPredictorTest {
 
         assertFalse(tail.isEmpty());
         assertEquals(new TickWindow(45, 45), tail.getFirst().impact());
-        for (ThreatEvent event : tail) {
-            assertEquals(DamageRange.exact(1f), event.damage().rawDamage());
-            assertEquals("minecraft:wither", event.damage().sourceKey());
-            assertEquals(0f, event.damage().applicationHealthThresholdExclusive(), 0.0001f);
-            assertTrue(event.damage().has(DamageFlag.BYPASSES_ARMOR));
-            assertTrue(event.damage().has(DamageFlag.BYPASSES_SHIELD));
-            assertFalse(event.blockable());
-            assertTrue(event.impact().earliest() >= 45);
-        }
+        assertWitherTail(tail, 45);
+    }
+
+    @Test
+    void lingeringStackedWitherKeepsHiddenTailAfterCloudApplication() {
+        Map<String, String> properties = new LinkedHashMap<>();
+        properties.put("potion_wither_duration_ticks", "160");
+        properties.put("potion_wither_amplifier", "1");
+        properties.put("potion_lingering", "true");
+        properties.put("potion_duration_scale", "0.25");
+        properties.put("potion_status_count", "2");
+        properties.put("potion_status_0_kind", "wither");
+        properties.put("potion_status_0_duration_ticks", "960");
+        properties.put("potion_status_0_amplifier", "0");
+        properties.put("potion_status_1_kind", "wither");
+        properties.put("potion_status_1_duration_ticks", "160");
+        properties.put("potion_status_1_amplifier", "1");
+
+        List<ThreatEvent> tail = predictors.predict(context(lingering(properties))).stream()
+            .filter(event -> event.id().contains(":lingering_stacked_status:wither:"))
+            .toList();
+
+        assertFalse(tail.isEmpty());
+        // Collision tick 5 + 10 cloud wait + 40 ticks until the hidden Wither I resumes and ticks.
+        assertEquals(new TickWindow(55, 55), tail.getFirst().impact());
+        assertWitherTail(tail, 55);
     }
 
     @Test
@@ -84,6 +101,18 @@ class StackedPotionStatusPredictorTest {
         assertTrue(tail.isEmpty());
     }
 
+    private static void assertWitherTail(List<ThreatEvent> tail, long minimumTick) {
+        for (ThreatEvent event : tail) {
+            assertEquals(DamageRange.exact(1f), event.damage().rawDamage());
+            assertEquals("minecraft:wither", event.damage().sourceKey());
+            assertEquals(0f, event.damage().applicationHealthThresholdExclusive(), 0.0001f);
+            assertTrue(event.damage().has(DamageFlag.BYPASSES_ARMOR));
+            assertTrue(event.damage().has(DamageFlag.BYPASSES_SHIELD));
+            assertFalse(event.blockable());
+            assertTrue(event.impact().earliest() >= minimumTick);
+        }
+    }
+
     private static PredictionContext context(WorldSnapshot.EntitySnapshot entity) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
@@ -100,9 +129,17 @@ class StackedPotionStatusPredictorTest {
     }
 
     private static WorldSnapshot.EntitySnapshot splash(Map<String, String> properties) {
+        return potion("stacked:wither", "minecraft:splash_potion", properties);
+    }
+
+    private static WorldSnapshot.EntitySnapshot lingering(Map<String, String> properties) {
+        return potion("stacked:lingering:wither", "minecraft:lingering_potion", properties);
+    }
+
+    private static WorldSnapshot.EntitySnapshot potion(String id, String type, Map<String, String> properties) {
         return new WorldSnapshot.EntitySnapshot(
-            "stacked:wither",
-            "minecraft:splash_potion",
+            id,
+            type,
             new Vec3Snapshot(0, 1.0, 0.3),
             new Vec3Snapshot(1.5, 0, 0),
             new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
