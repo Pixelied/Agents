@@ -496,7 +496,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         if (!isDragonFireball(entity)) return List.of();
 
         TickWindow collisionWindow = observedImpactWindow(entity, modeledCollisionTick);
-        long horizon = context.limits().maxProjectileHorizonTicks();
+        long horizon = context.limits().maxDecisionHistory();
         long earliest = collisionWindow.earliest();
         long latest = Math.min(horizon, saturatingAdd(collisionWindow.latest(), DRAGON_BREATH_REAPPLICATION_TICKS));
         List<ThreatEvent> events = new ArrayList<>();
