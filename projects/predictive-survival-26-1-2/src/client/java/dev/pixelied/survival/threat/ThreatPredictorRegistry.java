@@ -45,10 +45,11 @@ public final class ThreatPredictorRegistry {
 
         List<ThreatEvent> merged = new ArrayList<>(mergedById.values());
         merged.sort(RISK_ORDER);
-        if (merged.size() > context.limits().maxThreats()) {
-            merged = new ArrayList<>(merged.subList(0, context.limits().maxThreats()));
-        }
-        return List.copyOf(merged);
+        return ThreatOverflowCondenser.cap(
+            merged,
+            context.limits().maxThreats(),
+            "predictive_survival:threat_overflow"
+        );
     }
 
     private static ThreatEvent merge(ThreatEvent first, ThreatEvent second) {
