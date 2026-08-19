@@ -206,6 +206,7 @@ public final class ClientCombatCoordinator {
     }
 
     public void tick() {
+        reconcilePendingItems(System.nanoTime());
         OptimizerConfig config = configService.current();
         diagnostics.recordConfig(config);
         if (!config.enabled()) {
@@ -217,6 +218,7 @@ public final class ClientCombatCoordinator {
     public void onEvent(CombatEvent event) {
         Objects.requireNonNull(event, "event");
         eventObserver.accept(event);
+        reconcilePendingItems(event.timestampNanos());
         OptimizerConfig config = configService.current();
         diagnostics.recordConfig(config);
         if (!config.enabled()) {
@@ -254,6 +256,10 @@ public final class ClientCombatCoordinator {
 
     public ClientCombatDiagnostics diagnostics() {
         return diagnostics;
+    }
+
+    private void reconcilePendingItems(long nowNanos) {
+        pendingItems.reconcile(liveView::observedCount, nowNanos);
     }
 
     private static double immediateLethalMillis(DamageMap map) {
