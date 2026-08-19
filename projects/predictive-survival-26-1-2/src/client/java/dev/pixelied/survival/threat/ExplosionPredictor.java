@@ -48,7 +48,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
         PredictionContext context,
         OcclusionView world
     ) {
-        Float radius = parsePositiveFloat(properties.get("explosion_radius"));
+        RadiusRange radius = parseRadiusRange(properties);
         if (radius == null) return Optional.empty();
 
         TickWindow impact;
@@ -58,22 +58,34 @@ public final class ExplosionPredictor implements ThreatPredictor {
             if (fuse > context.limits().maxProjectileHorizonTicks()) return Optional.empty();
             impact = new TickWindow(fuse, fuse);
             confidence = Confidence.EXACT;
-        } else if (Boolean.parseBoolean(properties.getOrDefault("triggerable", "false"))) {
-            long latest = Math.min(2, context.limits().maxProjectileHorizonTicks());
-            impact = new TickWindow(0, latest);
-            confidence = Confidence.POTENTIAL;
         } else {
-            return Optional.empty();
+            Integer fuseMin = parseNonNegativeInt(properties.get("fuse_ticks_min"));
+            Integer fuseMax = parseNonNegativeInt(properties.get("fuse_ticks_max"));
+            if (fuseMin != null && fuseMax != null) {
+                if (fuseMin > fuseMax || fuseMin > context.limits().maxProjectileHorizonTicks()) return Optional.empty();
+                long latest = Math.min(fuseMax, context.limits().maxProjectileHorizonTicks());
+                impact = new TickWindow(fuseMin, latest);
+                confidence = Confidence.BOUNDED;
+            } else if (Boolean.parseBoolean(properties.getOrDefault("triggerable", "false"))) {
+                long latest = Math.min(2, context.limits().maxProjectileHorizonTicks());
+                impact = new TickWindow(0, latest);
+                confidence = Confidence.POTENTIAL;
+            } else {
+                return Optional.empty();
+            }
         }
+        if (radius.bounded()) confidence = lessCertain(confidence, Confidence.BOUNDED);
 
         float seen = exposure.seenPercent(context.player().boundingBox(), center, world);
-        float raw = exposure.rawEntityDamage(radius, distance(context.player().position(), center), seen);
-        if (raw <= 0f) return Optional.empty();
+        double distance = distance(context.player().position(), center);
+        float rawMin = exposure.rawEntityDamage(radius.min(), distance, seen);
+        float rawMax = exposure.rawEntityDamage(radius.max(), distance, seen);
+        if (rawMax <= 0f) return Optional.empty();
 
         EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.IS_EXPLOSION);
         String sourceKey = properties.getOrDefault("source_key", "minecraft:explosion");
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
-            DamageRange.exact(raw), flags,
+            new DamageRange(rawMin, rawMax), flags,
             Boolean.parseBoolean(properties.getOrDefault("scales_with_difficulty", "false")),
             1f, false, Optional.of(center), sourceKey
         );
@@ -98,11 +110,31 @@ public final class ExplosionPredictor implements ThreatPredictor {
             && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
     }
 
+    private static RadiusRange parseRadiusRange(Map<String, String> properties) {
+        Float exact = parsePositiveFloat(properties.get("explosion_radius"));
+        if (exact != null) return new RadiusRange(exact, exact);
+
+        Float min = parseNonNegativeFloat(properties.get("explosion_radius_min"));
+        Float max = parsePositiveFloat(properties.get("explosion_radius_max"));
+        if (min == null || max == null || min > max) return null;
+        return new RadiusRange(min, max);
+    }
+
     private static Float parsePositiveFloat(String value) {
         if (value == null) return null;
         try {
             float parsed = Float.parseFloat(value);
             return Float.isFinite(parsed) && parsed > 0f ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Float parseNonNegativeFloat(String value) {
+        if (value == null) return null;
+        try {
+            float parsed = Float.parseFloat(value);
+            return Float.isFinite(parsed) && parsed >= 0f ? parsed : null;
         } catch (NumberFormatException ignored) {
             return null;
         }
@@ -118,11 +150,21 @@ public final class ExplosionPredictor implements ThreatPredictor {
         }
     }
 
+    private static Confidence lessCertain(Confidence first, Confidence second) {
+        return first.ordinal() >= second.ordinal() ? first : second;
+    }
+
     private static double distance(Vec3Snapshot a, Vec3Snapshot b) {
         double dx = a.x() - b.x();
         double dy = a.y() - b.y();
         double dz = a.z() - b.z();
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private record RadiusRange(float min, float max) {
+        private boolean bounded() {
+            return Float.compare(min, max) != 0;
+        }
     }
 
     private static final class SnapshotOcclusionView implements OcclusionView {
