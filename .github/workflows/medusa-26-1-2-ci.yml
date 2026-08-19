@@ -88,6 +88,7 @@ jobs:
           grep -q 'MEDUSA_EYE_PRESENT_OK' server.log
           grep -q 'MEDUSA_BOSS_OK' server.log
           grep -q 'MEDUSA_PETRIFICATION_DAMAGE_OK' server.log
+          grep -q 'MEDUSA_RESISTANCE_BYPASS_OK' server.log
           grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log
           grep -q 'MEDUSA_GAZE_LOS_OK' server.log
           grep -q 'MEDUSA_GAZE_PETRIFICATION_OK' server.log
