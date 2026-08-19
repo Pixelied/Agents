@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EvokerFangsPredictorTest {
@@ -39,7 +40,17 @@ class EvokerFangsPredictorTest {
         assertEquals(6f, event.damage().rawDamage().max(), 0.0001f);
         assertEquals("minecraft:indirect_magic", event.damage().sourceKey());
         assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_ARMOR));
-        assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_SHIELD));
+        assertFalse(event.damage().flags().contains(DamageFlag.BYPASSES_SHIELD));
+    }
+
+    @Test
+    void opaqueFangsOwnerIsConservativelyDifficultyScaled() {
+        ThreatEvent event = new EvokerFangsPredictor().predict(context(Map.of(
+            "evoker_fangs_started", "true",
+            "evoker_fangs_elapsed_ticks", "0"
+        ), 0.2)).getFirst();
+
+        assertTrue(event.damage().scalesWithDifficulty());
     }
 
     @Test
