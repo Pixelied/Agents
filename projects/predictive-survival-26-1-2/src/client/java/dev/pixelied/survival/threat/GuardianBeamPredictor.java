@@ -23,10 +23,10 @@ public final class GuardianBeamPredictor implements ThreatPredictor {
         List<ThreatEvent> events = new ArrayList<>();
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             if (!isGuardian(entity.typeKey())) continue;
-            if (!Boolean.parseBoolean(entity.property("guardian_beam_target_local"))) continue;
+            if (!Boolean.parseBoolean(entity.properties().get("guardian_beam_target_local"))) continue;
 
-            int attackTicks = nonNegativeInt(entity.property("guardian_attack_ticks"), 0);
-            int duration = positiveInt(entity.property("guardian_attack_duration"), 80);
+            int attackTicks = nonNegativeInt(entity.properties().get("guardian_attack_ticks"), 0);
+            int duration = positiveInt(entity.properties().get("guardian_attack_duration"), 80);
             long latest = Math.min(
                 context.limits().maxDecisionHistory(),
                 Math.max(0, duration - attackTicks)
@@ -60,7 +60,7 @@ public final class GuardianBeamPredictor implements ThreatPredictor {
                 false
             ));
 
-            float attackDamage = positiveFloat(entity.property("attack_damage"), 0f);
+            float attackDamage = positiveFloat(entity.properties().get("attack_damage"), 0f);
             if (attackDamage > 0f) {
                 DamageSourceSnapshot melee = new DamageSourceSnapshot(
                     DamageRange.exact(attackDamage),
