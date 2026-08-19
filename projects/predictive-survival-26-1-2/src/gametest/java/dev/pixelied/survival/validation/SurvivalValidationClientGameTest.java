@@ -47,6 +47,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             ProjectileSnapshotCapacityValidationScenarios.validateRelevantProjectileOverflowFailsClosed(context, singleplayer);
             ShulkerBulletValidationScenarios.validateVisibleBulletProducesPreImpactThreat(context, singleplayer);
             GuardianBeamValidationScenarios.validateActiveBeamProducesPreImpactSequence(context, singleplayer);
+            WardenSonicBoomValidationScenarios.validateObservedChargeProducesSonicThreat(context, singleplayer);
             TippedArrowPotionValidationScenarios.validateTippedArrowWitherHasPreImpactThreat(context, singleplayer);
             DragonFireballValidationScenarios.validateObservableDamageHasPreImpactThreat(context, singleplayer);
             PotionValidationScenarios.validateSplashHarmingHasPreImpactThreat(context, singleplayer);
