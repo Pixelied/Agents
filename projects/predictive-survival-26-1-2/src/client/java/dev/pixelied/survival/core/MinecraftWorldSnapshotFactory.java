@@ -167,19 +167,29 @@ public final class MinecraftWorldSnapshotFactory {
         }
 
         if (entity instanceof AbstractHurtingProjectile hurtingProjectile) {
+            Entity owner = hurtingProjectile.getOwner();
             properties.put("acceleration_power", Double.toString(hurtingProjectile.accelerationPower));
             if (entity instanceof LargeFireball) {
                 properties.put("raw_damage", "6");
                 properties.put("explosion_radius", "1");
-                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(hurtingProjectile.getOwner())));
+                properties.put("source_key", owner == null ? "minecraft:unattributed_fireball" : "minecraft:fireball");
+                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(owner)));
             } else if (entity instanceof SmallFireball) {
                 properties.put("raw_damage", "5");
-                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(hurtingProjectile.getOwner())));
+                properties.put("source_key", owner == null ? "minecraft:unattributed_fireball" : "minecraft:fireball");
+                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(owner)));
             } else if (entity instanceof WitherSkull) {
-                properties.put("raw_damage_min", "5");
-                properties.put("raw_damage_max", "8");
                 properties.put("explosion_radius", "1");
-                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(hurtingProjectile.getOwner())));
+                if (owner instanceof LivingEntity) {
+                    properties.put("raw_damage", "8");
+                    properties.put("source_key", "minecraft:wither_skull");
+                    properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(owner)));
+                } else {
+                    properties.put("raw_damage_min", "5");
+                    properties.put("raw_damage_max", "8");
+                    properties.put("source_key", "minecraft:magic");
+                    properties.put("scales_with_difficulty", "false");
+                }
             }
         }
 
