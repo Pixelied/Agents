@@ -149,7 +149,8 @@ public final class ProjectilePredictor implements ThreatPredictor {
         Optional<DamageRange> damage = directDamage(entity, family, impactVelocity);
         if (damage.isEmpty() || damage.get().max() <= 0f) return Optional.empty();
 
-        EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.IS_PROJECTILE);
+        String sourceKey = entity.properties().getOrDefault("source_key", defaultSourceKey(entity, family));
+        EnumSet<DamageFlag> flags = directDamageFlags(sourceKey);
         if (Boolean.parseBoolean(entity.properties().getOrDefault("bypasses_shield", "false"))) {
             flags.add(DamageFlag.BYPASSES_SHIELD);
         }
@@ -161,7 +162,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
             1f,
             piercing,
             Optional.of(entity.position()),
-            entity.properties().getOrDefault("source_key", defaultSourceKey(entity, family))
+            sourceKey
         );
 
         Confidence confidence = damage.get().min() == damage.get().max() ? Confidence.EXACT : Confidence.BOUNDED;
@@ -792,6 +793,16 @@ public final class ProjectilePredictor implements ThreatPredictor {
             case LLAMA_SPIT -> "minecraft:spit";
             case WIND_CHARGE -> "minecraft:wind_charge";
             default -> "minecraft:mob_projectile";
+        };
+    }
+
+    private static EnumSet<DamageFlag> directDamageFlags(String sourceKey) {
+        return switch (sourceKey) {
+            case "minecraft:fireball", "minecraft:unattributed_fireball" ->
+                EnumSet.of(DamageFlag.IS_PROJECTILE, DamageFlag.IS_FIRE);
+            case "minecraft:magic", "minecraft:indirect_magic", "minecraft:dragon_breath" ->
+                EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD);
+            default -> EnumSet.of(DamageFlag.IS_PROJECTILE);
         };
     }
 
