@@ -257,7 +257,7 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
     }
 
     private static void syncEquipment(ServerPlayer target) {
-        target.tick();
+        target.doTick();
     }
 
     private static void assertSingleExplosionMatches(
