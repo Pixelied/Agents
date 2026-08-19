@@ -31,14 +31,13 @@ final class ThreatOverflowCondenser {
     private static ThreatEvent overflowEvent(List<ThreatEvent> omitted, String overflowId) {
         long earliest = Long.MAX_VALUE;
         long latest = 0L;
-        boolean bypassesInvulnerability = false;
         for (ThreatEvent event : omitted) {
             earliest = Math.min(earliest, event.impact().earliest());
             latest = Math.max(latest, event.impact().latest());
-            bypassesInvulnerability |= event.damage().has(DamageFlag.BYPASSES_INVULNERABILITY);
         }
 
         EnumSet<DamageFlag> flags = EnumSet.of(
+            DamageFlag.BYPASSES_INVULNERABILITY,
             DamageFlag.BYPASSES_COOLDOWN,
             DamageFlag.BYPASSES_ARMOR,
             DamageFlag.BYPASSES_SHIELD,
@@ -46,7 +45,6 @@ final class ThreatOverflowCondenser {
             DamageFlag.BYPASSES_RESISTANCE,
             DamageFlag.BYPASSES_ENCHANTMENTS
         );
-        if (bypassesInvulnerability) flags.add(DamageFlag.BYPASSES_INVULNERABILITY);
 
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             new DamageRange(0f, Float.MAX_VALUE),
