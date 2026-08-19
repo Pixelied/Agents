@@ -65,7 +65,9 @@ final class PotionSnapshotMetadataValidationScenarios {
                 if (entity == null) throw new AssertionError("custom lingering potion disappeared before snapshot validation");
                 return entity.tickCount;
             });
-            SurvivalEngine.EngineFrame frame = context.computeOnClient(minecraft -> new MinecraftSurvivalRuntime().capture());
+            SurvivalEngine.EngineFrame frame = context.computeOnClient(
+                minecraft -> new MinecraftSurvivalRuntime(minecraft).capture()
+            );
             WorldSnapshot.EntitySnapshot snapshot = frame.context().world().entities().stream()
                 .filter(entity -> entity.id().equals(Integer.toString(setup.projectileId())))
                 .findFirst()
