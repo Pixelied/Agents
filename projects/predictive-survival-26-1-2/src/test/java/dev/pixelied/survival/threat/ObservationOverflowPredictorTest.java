@@ -31,18 +31,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ObservationOverflowPredictorTest {
     @Test
     void observationOverflowFailsClosedAcrossDeathProtection() {
-        WorldSnapshot.EntitySnapshot marker = new WorldSnapshot.EntitySnapshot(
-            "predictive_survival:observation_overflow",
-            "predictive_survival:observation_overflow",
-            new Vec3Snapshot(0, 0, 0),
-            new Vec3Snapshot(0, 0, 0),
-            new AabbSnapshot(0, 0, 0, 0, 0, 0),
-            Map.of("omitted_relevant_entities", "3")
-        );
-        PredictionContext context = context(marker);
+        PredictionContext context = context(marker(3));
 
         List<ThreatEvent> events = new ObservationOverflowPredictor().predict(context);
 
+        assertFailClosedOverflow(context, events);
+    }
+
+    @Test
+    void topLevelRegistryCannotForgetObservationOverflowSafety() {
+        PredictionContext context = context(marker(2));
+
+        List<ThreatEvent> events = new ThreatPredictorRegistry(List.of()).predictAll(context);
+
+        assertFailClosedOverflow(context, events);
+    }
+
+    private static void assertFailClosedOverflow(PredictionContext context, List<ThreatEvent> events) {
         assertEquals(1, events.size());
         ThreatEvent event = events.getFirst();
         assertEquals(Confidence.UNKNOWN, event.confidence());
@@ -52,6 +57,17 @@ class ObservationOverflowPredictorTest {
         assertFalse(
             new ThreatTimelineSimulator().simulate(context.player(), new ThreatTimeline(events)).survived(),
             "a single death-protection item must never convert an observation-budget overflow into a safe timeline"
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot marker(int omitted) {
+        return new WorldSnapshot.EntitySnapshot(
+            ObservationOverflowPredictor.MARKER_TYPE,
+            ObservationOverflowPredictor.MARKER_TYPE,
+            new Vec3Snapshot(0, 0, 0),
+            new Vec3Snapshot(0, 0, 0),
+            new AabbSnapshot(0, 0, 0, 0, 0, 0),
+            Map.of("omitted_relevant_entities", Integer.toString(omitted))
         );
     }
 
