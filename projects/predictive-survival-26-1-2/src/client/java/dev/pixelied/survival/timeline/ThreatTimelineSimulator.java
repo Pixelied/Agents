@@ -323,10 +323,6 @@ public final class ThreatTimelineSimulator {
             return candidate.consumedProtection() > currentWorst.consumedProtection();
         }
 
-        if (candidate.acceptedEventIds().size() != currentWorst.acceptedEventIds().size()) {
-            return candidate.acceptedEventIds().size() > currentWorst.acceptedEventIds().size();
-        }
-
         int count = Math.min(candidate.results().size(), currentWorst.results().size());
         for (int i = 0; i < count; i++) {
             float candidateRaw = candidate.results().get(i).preMitigationRaw();
