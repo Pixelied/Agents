@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-cont-6e31",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Continues and perfects the approved Minecraft 26.1.2 predictive survival engine from the existing feat/predictive-survival-26-1-2 branch, preserving TDD, source-faithful behavior, and exact-runtime verification.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "minecraft-damage-simulation",
+    "combat-prediction",
+    "github-actions",
+    "testing",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-19T11:42:30+00:00",
+  "state": "available",
+  "state_reason": "Continuing the existing predictive survival implementation and validation work from the current feature branch."
+}
