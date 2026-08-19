@@ -61,3 +61,31 @@ class LifecycleContract(unittest.TestCase):
             "ritual/commit.mcfunction",
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing lifecycle function: {rel}")
+
+class InstanceIsolationContract(unittest.TestCase):
+    def test_petrified_statue_helpers_are_scoped_by_instance_id(self):
+        spawn = (FN / "petrify/statue/spawn.mcfunction").read_text()
+        cleanup = (FN / "arena/reset/cleanup_scoped.mcfunction").read_text()
+
+        self.assertIn(
+            "scoreboard players operation @e[type=minecraft:block_display,tag=md.new_statue_shell,distance=..2,limit=1,sort=nearest] md_eid = @s md_eid",
+            spawn,
+            "statue shell must inherit the participant's instance id",
+        )
+        self.assertIn(
+            "scoreboard players operation @e[type=minecraft:interaction,tag=md.new_statue_hitbox,distance=..2,limit=1,sort=nearest] md_eid = @s md_eid",
+            spawn,
+            "statue hitbox must inherit the participant's instance id",
+        )
+        self.assertIn(
+            '$kill @e[type=minecraft:block_display,tag=md.statue_shell,scores={md_eid=$(eid)}]',
+            cleanup,
+            "instance cleanup must not delete statue shells from a neighboring temple",
+        )
+        self.assertIn(
+            '$kill @e[type=minecraft:interaction,tag=md.statue_hitbox,scores={md_eid=$(eid)}]',
+            cleanup,
+            "instance cleanup must not delete statue hitboxes from a neighboring temple",
+        )
+        self.assertNotIn("tag=md.statue_shell,distance=..36", cleanup)
+        self.assertNotIn("tag=md.statue_hitbox,distance=..36", cleanup)
