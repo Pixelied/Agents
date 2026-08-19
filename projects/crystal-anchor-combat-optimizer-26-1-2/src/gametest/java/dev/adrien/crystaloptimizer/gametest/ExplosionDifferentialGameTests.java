@@ -164,7 +164,7 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
         assertSingleExplosionMatches(
             helper,
             target,
-            ExplosionContext.anchor(target.position().add(3.0, 0.0, 0.0))
+            ExplosionContext.anchor(target.blockPosition().offset(3, 0, 0), false)
         );
         helper.succeed();
     }
