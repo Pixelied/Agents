@@ -59,6 +59,14 @@ class ContactHazardPredictorTest {
     }
 
     @Test
+    void defaultEnvironmentRegistryIncludesCurrentContactHazards() {
+        List<ThreatEvent> events = EnvironmentPredictorRegistry.defaults().predict(
+            context(Map.of("contact_cactus", "true"))
+        );
+        assertTrue(events.stream().anyMatch(event -> "minecraft:cactus".equals(event.damage().sourceKey())));
+    }
+
+    @Test
     void noCurrentContactProducesNoThreat() {
         assertTrue(new ContactHazardPredictor().predict(context(Map.of())).isEmpty());
     }
