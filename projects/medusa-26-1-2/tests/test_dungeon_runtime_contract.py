@@ -9,8 +9,11 @@ FN = ROOT / "datapacks/medusa/data/medusa/function"
 class DungeonRuntimeContract(unittest.TestCase):
     def test_runtime_smoke_exercises_all_three_puzzle_gates(self):
         smoke = FN / "debug/test_dungeon_progression.mcfunction"
+        instance_smoke = FN / "debug/test_dungeon_progression_instance.mcfunction"
         self.assertTrue(smoke.is_file(), "dungeon progression runtime smoke is missing")
-        text = smoke.read_text()
+        self.assertTrue(instance_smoke.is_file(), "instance-scoped dungeon progression smoke is missing")
+        self.assertIn("function medusa:debug/test_dungeon_progression_instance", smoke.read_text())
+        text = instance_smoke.read_text()
         for marker in [
             "MEDUSA_P1_GATE_OK",
             "MEDUSA_P2_GATE_OK",
