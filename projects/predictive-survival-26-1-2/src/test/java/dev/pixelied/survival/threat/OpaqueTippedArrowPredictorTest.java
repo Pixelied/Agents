@@ -7,7 +7,6 @@ import dev.pixelied.survival.core.DifficultySnapshot;
 import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
-import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
@@ -28,21 +27,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OpaqueTippedArrowPredictorTest {
-    private final ProjectilePredictor predictor = new ProjectilePredictor();
+    private final ProjectilePredictor projectilePredictor = new ProjectilePredictor();
+    private final EnvironmentPredictorRegistry supplementalPredictors = EnvironmentPredictorRegistry.defaults();
 
     @Test
     void tippedArrowWithOpaquePotionPayloadAddsConservativeCollisionHazard() {
-        List<ThreatEvent> events = predictor.predict(context(arrow(Map.of(
+        PredictionContext context = context(arrow(Map.of(
             "base_damage", "2.0",
             "critical", "false",
             "arrow_tipped", "true"
-        ))));
-
-        ThreatEvent direct = events.stream()
+        )));
+        ThreatEvent direct = projectilePredictor.predict(context).stream()
             .filter(event -> event.id().equals("projectile:arrow:tipped:direct"))
             .findFirst()
             .orElseThrow();
-        ThreatEvent payload = events.stream()
+        ThreatEvent payload = supplementalPredictors.predict(context).stream()
             .filter(event -> event.id().equals("projectile:arrow:tipped:opaque_potion"))
             .findFirst()
             .orElseThrow();
@@ -58,7 +57,7 @@ class OpaqueTippedArrowPredictorTest {
 
     @Test
     void ordinaryArrowDoesNotInventOpaquePotionPayload() {
-        List<ThreatEvent> events = predictor.predict(context(arrow(Map.of(
+        List<ThreatEvent> events = supplementalPredictors.predict(context(arrow(Map.of(
             "base_damage", "2.0",
             "critical", "false",
             "arrow_tipped", "false"
@@ -77,7 +76,7 @@ class OpaqueTippedArrowPredictorTest {
         return new PredictionContext(
             player,
             new WorldSnapshot(List.of(entity), List.of()),
-            new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
+            new TimingSnapshot(0, 100, 10, new dev.pixelied.survival.core.TickWindow(1, 2)),
             EngineLimits.defaults()
         );
     }
