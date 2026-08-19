@@ -21,6 +21,7 @@ scoreboard objectives add md_staff dummy
 scoreboard objectives add md_lock dummy
 scoreboard objectives add md_use dummy
 scoreboard objectives add md_rewarded dummy
+scoreboard objectives add md_ritual_paid dummy
 scoreboard players add $next_eid md_eid 0
 scoreboard players add $next_aid md_aid 0
 scoreboard players add $next_tid md_tid 0
