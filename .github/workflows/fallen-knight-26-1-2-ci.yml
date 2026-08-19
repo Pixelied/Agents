@@ -70,7 +70,7 @@ jobs:
           cp -R datapacks/fallen_knight run/world/datapacks/fallen_knight
           printf 'eula=true\n' > run/eula.txt
           printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\ndifficulty=normal\n' > run/server.properties
-      - name: Boot server and exercise install/runtime/worldgen paths
+      - name: Boot server and exercise real encounter/runtime/worldgen paths
         shell: bash
         run: |
           set -euo pipefail
@@ -80,32 +80,21 @@ jobs:
             echo 'difficulty normal'
             echo 'execute in minecraft:overworld run forceload add 0 0'
             echo 'execute in minecraft:overworld run fill -2 99 -2 20 99 2 minecraft:stone'
-            echo 'execute in minecraft:overworld run summon minecraft:vindicator 0 100 0'
-            echo 'execute in minecraft:overworld positioned 0 100 0 if entity @e[type=minecraft:vindicator,distance=..2] run say FK_DIAG_DIRECT_VINDICATOR_EXISTS'
-            echo 'execute in minecraft:overworld run summon minecraft:husk 4 100 0'
-            echo 'execute in minecraft:overworld positioned 4 100 0 if entity @e[type=minecraft:husk,distance=..2] run say FK_DIAG_DIRECT_HUSK_EXISTS'
-            echo 'execute in minecraft:overworld run summon minecraft:armor_stand 8 100 0'
-            echo 'execute in minecraft:overworld positioned 8 100 0 if entity @e[type=minecraft:armor_stand,distance=..2] run say FK_DIAG_DIRECT_ARMOR_STAND_EXISTS'
-            echo 'kill @e[type=minecraft:vindicator]'
-            echo 'kill @e[type=minecraft:husk]'
-            echo 'kill @e[type=minecraft:armor_stand]'
             echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/spawn_carrier'
             sleep 1
-            echo 'execute in minecraft:overworld positioned 0 100 0 if entity @e[type=minecraft:vindicator,distance=..32] run say FK_DIAG_VINDICATOR_EXISTS'
-            echo 'execute in minecraft:overworld positioned 0 100 0 if entity @e[tag=fk.boss,distance=..32] run say FK_DIAG_BOSS_TAG_EXISTS'
-            echo 'execute in minecraft:overworld positioned 0 100 0 unless entity @e[tag=fk.boss,distance=..32] run say FK_SMOKE_FAIL_CARRIER'
+            echo 'execute in minecraft:overworld positioned 0 100 0 unless entity @e[type=minecraft:vindicator,tag=fk.boss,distance=..32] run say FK_SMOKE_FAIL_CARRIER'
+            echo 'execute in minecraft:overworld positioned 0 100 0 run data get entity @e[type=minecraft:vindicator,tag=fk.boss,sort=nearest,limit=1,distance=..32] Health'
             echo 'function fallen_knight:debug/remove_test_entities'
             echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/server_smoke'
-            echo 'execute in minecraft:overworld run summon minecraft:marker 16 100 0'
-            echo 'execute in minecraft:overworld positioned 16 100 0 run tag @e[type=minecraft:marker,sort=nearest,limit=1,distance=..1] add fk.manual_seed'
-            echo 'execute in minecraft:overworld positioned 16 100 0 run tag @e[type=minecraft:marker,tag=fk.manual_seed,limit=1,distance=..1] add fk.arena_seed'
-            echo 'execute in minecraft:overworld positioned 16 100 0 as @e[type=minecraft:marker,tag=fk.manual_seed,limit=1,distance=..1] at @s run function fallen_knight:arena/register_seed'
-            echo 'execute in minecraft:overworld positioned 16 100 0 unless entity @e[type=minecraft:marker,tag=fk.manual_seed,tag=fk.arena,distance=..2] run say FK_SMOKE_FAIL_SEED_REGISTER'
-            sleep 2
+            sleep 1
+            echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/server_smoke_verify'
+            echo 'execute in minecraft:overworld positioned 16 100 0 summon minecraft:marker run function fallen_knight:debug/bootstrap_test_seed'
+            sleep 1
+            echo 'execute in minecraft:overworld positioned 16 100 0 unless entity @e[type=minecraft:marker,tag=fk.debug_arena,tag=fk.arena,distance=..3] run say FK_SMOKE_FAIL_SEED_REGISTER'
             echo 'execute in minecraft:overworld run forceload add 32 32 128 128'
             echo 'execute in minecraft:overworld positioned 64 100 64 run place structure fallen_knight:fallen_castle'
             sleep 4
-            echo 'execute in minecraft:overworld positioned 64 100 64 if entity @e[type=minecraft:marker,distance=..80] run say FK_DIAG_MARKER_EXISTS'
+            echo 'execute in minecraft:overworld positioned 64 100 64 as @e[type=minecraft:marker,distance=..80] at @s if block ~ ~-1 ~ minecraft:lodestone run say FK_DIAG_CASTLE_SIGNATURE_OK'
             echo 'execute in minecraft:overworld positioned 64 100 64 unless entity @e[tag=fk.arena,distance=..80] unless entity @e[tag=fk.arena_seed,distance=..80] run say FK_SMOKE_FAIL_CASTLE_CONTROLLER'
             echo 'execute in minecraft:overworld run forceload add 144 48 192 96'
             echo 'execute in minecraft:overworld positioned 160 100 64 run place structure fallen_knight:clue_ruin'
