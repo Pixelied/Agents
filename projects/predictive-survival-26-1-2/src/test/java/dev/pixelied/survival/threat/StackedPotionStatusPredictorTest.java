@@ -32,18 +32,7 @@ class StackedPotionStatusPredictorTest {
 
     @Test
     void directStackedWitherEmitsOnlyHiddenTailBeyondLegacyStrongSchedule() {
-        Map<String, String> properties = new LinkedHashMap<>();
-        properties.put("potion_wither_duration_ticks", "40");
-        properties.put("potion_wither_amplifier", "1");
-        properties.put("potion_splash_radius", "4.0");
-        properties.put("potion_duration_scale", "1.0");
-        properties.put("potion_status_count", "2");
-        properties.put("potion_status_0_kind", "wither");
-        properties.put("potion_status_0_duration_ticks", "240");
-        properties.put("potion_status_0_amplifier", "0");
-        properties.put("potion_status_1_kind", "wither");
-        properties.put("potion_status_1_duration_ticks", "40");
-        properties.put("potion_status_1_amplifier", "1");
+        Map<String, String> properties = stackedWitherProperties();
 
         List<ThreatEvent> tail = predictors.predict(context(splash(properties))).stream()
             .filter(event -> event.id().contains(":stacked_status:wither:"))
@@ -52,6 +41,18 @@ class StackedPotionStatusPredictorTest {
         assertFalse(tail.isEmpty());
         assertEquals(new TickWindow(45, 45), tail.getFirst().impact());
         assertWitherTail(tail, 45);
+    }
+
+    @Test
+    void directStackedWitherKeepsDelayedTailBeyondProjectileTrajectoryHorizon() {
+        List<ThreatEvent> tail = predictors.predict(context(splash(stackedWitherProperties()))).stream()
+            .filter(event -> event.id().contains(":stacked_status:wither:"))
+            .toList();
+
+        assertTrue(
+            tail.stream().anyMatch(event -> event.impact().equals(new TickWindow(85, 85))),
+            "once collision is known, delayed status damage inside the 128-tick decision horizon must not be clipped by the 80-tick projectile trajectory horizon"
+        );
     }
 
     @Test
@@ -99,6 +100,22 @@ class StackedPotionStatusPredictorTest {
             .toList();
 
         assertTrue(tail.isEmpty());
+    }
+
+    private static Map<String, String> stackedWitherProperties() {
+        Map<String, String> properties = new LinkedHashMap<>();
+        properties.put("potion_wither_duration_ticks", "40");
+        properties.put("potion_wither_amplifier", "1");
+        properties.put("potion_splash_radius", "4.0");
+        properties.put("potion_duration_scale", "1.0");
+        properties.put("potion_status_count", "2");
+        properties.put("potion_status_0_kind", "wither");
+        properties.put("potion_status_0_duration_ticks", "240");
+        properties.put("potion_status_0_amplifier", "0");
+        properties.put("potion_status_1_kind", "wither");
+        properties.put("potion_status_1_duration_ticks", "40");
+        properties.put("potion_status_1_amplifier", "1");
+        return properties;
     }
 
     private static void assertWitherTail(List<ThreatEvent> tail, long minimumTick) {
