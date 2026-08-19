@@ -52,6 +52,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final MinecraftWorldSnapshotFactory worldSnapshots;
     private final MinecraftSpecialThreatSnapshotAnnotator specialThreatSnapshots;
     private final MinecraftContactHazardSnapshotAnnotator contactHazardSnapshots;
+    private final MinecraftReactiveThreatSnapshotAnnotator reactiveThreatSnapshots;
     private final MinecraftInventorySnapshotFactory inventorySnapshots;
     private final ServerTimingEstimator timingEstimator;
     private final AreaEffectCloudAttributionTracker cloudAttributions;
@@ -75,6 +76,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.worldSnapshots = new MinecraftWorldSnapshotFactory();
         this.specialThreatSnapshots = new MinecraftSpecialThreatSnapshotAnnotator();
         this.contactHazardSnapshots = new MinecraftContactHazardSnapshotAnnotator();
+        this.reactiveThreatSnapshots = new MinecraftReactiveThreatSnapshotAnnotator();
         this.inventorySnapshots = new MinecraftInventorySnapshotFactory();
         this.timingEstimator = new ServerTimingEstimator();
         this.cloudAttributions = new AreaEffectCloudAttributionTracker();
@@ -128,7 +130,12 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
         WorldSnapshot specialWorld = specialThreatSnapshots.annotate(minecraft.level, player, rawWorld);
         WorldSnapshot world = cloudAttributions.annotate(clientTick, specialWorld);
-        PredictionContext context = new PredictionContext(playerSnapshot, world, timing, limits);
+        MinecraftReactiveThreatSnapshotAnnotator.AnnotatedSnapshot reactive = reactiveThreatSnapshots.annotate(
+            minecraft,
+            playerSnapshot,
+            world
+        );
+        PredictionContext context = new PredictionContext(reactive.player(), reactive.world(), timing, limits);
         List<ThreatEvent> predicted = predictors.predictAll(context);
         cloudAttributions.observePredictedThreats(clientTick, predicted);
         splashStatusMemory.observePredictedThreats(context, predicted);
@@ -136,7 +143,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu);
 
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, timeline, candidates);
-        liveState = new LiveState(frame, inventory, menu, timing, playerSnapshot);
+        liveState = new LiveState(frame, inventory, menu, timing, reactive.player());
         return frame;
     }
 
