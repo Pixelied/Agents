@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.gametest;
 
+import com.mojang.authlib.GameProfile;
 import dev.adrien.crystaloptimizer.sim.model.ArmorPieceState;
 import dev.adrien.crystaloptimizer.sim.model.BlockingState;
 import dev.adrien.crystaloptimizer.sim.model.EffectState;
@@ -7,11 +8,18 @@ import dev.adrien.crystaloptimizer.sim.model.EquipmentState;
 import dev.adrien.crystaloptimizer.sim.model.HurtWindowState;
 import dev.adrien.crystaloptimizer.sim.model.SimCombatant;
 import dev.adrien.crystaloptimizer.sim.model.TotemState;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -22,8 +30,25 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BlocksAttacks;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.GameType;
 
 public final class GameTestCombatants {
+    public static ServerPlayer makeSurvivalPlayer(ServerLevel level) {
+        GameProfile profile = new GameProfile(UUID.randomUUID(), "crystaloptimizer-test-player");
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+        ServerPlayer player = new ServerPlayer(
+            level.getServer(),
+            level,
+            cookie.gameProfile(),
+            cookie.clientInformation()
+        );
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(new ChannelHandler[] {connection});
+        level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        player.setGameMode(GameType.SURVIVAL);
+        return player;
+    }
+
     public static SimCombatant exactFirstHit(ServerPlayer player) {
         return exact(player, new HurtWindowState(0, 0.0f));
     }
@@ -67,12 +92,12 @@ public final class GameTestCombatants {
             float explosionProtection = 0.0f;
             for (var entry : stack.getEnchantments().entrySet()) {
                 Holder<Enchantment> enchantment = entry.getKey();
-                int level = entry.getIntValue();
+                int enchantmentLevel = entry.getIntValue();
                 if (enchantment.is(Enchantments.PROTECTION)) {
-                    explosionProtection += level;
+                    explosionProtection += enchantmentLevel;
                 }
                 if (enchantment.is(Enchantments.BLAST_PROTECTION)) {
-                    explosionProtection += level * 2.0f;
+                    explosionProtection += enchantmentLevel * 2.0f;
                 }
             }
 
