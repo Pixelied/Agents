@@ -27,6 +27,10 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
             !target.getAbilities().invulnerable && !target.isCreative(),
             "differential fixture must be a damageable survival player"
         );
+        helper.assertTrue(
+            level.getEntities(null, target.getBoundingBox().inflate(0.5)).contains(target),
+            "differential fixture must be discoverable by ServerLevel entity queries"
+        );
         Vec3 center = target.position().add(9.0, 0.0, 0.0);
         float before = target.getHealth();
 
