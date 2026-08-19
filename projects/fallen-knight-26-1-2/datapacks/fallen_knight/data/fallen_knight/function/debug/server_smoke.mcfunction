@@ -6,10 +6,13 @@ tag @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1,distance=.
 scoreboard players set @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1] fk_aid 999999
 scoreboard players set @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1] fk_state 1
 scoreboard players set @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1] fk_maxhp 160
-summon minecraft:vindicator ~ ~1 ~ {PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,NoAI:1b,Invulnerable:1b}
+summon minecraft:vindicator ~ ~1 ~ {PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,NoAI:1b,Invulnerable:1b,NoGravity:1b}
+execute unless entity @e[type=minecraft:vindicator,sort=nearest,limit=1,distance=..2] run say FK_SMOKE_FAIL_BOSS_SUMMON
 tag @e[type=minecraft:vindicator,tag=!fk.server_smoke,sort=nearest,limit=1,distance=..2] add fk.server_smoke
+execute unless entity @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1,distance=..2] run say FK_SMOKE_FAIL_BOSS_TAG
 tag @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1,distance=..2] add fk.boss
 execute as @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1] run function fallen_knight:boss/bootstrap
+execute unless entity @e[type=minecraft:vindicator,tag=fk.server_smoke,tag=fk.boss,sort=nearest,limit=1] run say FK_SMOKE_FAIL_BOSS_BOOTSTRAP
 scoreboard players set @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1] fk_aid 999999
 scoreboard players set @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1] fk_maxhp 160
 scoreboard players set @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1] fk_halfhp 80

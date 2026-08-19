@@ -18,6 +18,8 @@ class EntityTaggingContractTests(unittest.TestCase):
         tick = (FN / 'arena/tick_all.mcfunction').read_text(encoding='utf-8')
         self.assertIn('minecraft:lodestone', tick)
         self.assertIn('tag @s add fk.arena_seed', tick)
+        self.assertNotIn('minecraft:red_terracotta', tick)
+        self.assertNotIn('minecraft:blackstone', tick)
         gen = GEN.read_text(encoding='utf-8')
         self.assertIn('s.set(23,0,23,"minecraft:lodestone")', gen.replace(' ', ''))
         self.assertIn('"minecraft:marker", None', gen)
