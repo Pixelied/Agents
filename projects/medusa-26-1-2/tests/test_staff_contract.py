@@ -106,3 +106,35 @@ class StoneSpikesChargeSafetyContract(unittest.TestCase):
         self.assertIn("$spikes_paid", text)
         self.assertIn("if score $spikes_paid md_tmp matches 1", text)
         self.assertIn("run function medusa:staff/spikes/spawn_cluster", text)
+
+class StaffGazeIsolationContract(unittest.TestCase):
+    def test_quick_pulse_does_not_modify_medusa_gaze_meter(self):
+        hit = (FN / "staff/quick/hit.mcfunction").read_text()
+        self.assertNotIn(
+            "md_petr",
+            hit,
+            "Staff quick-pulse partial petrification must not leak into the boss-gaze petrification meter",
+        )
+
+class StaffNoAiCompatibilityContract(unittest.TestCase):
+    def test_full_petrification_restores_only_noai_it_applied(self):
+        full = (FN / "staff/channel/full_petrify.mcfunction").read_text()
+        release = (FN / "staff/channel/release_target.mcfunction").read_text()
+        self.assertIn(
+            'unless data entity @s {NoAI:1b} run tag @s add md.staff_noai_applied',
+            full,
+            "the Staff must remember that it, rather than another datapack, enabled NoAI",
+        )
+        self.assertIn(
+            'if entity @s[tag=md.staff_noai_applied] run data merge entity @s {NoAI:1b}',
+            full,
+        )
+        self.assertIn(
+            'if entity @s[tag=md.staff_noai_applied] run data merge entity @s {NoAI:0b}',
+            release,
+        )
+        self.assertNotIn(
+            'execute unless entity @s[type=minecraft:player] run tag @s add md.staff_noai_applied',
+            full,
+            "pre-existing NoAI mobs must not be marked as Staff-owned NoAI",
+        )
