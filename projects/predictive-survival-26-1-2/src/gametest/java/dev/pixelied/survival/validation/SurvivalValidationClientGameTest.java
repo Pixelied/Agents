@@ -53,6 +53,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             PoisonPersistenceValidationScenarios.validateActivePoisonRetainsFutureThreat(context, singleplayer);
             WitherPotionValidationScenarios.validateSplashWitherHasPreImpactThreat(context, singleplayer);
             StackedWitherPotionValidationScenarios.validateHiddenWitherTailIsPredictedBeforeImpact(context, singleplayer);
+            PostImpactStackedStatusPersistenceValidationScenarios.validateHiddenWitherTailSurvivesProjectileRemoval(context, singleplayer);
             WitherPersistenceValidationScenarios.validateActiveWitherRetainsFutureThreat(context, singleplayer);
             InfiniteWitherValidationScenarios.validateInfiniteWitherUsesBoundedPhase(context, singleplayer);
             LingeringWitherCloudValidationScenarios.validateLingeringWitherRetainsThreatAcrossCloudHandoff(context, singleplayer);
