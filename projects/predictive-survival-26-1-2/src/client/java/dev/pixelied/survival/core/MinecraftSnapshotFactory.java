@@ -4,6 +4,7 @@ import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MinecraftBlockingAdapter;
 import dev.pixelied.survival.damage.MinecraftEquipmentAdapter;
 import dev.pixelied.survival.mixin.FoodDataAccessor;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
@@ -124,7 +125,8 @@ public final class MinecraftSnapshotFactory {
 
     private static int observableCrammingOverlapCount(LocalPlayer player, AABB playerBox) {
         int count = 0;
-        for (Entity entity : player.level().entitiesForRendering()) {
+        ClientLevel level = (ClientLevel) player.level();
+        for (Entity entity : level.entitiesForRendering()) {
             if (entity == player || entity.isRemoved() || !entity.isAlive()) continue;
             if (!entity.isPushable() || entity.isPassenger()) continue;
             if (!entity.getBoundingBox().intersects(playerBox)) continue;
