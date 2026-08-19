@@ -1,3 +1,4 @@
+execute unless score @s md_p2_done matches 1 positioned ~-31 ~-17 ~44 as @a[dx=12,dy=7,dz=11] run title @s actionbar {"text":"Borrowed Gaze — Align the two bronze mirrors across the idol.","color":"gray"}
 execute if block ~-28 ~-17 ~52 minecraft:stone_button[powered=true] if score @s md_p2_bl matches 0 run function medusa:puzzle/borrowed_gaze/press_left
 execute if block ~-22 ~-17 ~52 minecraft:stone_button[powered=true] if score @s md_p2_br matches 0 run function medusa:puzzle/borrowed_gaze/press_right
 execute if block ~-28 ~-17 ~52 minecraft:stone_button[powered=false] run scoreboard players set @s md_p2_bl 0
