@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import subprocess
+import sys
 import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -27,6 +29,10 @@ def main() -> None:
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=True)
+
+    # Structure NBT is deterministic generated source. Generate it fresh so binary
+    # transfer/storage cannot corrupt the release.
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "generate_structures.py")], cwd=ROOT, check=True)
 
     dp_name = f"Fallen-Knight-Datapack-{VERSION}.zip"
     rp_name = f"Fallen-Knight-Resource-Pack-{VERSION}.zip"

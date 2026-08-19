@@ -19,6 +19,8 @@ jobs:
         working-directory: projects/fallen-knight-26-1-2
     steps:
       - uses: actions/checkout@v4
+      - name: Generate deterministic structure NBT
+        run: python3 scripts/generate_structures.py
       - name: Run contract tests
         run: python3 -m unittest discover -s tests -v
       - name: Run static validator
@@ -35,6 +37,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+      - name: Generate deterministic structure NBT
+        run: python3 scripts/generate_structures.py
       - name: Fetch exact Minecraft 26.1.2 dedicated server
         shell: bash
         run: |
