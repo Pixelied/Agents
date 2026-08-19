@@ -39,13 +39,15 @@ final class CrammingRuntimeValidationScenarios {
                     throw new AssertionError("client did not retain tracked cramming fixture cow");
                 }
 
-                // Establish the observation on the client immediately before capture so normal
-                // entity-push physics cannot race the test before production reads the overlap.
+                // Establish an observable overlap immediately before capture so normal push physics
+                // cannot race the test. ClientLevel#getPushableEntities(localPlayer, ...) intentionally
+                // returns no remote entities in 26.1.2, so production must derive the conservative
+                // server-cramming possibility from tracked overlap/pushability instead.
                 cow.setPos(minecraft.player.getX(), minecraft.player.getY(), minecraft.player.getZ());
-                if (minecraft.level.getPushableEntities(
-                    minecraft.player,
-                    minecraft.player.getBoundingBox()
-                ).isEmpty()) {
+                boolean observableOverlap = cow.isPushable()
+                    && !cow.isPassenger()
+                    && cow.getBoundingBox().intersects(minecraft.player.getBoundingBox());
+                if (!observableOverlap) {
                     throw new AssertionError("client fixture failed to establish a pushable overlap");
                 }
 
