@@ -81,7 +81,6 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
         return projectilePredictor.predict(markerContext).stream()
             .filter(event -> event.id().equals(eventId))
             .filter(event -> event.impactPosition().isPresent())
-            .filter(event -> deliveryKind == DeliveryKind.LINGERING || event.confidence() == Confidence.EXACT)
             .findFirst();
     }
 
@@ -113,6 +112,22 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
             delivered.add(new StatusSpec(kind, duration, spec.amplifier()));
         }
         if (delivered.isEmpty()) return;
+
+        if (deliveryKind == DeliveryKind.SPLASH && application.confidence() != Confidence.EXACT) {
+            addBoundedSplashTail(
+                context,
+                entity,
+                application,
+                ordered,
+                kind,
+                baseInterval,
+                sourceKey,
+                healthFloor,
+                durationScale,
+                output
+            );
+            return;
+        }
 
         List<Integer> actualOffsets = simulateDamageOffsets(delivered, baseInterval, context.limits().maxProjectileHorizonTicks());
         Set<Integer> legacyOffsets = legacyOffsets(
@@ -150,6 +165,75 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
                 new TickWindow(earliest, latest),
                 source,
                 earliest == latest ? Confidence.EXACT : Confidence.BOUNDED,
+                Optional.of(entity.position()),
+                application.impactPosition(),
+                true,
+                false,
+                true,
+                false
+            ));
+        }
+    }
+
+    private static void addBoundedSplashTail(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot entity,
+        ThreatEvent application,
+        List<StatusSpec> ordered,
+        String kind,
+        int baseInterval,
+        String sourceKey,
+        float healthFloor,
+        float durationScale,
+        List<ThreatEvent> output
+    ) {
+        int legacySourceDuration = nonNegativeInt(
+            entity.properties().get("potion_" + kind + "_duration_ticks"),
+            0
+        );
+        int legacyMaximumDuration = scaledSplashDuration(legacySourceDuration, durationScale);
+        if (legacyMaximumDuration < 0) return;
+
+        int maximumStackDuration = 0;
+        int fastestTailInterval = Integer.MAX_VALUE;
+        for (StatusSpec spec : ordered) {
+            if (!kind.equals(spec.kind())) continue;
+            int duration = scaledSplashDuration(spec.duration(), durationScale);
+            if (duration == -1) return;
+            if (duration <= EFFECT_CUTOFF_TICKS) continue;
+            maximumStackDuration = Math.max(maximumStackDuration, duration);
+            if (duration > legacyMaximumDuration) {
+                fastestTailInterval = Math.min(fastestTailInterval, intervalTicks(baseInterval, spec.amplifier()));
+            }
+        }
+        if (maximumStackDuration <= legacyMaximumDuration || fastestTailInterval == Integer.MAX_VALUE) return;
+
+        long tailStart = legacyMaximumDuration > EFFECT_CUTOFF_TICKS ? legacyMaximumDuration : 0L;
+        long horizon = context.limits().maxProjectileHorizonTicks();
+        int eventIndex = 0;
+        for (long bucketStart = tailStart; bucketStart < maximumStackDuration; bucketStart = saturatingAdd(bucketStart, fastestTailInterval)) {
+            long earliest = saturatingAdd(application.impact().earliest(), bucketStart);
+            if (earliest > horizon) break;
+            long latestOffset = saturatingAdd(bucketStart, fastestTailInterval - 1L);
+            long latest = Math.min(horizon, saturatingAdd(application.impact().latest(), latestOffset));
+            if (latest < earliest) continue;
+
+            DamageSourceSnapshot source = new DamageSourceSnapshot(
+                new DamageRange(0f, 1f),
+                EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
+                false,
+                1f,
+                false,
+                application.impactPosition(),
+                sourceKey,
+                healthFloor
+            );
+            output.add(new ThreatEvent(
+                "projectile:" + entity.id() + ":stacked_status:" + kind + ":" + eventIndex++,
+                ThreatKind.PROJECTILE,
+                new TickWindow(earliest, latest),
+                source,
+                Confidence.BOUNDED,
                 Optional.of(entity.position()),
                 application.impactPosition(),
                 true,
