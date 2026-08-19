@@ -41,7 +41,8 @@ public final class MinecraftSpecialThreatSnapshotAnnotator {
             "guardian_beam_target_local",
             Boolean.toString(target != null && target.getUUID().equals(player.getUUID()))
         );
-        properties.put("guardian_attack_ticks", Integer.toString(Math.max(0, guardian.getClientSideAttackTime())));
+        int conservativeAttackTicks = Math.max(0, (int) Math.floor(guardian.getClientSideAttackTime()));
+        properties.put("guardian_attack_ticks", Integer.toString(conservativeAttackTicks));
         properties.put("guardian_attack_duration", Integer.toString(Math.max(1, guardian.getAttackDuration())));
         return new WorldSnapshot.EntitySnapshot(
             snapshot.id(), snapshot.typeKey(), snapshot.position(), snapshot.velocity(), snapshot.boundingBox(), properties
