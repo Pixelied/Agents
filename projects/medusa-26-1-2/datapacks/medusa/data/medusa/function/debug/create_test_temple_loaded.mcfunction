@@ -10,4 +10,5 @@ execute if entity @e[tag=md.boss,limit=1] run say MEDUSA_BOSS_OK
 execute unless entity @e[tag=md.boss,limit=1] run say MEDUSA_BOSS_MISSING
 function medusa:debug/give_test_items
 function medusa:debug/test_petrification_damage
+function medusa:debug/test_gaze_pipeline
 say MEDUSA_SMOKE_DONE
