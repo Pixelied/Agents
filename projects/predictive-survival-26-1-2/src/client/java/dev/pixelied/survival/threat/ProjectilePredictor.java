@@ -32,6 +32,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
     private static final double LINGERING_CLOUD_RADIUS = 3d;
     private static final double LINGERING_CLOUD_HEIGHT = 0.5d;
     private static final int LINGERING_CLOUD_WAIT_TICKS = 10;
+    private static final int SPLASH_EFFECT_CUTOFF_TICKS = 20;
     private static final int POISON_BASE_INTERVAL_TICKS = 25;
     private static final float POISON_RAW_DAMAGE = 1f;
     private static final float POISON_HEALTH_FLOOR = 1f;
@@ -291,8 +292,9 @@ public final class ProjectilePredictor implements ThreatPredictor {
         boolean directPlayerHit
     ) {
         if (!isSplashPotion(entity) || !directPlayerHit) return List.of();
-        int duration = positiveInt(entity.properties().get("potion_poison_duration_ticks"), 0);
-        if (duration <= 0) return List.of();
+        int sourceDuration = positiveInt(entity.properties().get("potion_poison_duration_ticks"), 0);
+        int duration = directSplashStatusDuration(entity, sourceDuration);
+        if (duration <= SPLASH_EFFECT_CUTOFF_TICKS) return List.of();
         int amplifier = positiveInt(entity.properties().get("potion_poison_amplifier"), 0);
         int interval = poisonIntervalTicks(amplifier);
         int firstOffset = duration % interval;
@@ -341,8 +343,9 @@ public final class ProjectilePredictor implements ThreatPredictor {
         boolean directPlayerHit
     ) {
         if (!isSplashPotion(entity) || !directPlayerHit) return List.of();
-        int duration = positiveInt(entity.properties().get("potion_wither_duration_ticks"), 0);
-        if (duration <= 0) return List.of();
+        int sourceDuration = positiveInt(entity.properties().get("potion_wither_duration_ticks"), 0);
+        int duration = directSplashStatusDuration(entity, sourceDuration);
+        if (duration <= SPLASH_EFFECT_CUTOFF_TICKS) return List.of();
         int amplifier = positiveInt(entity.properties().get("potion_wither_amplifier"), 0);
         int interval = witherIntervalTicks(amplifier);
         int firstOffset = duration % interval;
@@ -381,6 +384,12 @@ public final class ProjectilePredictor implements ThreatPredictor {
             application++;
         }
         return List.copyOf(events);
+    }
+
+    private static int directSplashStatusDuration(WorldSnapshot.EntitySnapshot entity, int sourceDuration) {
+        if (sourceDuration <= 0) return 0;
+        double durationScale = finiteNonNegative(entity.properties().get("potion_duration_scale"), 1d);
+        return (int) (sourceDuration * durationScale + 0.5d);
     }
 
     private static int poisonIntervalTicks(int amplifier) {
