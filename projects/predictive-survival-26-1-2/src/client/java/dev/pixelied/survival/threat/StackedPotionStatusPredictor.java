@@ -20,11 +20,14 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Adds exact direct-splash Poison/Wither ticks that are omitted by the legacy single-strongest-effect forecast.
- * This includes vanilla hidden-effect tails and custom POTION_DURATION_SCALE phase changes.
+ * Adds Poison/Wither ticks omitted by the legacy single-strongest-effect forecasts.
+ * This includes vanilla hidden-effect tails and custom POTION_DURATION_SCALE phase changes for
+ * direct splash and lingering-cloud delivery while reusing the production projectile collision model.
  */
 public final class StackedPotionStatusPredictor implements ThreatPredictor {
     private static final String SPLASH_POTION_TYPE = "minecraft:splash_potion";
+    private static final String LINGERING_POTION_TYPE = "minecraft:lingering_potion";
+    private static final float DEFAULT_LINGERING_DURATION_SCALE = 0.25f;
     private static final int EFFECT_CUTOFF_TICKS = 20;
     private static final int POISON_BASE_INTERVAL_TICKS = 25;
     private static final int WITHER_BASE_INTERVAL_TICKS = 40;
@@ -36,29 +39,33 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
 
         List<ThreatEvent> result = new ArrayList<>();
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
-            if (!SPLASH_POTION_TYPE.equals(entity.typeKey())) continue;
+            DeliveryKind deliveryKind = deliveryKind(entity);
+            if (deliveryKind == null) continue;
             List<StatusSpec> ordered = statusSpecs(entity);
             if (ordered.isEmpty()) continue;
 
-            Optional<ThreatEvent> collision = directSplashCollision(context, entity);
-            if (collision.isEmpty()) continue;
-            ThreatEvent impact = collision.get();
+            Optional<ThreatEvent> application = application(context, entity, deliveryKind);
+            if (application.isEmpty()) continue;
+            ThreatEvent impact = application.get();
 
-            addKind(context, entity, impact, ordered, "poison", POISON_BASE_INTERVAL_TICKS,
+            addKind(context, entity, impact, deliveryKind, ordered, "poison", POISON_BASE_INTERVAL_TICKS,
                 "minecraft:magic", 1f, result);
-            addKind(context, entity, impact, ordered, "wither", WITHER_BASE_INTERVAL_TICKS,
+            addKind(context, entity, impact, deliveryKind, ordered, "wither", WITHER_BASE_INTERVAL_TICKS,
                 "minecraft:wither", 0f, result);
         }
         return List.copyOf(result);
     }
 
-    private Optional<ThreatEvent> directSplashCollision(
+    private Optional<ThreatEvent> application(
         PredictionContext context,
-        WorldSnapshot.EntitySnapshot entity
+        WorldSnapshot.EntitySnapshot entity,
+        DeliveryKind deliveryKind
     ) {
         Map<String, String> markerProperties = new LinkedHashMap<>(entity.properties());
         markerProperties.put("potion_instant_damage", "1.0");
         markerProperties.put("potion_source_key", "minecraft:indirect_magic");
+        if (deliveryKind == DeliveryKind.LINGERING) markerProperties.put("potion_lingering", "true");
+
         WorldSnapshot.EntitySnapshot marker = new WorldSnapshot.EntitySnapshot(
             entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.boundingBox(), markerProperties
         );
@@ -68,16 +75,21 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
             context.timing(),
             context.limits()
         );
+        String eventId = deliveryKind == DeliveryKind.LINGERING
+            ? "projectile:" + entity.id() + ":lingering_cloud:0"
+            : "projectile:" + entity.id() + ":splash_magic";
         return projectilePredictor.predict(markerContext).stream()
-            .filter(event -> event.id().equals("projectile:" + entity.id() + ":splash_magic"))
-            .filter(event -> event.confidence() == Confidence.EXACT)
+            .filter(event -> event.id().equals(eventId))
+            .filter(event -> event.impactPosition().isPresent())
+            .filter(event -> deliveryKind == DeliveryKind.LINGERING || event.confidence() == Confidence.EXACT)
             .findFirst();
     }
 
     private static void addKind(
         PredictionContext context,
         WorldSnapshot.EntitySnapshot entity,
-        ThreatEvent collision,
+        ThreatEvent application,
+        DeliveryKind deliveryKind,
         List<StatusSpec> ordered,
         String kind,
         int baseInterval,
@@ -85,25 +97,39 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
         float healthFloor,
         List<ThreatEvent> output
     ) {
-        float durationScale = finiteNonNegativeFloat(entity.properties().get("potion_duration_scale"), 1f);
+        float durationScale = finiteNonNegativeFloat(
+            entity.properties().get("potion_duration_scale"),
+            deliveryKind == DeliveryKind.LINGERING ? DEFAULT_LINGERING_DURATION_SCALE : 1f
+        );
         List<StatusSpec> delivered = new ArrayList<>();
         for (StatusSpec spec : ordered) {
             if (!kind.equals(spec.kind())) continue;
-            int duration = scaledSplashDuration(spec.duration(), durationScale);
-            if (duration == Integer.MIN_VALUE || duration <= EFFECT_CUTOFF_TICKS) continue;
+            int duration = deliveryKind == DeliveryKind.LINGERING
+                ? scaledLingeringDuration(spec.duration(), durationScale)
+                : scaledSplashDuration(spec.duration(), durationScale);
+            if (duration == Integer.MIN_VALUE) continue;
+            if (duration != -1 && deliveryKind == DeliveryKind.SPLASH && duration <= EFFECT_CUTOFF_TICKS) continue;
+            if (duration == 0) continue;
             delivered.add(new StatusSpec(kind, duration, spec.amplifier()));
         }
         if (delivered.isEmpty()) return;
 
         List<Integer> actualOffsets = simulateDamageOffsets(delivered, baseInterval, context.limits().maxProjectileHorizonTicks());
-        Set<Integer> legacyOffsets = legacyOffsets(entity, kind, baseInterval, context.limits().maxProjectileHorizonTicks());
-        int application = 0;
+        Set<Integer> legacyOffsets = legacyOffsets(
+            entity,
+            deliveryKind,
+            kind,
+            baseInterval,
+            durationScale,
+            context.limits().maxProjectileHorizonTicks()
+        );
+        int eventIndex = 0;
         long horizon = context.limits().maxProjectileHorizonTicks();
         for (int elapsed : actualOffsets) {
             if (legacyOffsets.contains(elapsed)) continue;
-            long earliest = saturatingAdd(collision.impact().earliest(), elapsed);
+            long earliest = saturatingAdd(application.impact().earliest(), elapsed);
             if (earliest > horizon) break;
-            long latest = Math.min(horizon, saturatingAdd(collision.impact().latest(), elapsed));
+            long latest = Math.min(horizon, saturatingAdd(application.impact().latest(), elapsed));
             if (latest < earliest) continue;
             DamageSourceSnapshot source = new DamageSourceSnapshot(
                 DamageRange.exact(1f),
@@ -111,18 +137,21 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
                 false,
                 1f,
                 false,
-                collision.impactPosition(),
+                application.impactPosition(),
                 sourceKey,
                 healthFloor
             );
+            String marker = deliveryKind == DeliveryKind.LINGERING
+                ? "lingering_stacked_status"
+                : "stacked_status";
             output.add(new ThreatEvent(
-                "projectile:" + entity.id() + ":stacked_status:" + kind + ":" + application++,
-                ThreatKind.PROJECTILE,
+                "projectile:" + entity.id() + ":" + marker + ":" + kind + ":" + eventIndex++,
+                deliveryKind == DeliveryKind.LINGERING ? ThreatKind.ENVIRONMENT : ThreatKind.PROJECTILE,
                 new TickWindow(earliest, latest),
                 source,
                 earliest == latest ? Confidence.EXACT : Confidence.BOUNDED,
                 Optional.of(entity.position()),
-                collision.impactPosition(),
+                application.impactPosition(),
                 true,
                 false,
                 true,
@@ -140,8 +169,8 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
         List<Integer> offsets = new ArrayList<>();
         for (int elapsed = 0; elapsed <= maxTicks && active != null; elapsed++) {
             if (active.duration == -1) {
-                // Infinite effects use target.tickCount for phase, which is not represented in this snapshot.
-                // Leave that case to a conservative unknown-phase follow-up rather than inventing an exact phase.
+                // Infinite effects use target.tickCount for phase, which is not synchronized as an authoritative
+                // server phase. Infinite pre-application payloads are handled by a separate conservative path.
                 break;
             }
             if (active.duration <= 0) break;
@@ -190,11 +219,17 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
 
     private static Set<Integer> legacyOffsets(
         WorldSnapshot.EntitySnapshot entity,
+        DeliveryKind deliveryKind,
         String kind,
         int baseInterval,
+        float durationScale,
         long horizon
     ) {
-        int duration = nonNegativeInt(entity.properties().get("potion_" + kind + "_duration_ticks"), 0);
+        int sourceDuration = nonNegativeInt(entity.properties().get("potion_" + kind + "_duration_ticks"), 0);
+        if (sourceDuration <= 0) return Set.of();
+        int duration = deliveryKind == DeliveryKind.LINGERING
+            ? scaledLingeringDuration(sourceDuration, durationScale)
+            : sourceDuration;
         if (duration <= 0) return Set.of();
         int amplifier = nonNegativeInt(entity.properties().get("potion_" + kind + "_amplifier"), 0);
         int interval = intervalTicks(baseInterval, amplifier);
@@ -228,9 +263,26 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
         return Math.max(0, (int) scaled);
     }
 
+    private static int scaledLingeringDuration(int duration, float scale) {
+        if (duration == -1) return -1;
+        if (!Float.isFinite(scale) || scale <= 0f || duration <= 0) return 0;
+        double scaled = Math.floor(duration * (double) scale);
+        if (!Double.isFinite(scaled) || scaled >= Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        return Math.max(1, (int) scaled);
+    }
+
     private static int intervalTicks(int baseInterval, int amplifier) {
         int shift = Math.min(30, Math.max(0, amplifier));
         return Math.max(1, baseInterval >> shift);
+    }
+
+    private static DeliveryKind deliveryKind(WorldSnapshot.EntitySnapshot entity) {
+        if (LINGERING_POTION_TYPE.equals(entity.typeKey())
+            || Boolean.parseBoolean(entity.properties().getOrDefault("potion_lingering", "false"))) {
+            return DeliveryKind.LINGERING;
+        }
+        if (SPLASH_POTION_TYPE.equals(entity.typeKey())) return DeliveryKind.SPLASH;
+        return null;
     }
 
     private static int signedDuration(String value) {
@@ -266,6 +318,11 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
     private static long saturatingAdd(long value, long increment) {
         if (increment > 0L && value > Long.MAX_VALUE - increment) return Long.MAX_VALUE;
         return value + increment;
+    }
+
+    private enum DeliveryKind {
+        SPLASH,
+        LINGERING
     }
 
     private record StatusSpec(String kind, int duration, int amplifier) {
