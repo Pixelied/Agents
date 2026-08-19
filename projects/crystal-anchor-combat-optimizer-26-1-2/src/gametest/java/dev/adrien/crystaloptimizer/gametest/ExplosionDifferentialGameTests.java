@@ -22,7 +22,7 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
         ServerPlayer target = helper.makeMockServerPlayerInLevel();
         target.setGameMode(GameType.SURVIVAL);
         target.setHealth(target.getMaxHealth());
-        Vec3 center = target.position().add(2.5, 0.0, 0.0);
+        Vec3 center = target.position().add(9.0, 0.0, 0.0);
         float before = target.getHealth();
 
         float raw = ExplosionDamageCalculator26.incoming(
@@ -42,7 +42,8 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
         float observedLoss = before - target.getHealth();
         helper.assertTrue(
             Math.abs(observedLoss - predicted.trace().healthDamage()) <= 1.0e-4f,
-            "vanilla and simulator damage diverged"
+            "vanilla and simulator damage diverged: predicted="
+                + predicted.trace().healthDamage() + ", observed=" + observedLoss
         );
         helper.succeed();
     }
