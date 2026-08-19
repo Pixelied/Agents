@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
@@ -57,6 +58,7 @@ public final class MinecraftSnapshotFactory {
         boolean eyeInWater = player.isEyeInFluid(FluidTags.WATER);
         boolean eyeInBubbleColumn = player.level().getBlockState(eyeBlock).is(Blocks.BUBBLE_COLUMN);
         WorldBorder border = player.level().getWorldBorder();
+        int crammingOverlapCount = observableCrammingOverlapCount(player, box);
 
         Map<String, String> state = new LinkedHashMap<>();
         state.put("fall_distance", Double.toString(player.fallDistance));
@@ -85,6 +87,8 @@ public final class MinecraftSnapshotFactory {
         state.put("fully_frozen", Boolean.toString(player.isFullyFrozen()));
         state.put("can_freeze", Boolean.toString(player.canFreeze()));
         state.put("in_wall", Boolean.toString(player.isInWall()));
+        state.put("cramming", Boolean.toString(crammingOverlapCount > 0));
+        state.put("cramming_observable_overlap_count", Integer.toString(crammingOverlapCount));
 
         state.put("food_level", Integer.toString(player.getFoodData().getFoodLevel()));
         state.put(
@@ -116,6 +120,17 @@ public final class MinecraftSnapshotFactory {
             equipmentKeys,
             state
         );
+    }
+
+    private static int observableCrammingOverlapCount(LocalPlayer player, AABB playerBox) {
+        int count = 0;
+        for (Entity entity : player.level().entitiesForRendering()) {
+            if (entity == player || entity.isRemoved() || !entity.isAlive()) continue;
+            if (!entity.isPushable() || entity.isPassenger()) continue;
+            if (!entity.getBoundingBox().intersects(playerBox)) continue;
+            count++;
+        }
+        return count;
     }
 
     private static DifficultySnapshot difficulty(Difficulty difficulty) {
