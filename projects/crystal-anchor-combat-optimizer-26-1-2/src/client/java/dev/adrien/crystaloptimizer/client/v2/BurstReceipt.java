@@ -15,6 +15,10 @@ public record BurstReceipt(
         pendingReservationIds = List.copyOf(pendingReservationIds);
     }
 
+    public static BurstReceipt empty() {
+        return new BurstReceipt(List.of(), List.of());
+    }
+
     public boolean complete() {
         return !receipts.isEmpty()
             && receipts.stream().allMatch(receipt -> receipt.status() == DispatchReceipt.Status.SENT);
