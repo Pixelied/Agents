@@ -167,7 +167,7 @@ public final class SplashStatusProjectilePredictor implements ThreatPredictor {
     ) {
         if (duration <= EFFECT_CUTOFF_TICKS) return;
         int firstOffset = duration % interval;
-        long horizon = context.limits().maxDecisionHistory();
+        long horizon = context.limits().maxProjectileHorizonTicks();
         int application = 0;
         for (int elapsed = firstOffset; elapsed < duration; elapsed += interval) {
             long earliest = saturatingAdd(impact.window().earliest(), elapsed);
@@ -195,7 +195,7 @@ public final class SplashStatusProjectilePredictor implements ThreatPredictor {
     ) {
         if (maximumDuration <= Math.max(EFFECT_CUTOFF_TICKS, interval - 1)) return;
         int maximumApplications = maximumDuration / interval;
-        long horizon = context.limits().maxDecisionHistory();
+        long horizon = context.limits().maxProjectileHorizonTicks();
         for (int application = 0; application < maximumApplications; application++) {
             long earliest = saturatingAdd(impact.window().earliest(), (long) application * interval);
             if (earliest > horizon) break;
