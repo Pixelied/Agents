@@ -24,6 +24,14 @@ class EntityTaggingContractTests(unittest.TestCase):
         self.assertIn('s.set(23,0,23,"minecraft:lodestone")', gen.replace(' ', ''))
         self.assertIn('"minecraft:marker", None', gen)
 
+    def test_vindicator_summons_do_not_use_inline_nbt(self):
+        offenders = []
+        for path in FN.rglob('*.mcfunction'):
+            for line in path.read_text(encoding='utf-8').splitlines():
+                if 'summon minecraft:vindicator' in line and '{' in line:
+                    offenders.append(f"{path.relative_to(FN)}: {line}")
+        self.assertEqual(offenders, [])
+
 
 if __name__ == '__main__':
     unittest.main()
