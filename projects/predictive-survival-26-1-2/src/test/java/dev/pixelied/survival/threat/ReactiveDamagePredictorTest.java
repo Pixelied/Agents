@@ -47,6 +47,7 @@ class ReactiveDamagePredictorTest {
             assertEquals(0f, event.damage().rawDamage().min(), 0.0001f);
             assertEquals(5f, event.damage().rawDamage().max(), 0.0001f);
             assertEquals(new TickWindow(0, 0), event.impact());
+            assertTrue(event.blockable());
         }
     }
 
