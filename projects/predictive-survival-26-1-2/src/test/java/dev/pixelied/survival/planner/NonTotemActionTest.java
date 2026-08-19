@@ -97,8 +97,15 @@ class NonTotemActionTest {
             1, true, true, 0.95d, 1, 3
         );
 
+        ThreatEvent pearlThreat = pearl.applyTimeline(timeline).events().stream()
+            .filter(event -> event.id().equals("ender_pearl"))
+            .findFirst()
+            .orElseThrow();
         ActionSimulation simulation = planner.simulate(context, timeline, pearl, SafetyMode.SAFE);
 
+        assertTrue(pearlThreat.damage().has(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(pearlThreat.damage().has(DamageFlag.BYPASSES_SHIELD));
+        assertFalse(pearlThreat.blockable());
         assertTrue(simulation.feasible());
         assertTrue(simulation.result().survived());
         assertEquals(5f, simulation.result().eventResult("ender_pearl").preMitigationRaw(), 0.0001f);

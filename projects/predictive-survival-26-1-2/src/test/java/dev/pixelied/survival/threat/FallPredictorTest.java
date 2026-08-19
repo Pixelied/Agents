@@ -42,10 +42,22 @@ class FallPredictorTest {
     }
 
     @Test
+    void landingDamageBypassesShieldWithArmorBypassTag() {
+        ThreatEvent event = predictor.predict(landingContext("minecraft:stone")).getFirst();
+
+        assertEquals("minecraft:fall", event.damage().sourceKey());
+        assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_SHIELD));
+        assertFalse(event.blockable());
+    }
+
+    @Test
     void voidThreatBypassesDeathProtection() {
         ThreatEvent event = predictor.predict(voidContext()).getFirst();
 
         assertEquals("minecraft:out_of_world", event.damage().sourceKey());
+        assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_SHIELD));
         assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_INVULNERABILITY));
         assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_RESISTANCE));
         assertFalse(event.blockable());
@@ -61,6 +73,19 @@ class FallPredictorTest {
             assertEquals(new TickWindow(first + i, first + i), events.get(i).impact());
             assertEquals("minecraft:out_of_world", events.get(i).damage().sourceKey());
         }
+    }
+
+    @Test
+    void elytraWallDamageBypassesShieldWithArmorBypassTag() {
+        ThreatEvent event = predictor.predict(elytraWallContext()).stream()
+            .filter(threat -> threat.id().equals("fall:elytra_wall"))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("minecraft:fly_into_wall", event.damage().sourceKey());
+        assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_ARMOR));
+        assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_SHIELD));
+        assertFalse(event.blockable());
     }
 
     @Test
@@ -106,6 +131,22 @@ class FallPredictorTest {
             )
         );
         return context(player, List.of());
+    }
+
+    private static PredictionContext elytraWallContext() {
+        PlayerSnapshot player = player(
+            new Vec3Snapshot(0.2, 1, 0.2),
+            new Vec3Snapshot(1, 0, 0),
+            new AabbSnapshot(0.2, 1, 0.2, 0.8, 2.8, 0.8),
+            Map.of("fall_flying", "true", "world_min_y", "-64")
+        );
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(1, 1, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+        return context(player, List.of(wall));
     }
 
     private static PlayerSnapshot player(
