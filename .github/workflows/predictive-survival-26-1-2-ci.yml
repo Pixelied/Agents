@@ -83,8 +83,9 @@ jobs:
         run: |
           set -euo pipefail
           deliverables='predictive-survival-26.1.2-deliverables'
+          source_root="$deliverables/source-tree"
           source_zip="$deliverables/predictive-survival-26.1.2-source.zip"
-          mkdir -p "$deliverables"
+          mkdir -p "$source_root"
 
           jar_file=$(find projects/predictive-survival-26-1-2/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
           if [ -z "$jar_file" ]; then
@@ -94,15 +95,28 @@ jobs:
           cp "$jar_file" "$deliverables/"
 
           git archive \
-            --format=zip \
-            --output="$source_zip" \
+            --format=tar \
             HEAD \
             projects/predictive-survival-26-1-2 \
             .github/workflows/predictive-survival-26-1-2-ci.yml \
-            docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md \
-            docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md \
             tasks/build-predictive-survival-26-1-2 \
-            tasks/design-predictive-survival-26-1-2
+            tasks/design-predictive-survival-26-1-2 \
+            | tar -xf - -C "$source_root"
+
+          git fetch --no-tags --depth=1 origin \
+            design/predictive-survival-26-1-2:refs/remotes/origin/design/predictive-survival-26-1-2 \
+            plan/predictive-survival-26-1-2:refs/remotes/origin/plan/predictive-survival-26-1-2
+          mkdir -p "$source_root/docs/superpowers/specs" "$source_root/docs/superpowers/plans"
+          git show 'refs/remotes/origin/design/predictive-survival-26-1-2:docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md' \
+            > "$source_root/docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md"
+          git show 'refs/remotes/origin/plan/predictive-survival-26-1-2:docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md' \
+            > "$source_root/docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md"
+
+          (
+            cd "$source_root"
+            zip -qr "../predictive-survival-26.1.2-source.zip" .
+          )
+          rm -rf "$source_root"
 
           (
             cd "$deliverables"
