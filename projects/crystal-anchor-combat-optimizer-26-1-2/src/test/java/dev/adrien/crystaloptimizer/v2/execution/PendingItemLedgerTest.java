@@ -32,4 +32,20 @@ final class PendingItemLedgerTest {
         );
         assertEquals(1, ledger.reserved(Items.END_CRYSTAL));
     }
+
+    @Test
+    void oneVisibleConsumptionReleasesOnlyOneOfTwoPendingSpends() {
+        PendingItemLedger ledger = new PendingItemLedger();
+        ledger.reserve(200L, Items.END_CRYSTAL, 1, 2);
+        ledger.reserve(201L, Items.END_CRYSTAL, 1, 2);
+
+        int released = ledger.reconcile(
+            item -> item == Items.END_CRYSTAL ? 1 : 0,
+            System.nanoTime()
+        );
+
+        assertEquals(1, released);
+        assertEquals(1, ledger.reservationCount());
+        assertEquals(1, ledger.reserved(Items.END_CRYSTAL));
+    }
 }
