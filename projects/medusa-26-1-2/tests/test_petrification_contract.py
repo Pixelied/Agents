@@ -24,6 +24,26 @@ class GazeContract(unittest.TestCase):
         self.assertIn("distance=..0.44", angle.read_text())
         self.assertIn("#medusa:gaze_passable", ray.read_text())
 
+    def test_gaze_diagnostics_distinguish_angle_from_los_failure(self):
+        toggle = FN / "debug/toggle_gaze_diagnostics.mcfunction"
+        angle_hit = FN / "gaze/angle_hit.mcfunction"
+        los_hit = FN / "gaze/los_hit.mcfunction"
+        check = FN / "gaze/check_player.mcfunction"
+        ui = FN / "gaze/ui.mcfunction"
+        load = FN / "load.mcfunction"
+
+        self.assertTrue(toggle.is_file(), "gaze diagnostic toggle is missing")
+        self.assertTrue(angle_hit.is_file(), "angle diagnostic boundary helper is missing")
+        self.assertIn("md_angle_ok", load.read_text())
+        self.assertIn("md_los_ok", load.read_text())
+        self.assertIn("scoreboard players set @s md_angle_ok 0", check.read_text())
+        self.assertIn("scoreboard players set @s md_los_ok 0", check.read_text())
+        self.assertIn("scoreboard players set @s md_angle_ok 1", angle_hit.read_text())
+        self.assertIn("scoreboard players set @s md_los_ok 1", los_hit.read_text())
+        self.assertIn("md.gaze_debug", ui.read_text())
+        self.assertIn("ANGLE", ui.read_text())
+        self.assertIn("LOS", ui.read_text())
+
     def test_thresholds_reach_full_petrification_pending_state(self):
         thresholds = FN / "gaze/apply_thresholds.mcfunction"
         self.assertTrue(thresholds.is_file(), "threshold function is missing")
