@@ -1,7 +1,10 @@
 package dev.adrien.crystaloptimizer.client.intel;
 
 import com.mojang.datafixers.util.Pair;
+import dev.adrien.crystaloptimizer.client.v2.ClientCombatEventBus;
+import dev.adrien.crystaloptimizer.client.v2.ClientTimingObserver;
 import dev.adrien.crystaloptimizer.intel.OpponentIntelService;
+import dev.adrien.crystaloptimizer.v2.reactive.CombatEvent;
 import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -14,6 +17,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public final class ClientObservationBus {
     private static final ClientObservationBus INSTANCE = new ClientObservationBus(new OpponentIntelService());
@@ -44,14 +48,28 @@ public final class ClientObservationBus {
             return;
         }
 
+        boolean visibleTotem = false;
         for (Pair<EquipmentSlot, ItemStack> pair : packet.getSlots()) {
+            EquipmentSlot slot = pair.getFirst();
+            ItemStack stack = pair.getSecond();
             intelService.onVisibleEquipment(
                 player.getUUID(),
-                pair.getFirst(),
-                pair.getSecond(),
+                slot,
+                stack,
                 timestampNanos
             );
+            if ((slot == EquipmentSlot.MAINHAND || slot == EquipmentSlot.OFFHAND)
+                && stack.is(Items.TOTEM_OF_UNDYING)) {
+                visibleTotem = true;
+            }
         }
+
+        if (visibleTotem) {
+            ClientTimingObserver.instance().onVisibleTotem(player.getUUID(), timestampNanos);
+        }
+        ClientCombatEventBus.instance().publish(
+            new CombatEvent.EquipmentChanged(player.getUUID(), timestampNanos)
+        );
     }
 
     public void onPickupPacket(
@@ -99,6 +117,10 @@ public final class ClientObservationBus {
         Entity entity = packet.getEntity(level);
         if (entity instanceof Player player && !isLocalPlayer(player)) {
             intelService.onProtectedFromDeath(player.getUUID(), timestampNanos);
+            ClientTimingObserver.instance().onTotemPopped(player.getUUID(), timestampNanos);
+            ClientCombatEventBus.instance().publish(
+                new CombatEvent.TotemPopped(player.getUUID(), timestampNanos)
+            );
         }
     }
 
