@@ -35,6 +35,7 @@ import net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownLingeringPotion;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion;
+import net.minecraft.world.entity.vehicle.minecart.MinecartTNT;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.Fireworks;
@@ -84,7 +85,8 @@ public final class MinecraftWorldSnapshotFactory {
             || entity instanceof AreaEffectCloud
             || entity instanceof FallingBlockEntity
             || entity instanceof PrimedTnt
-            || entity instanceof EndCrystal) {
+            || entity instanceof EndCrystal
+            || entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
             return 0;
         }
         if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) return 0;
@@ -190,6 +192,13 @@ public final class MinecraftWorldSnapshotFactory {
         if (entity instanceof PrimedTnt tnt) {
             properties.put("explosion_radius", Float.toString(((PrimedTntAccessor) (Object) tnt).predictiveSurvival$getExplosionPower()));
             properties.put("fuse_ticks", Integer.toString(Math.max(0, tnt.getFuse())));
+            properties.put("source_key", "minecraft:explosion");
+            properties.put("scales_with_difficulty", "true");
+        } else if (entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
+            properties.put("explosion_radius_min", "4.0");
+            properties.put("explosion_radius_max", "11.5");
+            properties.put("fuse_ticks_min", "0");
+            properties.put("fuse_ticks_max", Integer.toString(Math.max(0, minecart.getFuse())));
             properties.put("source_key", "minecraft:explosion");
             properties.put("scales_with_difficulty", "true");
         } else if (entity instanceof EndCrystal) {
