@@ -4,7 +4,7 @@
 
 **Goal:** Replace the planner-centric V1 runtime with an event-driven V2 Crystal/Anchor combat engine that prioritizes absolute lethal speed, honest damage prediction, typed server timing, same-base crystal recycling, and optional Mod Menu configuration while preserving legitimate vanilla 26.1.2 mechanics.
 
-**Architecture:** Keep the verified simulation/legality core, but move hot combat decisions into a small reactive lane fed by immutable approvals in `CombatBlackboard`. A cheaper strategic scanner continuously refreshes target-local damage opportunities; `ReactiveCombatEngine` materializes already-approved actions on crystal spawn/removal/totem events, `ActionArbiter` performs only cheap current-state validation, and the existing vanilla dispatcher performs real client interactions. V1 remains available until V2 passes damage differential, latency, recycle, legality, and full GameTest gates.
+**Architecture:** Keep the verified simulation/legality core, but move hot combat decisions into a small reactive lane fed by immutable approvals in `CombatBlackboard`. A cheap strategic scanner continuously refreshes target-local damage opportunities; `ReactiveCombatEngine` materializes already-approved actions on crystal spawn/removal/totem events, `ActionArbiter` performs only cheap current-state validation, and the existing vanilla dispatcher performs real client interactions. V1 remains present until V2 passes damage differential, latency, recycle, legality, and full GameTest gates.
 
 **Tech Stack:** Java 25, Minecraft Java 26.1.2, Fabric Loader 0.19.3+, Fabric API 0.155.2+26.1.2, Fabric Loom 1.17-SNAPSHOT, Gradle 9.5.1, JUnit 5, Fabric GameTest, optional Mod Menu 18.0.0-beta.1.
 
@@ -31,70 +31,69 @@
 
 ## File Structure
 
-### New main-source units
+### Main-source contracts and pure logic
 
-- `src/main/java/dev/adrien/crystaloptimizer/config/OptimizerStrategy.java` — semantic strategy preset enum.
-- `src/main/java/dev/adrien/crystaloptimizer/config/OptimizerConfig.java` — validated immutable user config snapshot.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/state/ApprovalSlot.java` — named blackboard approval slots.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/state/ReactiveActionSpec.java` — sealed approved-action template contract.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/state/FixedActionSequence.java` — pre-materialized legal action sequence.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/state/SpawnCrystalCycle.java` — materializes a real spawned entity ID into break/recycle actions.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/state/ActionApproval.java` — short-lived revisioned approval with damage/timing evidence.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/state/CombatBlackboardSnapshot.java` — immutable target/revision/approval snapshot.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/state/CombatBlackboard.java` — atomic publication/invalidation of snapshots.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageUncertainty.java` — explicit uncertainty provenance.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageScenario.java` — weighted exact simulator input scenario.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageEstimate.java` — lower/expected/upper estimate.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/damage/LiveDamageTrace.java` — diagnostic wrapper around simulator trace and estimate.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageEngine.java` — aggregates exact scenario simulation into honest intervals.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingTransition.java` — typed observable timing classes.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingCorrelation.java` — collision-safe action/event correlation key.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingDistribution.java` — p50/p90/dispersion/confidence snapshot.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/timing/SequenceTiming.java` — actual candidate-sequence completion estimate.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingEngine.java` — rolling typed transition distributions.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/execution/PendingItemLedger.java` — reserves predicted/in-flight item consumption.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/execution/LiveCombatView.java` — cheap current-state interface for arbitration.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/execution/ArbitrationResult.java` — accepted/rejected approval result.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/execution/ActionArbiter.java` — final cheap legality/revision/resource gate.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/reactive/CombatEvent.java` — sealed event contract.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/reactive/CrystalBasePhase.java` — recycle lifecycle enum.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/reactive/CrystalBaseTracker.java` — per-base lifecycle and duplicate suppression.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/reactive/ReactiveDecision.java` — materialized action burst plus source approval.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/reactive/ReactiveCombatEngine.java` — event-driven approval selection/materialization.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/strategy/DamageOpportunity.java` — target/self/timing evidence for one immediate opportunity.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/strategy/DamageMap.java` — bounded target-local opportunities with revision keys.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/strategy/FastOpportunitySelector.java` — Future-style max-useful-damage/lethal-time selector.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/strategy/HurtThresholdEstimate.java` — known/derived/unknown progressive-damage threshold envelope.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/strategy/HurtWindowTracker.java` — attributed threshold history for staircase decisions.
-- `src/main/java/dev/adrien/crystaloptimizer/v2/diagnostics/TimeToDamageTrace.java` — event/decision/dispatch/result timestamps.
+- `config/OptimizerStrategy.java` — `LETHAL_SPEED`, `AGGRESSIVE`, `SAFE`.
+- `config/OptimizerConfig.java` — validated immutable user config.
+- `v2/damage/DamageUncertainty.java` — explicit provenance enum.
+- `v2/damage/DamageEstimate.java` — lower/expected/upper estimate contract.
+- `v2/damage/DamageScenario.java` — weighted exact simulator scenario.
+- `v2/damage/LiveDamageTrace.java` — diagnostic calculation trace.
+- `v2/damage/DamageEngine.java` — scenario aggregation over existing exact simulator.
+- `v2/timing/TimingTransition.java` — typed event transitions.
+- `v2/timing/TimingCorrelation.java` — collision-safe action/event correlation.
+- `v2/timing/TimingDistribution.java` — p50/p90/dispersion/confidence.
+- `v2/timing/SequenceTiming.java` — sequence completion estimate contract.
+- `v2/timing/TimingEngine.java` — typed rolling timing model.
+- `v2/reactive/CombatEvent.java` — sealed immutable event contract.
+- `v2/state/ApprovalSlot.java` — named reactive approval slots.
+- `v2/state/ReactiveActionSpec.java` — sealed materialization contract.
+- `v2/state/FixedActionSequence.java` — concrete pre-approved action burst.
+- `v2/state/SpawnCrystalCycle.java` — turns a real spawn event into attack/recycle actions.
+- `v2/state/ActionApproval.java` — revisioned short-lived approval.
+- `v2/state/CombatBlackboardSnapshot.java` — immutable target/revision/approval snapshot.
+- `v2/state/CombatBlackboard.java` — atomic publication.
+- `v2/execution/PendingItemLedger.java` — in-flight predicted item reservations.
+- `v2/execution/LiveCombatView.java` — minimal cheap legality/resource view.
+- `v2/execution/ArbitrationResult.java` — typed arbiter result.
+- `v2/execution/ActionArbiter.java` — final linear legality/revision/resource gate.
+- `v2/reactive/CrystalBasePhase.java` — recycle lifecycle.
+- `v2/reactive/CrystalBaseTracker.java` — base lifecycle + duplicate suppression.
+- `v2/reactive/ReactiveDecision.java` — materialized action burst.
+- `v2/reactive/ReactiveCombatEngine.java` — event-driven approval selection.
+- `v2/strategy/HurtThresholdEstimate.java` — progressive-damage threshold envelope.
+- `v2/strategy/HurtWindowTracker.java` — attributed threshold history.
+- `v2/strategy/DamageOpportunity.java` — target/self/timing evidence.
+- `v2/strategy/DamageMap.java` — bounded target-local opportunity cache.
+- `v2/strategy/FastOpportunitySelector.java` — max-useful-damage/lethal-time selector.
+- `v2/diagnostics/TimeToDamageTrace.java` — event/decision/dispatch/result timestamps.
+- `v2/damage/DamageMismatch.java` and `DamageCalibration.java` — mismatch diagnosis only.
 
-### New client-source units
+### Client-source adapters and UI
 
-- `src/client/java/dev/adrien/crystaloptimizer/client/config/OptimizerConfigService.java` — load/save/atomically publish config.
-- `src/client/java/dev/adrien/crystaloptimizer/client/config/OptimizerConfigScreen.java` — compact Mod Menu/main config screen.
-- `src/client/java/dev/adrien/crystaloptimizer/client/config/OptimizerDiagnosticsScreen.java` — read-only advanced diagnostics.
-- `src/client/java/dev/adrien/crystaloptimizer/client/integration/CrystalOptimizerModMenu.java` — optional `ModMenuApi` entrypoint.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatEventBus.java` — direct packet/world event fan-out to V2 coordinator.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientTimingObserver.java` — typed timing correlation adapter.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientLiveCombatView.java` — lightweight current legality/resource/revision view.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientDamageScenarioFactory.java` — visible-state/prediction scenarios for `DamageEngine`.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientDamageMapBuilder.java` — incremental target-local damage map/cache.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/TargetManager.java` — bounded sticky target selection without beam search.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientStrategicScanner.java` — refreshes blackboard approvals outside the hot event path.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatDiagnostics.java` — cached V2 diagnostics snapshot.
-- `src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatCoordinator.java` — enable state, scan tick, event handling, dispatch, reconciliation.
+- `client/config/OptimizerConfigService.java` — persistence + atomic config publication.
+- `client/config/OptimizerConfigScreen.java` — compact Mod Menu/main screen.
+- `client/config/OptimizerDiagnosticsScreen.java` — read-only developer diagnostics.
+- `client/integration/CrystalOptimizerModMenu.java` — optional `ModMenuApi` entrypoint.
+- `client/v2/ClientCombatEventBus.java` — synchronous event fan-out.
+- `client/v2/ClientTimingObserver.java` — typed timing correlation adapter.
+- `client/v2/ClientLiveCombatView.java` — cheap current legality/resource/revision view.
+- `client/v2/ClientDamageScenarioFactory.java` — position/state uncertainty scenarios.
+- `client/v2/ClientDamageMapBuilder.java` — incremental target-local damage cache.
+- `client/v2/TargetManager.java` — bounded sticky target choice.
+- `client/v2/ClientStrategicScanner.java` — refreshes blackboard approvals outside hot path.
+- `client/v2/ReactiveBurstDispatcher.java` — same-callback sequential vanilla dispatch.
+- `client/v2/ClientCombatDiagnostics.java` — cached V2 diagnostics.
+- `client/v2/ClientCombatCoordinator.java` — tick/event orchestration.
 
-### Existing units deliberately reused or adapted
+### Existing code deliberately reused
 
-- `sim/damage/*`, `sim/model/*`, `world/*` — low-level verified mechanics.
-- `action/*` — legal action representation and simulation.
-- `prediction/*` — target position hypotheses.
-- `execution/InventoryCoordinator.java` — cross-module/offhand-hotbar reservation ownership.
-- `client/execution/RotationController.java` and `VanillaInteractionDispatcher.java` — real rotations/interactions.
-- `client/intel/ClientObservationBus.java` — opponent evidence; extended to emit reactive events.
-- `client/mixin/ClientPacketListenerMixin.java` and `ClientCommonPacketListenerImplMixin.java` — packet observation hooks.
-- `OptimizerHud.java` — rendering shell; switched to cached V2 diagnostics.
-- `CrystalOptimizerClient.java` — reduced to bootstrap/toggle wiring after V2 acceptance.
+- `sim/damage/*`, `sim/model/*`, `world/*`, `action/*`, `prediction/*`.
+- `execution/InventoryCoordinator.java` for future AutoTotem/offhand ownership boundaries.
+- `client/execution/RotationController.java` and `VanillaInteractionDispatcher.java`.
+- `client/intel/ClientObservationBus.java`.
+- `client/mixin/ClientPacketListenerMixin.java` and `ClientCommonPacketListenerImplMixin.java`.
+- `planner/BeamPlanner.java` only for preparation/comparison, never reactive execution.
 
 ---
 
@@ -108,16 +107,15 @@
 - Test: `projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer/config/OptimizerConfigTest.java`
 
 **Interfaces:**
-- Produces: `OptimizerConfig.defaults()`, `OptimizerConfig.validated()`, and `OptimizerStrategy.LETHAL_SPEED|AGGRESSIVE|SAFE`.
+- Produces: `OptimizerConfig.defaults()`, `validated()`, `withEnabled(boolean)` and `OptimizerStrategy`.
 - Reuses: existing `dev.adrien.crystaloptimizer.execution.RotationMode`.
 
-- [ ] **Step 1: Write the failing config validation test**
+- [ ] **Step 1: Write the failing config test**
 
 ```java
 package dev.adrien.crystaloptimizer.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 import dev.adrien.crystaloptimizer.execution.RotationMode;
 import org.junit.jupiter.api.Test;
@@ -128,9 +126,17 @@ final class OptimizerConfigTest {
         OptimizerConfig config = OptimizerConfig.defaults();
         assertEquals(OptimizerStrategy.LETHAL_SPEED, config.strategy());
         assertEquals(RotationMode.ADAPTIVE, config.rotationMode());
-        assertEquals(true, config.crystals());
-        assertEquals(true, config.anchors());
-        assertEquals(true, config.autoRestock());
+        assertTrue(config.crystals());
+        assertTrue(config.anchors());
+        assertTrue(config.autoRestock());
+        assertFalse(config.enabled());
+    }
+
+    @Test
+    void enabledCopyChangesOnlyEnabledFlag() {
+        OptimizerConfig base = OptimizerConfig.defaults();
+        assertEquals(true, base.withEnabled(true).enabled());
+        assertEquals(base.strategy(), base.withEnabled(true).strategy());
     }
 
     @Test
@@ -146,18 +152,15 @@ final class OptimizerConfigTest {
 
 - [ ] **Step 2: Run the focused test and confirm RED**
 
-Run:
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.config.OptimizerConfigTest
 ```
-Expected: compilation failure because the V2 config types do not exist.
+Expected: compilation failure because the config types do not exist.
 
-- [ ] **Step 3: Add immutable config types and build metadata**
+- [ ] **Step 3: Add immutable config and build metadata**
 
 ```java
-package dev.adrien.crystaloptimizer.config;
-
 public enum OptimizerStrategy {
     LETHAL_SPEED,
     AGGRESSIVE,
@@ -166,11 +169,6 @@ public enum OptimizerStrategy {
 ```
 
 ```java
-package dev.adrien.crystaloptimizer.config;
-
-import dev.adrien.crystaloptimizer.execution.RotationMode;
-import java.util.Objects;
-
 public record OptimizerConfig(
     boolean enabled,
     OptimizerStrategy strategy,
@@ -204,6 +202,13 @@ public record OptimizerConfig(
         return this;
     }
 
+    public OptimizerConfig withEnabled(boolean next) {
+        return new OptimizerConfig(
+            next, strategy, targetRange, minDamage, maxSelfDamage, facePlaceHealth,
+            crystals, anchors, autoRestock, rotationMode, hud
+        );
+    }
+
     private static void requireRange(String name, double value, double min, double max) {
         if (!Double.isFinite(value) || value < min || value > max) {
             throw new IllegalArgumentException(name + " must be in [" + min + ", " + max + "]");
@@ -212,9 +217,9 @@ public record OptimizerConfig(
 }
 ```
 
-Update `gradle.properties` to `mod_version=0.2.0` and add `modmenu_version=18.0.0-beta.1`. Add the Terraformers Maven repository and `implementation "com.terraformersmc:modmenu:${project.modmenu_version}"` to `build.gradle`; do not add a hard Fabric metadata dependency.
+Set `mod_version=0.2.0`, add `modmenu_version=18.0.0-beta.1`, add Terraformers Maven, and add `implementation "com.terraformersmc:modmenu:${project.modmenu_version}"`. Do not add a hard Mod Menu metadata dependency.
 
-- [ ] **Step 4: Run focused and baseline unit tests**
+- [ ] **Step 4: Run config and baseline unit tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
@@ -232,9 +237,13 @@ git commit -m "feat: define optimizer v2 config"
 
 ---
 
-### Task 2: Build the immutable CombatBlackboard and approval templates
+### Task 2: Define final damage/timing/event contracts and the CombatBlackboard
 
 **Files:**
+- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageUncertainty.java`
+- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageEstimate.java`
+- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/timing/SequenceTiming.java`
+- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/reactive/CombatEvent.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/state/ApprovalSlot.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/state/ReactiveActionSpec.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/state/FixedActionSequence.java`
@@ -245,28 +254,34 @@ git commit -m "feat: define optimizer v2 config"
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/state/CombatBlackboardTest.java`
 
 **Interfaces:**
-- Produces: atomic `CombatBlackboard.snapshot()` / `publish(...)`; `ActionApproval.isCurrent(...)`; reactive templates that materialize only from compatible events.
-- Consumes later: `DamageEstimate` and `SequenceTiming`; create temporary minimal records in this task only if compiler ordering requires it, then replace them in Tasks 3 and 5 in the same branch before merging.
+- These are final cross-task signatures; later tasks implement producers/consumers without changing them.
+- `SpawnCrystalCycle` may materialize only a real `CombatEvent.CrystalSpawned` matching its approved base.
 
-- [ ] **Step 1: Write the failing blackboard immutability/invalidation test**
+- [ ] **Step 1: Write the failing contract/blackboard test**
 
 ```java
 @Test
-void publishReplacesSnapshotAtomicallyAndRejectsExpiredApproval() {
-    CombatBlackboard board = new CombatBlackboard();
+void spawnTemplateUsesOnlyRealObservedEntityIdAndSnapshotIsImmutable() {
     UUID target = UUID.randomUUID();
-    ActionApproval approval = TestApprovals.fixed(target, 4L, 8L, 12L, 16L, 1_000L);
+    BlockPos base = new BlockPos(4, 63, 7);
+    DamageEstimate damage = DamageEstimate.exact(18.0f, 3L, 5L);
+    SequenceTiming timing = SequenceTiming.immediate();
+    ActionApproval approval = new ActionApproval(
+        77L, target, ApprovalSlot.RECYCLE, new SpawnCrystalCycle(base, true),
+        damage, 6.0f, timing, 3L, 9L, 11L, 13L, 5_000L
+    );
+    CombatBlackboard board = new CombatBlackboard();
     board.publish(new CombatBlackboardSnapshot(
-        target, 8L, 4L, 12L, 16L,
-        Map.of(ApprovalSlot.BREAK, approval)
+        target, 9L, 3L, 11L, 13L, Map.of(ApprovalSlot.RECYCLE, approval)
     ));
 
-    CombatBlackboardSnapshot snapshot = board.snapshot();
-    assertEquals(target, snapshot.targetId());
-    assertTrue(snapshot.approval(ApprovalSlot.BREAK).orElseThrow()
-        .isCurrent(4L, 8L, 12L, 16L, 999L));
-    assertFalse(snapshot.approval(ApprovalSlot.BREAK).orElseThrow()
-        .isCurrent(4L, 8L, 12L, 16L, 1_001L));
+    List<CombatAction> actions = approval.actionSpec().materialize(
+        new CombatEvent.CrystalSpawned(412, base, 1_000L)
+    );
+    assertEquals(new AttackKnownCrystal(412), actions.get(0));
+    assertEquals(new PlaceCrystal(base), actions.get(1));
+    assertThrows(UnsupportedOperationException.class,
+        () -> board.snapshot().approvals().clear());
 }
 ```
 
@@ -276,95 +291,158 @@ void publishReplacesSnapshotAtomicallyAndRejectsExpiredApproval() {
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.v2.state.CombatBlackboardTest
 ```
-Expected: compilation failure for missing blackboard types.
 
-- [ ] **Step 3: Implement approval/template contracts**
+- [ ] **Step 3: Implement the final shared contracts**
 
 ```java
-public enum ApprovalSlot {
-    LETHAL,
-    FINISHER,
-    STAIRCASE,
-    RECYCLE,
-    BREAK,
-    PLACE,
-    PRESSURE,
-    PREPARE
+public enum DamageUncertainty {
+    PREDICTED_POSITION,
+    HURT_THRESHOLD_UNKNOWN,
+    ABSORPTION_UNKNOWN,
+    TERRAIN_UNOBSERVED,
+    ARMOR_STATE_STALE,
+    EFFECT_STATE_STALE,
+    PENDING_SERVER_ACCEPTANCE
 }
 ```
 
 ```java
-public sealed interface ReactiveActionSpec permits FixedActionSequence, SpawnCrystalCycle {
-    List<CombatAction> materialize(CombatEvent event);
-}
-```
-
-```java
-public record FixedActionSequence(List<CombatAction> actions) implements ReactiveActionSpec {
-    public FixedActionSequence {
-        actions = List.copyOf(actions);
-        if (actions.isEmpty()) throw new IllegalArgumentException("actions must not be empty");
-    }
-
-    @Override
-    public List<CombatAction> materialize(CombatEvent event) {
-        return actions;
-    }
-}
-```
-
-```java
-public record SpawnCrystalCycle(BlockPos basePos, boolean replaceAfterBreak) implements ReactiveActionSpec {
-    @Override
-    public List<CombatAction> materialize(CombatEvent event) {
-        if (!(event instanceof CombatEvent.CrystalSpawned spawned) || !spawned.basePos().equals(basePos)) {
-            return List.of();
+public record DamageEstimate(
+    float lowerBound,
+    float expected,
+    float upperBound,
+    double confidence,
+    Set<DamageUncertainty> uncertainties,
+    long geometryRevision,
+    long combatRevision
+) {
+    public DamageEstimate {
+        uncertainties = Set.copyOf(uncertainties);
+        if (lowerBound < 0.0f || lowerBound > expected || expected > upperBound) {
+            throw new IllegalArgumentException("damage bounds must be ordered and non-negative");
         }
-        CombatAction attack = new AttackKnownCrystal(spawned.entityId());
-        return replaceAfterBreak
-            ? List.of(attack, new PlaceCrystal(basePos))
-            : List.of(attack);
+        if (!Double.isFinite(confidence) || confidence < 0.0 || confidence > 1.0) {
+            throw new IllegalArgumentException("confidence must be in [0,1]");
+        }
+    }
+
+    public static DamageEstimate exact(float damage, long geometryRevision, long combatRevision) {
+        return new DamageEstimate(
+            damage, damage, damage, 1.0, Set.of(), geometryRevision, combatRevision
+        );
+    }
+
+    public boolean exact() {
+        return uncertainties.isEmpty()
+            && Float.compare(lowerBound, expected) == 0
+            && Float.compare(expected, upperBound) == 0;
     }
 }
 ```
 
-`ActionApproval` must carry `approvalId`, `targetId`, `ApprovalSlot`, `ReactiveActionSpec`, target/self damage evidence, timing evidence, world/target/inventory/config revisions, and `expiresAtNanos`. `CombatBlackboardSnapshot` must defensively copy its approval map, and `CombatBlackboard` must store the current snapshot in `AtomicReference`.
+```java
+public record SequenceTiming(
+    double expectedMillis,
+    double p90Millis,
+    int hardFeedbackBoundaries,
+    double confidence
+) {
+    public static SequenceTiming immediate() {
+        return new SequenceTiming(0.0, 0.0, 0, 1.0);
+    }
 
-- [ ] **Step 4: Run blackboard tests**
+    public static SequenceTiming unknown(int hardFeedbackBoundaries) {
+        return new SequenceTiming(
+            Double.POSITIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            hardFeedbackBoundaries,
+            0.0
+        );
+    }
+}
+```
+
+```java
+public sealed interface CombatEvent {
+    long timestampNanos();
+    record CrystalSpawned(int entityId, BlockPos basePos, long timestampNanos) implements CombatEvent {}
+    record CrystalRemoved(int entityId, BlockPos basePos, long timestampNanos) implements CombatEvent {}
+    record TotemPopped(UUID targetId, long timestampNanos) implements CombatEvent {}
+    record EquipmentChanged(UUID targetId, long timestampNanos) implements CombatEvent {}
+    record BlockAcked(int sequence, long timestampNanos) implements CombatEvent {}
+    record BlockChanged(BlockPos pos, long timestampNanos) implements CombatEvent {}
+    record InventoryChanged(long inventoryRevision, long timestampNanos) implements CombatEvent {}
+    record TargetMoved(UUID targetId, long targetRevision, long timestampNanos) implements CombatEvent {}
+    record ConfigChanged(long configRevision, long timestampNanos) implements CombatEvent {}
+}
+```
+
+`ActionApproval` final signature:
+```java
+public record ActionApproval(
+    long approvalId,
+    UUID targetId,
+    ApprovalSlot slot,
+    ReactiveActionSpec actionSpec,
+    DamageEstimate targetDamage,
+    float worstCaseSelfDamage,
+    SequenceTiming timing,
+    long worldRevision,
+    long targetRevision,
+    long inventoryRevision,
+    long configRevision,
+    long expiresAtNanos
+) {
+    public boolean isCurrent(
+        long currentWorldRevision,
+        long currentTargetRevision,
+        long currentInventoryRevision,
+        long currentConfigRevision,
+        long nowNanos
+    ) {
+        return worldRevision == currentWorldRevision
+            && targetRevision == currentTargetRevision
+            && inventoryRevision == currentInventoryRevision
+            && configRevision == currentConfigRevision
+            && nowNanos <= expiresAtNanos;
+    }
+}
+```
+
+`CombatBlackboardSnapshot` defensively copies the approval map; `CombatBlackboard` owns an `AtomicReference<CombatBlackboardSnapshot>` and publishes whole snapshots only.
+
+- [ ] **Step 4: Run contract tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.state.*'
 ```
-Expected: PASS with immutable maps/lists and revision/expiry checks covered.
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/state \
+git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2 \
         projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer/v2/state
-git commit -m "feat: add v2 combat blackboard"
+git commit -m "feat: define v2 combat contracts"
 ```
 
 ---
 
-### Task 3: Add DamageEstimate intervals and scenario aggregation
+### Task 3: Implement DamageEngine scenario aggregation without fake precision
 
 **Files:**
-- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageUncertainty.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageScenario.java`
-- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageEstimate.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/LiveDamageTrace.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageEngine.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/damage/DamageEngineTest.java`
-- Reuse: existing `ExplosionDamageCalculator26`, `VanillaDamageSimulator`, `DamageTrace`, `CombatState`, `ExplosionContext`.
+- Reuse unchanged: `ExplosionDamageCalculator26`, `VanillaDamageSimulator`, `DamageTrace`, `CombatState`, `ExplosionContext`.
 
 **Interfaces:**
-- `DamageScenario(SimCombatant victim, Vec3 position, AABB box, double weight, Set<DamageUncertainty> uncertainties)`.
-- `DamageEngine.estimate(ExplosionContext, CombatState, UUID, List<DamageScenario>, long geometryRevision, long combatRevision)` returns `DamageEstimate`.
-- `DamageEstimate` exposes `lowerBound()`, `expected()`, `upperBound()`, `confidence()`, `uncertainties()`, revisions, and `exact()`.
+- `DamageScenario(SimCombatant victim,Vec3 position,AABB box,double probabilityWeight,double confidence,Set<DamageUncertainty> uncertainties)`.
+- `DamageEngine.estimate(ExplosionContext,CombatState,List<DamageScenario>,long geometryRevision,long combatRevision)` returns the Task 2 `DamageEstimate`.
 
-- [ ] **Step 1: Write failing exact-vs-uncertain aggregation tests**
+- [ ] **Step 1: Write failing exact/uncertain aggregation tests**
 
 ```java
 @Test
@@ -372,93 +450,62 @@ void exactSingleScenarioCollapsesInterval() {
     DamageEstimate estimate = engine.estimate(
         explosion,
         state,
-        targetId,
-        List.of(new DamageScenario(target, targetPos, targetBox, 1.0, Set.of())),
+        List.of(new DamageScenario(target, targetPos, targetBox, 1.0, 1.0, Set.of())),
         7L,
         11L
     );
     assertTrue(estimate.exact());
-    assertEquals(estimate.lowerBound(), estimate.expected(), 1.0e-5f);
-    assertEquals(estimate.expected(), estimate.upperBound(), 1.0e-5f);
 }
 
 @Test
-void uncertainScenariosContainEveryExactOutcome() {
+void uncertainScenariosBoundEverySimulatedOutcome() {
     DamageEstimate estimate = engine.estimate(
         explosion,
         state,
-        targetId,
         List.of(
-            new DamageScenario(targetA, posA, boxA, 0.7, Set.of(DamageUncertainty.PREDICTED_POSITION)),
-            new DamageScenario(targetB, posB, boxB, 0.3, Set.of(DamageUncertainty.HURT_THRESHOLD_UNKNOWN))
+            new DamageScenario(targetA, posA, boxA, 0.7, 0.8,
+                Set.of(DamageUncertainty.PREDICTED_POSITION)),
+            new DamageScenario(targetB, posB, boxB, 0.3, 0.4,
+                Set.of(DamageUncertainty.HURT_THRESHOLD_UNKNOWN))
         ),
         8L,
         12L
     );
     assertTrue(estimate.lowerBound() <= estimate.expected());
     assertTrue(estimate.expected() <= estimate.upperBound());
+    assertTrue(estimate.confidence() < 1.0);
     assertFalse(estimate.exact());
 }
 ```
 
-- [ ] **Step 2: Run the focused test and confirm RED**
+- [ ] **Step 2: Run focused test and confirm RED**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.v2.damage.DamageEngineTest
 ```
 
-- [ ] **Step 3: Implement scenario aggregation without fudge factors**
+- [ ] **Step 3: Aggregate exact simulator outcomes**
 
-```java
-public DamageEstimate estimate(
-    ExplosionContext explosion,
-    CombatState state,
-    UUID victimId,
-    List<DamageScenario> scenarios,
-    long geometryRevision,
-    long combatRevision
-) {
-    if (scenarios.isEmpty()) throw new IllegalArgumentException("scenarios must not be empty");
-    float lower = Float.POSITIVE_INFINITY;
-    float upper = Float.NEGATIVE_INFINITY;
-    double weighted = 0.0;
-    double weightTotal = 0.0;
-    Set<DamageUncertainty> reasons = EnumSet.noneOf(DamageUncertainty.class);
+For each scenario, run existing `ExplosionDamageCalculator26.incoming(...)` and `VanillaDamageSimulator.apply(...)`. Compute:
 
-    for (DamageScenario scenario : scenarios) {
-        float incoming = ExplosionDamageCalculator26.incoming(
-            explosion, scenario.box(), scenario.position(), state.geometry()
-        );
-        DamageResult result = VanillaDamageSimulator.apply(
-            scenario.victim(),
-            DamageRequest.explosion(incoming)
-                .withDifficulty(state.base().difficulty())
-                .withSourcePosition(explosion.center())
-        );
-        float healthDamage = result.trace().healthDamage();
-        lower = Math.min(lower, healthDamage);
-        upper = Math.max(upper, healthDamage);
-        weighted += healthDamage * scenario.weight();
-        weightTotal += scenario.weight();
-        reasons.addAll(scenario.uncertainties());
-    }
-
-    float expected = (float)(weighted / weightTotal);
-    double confidence = reasons.isEmpty() ? 1.0 : Math.max(0.0, Math.min(1.0, weightTotal));
-    return new DamageEstimate(lower, expected, upper, confidence, reasons, geometryRevision, combatRevision);
-}
+```text
+lowerBound = minimum scenario healthDamage
+expected = probability-weighted scenario healthDamage / total probability weight
+upperBound = maximum scenario healthDamage
+confidence = probability-weighted scenario confidence / total probability weight
+uncertainties = union of scenario reasons
 ```
 
-`DamageUncertainty` must include `PREDICTED_POSITION`, `HURT_THRESHOLD_UNKNOWN`, `ABSORPTION_UNKNOWN`, `TERRAIN_UNOBSERVED`, `ARMOR_STATE_STALE`, `EFFECT_STATE_STALE`, and `PENDING_SERVER_ACCEPTANCE`.
+Reject empty scenarios, non-positive/NaN probability weights, and confidence outside `[0,1]`. Never alter the underlying damage result by a learned multiplier or offset.
 
-- [ ] **Step 4: Run damage unit tests including existing simulator tests**
+- [ ] **Step 4: Run V2 damage + existing simulator tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.damage.*' --tests 'dev.adrien.crystaloptimizer.sim.damage.*'
 ```
-Expected: PASS; no existing exact simulator behavior changes.
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -473,38 +520,42 @@ git commit -m "feat: add v2 damage intervals"
 ### Task 4: Add vanilla differential damage/exposure GameTests
 
 **Files:**
+- Create: `.../src/gametest/java/dev/adrien/crystaloptimizer/gametest/ServerLevelBlockView.java`
+- Create: `.../src/gametest/java/dev/adrien/crystaloptimizer/gametest/GameTestCombatants.java`
 - Create: `.../src/gametest/java/dev/adrien/crystaloptimizer/gametest/ExplosionDifferentialGameTests.java`
-- Modify: `.../src/gametest/java/dev/adrien/crystaloptimizer/gametest/CrystalOptimizerGameTests.java` only if shared test registration/helpers are needed.
-- Test: GameTest runtime.
+- Test: Fabric GameTest runtime.
 
 **Interfaces:**
-- Produces reusable `assertExplosionEstimateMatchesVanilla(...)` fixture that executes a real server explosion and compares attributable health loss to the simulator/estimate.
-- Keeps existing pure simulator tests as fast unit coverage.
+- `ServerLevelBlockView implements BlockView` by reading `ServerLevel.getBlockState` and collision shapes.
+- Differential tests use vanilla `GameTestHelper.makeMockServerPlayerInLevel()` and the 26.1.2 `Level.explode(Entity,double,double,double,float,Level.ExplosionInteraction)` overload as oracle.
 
-- [ ] **Step 1: Add a failing exposed-target crystal differential GameTest**
+- [ ] **Step 1: Write the first failing exposed-target GameTest**
 
 ```java
 @GameTest
 public void exposedCrystalDamageMatchesVanilla(GameTestHelper helper) {
     ServerLevel level = helper.getLevel();
     ServerPlayer target = helper.makeMockServerPlayerInLevel();
-    Vec3 explosionCenter = target.position().add(2.5, 0.0, 0.0);
+    target.setGameMode(GameType.SURVIVAL);
+    target.setHealth(target.getMaxHealth());
+    Vec3 center = target.position().add(2.5, 0.0, 0.0);
     float before = target.getHealth();
 
-    float predictedRaw = ExplosionDamageCalculator26.incoming(
-        ExplosionContext.crystal(explosionCenter),
+    float raw = ExplosionDamageCalculator26.incoming(
+        ExplosionContext.crystal(center),
         target.getBoundingBox(),
         target.position(),
-        blockView(level)
+        new ServerLevelBlockView(level)
     );
+    SimCombatant initial = GameTestCombatants.exactFirstHit(target);
     DamageResult predicted = VanillaDamageSimulator.apply(
-        observed(target),
-        DamageRequest.explosion(predictedRaw)
+        initial,
+        DamageRequest.explosion(raw)
             .withDifficulty(level.getDifficulty())
-            .withSourcePosition(explosionCenter)
+            .withSourcePosition(center)
     );
 
-    level.explode(null, explosionCenter.x, explosionCenter.y, explosionCenter.z, 6.0f, Level.ExplosionInteraction.NONE);
+    level.explode(null, center.x, center.y, center.z, 6.0f, Level.ExplosionInteraction.NONE);
     float observedLoss = before - target.getHealth();
     helper.assertTrue(
         Math.abs(observedLoss - predicted.trace().healthDamage()) <= 1.0e-4f,
@@ -514,20 +565,16 @@ public void exposedCrystalDamageMatchesVanilla(GameTestHelper helper) {
 }
 ```
 
-Use the exact 26.1.2 `ServerLevel` explosion overload and mock-player helper available in the checked-in/decompiled mappings when implementing; the assertion and compared quantities above are fixed requirements.
-
-- [ ] **Step 2: Run GameTests and confirm the new differential test exposes any mapping/behavior gaps**
+- [ ] **Step 2: Run GameTests and confirm RED before fixture completion**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon runGameTest --stacktrace
 ```
-Expected before fixture completion: compile/runtime failure isolated to the new differential fixture, not existing unit tests.
 
-- [ ] **Step 3: Complete the fixture and add the required matrix**
+- [ ] **Step 3: Complete the vanilla-oracle matrix**
 
-Add named GameTests for:
-
+Implement:
 ```text
 exposedCrystalDamageMatchesVanilla
 partialCoverCrystalDamageMatchesVanilla
@@ -542,7 +589,7 @@ strongerProtectedFollowupMatchesVanilla
 totemThenFollowupMatchesVanilla
 ```
 
-Each test must compare real server-applied health/totem outcome with the project calculation; no hardcoded expected damage constants are allowed where vanilla itself can provide the oracle.
+For protected-window tests, make the first real vanilla explosion and the first simulator application from the same known initial state, then feed the simulator's resulting known threshold into the second calculation. This tests exact sequence math without pretending a remote observer knows hidden `lastHurt`.
 
 - [ ] **Step 4: Run the full GameTest matrix twice**
 
@@ -551,7 +598,7 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon runGameTest --stacktrace
 gradle --no-daemon runGameTest --stacktrace
 ```
-Expected: PASS twice to catch state leakage/flaky fixture setup.
+Expected: PASS twice.
 
 - [ ] **Step 5: Commit**
 
@@ -562,27 +609,25 @@ git commit -m "test: differential-check explosion damage"
 
 ---
 
-### Task 5: Replace generic RTT heuristics with typed TimingEngine V2
+### Task 5: Implement typed TimingEngine V2
 
 **Files:**
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingTransition.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingCorrelation.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingDistribution.java`
-- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/timing/SequenceTiming.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/timing/TimingEngine.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/timing/TimingEngineTest.java`
-- Keep for migration comparison: existing `timing/ServerTimingModel.java` until Task 16.
+- Keep temporarily for comparison: existing `timing/ServerTimingModel.java`.
 
 **Interfaces:**
-- `TimingEngine.recordStart(TimingCorrelation,long)` / `recordEnd(TimingCorrelation,long)`.
-- `TimingEngine.distribution(TimingTransition,long)`.
-- `TimingEngine.estimateSequence(List<TimingTransition>,long)`.
+- Uses final `SequenceTiming` from Task 2.
+- `recordStart(TimingCorrelation,long)`, `recordEnd(TimingCorrelation,long)`, `distribution(TimingTransition,long)`, `estimateSequence(List<TimingTransition>,long)`.
 
 - [ ] **Step 1: Write failing percentile/freshness/sequence tests**
 
 ```java
 @Test
-void estimatesTypedPlaceToSpawnDistributionAndSequence() {
+void placeToSpawnHasIndependentDistributionAndHardBoundary() {
     TimingEngine engine = new TimingEngine(64, 5_000_000_000L);
     long base = 1_000_000_000L;
     for (int i = 0; i < 10; i++) {
@@ -590,17 +635,16 @@ void estimatesTypedPlaceToSpawnDistributionAndSequence() {
             TimingTransition.CRYSTAL_PLACE_TO_SPAWN,
             new BlockPos(i, 64, 0)
         );
-        engine.recordStart(key, base + i * 100_000_000L);
-        engine.recordEnd(key, base + i * 100_000_000L + (20L + i) * 1_000_000L);
+        long sent = base + i * 100_000_000L;
+        engine.recordStart(key, sent);
+        engine.recordEnd(key, sent + (20L + i) * 1_000_000L);
     }
-
     TimingDistribution distribution = engine.distribution(
         TimingTransition.CRYSTAL_PLACE_TO_SPAWN,
         base + 1_100_000_000L
     );
     assertEquals(10, distribution.sampleCount());
     assertTrue(distribution.p90Millis() >= distribution.p50Millis());
-
     SequenceTiming sequence = engine.estimateSequence(
         List.of(TimingTransition.IMMEDIATE, TimingTransition.CRYSTAL_PLACE_TO_SPAWN),
         base + 1_100_000_000L
@@ -616,7 +660,7 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.v2.timing.TimingEngineTest
 ```
 
-- [ ] **Step 3: Implement typed rolling distributions**
+- [ ] **Step 3: Implement typed correlations and distributions**
 
 ```java
 public enum TimingTransition {
@@ -633,15 +677,32 @@ public enum TimingTransition {
 }
 ```
 
-`TimingEngine` must keep separate bounded sample deques per transition, calculate p50/p90 from sorted completed durations, use median absolute deviation for dispersion, decay confidence with sample age, and sum only actual hard-feedback transition distributions when estimating candidate completion time. Unknown distributions return confidence `0.0` and conservative sequence timing rather than a made-up one-tick probability.
+```java
+public record TimingCorrelation(TimingTransition transition, long high, long low) {
+    public static TimingCorrelation sequence(TimingTransition t, int sequence) {
+        return new TimingCorrelation(t, 0L, Integer.toUnsignedLong(sequence));
+    }
+    public static TimingCorrelation entity(TimingTransition t, int entityId) {
+        return new TimingCorrelation(t, 1L, Integer.toUnsignedLong(entityId));
+    }
+    public static TimingCorrelation block(TimingTransition t, BlockPos pos) {
+        return new TimingCorrelation(t, 2L, pos.asLong());
+    }
+    public static TimingCorrelation player(TimingTransition t, UUID id) {
+        return new TimingCorrelation(t, id.getMostSignificantBits(), id.getLeastSignificantBits());
+    }
+}
+```
 
-- [ ] **Step 4: Run typed timing and existing timing tests**
+Each transition owns a bounded completed-sample deque. Compute p50/p90 from sorted durations and median absolute deviation as dispersion. Confidence combines sample count and freshness only; it does not alter measured milliseconds. If a required hard-feedback transition has no usable distribution, `estimateSequence` returns `SequenceTiming.unknown(boundaryCount)`.
+
+- [ ] **Step 4: Run V2 and legacy timing tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.timing.*' --tests 'dev.adrien.crystaloptimizer.timing.*'
 ```
-Expected: PASS; V1 timing remains intact for comparison.
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -653,98 +714,75 @@ git commit -m "feat: add typed server timing engine"
 
 ---
 
-### Task 6: Wire packet/world observations into typed combat events and TIME_TO_DAMAGE tracing
+### Task 6: Wire exact 26.1.2 packet/world events into V2 observation
 
 **Files:**
-- Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/reactive/CombatEvent.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/diagnostics/TimeToDamageTrace.java`
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatEventBus.java`
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientTimingObserver.java`
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/mixin/ClientPacketListenerMixin.java`
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/mixin/ClientCommonPacketListenerImplMixin.java`
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/intel/ClientObservationBus.java`
-- Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/reactive/CombatEventTest.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/client/V2PacketObservationArchitectureTest.java`
 
 **Interfaces:**
 - `ClientCombatEventBus.subscribe(Consumer<CombatEvent>)` and synchronous `publish(CombatEvent)`.
-- `ClientTimingObserver` owns one `TimingEngine` and translates packet/action correlations.
-- Events include crystal spawn/removal, block ack/change, totem pop, equipment change, target movement invalidation, inventory change, and config change.
+- `ClientTimingObserver` owns one `TimingEngine` and translates real sequence/entity/base/player correlations.
 
-- [ ] **Step 1: Write failing event immutability and architecture tests**
+- [ ] **Step 1: Write the failing architecture test**
 
-```java
-@Test
-void crystalSpawnCarriesRealEntityAndBaseIdentity() {
-    CombatEvent event = new CombatEvent.CrystalSpawned(
-        431,
-        new BlockPos(10, 63, -4),
-        9_000L
-    );
-    CombatEvent.CrystalSpawned spawned = (CombatEvent.CrystalSpawned) event;
-    assertEquals(431, spawned.entityId());
-    assertEquals(new BlockPos(10, 63, -4), spawned.basePos());
-    assertEquals(9_000L, spawned.timestampNanos());
-}
-```
+Assert the source contains these exact 26.1.2 hooks:
 
-Architecture test requirements:
 ```text
-ClientPacketListenerMixin observes handleAddEntity at TAIL.
-ClientPacketListenerMixin observes handleRemoveEntities before vanilla mutation when old entity identity is needed.
-EntityEvent PROTECTED_FROM_DEATH still feeds OpponentIntelService and also emits TotemPopped.
-BlockChangedAck still records its real sequence.
-No mixin invokes BeamPlanner, CandidateGenerator, or ClientCombatSnapshotBuilder.
+handleAddEntity @ TAIL
+handleRemoveEntities @ HEAD
+handleBlockUpdate @ TAIL
+handleChunkBlocksUpdate @ TAIL
+handleBlockChangedAck @ TAIL
+handleEntityEvent @ TAIL
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+and does not reference `BeamPlanner`, `CandidateGenerator`, `TargetPredictor`, or `ClientCombatSnapshotBuilder` inside mixin/event-bus code.
+
+- [ ] **Step 2: Run the architecture test and confirm RED**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
-gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.reactive.*' --tests dev.adrien.crystaloptimizer.client.V2PacketObservationArchitectureTest
+gradle --no-daemon test --tests dev.adrien.crystaloptimizer.client.V2PacketObservationArchitectureTest
 ```
 
-- [ ] **Step 3: Implement event bus and observation adapters**
+- [ ] **Step 3: Implement synchronous observation**
 
-```java
-public sealed interface CombatEvent {
-    long timestampNanos();
+At `handleAddEntity` TAIL, resolve the newly created entity from `Minecraft.level`; if it is an `EndCrystal`, derive its base as `BlockPos.containing(crystal.getX(), crystal.getY() - 1.0, crystal.getZ())`, complete a matching `CRYSTAL_PLACE_TO_SPAWN` timing correlation, and publish `CrystalSpawned(realId,base,now)`.
 
-    record CrystalSpawned(int entityId, BlockPos basePos, long timestampNanos) implements CombatEvent {}
-    record CrystalRemoved(int entityId, BlockPos basePos, long timestampNanos) implements CombatEvent {}
-    record TotemPopped(UUID targetId, long timestampNanos) implements CombatEvent {}
-    record EquipmentChanged(UUID targetId, long timestampNanos) implements CombatEvent {}
-    record BlockAcked(int sequence, long timestampNanos) implements CombatEvent {}
-    record BlockChanged(BlockPos pos, long timestampNanos) implements CombatEvent {}
-    record InventoryChanged(long revision, long timestampNanos) implements CombatEvent {}
-    record TargetMoved(UUID targetId, long targetRevision, long timestampNanos) implements CombatEvent {}
-    record ConfigChanged(long configRevision, long timestampNanos) implements CombatEvent {}
-}
-```
+At `handleRemoveEntities` HEAD, inspect each still-present entity before vanilla removal; publish `CrystalRemoved` for real crystals and complete `CRYSTAL_ATTACK_TO_REMOVAL` correlations.
 
-Spawn handling must derive the base from the real spawned `EndCrystal` position after vanilla creates it; removal handling must publish the entity/base identity before it is no longer recoverable. Existing opponent-intel calls remain intact.
+At `handleBlockUpdate` TAIL, publish `BlockChanged(packet.getPos(),now)`. At `handleChunkBlocksUpdate` TAIL, call `packet.runUpdates((pos,state) -> publish BlockChanged(pos.immutable(),now))`.
 
-- [ ] **Step 4: Run observation tests**
+Keep existing opponent equipment/pickup/totem evidence. When `EntityEvent.PROTECTED_FROM_DEATH` targets a non-local player, also publish `TotemPopped` and start `TOTEM_POP_TO_VISIBLE_REFILL` correlation for that UUID. A later visible totem equipment update completes it.
+
+Keep outgoing `ServerboundUseItemOnPacket.getSequence()` observation and route it to `BLOCK_INTERACTION_TO_ACK`; `handleBlockChangedAck` completes the same sequence correlation.
+
+- [ ] **Step 4: Run packet/intel observation tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
-gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.reactive.*' --tests 'dev.adrien.crystaloptimizer.client.*Observation*'
+gradle --no-daemon test --tests dev.adrien.crystaloptimizer.client.V2PacketObservationArchitectureTest --tests 'dev.adrien.crystaloptimizer.intel.*'
 ```
-Expected: PASS; no planner/snapshot work appears in packet handlers.
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/reactive \
-        projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/diagnostics \
+git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/diagnostics \
         projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client \
-        projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer
-git commit -m "feat: emit v2 combat timing events"
+        projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer/client
+git commit -m "feat: observe v2 combat events"
 ```
 
 ---
 
-### Task 7: Add in-flight item reservations and lightweight live combat view
+### Task 7: Add in-flight item reservations and the lightweight live combat view
 
 **Files:**
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/execution/PendingItemLedger.java`
@@ -754,39 +792,39 @@ git commit -m "feat: emit v2 combat timing events"
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/client/ClientLiveCombatViewArchitectureTest.java`
 
 **Interfaces:**
-- `reserve(long actionId, Item item, int count)`, `release(long actionId)`, `reserved(Item)`, and `available(Item,int observedCount)`.
-- `LiveCombatView` provides only cheap current checks needed by `ActionArbiter`; it never builds `CombatSnapshot`.
+- `PendingItemLedger.reserve(long,Item,int,int observedCount)`, `release(long)`, `reserved(Item)`, `available(Item,int)`.
+- `LiveCombatView` exposes current world/target/inventory/config revisions, target/entity/reach checks, post-break crystal-base legality, and observed item counts without building a full snapshot.
 
-- [ ] **Step 1: Write failing reservation tests**
+- [ ] **Step 1: Write the failing reservation test**
 
 ```java
 @Test
-void predictedPlacementCannotDoubleSpendVisibleStack() {
+void inFlightPredictionCannotDoubleSpendVisibleCrystal() {
     PendingItemLedger ledger = new PendingItemLedger();
-    ledger.reserve(100L, Items.END_CRYSTAL, 1);
+    ledger.reserve(100L, Items.END_CRYSTAL, 1, 1);
     assertEquals(0, ledger.available(Items.END_CRYSTAL, 1));
-    assertThrows(IllegalStateException.class, () -> ledger.reserve(101L, Items.END_CRYSTAL, 1, 1));
+    assertThrows(IllegalStateException.class,
+        () -> ledger.reserve(101L, Items.END_CRYSTAL, 1, 1));
     ledger.release(100L);
     assertEquals(1, ledger.available(Items.END_CRYSTAL, 1));
 }
 ```
 
-Use the overload `reserve(long actionId, Item item, int count, int observedCount)` for availability-checked reservations; the three-argument overload is for prevalidated callers.
-
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [ ] **Step 2: Run focused test and confirm RED**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.v2.execution.PendingItemLedgerTest
 ```
 
-- [ ] **Step 3: Implement ledger and live-view contract**
+- [ ] **Step 3: Implement ledger and final live-view interface**
 
 ```java
 public interface LiveCombatView {
     long worldRevision();
     long targetRevision(UUID targetId);
     long inventoryRevision();
+    long configRevision();
     boolean targetValid(UUID targetId);
     boolean liveCrystal(int entityId);
     boolean withinEntityReach(int entityId);
@@ -797,9 +835,9 @@ public interface LiveCombatView {
 }
 ```
 
-`ClientLiveCombatView` reads current `Minecraft.player`, `Minecraft.level`, known entity/block state, and monotonically maintained revisions only. Architecture tests must reject references to `BeamPlanner`, `CandidateGenerator`, or `ClientCombatSnapshotBuilder` in this class.
+`ClientLiveCombatView` takes revision suppliers from the coordinator/config service and reads only current `Minecraft.player`, `Minecraft.level`, entity/block state and inventory. The architecture test must fail if this class imports or names `BeamPlanner`, `CandidateGenerator`, or `ClientCombatSnapshotBuilder`.
 
-- [ ] **Step 4: Run ledger/live-view tests**
+- [ ] **Step 4: Run reservation/live-view tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
@@ -813,12 +851,12 @@ Expected: PASS.
 git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/execution \
         projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientLiveCombatView.java \
         projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer
-git commit -m "feat: reserve predicted combat inventory"
+git commit -m "feat: reserve predicted combat items"
 ```
 
 ---
 
-### Task 8: Implement the final cheap ActionArbiter
+### Task 8: Implement ActionArbiter as a linear final gate
 
 **Files:**
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/execution/ArbitrationResult.java`
@@ -826,20 +864,21 @@ git commit -m "feat: reserve predicted combat inventory"
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/execution/ActionArbiterTest.java`
 
 **Interfaces:**
-- `ActionArbiter.evaluate(ActionApproval,List<CombatAction>,LiveCombatView,PendingItemLedger,OptimizerConfig,long)`.
-- Produces `ArbitrationResult.allowed(actions)` or typed rejection reason without battlefield rescoring.
+- `evaluate(ActionApproval,List<CombatAction>,LiveCombatView,PendingItemLedger,OptimizerConfig,long nowNanos)`.
+- No candidate generation, target prediction, damage simulation, or beam search.
 
-- [ ] **Step 1: Write failing stale/illegal/ordered-transition tests**
+- [ ] **Step 1: Write stale/illegal/ordered-transition tests**
 
 ```java
 @Test
 void allowsBreakThenSameBasePlaceAgainstPredictedPostBreakState() {
-    ActionApproval approval = approvalForRecycle(targetId, crystalId, basePos);
-    LiveCombatView view = fakeView()
+    ActionApproval approval = Fixtures.recycleApproval(targetId, crystalId, basePos);
+    LiveCombatView view = Fixtures.liveView()
+        .withRevisions(approval.worldRevision(), approval.targetRevision(),
+            approval.inventoryRevision(), approval.configRevision())
         .withLiveCrystal(crystalId, true)
         .withFollowBreakBase(basePos, crystalId, true)
         .withObservedCount(Items.END_CRYSTAL, 1);
-
     ArbitrationResult result = arbiter.evaluate(
         approval,
         List.of(new AttackKnownCrystal(crystalId), new PlaceCrystal(basePos)),
@@ -850,20 +889,9 @@ void allowsBreakThenSameBasePlaceAgainstPredictedPostBreakState() {
     );
     assertTrue(result.allowed());
 }
-
-@Test
-void rejectsInventedOrAlreadyRemovedCrystal() {
-    ArbitrationResult result = arbiter.evaluate(
-        breakApproval(targetId, 999),
-        List.of(new AttackKnownCrystal(999)),
-        fakeView().withLiveCrystal(999, false),
-        new PendingItemLedger(),
-        OptimizerConfig.defaults(),
-        500L
-    );
-    assertEquals(ArbitrationResult.Reason.CRYSTAL_NOT_LIVE, result.reason());
-}
 ```
+
+Also cover stale world/target/inventory/config revision, expired approval, removed crystal, out-of-reach block/entity, excessive worst-case self damage, and unavailable/reserved item.
 
 - [ ] **Step 2: Run focused test and confirm RED**
 
@@ -872,34 +900,21 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.v2.execution.ActionArbiterTest
 ```
 
-- [ ] **Step 3: Implement the arbiter as a linear action/revision gate**
+- [ ] **Step 3: Implement the exact gate order**
 
-The method must check, in order: approval expiry/revisions, target validity, approval worst-case self damage vs config policy, each concrete action's current reach/entity/resource condition, special `AttackKnownCrystal -> PlaceCrystal(same base)` predicted-post-break legality, and pending item availability. It must not call candidate generation, damage simulation, target prediction, or beam search.
-
-```java
-public ArbitrationResult evaluate(
-    ActionApproval approval,
-    List<CombatAction> actions,
-    LiveCombatView view,
-    PendingItemLedger pendingItems,
-    OptimizerConfig config,
-    long nowNanos
-) {
-    if (!approval.isCurrent(
-        view.worldRevision(),
-        view.targetRevision(approval.targetId()),
-        view.inventoryRevision(),
-        approval.configRevision(),
-        nowNanos
-    )) return ArbitrationResult.rejected(ArbitrationResult.Reason.STALE_APPROVAL);
-    if (!view.targetValid(approval.targetId())) {
-        return ArbitrationResult.rejected(ArbitrationResult.Reason.INVALID_TARGET);
-    }
-    return validateActions(approval, actions, view, pendingItems, config);
-}
+```text
+approval expiry + all four revisions
+target valid
+worst-case self damage policy
+entity/block reach and liveness
+special AttackKnownCrystal -> PlaceCrystal predicted post-break legality
+actual/reserved item availability
+allow materialized action list unchanged
 ```
 
-- [ ] **Step 4: Run arbiter and legacy legality tests**
+Use `view.configRevision()` when calling `approval.isCurrent(...)`; do not substitute the approval's own revision as the current value.
+
+- [ ] **Step 4: Run arbiter and existing legality tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
@@ -911,13 +926,13 @@ Expected: PASS.
 
 ```bash
 git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/execution \
-        projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer/v2/execution/ActionArbiterTest.java
+        projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer/v2/execution
 git commit -m "feat: gate v2 reactive actions"
 ```
 
 ---
 
-### Task 9: Implement the event-driven ReactiveCombatEngine and recycle state machine
+### Task 9: Implement the event-driven ReactiveCombatEngine and recycle lifecycle
 
 **Files:**
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/reactive/CrystalBasePhase.java`
@@ -928,34 +943,35 @@ git commit -m "feat: gate v2 reactive actions"
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/reactive/CrystalBaseTrackerTest.java`
 
 **Interfaces:**
-- `ReactiveCombatEngine.decide(CombatEvent,CombatBlackboardSnapshot,long)` returns zero or one highest-priority `ReactiveDecision`.
-- `ReactiveDecision` contains approval ID, source slot, materialized action list, event timestamp, decision timestamp, and `critical=true` for lethal/finisher/staircase/recycle events.
-- No world scan or planning dependencies.
+- `decide(CombatEvent,CombatBlackboardSnapshot,long)` returns `Optional<ReactiveDecision>`.
+- `ReactiveDecision(long approvalId,ApprovalSlot slot,List<CombatAction> actions,long eventNanos,long decisionNanos,boolean critical)`.
 
-- [ ] **Step 1: Write failing priority/materialization/duplicate tests**
+- [ ] **Step 1: Write priority/materialization/duplicate tests**
 
 ```java
 @Test
-void spawnedCrystalOnApprovedRecycleBaseMaterializesRealEntityIdImmediately() {
-    CombatBlackboardSnapshot snapshot = snapshotWith(
+void approvedSpawnCycleUsesRealSpawnedId() {
+    CombatBlackboardSnapshot snapshot = Fixtures.snapshotWith(
         ApprovalSlot.RECYCLE,
-        spawnCycleApproval(targetId, basePos, true)
+        Fixtures.spawnCycleApproval(targetId, basePos, true)
     );
-    CombatEvent.CrystalSpawned event = new CombatEvent.CrystalSpawned(712, basePos, 1_000L);
-
-    ReactiveDecision decision = engine.decide(event, snapshot, 1_050L).orElseThrow();
-    assertEquals(
-        List.of(new AttackKnownCrystal(712), new PlaceCrystal(basePos)),
-        decision.actions()
-    );
-    assertTrue(decision.critical());
+    ReactiveDecision decision = engine.decide(
+        new CombatEvent.CrystalSpawned(712, basePos, 1_000L),
+        snapshot,
+        1_050L
+    ).orElseThrow();
+    assertEquals(List.of(
+        new AttackKnownCrystal(712),
+        new PlaceCrystal(basePos)
+    ), decision.actions());
 }
 
 @Test
 void popFinisherPreemptsRecycle() {
-    CombatBlackboardSnapshot snapshot = snapshotWithFinisherAndRecycle(targetId);
     ReactiveDecision decision = engine.decide(
-        new CombatEvent.TotemPopped(targetId, 2_000L), snapshot, 2_010L
+        new CombatEvent.TotemPopped(targetId, 2_000L),
+        Fixtures.snapshotWithFinisherAndRecycle(targetId),
+        2_010L
     ).orElseThrow();
     assertEquals(ApprovalSlot.FINISHER, decision.slot());
 }
@@ -968,26 +984,26 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.reactive.*'
 ```
 
-- [ ] **Step 3: Implement fixed priority selection and base lifecycle**
+- [ ] **Step 3: Implement fixed reactive priority and lifecycle**
 
 Priority is exactly:
 ```text
-LETHAL -> FINISHER -> STAIRCASE -> RECYCLE -> BREAK/PLACE/PRESSURE -> PREPARE
+LETHAL -> FINISHER -> STAIRCASE -> RECYCLE -> BREAK -> PLACE -> PRESSURE -> PREPARE
 ```
 
-`CrystalBaseTracker` transitions:
+Base phases:
 ```text
 EMPTY -> PLACE_SENT -> LIVE(entityId) -> BREAK_SENT -> EMPTY
 ```
-with `INVALID` entered on reconciliation failure/blockage. Repeated identical event/action tokens must return no decision and increment duplicate suppression diagnostics instead of dispatching again.
+with `INVALID` on rejection/interference/stale reconciliation. Duplicate keys combine event identity + approval ID; an already-consumed key yields no decision.
 
-- [ ] **Step 4: Run reactive tests plus an architecture guard**
+- [ ] **Step 4: Run reactive tests and source architecture guard**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.reactive.*'
 ```
-Expected: PASS; source inspection test confirms no imports/references to `BeamPlanner`, `CandidateGenerator`, `ClientCombatSnapshotBuilder`, or `TargetPredictor` from `ReactiveCombatEngine`.
+Expected: PASS; architecture assertion finds no `BeamPlanner`, `CandidateGenerator`, `TargetPredictor`, or client snapshot builder reference in `ReactiveCombatEngine`.
 
 - [ ] **Step 5: Commit**
 
@@ -999,29 +1015,29 @@ git commit -m "feat: add event-driven crystal fast lane"
 
 ---
 
-### Task 10: Dispatch ordered break->replace bursts through real vanilla interactions
+### Task 10: Dispatch ordered break->replace bursts through vanilla APIs
 
 **Files:**
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/execution/VanillaInteractionDispatcher.java`
-- Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/execution/RotationController.java` only if a V2 critical-mode overload is required.
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/ReactiveBurstDispatcher.java`
+- Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/BurstReceipt.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/client/V2ReactiveBurstArchitectureTest.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/reactive/BreakReplaceOrderingTest.java`
 
 **Interfaces:**
-- Keep existing `ActionDispatcher.dispatch(CombatAction)` for V1 during migration.
-- Add `VanillaInteractionDispatcher.dispatch(CombatAction, RotationMode, boolean critical)`.
-- `ReactiveBurstDispatcher.dispatch(ReactiveDecision,OptimizerConfig)` sends actions sequentially in the same callback until one fails/deferred/waits.
+- Keep V1 `dispatch(CombatAction)` during migration.
+- Add `dispatch(CombatAction,RotationMode,boolean critical)`.
+- `ReactiveBurstDispatcher.dispatch(ReactiveDecision,OptimizerConfig)` sends in list order and stops on non-`SENT`.
 
-- [ ] **Step 1: Write failing ordering/critical-rotation architecture tests**
+- [ ] **Step 1: Write ordering/vanilla-path tests**
 
-Requirements encoded in tests:
+Encode these requirements:
 ```text
-A ReactiveDecision [AttackKnownCrystal(381), PlaceCrystal(base)] calls attack before useItemOn.
-No client-side entity ID is synthesized for the replacement.
-Critical ADAPTIVE rotation passes critical=true to RotationController.
-PlaceCrystal still calls Minecraft.gameMode.useItemOn; there is no hand-built ServerboundUseItemOnPacket.
-A failed first action prevents the second action from being sent.
+AttackKnownCrystal is dispatched before same-base PlaceCrystal.
+Replacement uses Minecraft.gameMode.useItemOn, not a hand-built interaction packet.
+No replacement entity ID is created client-side.
+Critical ADAPTIVE passes critical=true to real RotationController.
+Failure/defer/wait on action N prevents action N+1.
 ```
 
 - [ ] **Step 2: Run focused tests and confirm RED**
@@ -1031,16 +1047,12 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.client.V2ReactiveBurstArchitectureTest --tests dev.adrien.crystaloptimizer.v2.reactive.BreakReplaceOrderingTest
 ```
 
-- [ ] **Step 3: Implement burst dispatch while retaining V1 compatibility**
+- [ ] **Step 3: Add V2 overload and burst loop**
 
 ```java
 public DispatchReceipt dispatch(CombatAction action, RotationMode mode, boolean critical) {
-    // Same real action implementations as dispatch(action), but aimAt receives mode/critical explicitly.
-}
-
-@Override
-public DispatchReceipt dispatch(CombatAction action) {
-    return dispatch(action, rotationMode, scheduler.phase() == CommitPhase.COMMITTED);
+    // Reuse the existing real Minecraft attack/useItemOn/slot/swing implementations.
+    // Rotation calls receive mode and critical directly instead of reading V1 commit phase.
 }
 ```
 
@@ -1048,17 +1060,19 @@ public DispatchReceipt dispatch(CombatAction action) {
 public BurstReceipt dispatch(ReactiveDecision decision, OptimizerConfig config) {
     List<DispatchReceipt> receipts = new ArrayList<>();
     for (CombatAction action : decision.actions()) {
-        DispatchReceipt receipt = dispatcher.dispatch(action, config.rotationMode(), decision.critical());
+        DispatchReceipt receipt = dispatcher.dispatch(
+            action, config.rotationMode(), decision.critical()
+        );
         receipts.add(receipt);
         if (receipt.status() != DispatchReceipt.Status.SENT) break;
     }
-    return BurstReceipt.of(receipts);
+    return new BurstReceipt(List.copyOf(receipts));
 }
 ```
 
-Reserve the item in `PendingItemLedger` immediately before an in-flight `PlaceCrystal`/anchor/charge dispatch and release it only on matching reconciliation or failure.
+Before a `PlaceCrystal`, `PlaceAnchor`, or `ChargeAnchor` send, reserve exactly one required item against observed count. Release on matching success observation, explicit dispatch failure, timeout/reconciliation failure, or inventory revision proving consumption.
 
-- [ ] **Step 4: Run dispatcher/rotation/hand-truthfulness tests**
+- [ ] **Step 4: Run dispatcher, rotation, and hand-truthfulness tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
@@ -1069,15 +1083,14 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client/execution \
-        projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client/v2/ReactiveBurstDispatcher.java \
+git add projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client \
         projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer
 git commit -m "feat: dispatch v2 break replace bursts"
 ```
 
 ---
 
-### Task 11: Add hurt-window threshold tracking and useful-damage staircase selection
+### Task 11: Track hurt thresholds and rank useful damage per lethal time
 
 **Files:**
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/strategy/HurtThresholdEstimate.java`
@@ -1088,10 +1101,10 @@ git commit -m "feat: dispatch v2 break replace bursts"
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/strategy/FastOpportunitySelectorTest.java`
 
 **Interfaces:**
-- `HurtWindowTracker.observeAttributedDamage(UUID,float,long)` and `estimate(UUID,int,long)`.
-- `FastOpportunitySelector.select(List<DamageOpportunity>,SelectionContext)` ranks lethal time/useful marginal damage, not raw damage alone.
+- `observeAttributedIncoming(UUID,float,int invulnerableTime,long)` and `estimate(UUID,int invulnerableTime,long)`.
+- `select(List<DamageOpportunity>,SelectionContext)` returns the best immediate action.
 
-- [ ] **Step 1: Write failing staircase tests**
+- [ ] **Step 1: Write the failing staircase tests**
 
 ```java
 @Test
@@ -1101,17 +1114,17 @@ void zeroFeedbackUsefulDamageBeatsHigherRawDelayedAction() {
         10.0f,
         OptimizerStrategy.LETHAL_SPEED
     );
-    DamageOpportunity immediate = opportunity("anchor", 29.0f, 0, 15.0);
-    DamageOpportunity delayed = opportunity("crystal-respawn", 33.0f, 1, 120.0);
-
-    DamageOpportunity selected = selector.select(List.of(delayed, immediate), context).orElseThrow();
-    assertEquals("anchor", selected.id());
+    DamageOpportunity immediate = Fixtures.opportunity("anchor", 29.0f, 0, 15.0);
+    DamageOpportunity delayed = Fixtures.opportunity("respawned-crystal", 33.0f, 1, 120.0);
+    assertEquals("anchor",
+        selector.select(List.of(delayed, immediate), context).orElseThrow().id());
 }
 
 @Test
-void equalOrWeakerProtectedHitHasNoUsefulMarginalDamage() {
+void equalOrWeakerProtectedHitHasZeroUsefulLowerBound() {
     HurtThresholdEstimate threshold = new HurtThresholdEstimate(18.0f, 18.0f, 18.0f, 1.0);
-    assertEquals(0.0f, FastOpportunitySelector.usefulLowerBound(17.0f, threshold), 1.0e-5f);
+    assertEquals(0.0f,
+        FastOpportunitySelector.usefulLowerBound(17.0f, threshold), 1.0e-5f);
 }
 ```
 
@@ -1122,24 +1135,24 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.strategy.*'
 ```
 
-- [ ] **Step 3: Implement threshold evidence and lethal-time ranking**
+- [ ] **Step 3: Implement evidence-backed threshold tracking and selector order**
 
-Known attributed explosions produce exact/derived threshold evidence until the protected window expires. Unknown remote windows return a broad threshold estimate and mark `HURT_THRESHOLD_UNKNOWN`; they never fabricate an exact `lastHurt`.
+Known attributed incoming damage can produce a derived threshold until the protected window expires. If attribution is not reliable, return an unknown/broad estimate and mark downstream damage `HURT_THRESHOLD_UNKNOWN`; never fabricate remote `lastHurt`.
 
-Selector comparison order for `LETHAL_SPEED`:
+`LETHAL_SPEED` comparison order:
 ```text
-certain/high-confidence lethal
-pop+immediate finisher value
-lower-bound useful marginal damage / p90 completion milliseconds
-expected useful marginal damage / expected completion milliseconds
+high-confidence lethal
+pop + immediate finisher value
+lower-bound useful marginal damage / p90 completion time
+expected useful marginal damage / expected completion time
 raw expected target damage
-lower self damage
+lower worst-case self damage
 fewer hard feedback boundaries
 ```
 
-Face-place policy may lower `minDamage` when target effective health is at or below `facePlaceHealth`, but it may not bypass max-self-damage or suicide checks.
+Face-place may relax `minDamage` when target effective health <= `facePlaceHealth`; it cannot bypass max-self-damage/suicide policy.
 
-- [ ] **Step 4: Run staircase and legacy hurt-window tests**
+- [ ] **Step 4: Run staircase and existing hurt-window tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
@@ -1157,42 +1170,35 @@ git commit -m "feat: rank useful hurt window damage"
 
 ---
 
-### Task 12: Build incremental target-local DamageMap and cheap strategic approvals
+### Task 12: Build the incremental target-local DamageMap and strategic approvals
 
 **Files:**
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/strategy/DamageMap.java`
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientDamageScenarioFactory.java`
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientDamageMapBuilder.java`
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientStrategicScanner.java`
-- Modify/reuse: `candidate/CandidateGenerator.java`, `candidate/CandidatePruner.java` only through bounded strategic calls; do not call `BeamPlanner` for hot approvals.
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/strategy/DamageMapTest.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/client/V2StrategicScannerArchitectureTest.java`
 
 **Interfaces:**
-- `ClientDamageMapBuilder.update(target, revisions, config)` returns immutable `DamageMap`.
-- `ClientStrategicScanner.scan(...)` converts selected opportunities into `ActionApproval`s and atomically publishes one blackboard snapshot.
+- `ClientDamageMapBuilder.update(AbstractClientPlayer target,long worldRevision,long targetRevision,OptimizerConfig)`.
+- `ClientStrategicScanner.scan(...)` publishes one immutable `CombatBlackboardSnapshot`.
 
 - [ ] **Step 1: Write failing incremental invalidation tests**
 
 ```java
 @Test
-void unrelatedBlockChangeDoesNotInvalidateAllDamageEntries() {
-    DamageMap map = DamageMap.of(
-        targetId,
-        10L,
-        Map.of(
-            opportunityA.id(), opportunityA,
-            opportunityB.id(), opportunityB
-        )
-    );
+void unrelatedBlockChangePreservesIndependentEntries() {
+    DamageMap map = Fixtures.damageMapWithIndependentEntries();
     DamageMap next = map.invalidateGeometry(Set.of(new BlockPos(100, 20, 100)));
-    assertEquals(2, next.opportunities().size());
+    assertEquals(map.opportunities().size(), next.opportunities().size());
 }
 
 @Test
-void targetRevisionInvalidatesPositionDependentEntries() {
-    DamageMap next = map.withTargetRevision(11L);
-    assertTrue(next.opportunities().values().stream().noneMatch(DamageOpportunity::positionDependent));
+void targetRevisionDropsPositionDependentEntries() {
+    DamageMap next = Fixtures.damageMapWithPositionEntry().withTargetRevision(11L);
+    assertTrue(next.opportunities().values().stream()
+        .noneMatch(DamageOpportunity::positionDependent));
 }
 ```
 
@@ -1203,30 +1209,21 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.v2.strategy.DamageMapTest --tests dev.adrien.crystaloptimizer.client.V2StrategicScannerArchitectureTest
 ```
 
-- [ ] **Step 3: Implement target-local map and scanner**
+- [ ] **Step 3: Implement target-local caching and approval publication**
 
-The scanner may use `ClientCombatSnapshotBuilder` and existing candidate generation on its non-reactive tick, but must cache target-local opportunities and invalidate only entries touched by relevant target/world/inventory revisions. Immediate approvals come from `FastOpportunitySelector`; `BeamPlanner` may be called only for `ApprovalSlot.PREPARE` setup exploration.
+The non-reactive scanner may reuse `ClientCombatSnapshotBuilder`, candidate generation, and target prediction. Immediate `BREAK`, `PLACE`, `RECYCLE`, `FINISHER`, `STAIRCASE`, and `PRESSURE` approvals come from `FastOpportunitySelector`, not `BeamPlanner`. `BeamPlanner` may run only to propose `PREPARE` setup actions.
 
-Publish at least:
-```text
-BREAK
-PLACE
-RECYCLE (SpawnCrystalCycle for approved base)
-FINISHER
-STAIRCASE
-PRESSURE
-PREPARE
-```
+`ClientDamageScenarioFactory` combines target position hypotheses with state uncertainty. When remote absorption consumption or protected-window threshold is unknown, create explicit lower/upper plausible scenarios with reduced confidence and the matching `DamageUncertainty`; do not collapse them into one guessed state.
 
-Each approval gets an expiry measured in low hundreds of milliseconds and exact current revision keys. The scanner must never publish an attack approval for an unobserved entity ID; spawn-based cycles use `SpawnCrystalCycle` templates.
+Each approval carries low-hundreds-of-milliseconds expiry plus exact current world/target/inventory/config revisions. Spawn-cycle approvals use `SpawnCrystalCycle(base,replaceAfterBreak)` and never guess the future entity ID.
 
-- [ ] **Step 4: Run scanner, candidate, prediction, and planner regression tests**
+- [ ] **Step 4: Run scanner + candidate/prediction/planner regressions**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
-gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.strategy.*' --tests 'dev.adrien.crystaloptimizer.client.V2StrategicScannerArchitectureTest' --tests 'dev.adrien.crystaloptimizer.candidate.*' --tests 'dev.adrien.crystaloptimizer.prediction.*' --tests 'dev.adrien.crystaloptimizer.planner.*'
+gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.strategy.*' --tests dev.adrien.crystaloptimizer.client.V2StrategicScannerArchitectureTest --tests 'dev.adrien.crystaloptimizer.candidate.*' --tests 'dev.adrien.crystaloptimizer.prediction.*' --tests 'dev.adrien.crystaloptimizer.planner.*'
 ```
-Expected: PASS; architecture test proves reactive code has no scanner/planner dependency.
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -1239,7 +1236,7 @@ git commit -m "feat: scan v2 immediate damage opportunities"
 
 ---
 
-### Task 13: Add bounded TargetManager and ClientCombatCoordinator alongside V1
+### Task 13: Add bounded target selection and ClientCombatCoordinator alongside V1
 
 **Files:**
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/TargetManager.java`
@@ -1250,25 +1247,19 @@ git commit -m "feat: scan v2 immediate damage opportunities"
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/reactive/CoordinatorReplayTest.java`
 
 **Interfaces:**
-- `ClientCombatCoordinator.tick()` performs non-reactive target/scanner/restock work.
-- `ClientCombatCoordinator.onEvent(CombatEvent)` performs the fast reactive decision->arbiter->dispatch path synchronously on the client packet/event thread.
-- V1 `ClientCombatRuntime` remains the active bootstrap until Task 16.
+- `tick()` performs only non-reactive target/scanner/restock work.
+- `onEvent(CombatEvent)` performs direct decision -> materialization -> arbitration -> dispatch.
+- V1 `ClientCombatRuntime` remains the production bootstrap in this task.
 
-- [ ] **Step 1: Write failing coordinator replay/architecture tests**
+- [ ] **Step 1: Write the failing coordinator replay test**
 
-Replay requirement:
+Prepublish a `RECYCLE` approval, emit `CrystalSpawned(realId,base)`, assert attack/place are dispatched in order, and assert the strategic scanner invocation counter does not change during `onEvent`.
+
+Architecture assertions:
 ```text
-prepublish RECYCLE approval
-emit CrystalSpawned(realId, base)
-coordinator materializes -> arbitrates -> dispatches attack/place
-scanner invocation count remains unchanged during onEvent
-```
-
-Architecture requirement:
-```text
-ClientCombatCoordinator.onEvent contains no ClientCombatSnapshotBuilder.build call.
-ClientCombatCoordinator.onEvent contains no BeamPlanner.plan call.
-ClientCombatCoordinator.tick may invoke ClientStrategicScanner.scan.
+onEvent does not call ClientCombatSnapshotBuilder.build.
+onEvent does not call BeamPlanner.plan.
+tick may call ClientStrategicScanner.scan.
 ```
 
 - [ ] **Step 2: Run focused tests and confirm RED**
@@ -1278,31 +1269,30 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.client.V2CoordinatorArchitectureTest --tests dev.adrien.crystaloptimizer.v2.reactive.CoordinatorReplayTest
 ```
 
-- [ ] **Step 3: Implement coordinator and target selection**
+- [ ] **Step 3: Implement target manager and exact event path**
 
-`TargetManager` keeps the current valid target sticky but reevaluates a bounded shortlist of at most three visible non-allied players using immediate `DamageOpportunity` score rather than a beam-plan prepass. A recent attacker receives a shortlist boost, but lethal-time opportunity remains the final primary score.
+`TargetManager` keeps a valid current target sticky and evaluates at most three visible non-allied players. Recent attacker status may boost shortlist inclusion; final choice is driven by best immediate lethal-time opportunity, not a beam-plan prepass.
 
-`ClientCombatCoordinator.onEvent` exact order:
+`onEvent` order:
 ```text
 capture event timestamp
 read current config + blackboard snapshot
 ReactiveCombatEngine.decide
-materialize actions
-ActionArbiter.evaluate
+ActionArbiter.evaluate against ClientLiveCombatView
 record decision-complete timestamp
 ReactiveBurstDispatcher.dispatch
 record dispatch timestamp
-update base/pending-item state
+update base/pending-item/timing state
 publish cached diagnostics
 ```
 
-- [ ] **Step 4: Run V2 coordinator tests plus V1 runtime tests**
+- [ ] **Step 4: Run V2 coordinator and V1 runtime tests**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.client.V2*' --tests 'dev.adrien.crystaloptimizer.v2.reactive.*' --tests 'dev.adrien.crystaloptimizer.execution.CombatRuntime*'
 ```
-Expected: PASS; V1 remains unaffected.
+Expected: PASS with both runtimes still compiling.
 
 - [ ] **Step 5: Commit**
 
@@ -1314,38 +1304,38 @@ git commit -m "feat: coordinate v2 reactive combat"
 
 ---
 
-### Task 14: Add calibrated diagnostics and cached TIME_TO_DAMAGE HUD data
+### Task 14: Add damage calibration diagnostics and cached TIME_TO_DAMAGE HUD data
 
 **Files:**
-- Modify: `.../src/main/java/dev/adrien/crystaloptimizer/v2/diagnostics/TimeToDamageTrace.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageMismatch.java`
 - Create: `.../src/main/java/dev/adrien/crystaloptimizer/v2/damage/DamageCalibration.java`
+- Modify: `.../src/main/java/dev/adrien/crystaloptimizer/v2/diagnostics/TimeToDamageTrace.java`
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatDiagnostics.java`
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/OptimizerHud.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/v2/damage/DamageCalibrationTest.java`
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/client/ClientDiagnosticsHudArchitectureTest.java`
 
 **Interfaces:**
-- `DamageCalibration.observePrediction(actionId,LiveDamageTrace)` then `observeResult(...)` classifies mismatch without tuning the simulator.
-- HUD reads one cached immutable diagnostics snapshot only.
+- `observePrediction(long actionId,LiveDamageTrace)` + `observeResult(long actionId,ObservedDamageResult)` returns mismatch classification.
+- Render code consumes only cached immutable diagnostics.
 
-- [ ] **Step 1: Write failing mismatch classification and HUD architecture tests**
+- [ ] **Step 1: Write mismatch/HUD tests**
 
 ```java
 @Test
-void outOfIntervalObservedDamageIsClassifiedNotFudged() {
+void observedDamageOutsidePredictedIntervalProducesMismatch() {
     DamageCalibration calibration = new DamageCalibration();
-    calibration.observePrediction(44L, traceWithEstimate(14.0f, 16.0f, 18.0f));
+    calibration.observePrediction(44L, Fixtures.traceWithEstimate(14.0f, 16.0f, 18.0f));
     DamageMismatch mismatch = calibration.observeResult(
         44L,
         new ObservedDamageResult(5.0f, false, false, 9L)
     ).orElseThrow();
     assertNotEquals(DamageMismatch.Kind.NONE, mismatch.kind());
-    assertEquals(1.0, calibration.damageMultiplier(), 0.0);
+    assertEquals(44L, mismatch.actionId());
 }
 ```
 
-HUD source test must assert it does not reference `Minecraft.level`, `ClientCombatSnapshotBuilder`, `BeamPlanner`, or candidate generation from render callbacks.
+A source architecture assertion must fail if `DamageCalibration` contains a field/method named `damageMultiplier`, `damageOffset`, or `fudge`, and fail if HUD render callbacks reference world scans/planners.
 
 - [ ] **Step 2: Run focused tests and confirm RED**
 
@@ -1354,9 +1344,9 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.v2.damage.DamageCalibrationTest --tests dev.adrien.crystaloptimizer.client.ClientDiagnosticsHudArchitectureTest
 ```
 
-- [ ] **Step 3: Implement mismatch classes and cached diagnostics**
+- [ ] **Step 3: Implement fixed mismatch taxonomy and cached HUD snapshot**
 
-`DamageMismatch.Kind` exactly:
+`DamageMismatch.Kind`:
 ```text
 NONE
 EXPOSURE_MISMATCH
@@ -1371,7 +1361,7 @@ INTERFERENCE
 UNKNOWN
 ```
 
-The HUD summary should show enabled/strategy, target, reactive state, best approved action, damage lower/expected/upper, worst self damage, place->spawn p50/p90, last spawn->attack decision/dispatch latency, last mismatch kind, and last rejection reason. Detailed traces stay in diagnostics data, not every HUD line.
+HUD summary: enabled/strategy, target, reactive phase, selected approval, target damage lower/expected/upper, worst self damage, place->spawn p50/p90, last spawn->attack event->decision and decision->dispatch latency, last mismatch, last arbiter rejection. Rendering never touches level/planner/candidate generation.
 
 - [ ] **Step 4: Run diagnostics tests**
 
@@ -1384,16 +1374,16 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/diagnostics \
-        projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/damage \
-        projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client \
+git add projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2 \
+        projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client/OptimizerHud.java \
+        projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client/v2 \
         projects/crystal-anchor-combat-optimizer-26-1-2/src/test/java/dev/adrien/crystaloptimizer
 git commit -m "feat: diagnose v2 combat latency and damage"
 ```
 
 ---
 
-### Task 15: Add optional Mod Menu config and developer diagnostics screens
+### Task 15: Add optional Mod Menu configuration and developer diagnostics screens
 
 **Files:**
 - Create: `.../src/client/java/dev/adrien/crystaloptimizer/client/config/OptimizerConfigService.java`
@@ -1405,14 +1395,14 @@ git commit -m "feat: diagnose v2 combat latency and damage"
 - Test: `.../src/test/java/dev/adrien/crystaloptimizer/client/ModMenuIntegrationArchitectureTest.java`
 
 **Interfaces:**
-- `OptimizerConfigService.current()`, `apply(OptimizerConfig)`, `revision()`, `addListener(Consumer<OptimizerConfig>)`.
-- `CrystalOptimizerModMenu implements com.terraformersmc.modmenu.api.ModMenuApi` and returns `OptimizerConfigScreen` from `getModConfigScreenFactory()`.
+- `current()`, `apply(OptimizerConfig)`, `revision()`, `addListener(Consumer<OptimizerConfig>)`.
+- Mod Menu factory returns `OptimizerConfigScreen`.
 
-- [ ] **Step 1: Write failing persistence/optional-integration tests**
+- [ ] **Step 1: Write persistence/optional-integration tests**
 
 ```java
 @Test
-void applyValidatesSavesAndAtomicallyPublishes() throws IOException {
+void applyValidatesPersistsAndPublishesOneSnapshot() throws IOException {
     Path dir = Files.createTempDirectory("crystaloptimizer-config");
     OptimizerConfigService service = OptimizerConfigService.forDirectory(dir);
     OptimizerConfig changed = new OptimizerConfig(
@@ -1426,12 +1416,12 @@ void applyValidatesSavesAndAtomicallyPublishes() throws IOException {
 }
 ```
 
-Architecture test requirements:
+Architecture assertions:
 ```text
 fabric.mod.json has a modmenu entrypoint.
-fabric.mod.json does not list modmenu under depends.
-Main user screen exposes exactly the spec's normal settings.
-Advanced screen reads ClientCombatDiagnostics but does not mutate timing/damage internals.
+modmenu is absent from depends.
+Normal screen exposes only the spec's normal settings.
+Advanced screen is read-only for timing/damage internals.
 ```
 
 - [ ] **Step 2: Run focused tests and confirm RED**
@@ -1441,22 +1431,21 @@ cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests dev.adrien.crystaloptimizer.client.OptimizerConfigServiceTest --tests dev.adrien.crystaloptimizer.client.ModMenuIntegrationArchitectureTest
 ```
 
-- [ ] **Step 3: Implement config service and vanilla-styled screens**
+- [ ] **Step 3: Implement atomic persistence and compact vanilla UI**
 
-Persist to Fabric config directory `crystaloptimizer.json` with Gson. Write to a sibling temporary file and atomically replace where supported so a crash cannot leave a partial JSON file. Invalid/malformed files fall back to `OptimizerConfig.defaults()` and preserve the bad file by renaming it with `.invalid` suffix before writing defaults.
+Persist `crystaloptimizer.json` in Fabric config dir using Gson. Write to sibling temp file and atomically replace when supported. On malformed JSON, rename the bad file to `crystaloptimizer.json.invalid` and load/write defaults.
 
-`OptimizerConfigScreen` layout groups:
+Main screen groups:
 ```text
 General: Enabled, Strategy, Target Range
 Combat: Min Damage, Max Self Damage, Face Place HP, Crystals, Anchors, Auto Restock
 Execution: Rotation
-Visual: HUD, Advanced Diagnostics button
+Visual: HUD, Advanced Diagnostics
 Footer: Cancel, Save
 ```
 
-Use normal Minecraft `Button`, `CycleButton`, and numeric `EditBox` widgets; Save builds one validated `OptimizerConfig` and calls `OptimizerConfigService.apply` exactly once.
+Use vanilla `Button`, `CycleButton`, and numeric `EditBox` widgets. Save constructs one validated `OptimizerConfig` and calls `OptimizerConfigService.apply` once.
 
-Mod Menu entrypoint:
 ```java
 public final class CrystalOptimizerModMenu implements ModMenuApi {
     @Override
@@ -1466,15 +1455,15 @@ public final class CrystalOptimizerModMenu implements ModMenuApi {
 }
 ```
 
-Add under Fabric `entrypoints`:
+Add Fabric entrypoint:
 ```json
 "modmenu": [
   "dev.adrien.crystaloptimizer.client.integration.CrystalOptimizerModMenu"
 ]
 ```
-Do not add `modmenu` to `depends`; optionally add it to `suggests` with `">=18.0.0-beta.1"`.
+and `suggests.modmenu = ">=18.0.0-beta.1"`; do not add to `depends`.
 
-- [ ] **Step 4: Run config/integration tests and a full build with Mod Menu on the dev classpath**
+- [ ] **Step 4: Run config/UI architecture tests and build**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
@@ -1508,22 +1497,22 @@ git commit -m "feat: add optional mod menu controls"
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/CrystalOptimizerClient.java`
 - Modify: `.../src/client/java/dev/adrien/crystaloptimizer/client/OptimizerHud.java`
 - Modify: `.../README.md`
-- Modify: `.github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml` only if the new focused gate command is not already covered by `test`.
 - Delete after gates pass: `.../src/client/java/dev/adrien/crystaloptimizer/client/ClientCombatRuntime.java`
-- Delete if no remaining production references after gates pass: `.../src/main/java/dev/adrien/crystaloptimizer/execution/CombatRuntimeEngine.java`, `CommitPolicy.java`, `CommitScheduler.java`, `PlanExecutionController.java`, `PlanExecutionDriver.java`, `RuntimeFrame.java`, `RuntimePlanner.java` and obsolete tests dedicated only to those removed V1 orchestration classes.
-- Keep: `BeamPlanner` and preparation-relevant planner classes.
+- Delete after `git grep` proves no production references: obsolete V1 commit/runtime classes such as `CombatRuntimeEngine`, `CommitPolicy`, `CommitScheduler`, `PlanExecutionController`, `PlanExecutionDriver`, `RuntimeFrame`, `RuntimePlanner`, plus tests whose only purpose was those removed orchestration classes.
+- Keep: `BeamPlanner`, simulation/legality/reconciliation primitives still used by V2, inventory coordination, prediction, and preparation logic.
 
 **Interfaces:**
-- `CrystalOptimizerClient` bootstraps `OptimizerConfigService`, `ClientCombatCoordinator`, event subscription, O-key toggle, and cached V2 HUD only.
-- All final acceptance gates from the spec are executable tests or explicit verification commands.
+- Final `CrystalOptimizerClient` bootstraps config service + V2 coordinator, subscribes event bus, registers cached HUD, and keeps O as the same config enable toggle.
 
-- [ ] **Step 1: Write failing latency and timing replay gates before switching bootstrap**
+- [ ] **Step 1: Write latency and timing replay gates before the production switch**
+
+Use preallocated deterministic replay fixtures and measure only decision/arbitration CPU work, not network time:
 
 ```java
 @Test
 void preapprovedReactivePathMeetsCpuLatencyGateAndBeatsV1() {
-    LatencySamples v2 = benchmarkV2SpawnBreak(20_000, 2_000);
-    LatencySamples v1 = benchmarkEquivalentV1Decision(20_000, 2_000);
+    LatencySamples v2 = benchmarkV2SpawnBreak(2_000, 200);
+    LatencySamples v1 = benchmarkEquivalentV1Decision(2_000, 200);
     assertTrue(v2.p50Millis() <= 1.0, () -> "V2 p50=" + v2.p50Millis());
     assertTrue(v2.p95Millis() <= 2.0, () -> "V2 p95=" + v2.p95Millis());
     assertTrue(v1.p50Nanos() / (double)Math.max(1L, v2.p50Nanos()) >= 5.0,
@@ -1531,20 +1520,25 @@ void preapprovedReactivePathMeetsCpuLatencyGateAndBeatsV1() {
 }
 ```
 
-Timing replay tests parse each trace into typed start/end observations, feed the exact same `TimingEngine`, and assert ordering properties such as p90 >= p50, stale confidence decay, more pessimistic completion under jitter/degraded cadence, and no fabricated certainty for missing transitions.
+Timing trace format is one event per line:
+```text
+transition,startNanos,endNanos,correlationHigh,correlationLow
+CRYSTAL_PLACE_TO_SPAWN,1000000000,1025000000,2,12345
+```
+`TimingReplayTest` parses all three resource files and asserts p90 >= p50, stale confidence decays, jitter/degraded traces produce more pessimistic p90 completion, and missing required transitions return confidence 0 instead of fabricated certainty.
 
-- [ ] **Step 2: Run the acceptance-focused suite while V1 is still present**
+- [ ] **Step 2: Run all acceptance-focused tests with V1 still present**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon test --tests 'dev.adrien.crystaloptimizer.v2.*' --tests 'dev.adrien.crystaloptimizer.client.V2*' --stacktrace
 gradle --no-daemon runGameTest --stacktrace
 ```
-Expected: every V2 unit/architecture/differential/recycle/timing/latency gate passes before production bootstrap changes.
+Expected: all V2 unit/architecture/differential/recycle/timing/latency gates pass before bootstrap changes.
 
-- [ ] **Step 3: Switch `CrystalOptimizerClient` to V2 and remove dead V1 orchestration**
+- [ ] **Step 3: Switch client bootstrap and remove dead V1 orchestration**
 
-Final bootstrap shape:
+Final shape:
 ```java
 public final class CrystalOptimizerClient implements ClientModInitializer {
     private KeyMapping toggleKey;
@@ -1568,23 +1562,23 @@ public final class CrystalOptimizerClient implements ClientModInitializer {
 }
 ```
 
-Add the exact `withEnabled(boolean)` copy method to `OptimizerConfig` when wiring the toggle. Remove V1 classes only after `git grep` proves there are no production references; keep mechanics, reconciliation primitives still used by V2, `InventoryCoordinator`, and `BeamPlanner` setup logic.
+Before deleting each V1 class, run `git grep` for its simple name under `src/main` and `src/client`; delete only when no V2 production code needs it. Do not delete mechanics/reconciliation classes merely because they lived under an old package.
 
-- [ ] **Step 4: Run the authoritative final verification from a clean state**
+- [ ] **Step 4: Run authoritative clean verification**
 
 ```bash
 cd projects/crystal-anchor-combat-optimizer-26-1-2
 gradle --no-daemon clean test build runGameTest --stacktrace
 ```
-Expected: `BUILD SUCCESSFUL`, all unit tests pass, all GameTests pass, V2 latency gates pass, and the generated runtime JAR contains `fabric.mod.json`, mixin config, V2 coordinator, reactive engine, Mod Menu entrypoint, and config screens.
+Expected: `BUILD SUCCESSFUL`, all unit tests and GameTests pass, latency gates pass, and runtime JAR contains Fabric metadata, mixins, V2 coordinator/reactive engine, optional Mod Menu entrypoint, and config screens.
 
-Then inspect for forbidden hot-path dependencies:
+Verify forbidden hot-path dependencies:
 ```bash
-git grep -n 'BeamPlanner\|ClientCombatSnapshotBuilder\|CandidateGenerator' -- \
+git grep -n 'BeamPlanner\|ClientCombatSnapshotBuilder\|CandidateGenerator\|TargetPredictor' -- \
   projects/crystal-anchor-combat-optimizer-26-1-2/src/main/java/dev/adrien/crystaloptimizer/v2/reactive \
   projects/crystal-anchor-combat-optimizer-26-1-2/src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatCoordinator.java
 ```
-Expected: no matches from `ReactiveCombatEngine` or `ClientCombatCoordinator.onEvent`; strategic scanner matches are allowed only in its own file.
+Expected: no matches. Strategic-scanner files are intentionally outside this check.
 
 - [ ] **Step 5: Update README and commit the V2 cutover**
 
@@ -1596,17 +1590,16 @@ Fabric Loader >=0.19.3
 Fabric API 0.155.2+26.1.2
 Version 0.2.0
 O toggles the optimizer
-Mod Menu is optional and opens the full config when installed
+Mod Menu is optional and opens full config when installed
 Default strategy is Lethal Speed
 Reactive crystal recycling waits for real server entity IDs
 No silent rotations/fake packets/hidden-inventory assumptions
-Damage diagnostics show uncertainty instead of a fake exact number
+Damage diagnostics show uncertainty instead of fake exact numbers
 ```
 
 Commit:
 ```bash
-git add .github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml \
-        projects/crystal-anchor-combat-optimizer-26-1-2
+git add projects/crystal-anchor-combat-optimizer-26-1-2
 git commit -m "feat: switch crystal optimizer to v2"
 ```
 
@@ -1614,18 +1607,18 @@ git commit -m "feat: switch crystal optimizer to v2"
 
 ## Final Review Checklist Before Opening/Merging the V2 PR
 
-- [ ] `OptimizerConfig.defaults()` is `LETHAL_SPEED` and Mod Menu remains optional.
-- [ ] The O key toggles the same config snapshot used by Mod Menu.
-- [ ] `ReactiveCombatEngine` has no planner/world-scan dependency.
-- [ ] New crystal IDs come only from real spawn observations.
-- [ ] Break->replace can send both legal ordered interactions without waiting for local crystal removal, while the next break waits for the real replacement spawn ID.
-- [ ] Pending predicted crystal consumption cannot double-spend a locally unchanged stack.
-- [ ] Pop->finisher preempts recycle when its approval has better lethal priority.
-- [ ] Hurt-window selector scores useful marginal damage and lethal time, not nominal CPS/raw damage only.
-- [ ] Typed timing distributions are used for place->spawn, attack->removal, block ack, refill observation, and cadence.
-- [ ] Exact-observable damage matches vanilla GameTests; uncertain cases return honest intervals.
-- [ ] Damage calibration classifies mismatches and never modifies damage by an opaque multiplier.
-- [ ] HUD/config rendering performs no world scan/planner work.
-- [ ] V2 reactive p50 <= 1 ms, p95 <= 2 ms, and median >=5x faster than equivalent V1 replay on the same harness.
-- [ ] Full `gradle --no-daemon clean test build runGameTest --stacktrace` succeeds under Java 25.
-- [ ] The kept branch `work/crystal-anchor-combat-optimizer-26-1-2` still exists.
+- [ ] `OptimizerConfig.defaults()` is `LETHAL_SPEED`; Mod Menu remains optional.
+- [ ] O and Mod Menu mutate the same `OptimizerConfigService` snapshot.
+- [ ] `ReactiveCombatEngine` and `ClientCombatCoordinator.onEvent` have no planner/world-scan dependency.
+- [ ] New crystal IDs come only from real `CrystalSpawned` observations.
+- [ ] Break->replace may send both ordered vanilla interactions without waiting for local crystal removal; the next break waits for the real replacement spawn ID.
+- [ ] In-flight predicted item consumption cannot double-spend locally visible stacks.
+- [ ] Pop->finisher preempts recycle when the finisher is the higher-priority legal approval.
+- [ ] Hurt-window selection scores useful marginal damage and lethal time, not raw damage/CPS alone.
+- [ ] Typed timing distributions cover block ack, place->spawn, attack->removal, pop->visible refill, and cadence.
+- [ ] Exact-observable damage matches vanilla GameTests; uncertain live cases expose lower/expected/upper bounds.
+- [ ] Calibration only diagnoses mismatch; it never alters damage with an opaque multiplier/offset.
+- [ ] HUD/config rendering performs no world scan or planner work.
+- [ ] V2 reactive event->dispatch CPU p50 <= 1 ms, p95 <= 2 ms, and median is at least 5x faster than equivalent V1 replay on the same harness.
+- [ ] `gradle --no-daemon clean test build runGameTest --stacktrace` succeeds under Java 25.
+- [ ] `work/crystal-anchor-combat-optimizer-26-1-2` still exists.
