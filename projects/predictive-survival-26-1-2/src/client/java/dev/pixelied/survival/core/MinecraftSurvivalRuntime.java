@@ -27,6 +27,7 @@ import dev.pixelied.survival.threat.ShulkerBulletPredictor;
 import dev.pixelied.survival.threat.SplashStatusThreatMemory;
 import dev.pixelied.survival.threat.ThreatPredictor;
 import dev.pixelied.survival.threat.ThreatPredictorRegistry;
+import dev.pixelied.survival.threat.WardenSonicBoomPredictor;
 import dev.pixelied.survival.timing.ServerTimingEstimator;
 import dev.pixelied.survival.timing.TimingSnapshot;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -81,6 +82,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             new ProjectilePredictor(),
             new ShulkerBulletPredictor(),
             new GuardianBeamPredictor(),
+            new WardenSonicBoomPredictor(),
             new MeleePredictor(),
             new FallPredictor(),
             new ReactiveDamagePredictor(),
