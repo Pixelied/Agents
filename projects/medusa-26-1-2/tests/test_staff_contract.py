@@ -138,3 +138,12 @@ class StaffNoAiCompatibilityContract(unittest.TestCase):
             full,
             "pre-existing NoAI mobs must not be marked as Staff-owned NoAI",
         )
+
+class StaffEffectCompatibilityContract(unittest.TestCase):
+    def test_staff_release_does_not_clear_preexisting_target_effects(self):
+        tick = (FN / "staff/target/tick_petrification.mcfunction").read_text()
+        release = (FN / "staff/channel/release_target.mcfunction").read_text()
+        self.assertNotIn("effect clear", release, "Staff release must not erase unrelated potion/beacon effects")
+        for effect in ["invisibility", "slowness", "weakness"]:
+            self.assertIn(f"effect give @s minecraft:{effect} 1", tick)
+        self.assertIn("effect give @s minecraft:mining_fatigue 1", tick)
