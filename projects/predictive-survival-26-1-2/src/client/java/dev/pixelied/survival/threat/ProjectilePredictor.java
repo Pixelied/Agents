@@ -162,7 +162,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             damage.get(),
             flags,
-            Boolean.parseBoolean(entity.properties().getOrDefault("scales_with_difficulty", "false")),
+            scalesWithDifficulty(entity),
             1f,
             piercing,
             Optional.of(entity.position()),
@@ -268,7 +268,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             damage,
             EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
-            false,
+            scalesWithDifficulty(entity),
             1f,
             false,
             Optional.of(impact),
@@ -431,7 +431,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
             EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
-            false,
+            scalesWithDifficulty(entity),
             1f,
             false,
             Optional.of(impact),
@@ -471,7 +471,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(raw),
             flags,
-            Boolean.parseBoolean(entity.properties().getOrDefault("scales_with_difficulty", "false")),
+            scalesWithDifficulty(entity),
             1f,
             false,
             Optional.of(impact),
@@ -512,7 +512,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 DamageSourceSnapshot source = new DamageSourceSnapshot(
                     DamageRange.exact(DRAGON_BREATH_RAW_DAMAGE),
                     EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
-                    false,
+                    scalesWithDifficulty(entity),
                     1f,
                     false,
                     Optional.of(areaOrigin),
@@ -598,7 +598,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(scaled),
             EnumSet.of(DamageFlag.IS_EXPLOSION),
-            false,
+            scalesWithDifficulty(entity),
             1f,
             false,
             Optional.of(step.position()),
@@ -784,6 +784,10 @@ public final class ProjectilePredictor implements ThreatPredictor {
     private static boolean isLingeringPotion(WorldSnapshot.EntitySnapshot entity) {
         return LINGERING_POTION_TYPE.equals(entity.typeKey())
             || Boolean.parseBoolean(entity.properties().getOrDefault("potion_lingering", "false"));
+    }
+
+    private static boolean scalesWithDifficulty(WorldSnapshot.EntitySnapshot entity) {
+        return Boolean.parseBoolean(entity.properties().getOrDefault("scales_with_difficulty", "false"));
     }
 
     private static long saturatingAdd(long value, long increment) {
