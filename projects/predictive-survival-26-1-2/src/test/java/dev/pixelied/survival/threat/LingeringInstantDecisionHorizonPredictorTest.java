@@ -56,7 +56,7 @@ class LingeringInstantDecisionHorizonPredictorTest {
             "lingering:late",
             "minecraft:lingering_potion",
             new Vec3Snapshot(0, 1.0, 0.3),
-            new Vec3Snapshot(0.12, 0, 0),
+            new Vec3Snapshot(0.121, 0, 0),
             new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
             Map.of(
                 "no_gravity", "true",
