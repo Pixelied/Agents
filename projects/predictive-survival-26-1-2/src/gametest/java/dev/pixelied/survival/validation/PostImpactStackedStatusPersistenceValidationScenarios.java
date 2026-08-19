@@ -121,17 +121,14 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
                 .max()
                 .orElse(-1L);
             long actualTailDelay = firstTailDamage.tick() - postImpactTick;
-            if (latestPredicted < actualTailDelay) {
-                throw new AssertionError(
-                    "known hidden Wither tail was forgotten after splash projectile removal from the client snapshot; "
-                        + "postImpactTick=" + postImpactTick
-                        + " actualTailDelay=" + actualTailDelay
-                        + " latestPostImpactPrediction=" + latestPredicted
-                        + " postImpactObservation=" + postImpactObservation
-                        + " firstTailDamage=" + firstTailDamage
-                        + " postImpactWither=" + postImpactWither
-                );
-            }
+            throw new AssertionError(
+                "post-impact stacked status diagnostic: postImpactTick=" + postImpactTick
+                    + " actualTailDelay=" + actualTailDelay
+                    + " latestPostImpactPrediction=" + latestPredicted
+                    + " postImpactObservation=" + postImpactObservation
+                    + " firstTailDamage=" + firstTailDamage
+                    + " postImpactWither=" + postImpactWither
+            );
         } finally {
             singleplayer.getServer().runOnServer(server -> {
                 ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
