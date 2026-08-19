@@ -17,6 +17,9 @@ import dev.pixelied.survival.timing.TimingSnapshot;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -49,6 +52,37 @@ class DirectSplashStatusDurationScalePredictorTest {
         )))).stream().filter(event -> event.id().contains(":wither:")).toList();
 
         assertTrue(wither.isEmpty(), "vanilla discards non-instant splash effects whose scaled duration is <= 20 ticks");
+    }
+
+    @Test
+    void scaledStrongCutoffDoesNotHideLongWeakWitherCadence() {
+        Map<String, String> properties = new LinkedHashMap<>();
+        properties.put("potion_wither_duration_ticks", "40");
+        properties.put("potion_wither_amplifier", "1");
+        properties.put("potion_duration_scale", "0.5");
+        properties.put("potion_status_count", "2");
+        properties.put("potion_status_0_kind", "wither");
+        properties.put("potion_status_0_duration_ticks", "240");
+        properties.put("potion_status_0_amplifier", "0");
+        properties.put("potion_status_1_kind", "wither");
+        properties.put("potion_status_1_duration_ticks", "40");
+        properties.put("potion_status_1_amplifier", "1");
+
+        PredictionContext context = context(splash(properties));
+        List<ThreatEvent> wither = new ArrayList<>();
+        wither.addAll(predictor.predict(context).stream()
+            .filter(event -> event.id().contains(":wither:"))
+            .toList());
+        wither.addAll(new StackedPotionStatusPredictor().predict(context).stream()
+            .filter(event -> event.id().contains(":wither:"))
+            .toList());
+        wither.sort(Comparator.comparingLong(event -> event.impact().earliest()));
+
+        assertEquals(
+            List.of(new TickWindow(5, 5), new TickWindow(45, 45), new TickWindow(85, 85)),
+            wither.stream().map(ThreatEvent::impact).toList(),
+            "the strong 40-tick source scales to the discarded 20-tick cutoff, leaving the weak 240-tick source scaled to Wither I 120"
+        );
     }
 
     private static PredictionContext context(WorldSnapshot.EntitySnapshot potion) {
