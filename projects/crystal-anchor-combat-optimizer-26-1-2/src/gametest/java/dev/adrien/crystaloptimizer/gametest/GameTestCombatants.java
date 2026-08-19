@@ -33,6 +33,8 @@ import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
 
 public final class GameTestCombatants {
+    private static final int INITIAL_CLIENT_LOAD_GRACE_TICKS = 60;
+
     public static ServerPlayer makeSurvivalPlayer(ServerLevel level) {
         GameProfile profile = new GameProfile(UUID.randomUUID(), "crystaloptimizer-test-player");
         CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
@@ -46,6 +48,12 @@ public final class GameTestCombatants {
         new EmbeddedChannel(new ChannelHandler[] {connection});
         level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
         player.setGameMode(GameType.SURVIVAL);
+        for (int tick = 0; tick < INITIAL_CLIENT_LOAD_GRACE_TICKS; tick++) {
+            player.connection.tickClientLoadTimeout();
+        }
+        if (!player.connection.hasClientLoaded()) {
+            throw new IllegalStateException("synthetic client load grace period did not expire");
+        }
         return player;
     }
 
