@@ -196,7 +196,7 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("scales_with_difficulty", "true");
         } else if (entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
             properties.put("explosion_radius_min", "4.0");
-            properties.put("explosion_radius_max", "11.5");
+            properties.put("explosion_radius_max", "1088.0");
             properties.put("fuse_ticks_min", "0");
             properties.put("fuse_ticks_max", Integer.toString(Math.max(0, minecart.getFuse())));
             properties.put("source_key", "minecraft:explosion");
