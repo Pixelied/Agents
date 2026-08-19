@@ -26,6 +26,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.FireworkRocketEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import net.minecraft.world.entity.projectile.hurtingprojectile.AbstractHurtingProjectile;
 import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
@@ -97,6 +98,9 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("pierce_level", Byte.toString(arrow.getPierceLevel()));
             properties.put("in_ground", Boolean.toString(accessor.predictiveSurvival$isInGround()));
             properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(arrow.getOwner())));
+            if (entity instanceof Arrow potionArrow) {
+                properties.put("arrow_tipped", Boolean.toString(potionArrow.getColor() != -1));
+            }
             if (entity instanceof ThrownTrident) {
                 properties.put("raw_damage", "8");
             }
