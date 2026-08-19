@@ -103,9 +103,10 @@ jobs:
           grep -q 'MEDUSA_RITUAL_REFUND_OK' server.log
           grep -q 'MEDUSA_RESTART_RECOVERY_OK' server.log
           grep -q 'MEDUSA_INSTANCE_ISOLATION_OK' server.log
+          grep -q 'MEDUSA_EYE_INSTANCE_ID_OK' server.log
           grep -q 'MEDUSA_SMOKE_DONE' server.log
           ! grep -Eq 'MEDUSA_RAW_MARKER_MISSING|MEDUSA_INSTANCE_IMMEDIATE_MISSING|MEDUSA_BOSS_MISSING|MEDUSA_.*_FAILED' server.log
-          ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs|Could not load|Serialization errors' server.log
+          ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs|Could not load|Serialization errors|Failed to instantiate' server.log
 
   package:
     needs: [static-contracts, exact-runtime]
