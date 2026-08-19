@@ -1,6 +1,6 @@
 {
   "model": {
     "type": "minecraft:model",
-    "model": "minecraft:item/scute"
+    "model": "minecraft:item/turtle_scute"
   }
 }
