@@ -55,6 +55,7 @@ class RuntimeEntrypointContract(unittest.TestCase):
         self.assertIn("grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log", workflow)
         self.assertIn("grep -q 'MEDUSA_GAZE_LOS_OK' server.log", workflow)
         self.assertIn("grep -q 'MEDUSA_GAZE_PETRIFICATION_OK' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_RESISTANCE_BYPASS_OK' server.log", workflow)
         self.assertNotIn("echo 'function medusa:debug/start_test_boss'", workflow)
         self.assertNotIn("echo 'function medusa:debug/test_petrification_damage'", workflow)
         self.assertIn("Serialization errors", workflow, "runtime gate must reject entity/data serialization warnings")
@@ -102,18 +103,18 @@ class RuntimeEntrypointContract(unittest.TestCase):
                 f"26.1.2 shaped ingredient {symbol} must be an item/tag string or list, got {ingredient!r}",
             )
 
-    def test_petrification_suffocation_opens_a_resistance_damage_window(self):
+    def test_petrification_damage_bypasses_resistance_without_clearing_effects(self):
         text = (FN / "petrify/suffocate.mcfunction").read_text()
-        clear_pos = text.find("effect clear @s minecraft:resistance")
-        damage_pos = text.find("damage @s 2 medusa:petrification")
-        restore_pos = text.find("effect give @s minecraft:resistance")
-        self.assertGreaterEqual(clear_pos, 0, "suffocation must temporarily clear Resistance")
-        self.assertGreater(damage_pos, clear_pos, "damage must happen after Resistance is cleared")
-        self.assertGreater(restore_pos, damage_pos, "Resistance must be restored immediately after damage")
+        bypass = DP / "data/minecraft/tags/damage_type/bypasses_resistance.json"
+        self.assertTrue(bypass.is_file(), "petrification damage must be registered as bypassing Resistance")
+        self.assertIn("medusa:petrification", bypass.read_text())
+        self.assertIn("damage @s 2 medusa:petrification", text)
+        self.assertNotIn("effect clear", text)
 
         debug = (FN / "debug/test_petrification_damage.mcfunction").read_text()
-        self.assertIn("effect clear @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
-        self.assertIn("effect give @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
+        self.assertIn("effect give @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance 10 4 true", debug)
+        self.assertNotIn("effect clear", debug)
+        self.assertIn("MEDUSA_RESISTANCE_BYPASS_OK", debug)
 
     def test_manual_damage_probe_spawns_in_the_executors_loaded_chunk(self):
         debug = (FN / "debug/test_petrification_damage.mcfunction").read_text()
