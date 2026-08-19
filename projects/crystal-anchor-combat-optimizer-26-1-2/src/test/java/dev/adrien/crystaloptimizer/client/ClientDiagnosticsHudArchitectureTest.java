@@ -77,4 +77,36 @@ class ClientDiagnosticsHudArchitectureTest {
         assertFalse(hud.contains("ClientCombatSnapshotBuilder"),
             "render extraction must not query/rebuild combat state");
     }
+
+    @Test
+    void v2HudReadsOnlyCachedDiagnosticsDuringRender() throws IOException {
+        String source = Files.readString(Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/OptimizerHud.java"
+        ));
+        int start = source.indexOf("private void extract");
+        int end = source.indexOf("private record Line", start);
+        assertTrue(start >= 0 && end > start);
+        String render = source.substring(start, end);
+
+        assertFalse(render.contains("Minecraft.level"));
+        assertFalse(render.contains("minecraft.level"));
+        assertFalse(render.contains("ClientCombatSnapshotBuilder"));
+        assertFalse(render.contains("BeamPlanner"));
+        assertFalse(render.contains("CandidateGenerator"));
+        assertFalse(render.contains("TargetPredictor"));
+        assertTrue(source.contains("diagnosticsSupplier.get()"),
+            "V2 HUD must render from a cached diagnostics supplier");
+    }
+
+    @Test
+    void v2DiagnosticsCachesLatencyDamageAndMismatchFields() throws IOException {
+        String source = Files.readString(Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatDiagnostics.java"
+        ));
+        assertTrue(source.contains("lastEventToDecisionNanos"));
+        assertTrue(source.contains("lastDecisionToDispatchNanos"));
+        assertTrue(source.contains("lastMismatch"));
+        assertTrue(source.contains("targetDamage"));
+        assertTrue(source.contains("worstSelfDamage"));
+    }
 }
