@@ -22,6 +22,7 @@ import net.minecraft.world.phys.Vec3;
 final class ShulkerBulletValidationScenarios {
     private static final EngineLimits LIMITS = EngineLimits.defaults();
     private static final float EPSILON = 0.0001f;
+    private static final int MAX_CLIENT_POLLS_PER_SERVER_TICK = 20;
 
     private ShulkerBulletValidationScenarios() {
     }
@@ -72,11 +73,14 @@ final class ShulkerBulletValidationScenarios {
                     .orElseThrow(() -> new AssertionError("visible shulker bullet produced no pre-impact threat"));
             });
 
-            int actualDamageTick = waitForDamage(context, singleplayer);
+            long baselineServerTick = singleplayer.getServer().computeOnServer(server ->
+                SurvivalValidationClientGameTest.onlyPlayer(server).level().getGameTime()
+            );
+            int actualDamageTick = waitForDamage(context, singleplayer, baselineServerTick);
             if (predicted.impact().earliest() > actualDamageTick || predicted.impact().latest() < actualDamageTick) {
                 throw new AssertionError(
                     "shulker bullet impact window did not contain the real hit; predicted=" + predicted.impact()
-                        + " actualTick=" + actualDamageTick
+                        + " actualServerTick=" + actualDamageTick
                 );
             }
             if (predicted.damage().rawDamage().min() > 4f + EPSILON
@@ -97,17 +101,38 @@ final class ShulkerBulletValidationScenarios {
         }
     }
 
-    private static int waitForDamage(ClientGameTestContext context, TestSingleplayerContext singleplayer) {
-        for (int tick = 1; tick <= LIMITS.maxProjectileHorizonTicks(); tick++) {
+    private static int waitForDamage(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        long baselineServerTick
+    ) {
+        int maxClientPolls = LIMITS.maxProjectileHorizonTicks() * MAX_CLIENT_POLLS_PER_SERVER_TICK;
+        for (int poll = 1; poll <= maxClientPolls; poll++) {
             context.waitTick();
-            float health = singleplayer.getServer().computeOnServer(server ->
-                SurvivalValidationClientGameTest.onlyPlayer(server).getHealth()
-            );
-            if (health < 20f - EPSILON) return tick;
+            ServerObservation observation = singleplayer.getServer().computeOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                return new ServerObservation(player.level().getGameTime(), player.getHealth());
+            });
+            long elapsedServerTicks = Math.max(0L, observation.gameTime() - baselineServerTick);
+            if (observation.health() < 20f - EPSILON) {
+                return Math.max(1, Math.toIntExact(elapsedServerTicks));
+            }
+            if (elapsedServerTicks >= LIMITS.maxProjectileHorizonTicks()) {
+                throw new AssertionError(
+                    "shulker bullet did not hit within the configured projectile horizon; elapsedServerTicks="
+                        + elapsedServerTicks
+                );
+            }
         }
-        throw new AssertionError("shulker bullet did not hit within the configured projectile horizon");
+        throw new AssertionError(
+            "integrated server did not advance through the configured projectile horizon; baselineServerTick="
+                + baselineServerTick
+        );
     }
 
     private record Setup(int ownerId, int bulletId) {
+    }
+
+    private record ServerObservation(long gameTime, float health) {
     }
 }
