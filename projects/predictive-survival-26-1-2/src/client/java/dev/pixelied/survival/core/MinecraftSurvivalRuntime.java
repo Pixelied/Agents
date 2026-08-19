@@ -19,6 +19,7 @@ import dev.pixelied.survival.threat.AreaEffectCloudAttributionTracker;
 import dev.pixelied.survival.threat.EnvironmentPredictorRegistry;
 import dev.pixelied.survival.threat.ExplosionPredictor;
 import dev.pixelied.survival.threat.FallPredictor;
+import dev.pixelied.survival.threat.GuardianBeamPredictor;
 import dev.pixelied.survival.threat.MeleePredictor;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.threat.ReactiveDamagePredictor;
@@ -47,6 +48,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final EngineLimits limits;
     private final MinecraftSnapshotFactory playerSnapshots;
     private final MinecraftWorldSnapshotFactory worldSnapshots;
+    private final MinecraftSpecialThreatSnapshotAnnotator specialThreatSnapshots;
     private final MinecraftInventorySnapshotFactory inventorySnapshots;
     private final ServerTimingEstimator timingEstimator;
     private final AreaEffectCloudAttributionTracker cloudAttributions;
@@ -68,6 +70,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.limits = EngineLimits.defaults();
         this.playerSnapshots = new MinecraftSnapshotFactory();
         this.worldSnapshots = new MinecraftWorldSnapshotFactory();
+        this.specialThreatSnapshots = new MinecraftSpecialThreatSnapshotAnnotator();
         this.inventorySnapshots = new MinecraftInventorySnapshotFactory();
         this.timingEstimator = new ServerTimingEstimator();
         this.cloudAttributions = new AreaEffectCloudAttributionTracker();
@@ -77,6 +80,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             new ExplosionPredictor(),
             new ProjectilePredictor(),
             new ShulkerBulletPredictor(),
+            new GuardianBeamPredictor(),
             new MeleePredictor(),
             new FallPredictor(),
             new ReactiveDamagePredictor(),
@@ -115,7 +119,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         PlayerSnapshot rawPlayer = playerSnapshots.capture(player);
         PlayerSnapshot playerSnapshot = withConservativeBlocking(rawPlayer, player, timing);
         WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
-        WorldSnapshot world = cloudAttributions.annotate(clientTick, rawWorld);
+        WorldSnapshot specialWorld = specialThreatSnapshots.annotate(minecraft.level, player, rawWorld);
+        WorldSnapshot world = cloudAttributions.annotate(clientTick, specialWorld);
         PredictionContext context = new PredictionContext(playerSnapshot, world, timing, limits);
         List<ThreatEvent> predicted = predictors.predictAll(context);
         cloudAttributions.observePredictedThreats(clientTick, predicted);
