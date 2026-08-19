@@ -55,6 +55,7 @@ import java.util.Objects;
 public final class MinecraftWorldSnapshotFactory {
     private static final int BLOCK_HORIZONTAL_RANGE = 8;
     private static final int BLOCK_VERTICAL_RANGE = 12;
+    private static final String OBSERVATION_OVERFLOW_TYPE = "predictive_survival:observation_overflow";
 
     public WorldSnapshot capture(ClientLevel level, LocalPlayer player, EngineLimits limits) {
         Objects.requireNonNull(level, "level");
@@ -72,29 +73,65 @@ public final class MinecraftWorldSnapshotFactory {
         );
 
         int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
-        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, tracked.size()));
-        for (int i = 0; i < tracked.size() && entities.size() < entityCap; i++) {
+        int relevantCount = 0;
+        for (Entity entity : tracked) {
+            if (threatPriority(entity) == 0) relevantCount++;
+        }
+        boolean overflowed = relevantCount > entityCap;
+        int realEntityLimit = overflowed ? Math.max(0, entityCap - 1) : entityCap;
+
+        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, tracked.size() + 1));
+        for (int i = 0; i < tracked.size() && entities.size() < realEntityLimit; i++) {
             entities.add(entitySnapshot(tracked.get(i), player));
+        }
+        if (overflowed) {
+            entities.add(observationOverflowMarker(player, relevantCount - realEntityLimit));
         }
 
         return new WorldSnapshot(entities, captureBlocks(level, player.blockPosition()));
     }
 
     private static int threatPriority(Entity entity) {
-        if (entity instanceof Projectile
-            || entity instanceof AreaEffectCloud
+        return isThreatRelevant(entity) ? 0 : 1;
+    }
+
+    private static boolean isThreatRelevant(Entity entity) {
+        if (entity instanceof AreaEffectCloud
             || entity instanceof FallingBlockEntity
             || entity instanceof PrimedTnt
             || entity instanceof EndCrystal
             || entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
-            return 0;
+            return true;
         }
-        if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) return 0;
+        if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) return true;
         if (entity instanceof LivingEntity living) {
             var attackDamage = living.getAttribute(Attributes.ATTACK_DAMAGE);
-            if (attackDamage != null && attackDamage.getValue() > 0d) return 0;
+            if (attackDamage != null && attackDamage.getValue() > 0d) return true;
         }
-        return 1;
+        if (!(entity instanceof Projectile)) return false;
+
+        String typeKey = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+        return switch (typeKey) {
+            case "minecraft:arrow", "minecraft:spectral_arrow", "minecraft:trident",
+                 "minecraft:spear", "minecraft:thrown_spear", "minecraft:llama_spit",
+                 "minecraft:fireball", "minecraft:small_fireball", "minecraft:dragon_fireball",
+                 "minecraft:wither_skull", "minecraft:wind_charge", "minecraft:breeze_wind_charge",
+                 "minecraft:firework_rocket", "minecraft:potion", "minecraft:splash_potion",
+                 "minecraft:lingering_potion", "minecraft:ender_pearl", "minecraft:shulker_bullet" -> true;
+            default -> false;
+        };
+    }
+
+    private static WorldSnapshot.EntitySnapshot observationOverflowMarker(LocalPlayer player, int omittedRelevantEntities) {
+        AABB box = player.getBoundingBox();
+        return new WorldSnapshot.EntitySnapshot(
+            OBSERVATION_OVERFLOW_TYPE,
+            OBSERVATION_OVERFLOW_TYPE,
+            vec(player.position()),
+            new Vec3Snapshot(0d, 0d, 0d),
+            new AabbSnapshot(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ),
+            Map.of("omitted_relevant_entities", Integer.toString(Math.max(1, omittedRelevantEntities)))
+        );
     }
 
     private static WorldSnapshot.EntitySnapshot entitySnapshot(Entity entity, LocalPlayer player) {
@@ -372,6 +409,6 @@ public final class MinecraftWorldSnapshotFactory {
     }
 
     private static Vec3Snapshot vec(net.minecraft.world.phys.Vec3 value) {
-        return new Vec3Snapshot(value.x, value.y, value.z);
+        return new Vec3Snapshot(value.x(), value.y(), value.z());
     }
 }
