@@ -103,41 +103,49 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
                 .orElse(-1L);
 
             float previousHealth = postImpactObservation.health();
-            DamageSample lateHiddenDamage = null;
-            int finalTick = Math.min(220, postImpactTick + 160);
+            int downgradeTick = -1;
+            int hiddenDamageCount = 0;
+            DamageSample secondHiddenDamage = null;
+            int finalTick = postImpactTick + 100;
             for (int tick = postImpactTick + 1; tick <= finalTick; tick++) {
                 anchor(singleplayer, setup.playerAnchor());
                 context.waitTick();
                 Observation observation = singleplayer.getServer().computeOnServer(server -> observe(server, setup.projectileId()));
+                if (downgradeTick < 0 && observation.witherAmplifier() == 0) downgradeTick = tick;
                 if (observation.health() < previousHealth - EPSILON) {
-                    long delay = tick - postImpactTick;
-                    if (delay > latestPredicted) {
-                        lateHiddenDamage = new DamageSample(tick, observation);
-                        break;
+                    if (downgradeTick >= 0) {
+                        hiddenDamageCount++;
+                        if (hiddenDamageCount == 2) {
+                            secondHiddenDamage = new DamageSample(tick, observation);
+                            break;
+                        }
                     }
                     previousHealth = observation.health();
                 }
             }
 
-            if (lateHiddenDamage == null) {
+            if (secondHiddenDamage == null) {
                 throw new AssertionError(
-                    "fixture produced no damaging hidden Wither pulse after the post-impact prediction deadline; "
+                    "fixture did not produce the second hidden Wither I pulse within the 80-tick decision horizon; "
                         + "postImpactTick=" + postImpactTick
-                        + " latestPostImpactPrediction=" + latestPredicted
+                        + " downgradeTick=" + downgradeTick
+                        + " hiddenDamageCount=" + hiddenDamageCount
                         + " postImpactObservation=" + postImpactObservation
-                        + " postImpactWither=" + postImpactWither
                 );
             }
 
-            long actualLateDelay = lateHiddenDamage.tick() - postImpactTick;
-            if (latestPredicted < actualLateDelay) {
+            long actualHiddenDelay = secondHiddenDamage.tick() - postImpactTick;
+            if (actualHiddenDelay > 80L) {
+                throw new AssertionError("fixture second hidden pulse escaped the configured 80-tick horizon: " + actualHiddenDelay);
+            }
+            if (latestPredicted < actualHiddenDelay) {
                 throw new AssertionError(
                     "known hidden Wither tail was forgotten after splash projectile removal from the client snapshot; "
                         + "postImpactTick=" + postImpactTick
-                        + " actualLateDelay=" + actualLateDelay
+                        + " actualHiddenDelay=" + actualHiddenDelay
                         + " latestPostImpactPrediction=" + latestPredicted
                         + " postImpactObservation=" + postImpactObservation
-                        + " lateHiddenDamage=" + lateHiddenDamage
+                        + " secondHiddenDamage=" + secondHiddenDamage
                         + " postImpactWither=" + postImpactWither
                 );
             }
