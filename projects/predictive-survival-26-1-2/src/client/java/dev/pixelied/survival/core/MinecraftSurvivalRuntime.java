@@ -51,6 +51,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final MinecraftSnapshotFactory playerSnapshots;
     private final MinecraftWorldSnapshotFactory worldSnapshots;
     private final MinecraftSpecialThreatSnapshotAnnotator specialThreatSnapshots;
+    private final MinecraftContactHazardSnapshotAnnotator contactHazardSnapshots;
     private final MinecraftInventorySnapshotFactory inventorySnapshots;
     private final ServerTimingEstimator timingEstimator;
     private final AreaEffectCloudAttributionTracker cloudAttributions;
@@ -73,6 +74,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.playerSnapshots = new MinecraftSnapshotFactory();
         this.worldSnapshots = new MinecraftWorldSnapshotFactory();
         this.specialThreatSnapshots = new MinecraftSpecialThreatSnapshotAnnotator();
+        this.contactHazardSnapshots = new MinecraftContactHazardSnapshotAnnotator();
         this.inventorySnapshots = new MinecraftInventorySnapshotFactory();
         this.timingEstimator = new ServerTimingEstimator();
         this.cloudAttributions = new AreaEffectCloudAttributionTracker();
@@ -121,7 +123,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         MenuSlotMap menu = inventorySnapshots.captureMenu(player);
 
         PlayerSnapshot rawPlayer = playerSnapshots.capture(player);
-        PlayerSnapshot playerSnapshot = withConservativeBlocking(rawPlayer, player, timing);
+        PlayerSnapshot contactPlayer = contactHazardSnapshots.annotate(player, rawPlayer);
+        PlayerSnapshot playerSnapshot = withConservativeBlocking(contactPlayer, player, timing);
         WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
         WorldSnapshot specialWorld = specialThreatSnapshots.annotate(minecraft.level, player, rawWorld);
         WorldSnapshot world = cloudAttributions.annotate(clientTick, specialWorld);
