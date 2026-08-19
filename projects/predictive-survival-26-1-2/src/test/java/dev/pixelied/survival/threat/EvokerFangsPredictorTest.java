@@ -41,6 +41,7 @@ class EvokerFangsPredictorTest {
         assertEquals("minecraft:indirect_magic", event.damage().sourceKey());
         assertTrue(event.damage().flags().contains(DamageFlag.BYPASSES_ARMOR));
         assertFalse(event.damage().flags().contains(DamageFlag.BYPASSES_SHIELD));
+        assertTrue(event.blockable());
     }
 
     @Test
