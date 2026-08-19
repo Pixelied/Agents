@@ -24,7 +24,8 @@ class LingeringStatusCloudAttributionTrackerTest {
     void witherCloudKeepsSourceFloorAndAbsoluteFirstDamageWindow() {
         AreaEffectCloudAttributionTracker tracker = new AreaEffectCloudAttributionTracker();
         tracker.observePredictedThreats(100, List.of(statusThreat(
-            "52", "wither", new Vec3Snapshot(4, 0, 2), new TickWindow(20, 21), "minecraft:wither", 0f
+            "52", "lingering_status", "wither", new Vec3Snapshot(4, 0, 2),
+            new TickWindow(20, 21), "minecraft:wither", 0f
         )));
 
         WorldSnapshot annotated = tracker.annotate(104, world(cloud("81", new Vec3Snapshot(4.3, 0, 2.1))));
@@ -42,7 +43,8 @@ class LingeringStatusCloudAttributionTrackerTest {
     void poisonCloudKeepsOneHealthApplicationFloor() {
         AreaEffectCloudAttributionTracker tracker = new AreaEffectCloudAttributionTracker();
         tracker.observePredictedThreats(50, List.of(statusThreat(
-            "12", "poison", new Vec3Snapshot(1, 0, 1), new TickWindow(10, 10), "minecraft:magic", 1f
+            "12", "lingering_status", "poison", new Vec3Snapshot(1, 0, 1),
+            new TickWindow(10, 10), "minecraft:magic", 1f
         )));
 
         WorldSnapshot annotated = tracker.annotate(54, world(cloud("90", new Vec3Snapshot(1.2, 0, 1.1))));
@@ -52,8 +54,35 @@ class LingeringStatusCloudAttributionTrackerTest {
         );
     }
 
+    @Test
+    void hiddenWitherTailStaysSeparateFromStrongLingeringPhase() {
+        AreaEffectCloudAttributionTracker tracker = new AreaEffectCloudAttributionTracker();
+        Vec3Snapshot origin = new Vec3Snapshot(4, 0, 2);
+        tracker.observePredictedThreats(100, List.of(
+            statusThreat(
+                "52", "lingering_status", "wither", origin,
+                new TickWindow(15, 15), "minecraft:wither", 0f
+            ),
+            statusThreat(
+                "52", "lingering_stacked_status", "wither", origin,
+                new TickWindow(55, 55), "minecraft:wither", 0f
+            )
+        ));
+
+        WorldSnapshot annotated = tracker.annotate(104, world(cloud("81", new Vec3Snapshot(4.3, 0, 2.1))));
+        WorldSnapshot.EntitySnapshot matched = annotated.entities().getFirst();
+
+        assertEquals("2", matched.properties().get("cloud_hazard_count"));
+        assertEquals("lingering_status", matched.properties().get("cloud_hazard_0_attribution"));
+        assertEquals("11", matched.properties().get("cloud_hazard_0_first_damage_earliest_ticks"));
+        assertEquals("lingering_stacked_status", matched.properties().get("cloud_hazard_1_attribution"));
+        assertEquals("51", matched.properties().get("cloud_hazard_1_first_damage_earliest_ticks"));
+        assertEquals("minecraft:wither", matched.properties().get("cloud_hazard_1_source_key"));
+    }
+
     private static ThreatEvent statusThreat(
         String projectileId,
+        String marker,
         String status,
         Vec3Snapshot origin,
         TickWindow impact,
@@ -61,7 +90,7 @@ class LingeringStatusCloudAttributionTrackerTest {
         float floor
     ) {
         return new ThreatEvent(
-            "projectile:" + projectileId + ":lingering_status:" + status + ":0",
+            "projectile:" + projectileId + ":" + marker + ":" + status + ":0",
             ThreatKind.ENVIRONMENT,
             impact,
             new DamageSourceSnapshot(
