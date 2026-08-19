@@ -26,7 +26,7 @@ class OptimizerConfigServiceTest {
             true,
             true,
             false,
-            RotationMode.INSTANT,
+            RotationMode.INSTANT_REAL,
             true
         );
 
