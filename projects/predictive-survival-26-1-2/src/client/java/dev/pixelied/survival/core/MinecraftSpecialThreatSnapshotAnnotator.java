@@ -4,6 +4,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.EvokerFangs;
 import net.minecraft.world.entity.monster.Guardian;
 import net.minecraft.world.entity.monster.warden.Warden;
 
@@ -53,6 +54,13 @@ public final class MinecraftSpecialThreatSnapshotAnnotator {
                 ? Integer.MAX_VALUE
                 : (int) Math.floor(elapsedMillis / 50.0d);
             properties.put("warden_sonic_ticks", Integer.toString(elapsedTicks));
+        }
+        if (live instanceof EvokerFangs fangs) {
+            float currentProgress = Math.max(0f, fangs.getAnimationProgress(0f));
+            boolean started = fangs.getAnimationProgress(1f) > 0f;
+            int elapsedTicks = started ? Math.max(0, (int) Math.floor(currentProgress * 20f + 1.0E-4f)) : 0;
+            properties.put("evoker_fangs_started", Boolean.toString(started));
+            properties.put("evoker_fangs_elapsed_ticks", Integer.toString(elapsedTicks));
         }
         if (properties.equals(snapshot.properties())) return snapshot;
         return new WorldSnapshot.EntitySnapshot(
