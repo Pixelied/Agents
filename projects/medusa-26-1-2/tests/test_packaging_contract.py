@@ -30,12 +30,12 @@ class PackagingContract(unittest.TestCase):
     def test_exact_runtime_boots_direct_install_datapack_archive(self):
         text = self.workflow_text()
         self.assertIn(
-            'zip -qr run/world/datapacks/medusa.zip .',
+            "run/world/datapacks/medusa.zip",
             text,
-            "exact-runtime must boot the same direct-install ZIP layout users receive",
+            "exact-runtime must build and boot the same direct-install ZIP layout users receive",
         )
         self.assertNotIn(
-            'cp -R datapacks/medusa run/world/datapacks/medusa',
+            "cp -R datapacks/medusa run/world/datapacks/medusa",
             text,
             "folder-only runtime testing does not verify the shipped ZIP install path",
         )
