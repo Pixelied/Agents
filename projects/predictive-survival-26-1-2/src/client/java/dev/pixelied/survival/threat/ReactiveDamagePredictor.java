@@ -66,7 +66,7 @@ public final class ReactiveDamagePredictor implements ThreatPredictor {
                 Optional.of(target.position()),
                 Optional.of(context.player().position()),
                 true,
-                false,
+                true,
                 false,
                 false
             ));
