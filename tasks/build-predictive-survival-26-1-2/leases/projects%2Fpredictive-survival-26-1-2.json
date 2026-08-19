@@ -3,11 +3,11 @@
   "protocol_version": "1.0",
   "task_id": "build-predictive-survival-26-1-2",
   "scope": "projects/predictive-survival-26-1-2",
-  "owner": "openai-survival-exec-9b42",
+  "owner": "openai-survival-cont-6e31",
   "state": "active",
-  "intent": "Implement the approved predictive survival Fabric 26.1.2 project task-by-task with TDD and review gates.",
-  "claimed_at": "2026-08-17T17:58:00+00:00",
-  "heartbeat_at": "2026-08-17T17:58:00+00:00",
-  "expires_at": "2026-08-18T17:58:00+00:00",
-  "generation": 1
+  "intent": "Continue feat/predictive-survival-26-1-2 from its current TDD/runtime-validation state, fix source-confirmed correctness gaps, and complete final acceptance without restarting the project.",
+  "claimed_at": "2026-08-19T11:42:45+00:00",
+  "heartbeat_at": "2026-08-19T11:42:45+00:00",
+  "expires_at": "2026-08-20T11:42:45+00:00",
+  "generation": 2
 }
