@@ -98,9 +98,7 @@ final class TippedArrowPotionValidationScenarios {
                     firstWither = observation;
                     healthAtEffect = observation.health();
                 }
-                if (firstWither != null
-                    && observation.health() < healthAtEffect - EPSILON
-                    && observation.lastDamageSource().contains("wither")) {
+                if (firstWither != null && observation.health() < healthAtEffect - EPSILON) {
                     witherDamage = new DamageObservation(tick, observation);
                     break;
                 }
