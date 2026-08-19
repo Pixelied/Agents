@@ -234,6 +234,7 @@ public final class MinecraftWorldSnapshotFactory {
         int poisonAmplifier = -1;
         int witherDuration = 0;
         int witherAmplifier = -1;
+        int statusCount = 0;
         for (MobEffectInstance effect : contents.getAllEffects()) {
             if (effect.getEffect().is(MobEffects.INSTANT_DAMAGE)) {
                 int amplifier = Math.max(0, effect.getAmplifier());
@@ -247,6 +248,7 @@ public final class MinecraftWorldSnapshotFactory {
             if (effect.getEffect().is(MobEffects.POISON)) {
                 int amplifier = Math.max(0, effect.getAmplifier());
                 int duration = Math.max(0, effect.getDuration());
+                putPotionStatus(properties, statusCount++, "poison", effect.getDuration(), amplifier);
                 if (amplifier > poisonAmplifier || amplifier == poisonAmplifier && duration > poisonDuration) {
                     poisonAmplifier = amplifier;
                     poisonDuration = duration;
@@ -255,6 +257,7 @@ public final class MinecraftWorldSnapshotFactory {
             if (effect.getEffect().is(MobEffects.WITHER)) {
                 int amplifier = Math.max(0, effect.getAmplifier());
                 int duration = Math.max(0, effect.getDuration());
+                putPotionStatus(properties, statusCount++, "wither", effect.getDuration(), amplifier);
                 if (amplifier > witherAmplifier || amplifier == witherAmplifier && duration > witherDuration) {
                     witherAmplifier = amplifier;
                     witherDuration = duration;
@@ -262,6 +265,7 @@ public final class MinecraftWorldSnapshotFactory {
             }
         }
 
+        if (statusCount > 0) properties.put("potion_status_count", Integer.toString(statusCount));
         if (instantDamage > 0f) {
             properties.put("potion_instant_damage", Float.toString(instantDamage));
             properties.put("potion_source_key", "minecraft:indirect_magic");
@@ -274,6 +278,19 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("potion_wither_duration_ticks", Integer.toString(witherDuration));
             properties.put("potion_wither_amplifier", Integer.toString(witherAmplifier));
         }
+    }
+
+    private static void putPotionStatus(
+        Map<String, String> properties,
+        int index,
+        String kind,
+        int duration,
+        int amplifier
+    ) {
+        String prefix = "potion_status_" + index + "_";
+        properties.put(prefix + "kind", kind);
+        properties.put(prefix + "duration_ticks", Integer.toString(duration));
+        properties.put(prefix + "amplifier", Integer.toString(amplifier));
     }
 
     private static List<WorldSnapshot.BlockSnapshot> captureBlocks(ClientLevel level, BlockPos center) {
