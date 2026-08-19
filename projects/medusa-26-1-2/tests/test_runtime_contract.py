@@ -19,23 +19,29 @@ class RuntimeEntrypointContract(unittest.TestCase):
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing runtime debug entrypoint: {rel}")
 
-    def test_debug_harness_loads_then_schedules_the_remote_arena(self):
-        text = (FN / "debug/create_test_temple.mcfunction").read_text()
-        self.assertIn("forceload add 0 0 96 96", text)
-        self.assertIn("schedule function medusa:debug/create_test_temple_loaded 5t replace", text)
-        loaded = FN / "debug/create_test_temple_loaded.mcfunction"
-        self.assertTrue(loaded.is_file(), "scheduled loaded-chunk temple creation function is missing")
-        self.assertIn("function medusa:admin/place_temple", loaded.read_text())
+    def test_debug_harness_waits_for_entity_ready_chunk(self):
+        entry = (FN / "debug/create_test_temple.mcfunction").read_text()
+        waiter = FN / "debug/wait_for_test_chunk.mcfunction"
+        self.assertIn("forceload add 0 0 96 96", entry)
+        self.assertIn("schedule function medusa:debug/wait_for_test_chunk 1t replace", entry)
+        self.assertNotIn("create_test_temple_loaded 5t", entry)
+        self.assertTrue(waiter.is_file(), "entity-readiness wait function is missing")
+        text = waiter.read_text()
+        self.assertIn("md.chunk_probe", text)
+        self.assertIn("schedule function medusa:debug/wait_for_test_chunk 1t replace", text)
+        self.assertIn("schedule function medusa:debug/create_test_temple_loaded 1t replace", text)
 
     def test_scheduled_loaded_harness_runs_smoke_after_temple_build(self):
         text = (FN / "debug/create_test_temple_loaded.mcfunction").read_text()
         temple_pos = text.find("function medusa:admin/place_temple")
+        dungeon_pos = text.find("function medusa:debug/test_dungeon_progression")
         boss_pos = text.find("function medusa:debug/start_test_boss")
         damage_pos = text.find("function medusa:debug/test_petrification_damage")
         gaze_pos = text.find("function medusa:debug/test_gaze_pipeline")
         done_pos = text.find("MEDUSA_SMOKE_DONE")
         self.assertGreaterEqual(temple_pos, 0)
-        self.assertGreater(boss_pos, temple_pos, "boss smoke must run after the blocking temple build returns")
+        self.assertGreater(dungeon_pos, temple_pos, "dungeon smoke must run after the blocking temple build returns")
+        self.assertGreater(boss_pos, dungeon_pos, "boss smoke must run after dungeon progression")
         self.assertGreater(damage_pos, boss_pos, "damage smoke must run after boss bootstrap")
         self.assertGreater(gaze_pos, damage_pos, "gaze smoke must run after the damage probe")
         self.assertGreater(done_pos, gaze_pos, "smoke completion marker must be emitted last")
