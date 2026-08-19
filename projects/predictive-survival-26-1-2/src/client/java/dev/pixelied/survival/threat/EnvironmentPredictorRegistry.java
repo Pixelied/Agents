@@ -22,6 +22,7 @@ public final class EnvironmentPredictorRegistry {
     public static EnvironmentPredictorRegistry defaults() {
         return new EnvironmentPredictorRegistry(List.of(
             new BurnPredictor(),
+            new ContactHazardPredictor(),
             new DrowningPredictor(),
             new SuffocationPredictor(),
             new FreezePredictor(),
