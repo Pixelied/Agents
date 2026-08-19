@@ -129,21 +129,22 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
             return;
         }
 
-        long statusHorizon = context.limits().maxProjectileHorizonTicks();
-        List<Integer> actualOffsets = simulateDamageOffsets(delivered, baseInterval, statusHorizon);
+        long horizon = context.limits().maxDecisionHistory();
+        List<Integer> actualOffsets = simulateDamageOffsets(delivered, baseInterval, horizon);
         Set<Integer> legacyOffsets = legacyOffsets(
             entity,
             deliveryKind,
             kind,
             baseInterval,
             durationScale,
-            statusHorizon
+            horizon
         );
         int eventIndex = 0;
         for (int elapsed : actualOffsets) {
             if (legacyOffsets.contains(elapsed)) continue;
             long earliest = saturatingAdd(application.impact().earliest(), elapsed);
-            long latest = saturatingAdd(application.impact().latest(), elapsed);
+            if (earliest > horizon) break;
+            long latest = Math.min(horizon, saturatingAdd(application.impact().latest(), elapsed));
             if (latest < earliest) continue;
             DamageSourceSnapshot source = new DamageSourceSnapshot(
                 DamageRange.exact(1f),
@@ -208,13 +209,13 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
         if (maximumStackDuration <= legacyMaximumDuration || fastestTailInterval == Integer.MAX_VALUE) return;
 
         long tailStart = legacyMaximumDuration > EFFECT_CUTOFF_TICKS ? legacyMaximumDuration : 0L;
-        long statusHorizon = context.limits().maxProjectileHorizonTicks();
+        long horizon = context.limits().maxDecisionHistory();
         int eventIndex = 0;
         for (long bucketStart = tailStart; bucketStart < maximumStackDuration; bucketStart = saturatingAdd(bucketStart, fastestTailInterval)) {
-            if (bucketStart > statusHorizon) break;
             long earliest = saturatingAdd(application.impact().earliest(), bucketStart);
-            long latestOffset = Math.min(statusHorizon, saturatingAdd(bucketStart, fastestTailInterval - 1L));
-            long latest = saturatingAdd(application.impact().latest(), latestOffset);
+            if (earliest > horizon) break;
+            long latestOffset = saturatingAdd(bucketStart, fastestTailInterval - 1L);
+            long latest = Math.min(horizon, saturatingAdd(application.impact().latest(), latestOffset));
             if (latest < earliest) continue;
 
             DamageSourceSnapshot source = new DamageSourceSnapshot(
