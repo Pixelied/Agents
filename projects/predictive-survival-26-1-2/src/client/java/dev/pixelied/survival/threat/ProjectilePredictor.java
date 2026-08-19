@@ -471,7 +471,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(raw),
             flags,
-            scalesWithDifficulty(entity),
+            true,
             1f,
             false,
             Optional.of(impact),
