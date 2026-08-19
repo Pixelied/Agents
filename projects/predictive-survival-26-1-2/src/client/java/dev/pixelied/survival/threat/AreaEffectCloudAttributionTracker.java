@@ -17,6 +17,7 @@ public final class AreaEffectCloudAttributionTracker {
     private static final String DRAGON_BREATH_MARKER = ":dragon_breath:0";
     private static final String LINGERING_POTION_MARKER = ":lingering_cloud:0";
     private static final String LINGERING_STATUS_MARKER = ":lingering_status:";
+    private static final String LINGERING_STACKED_STATUS_MARKER = ":lingering_stacked_status:";
     private static final double MATCH_DISTANCE_SQUARED = 4d;
     private static final long NETWORK_GRACE_TICKS = 2L;
     private static final int DEFAULT_REAPPLICATION_DELAY_TICKS = 20;
@@ -41,12 +42,17 @@ public final class AreaEffectCloudAttributionTracker {
                 attribution = CloudAttribution.lingeringPotion(threat);
                 if (attribution.rawDamage() <= 0f) continue;
             } else {
-                int marker = threat.id().indexOf(LINGERING_STATUS_MARKER);
-                if (marker < 0 || !threat.id().endsWith(":0")) continue;
-                projectileKey = threat.id().substring(0, marker);
-                String statusKey = statusKey(threat.id(), marker + LINGERING_STATUS_MARKER.length());
+                StatusMarker statusMarker = statusMarker(threat.id());
+                if (statusMarker == null || !threat.id().endsWith(":0")) continue;
+                projectileKey = threat.id().substring(0, statusMarker.markerIndex());
+                String statusKey = statusKey(threat.id(), statusMarker.statusStart());
                 if (statusKey.isEmpty()) continue;
-                attribution = CloudAttribution.lingeringStatus(clientTick, statusKey, threat);
+                attribution = CloudAttribution.lingeringStatus(
+                    clientTick,
+                    statusKey,
+                    statusMarker.attributionKey(),
+                    threat
+                );
                 if (attribution.rawDamage() <= 0f) continue;
             }
 
@@ -149,6 +155,26 @@ public final class AreaEffectCloudAttributionTracker {
         pendingByProjectile.entrySet().removeIf(entry -> entry.getValue().expiresAt() < clientTick);
     }
 
+    private static StatusMarker statusMarker(String threatId) {
+        int stacked = threatId.indexOf(LINGERING_STACKED_STATUS_MARKER);
+        if (stacked >= 0) {
+            return new StatusMarker(
+                stacked,
+                stacked + LINGERING_STACKED_STATUS_MARKER.length(),
+                "lingering_stacked_status"
+            );
+        }
+        int regular = threatId.indexOf(LINGERING_STATUS_MARKER);
+        if (regular >= 0) {
+            return new StatusMarker(
+                regular,
+                regular + LINGERING_STATUS_MARKER.length(),
+                "lingering_status"
+            );
+        }
+        return null;
+    }
+
     private static String statusKey(String threatId, int start) {
         int end = threatId.lastIndexOf(':');
         if (end <= start) return "";
@@ -166,6 +192,9 @@ public final class AreaEffectCloudAttributionTracker {
         if (right > 0L && left > Long.MAX_VALUE - right) return Long.MAX_VALUE;
         if (right < 0L && left < Long.MIN_VALUE - right) return Long.MIN_VALUE;
         return left + right;
+    }
+
+    private record StatusMarker(int markerIndex, int statusStart, String attributionKey) {
     }
 
     private record PendingAttribution(
@@ -235,13 +264,18 @@ public final class AreaEffectCloudAttributionTracker {
             );
         }
 
-        private static CloudAttribution lingeringStatus(long clientTick, String statusKey, ThreatEvent threat) {
+        private static CloudAttribution lingeringStatus(
+            long clientTick,
+            String statusKey,
+            String attributionKey,
+            ThreatEvent threat
+        ) {
             return new CloudAttribution(
-                "lingering_status:" + statusKey,
+                attributionKey + ":" + statusKey,
                 threat.damage().rawDamage().max(),
                 threat.damage().sourceKey(),
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
-                "lingering_status",
+                attributionKey,
                 threat.damage().applicationHealthThresholdExclusive(),
                 saturatingAdd(clientTick, Math.max(0L, threat.impact().earliest())),
                 saturatingAdd(clientTick, Math.max(0L, threat.impact().latest()))
