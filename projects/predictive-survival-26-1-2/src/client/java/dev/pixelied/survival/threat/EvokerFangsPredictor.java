@@ -42,8 +42,8 @@ public final class EvokerFangsPredictor implements ThreatPredictor {
 
             DamageSourceSnapshot damage = new DamageSourceSnapshot(
                 DamageRange.exact(6f),
-                EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
-                false,
+                EnumSet.of(DamageFlag.BYPASSES_ARMOR),
+                true,
                 1f,
                 false,
                 Optional.of(entity.position()),
