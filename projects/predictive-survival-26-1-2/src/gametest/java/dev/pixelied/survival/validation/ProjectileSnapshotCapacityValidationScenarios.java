@@ -20,6 +20,7 @@ import java.util.List;
 final class ProjectileSnapshotCapacityValidationScenarios {
     private static final float EPSILON = 0.0001f;
     private static final EngineLimits SMALL_LIMITS = new EngineLimits(2, 32, 80, 128);
+    private static final int EXPECTED_ENTITY_BUDGET = SMALL_LIMITS.maxThreats() * 4;
 
     private ProjectileSnapshotCapacityValidationScenarios() {
     }
@@ -98,6 +99,13 @@ final class ProjectileSnapshotCapacityValidationScenarios {
                 throw new AssertionError(
                     "harmless client-tracked entities crowded a damaging projectile out of the production world snapshot; "
                         + "actualDamageTick=" + actualDamageTick + " client=" + client
+                );
+            }
+            if (client.snapshotEntityCount() > EXPECTED_ENTITY_BUDGET) {
+                throw new AssertionError(
+                    "retaining a supported projectile made the production world snapshot unbounded; "
+                        + "budget=" + EXPECTED_ENTITY_BUDGET + " actualDamageTick=" + actualDamageTick
+                        + " client=" + client
                 );
             }
         } finally {
