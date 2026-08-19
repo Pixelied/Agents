@@ -418,7 +418,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         TickWindow collision = observedImpactWindow(entity, tick);
         long earliest = saturatingAdd(collision.earliest(), LINGERING_CLOUD_WAIT_TICKS);
         long latest = saturatingAdd(collision.latest(), LINGERING_CLOUD_WAIT_TICKS);
-        long horizon = context.limits().maxProjectileHorizonTicks();
+        long horizon = context.limits().maxDecisionHistory();
         if (earliest > horizon) return Optional.empty();
         latest = Math.min(latest, horizon);
         if (!couldOccupyLingeringCloud(context.player(), impact, latest)) return Optional.empty();
