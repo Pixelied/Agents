@@ -95,15 +95,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build distributable ZIP
+      - name: Build direct-install archives
         shell: bash
         run: |
           set -euo pipefail
           cd projects/medusa-26-1-2
-          zip -qr "$GITHUB_WORKSPACE/medusa-26.1.2-latest.zip" . \
-            -x 'run/*' '__pycache__/*' '*.pyc' '.DS_Store'
+          (
+            cd datapacks/medusa
+            zip -qr "$GITHUB_WORKSPACE/medusa-datapack-26.1.2.zip" . \
+              -x '.DS_Store' '*/.DS_Store'
+          )
+          (
+            cd resourcepacks/medusa
+            zip -qr "$GITHUB_WORKSPACE/medusa-resourcepack-26.1.2.zip" . \
+              -x '.DS_Store' '*/.DS_Store'
+          )
+          zip -qr "$GITHUB_WORKSPACE/medusa-26.1.2-source.zip" . \
+            -x 'run/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '.DS_Store' '*/.DS_Store'
+          unzip -p "$GITHUB_WORKSPACE/medusa-datapack-26.1.2.zip" pack.mcmeta >/dev/null
+          unzip -p "$GITHUB_WORKSPACE/medusa-resourcepack-26.1.2.zip" pack.mcmeta >/dev/null
       - uses: actions/upload-artifact@v4
         with:
-          name: medusa-26.1.2-latest
-          path: medusa-26.1.2-latest.zip
+          name: medusa-26.1.2-installers
+          path: |
+            medusa-datapack-26.1.2.zip
+            medusa-resourcepack-26.1.2.zip
+            medusa-26.1.2-source.zip
           if-no-files-found: error
