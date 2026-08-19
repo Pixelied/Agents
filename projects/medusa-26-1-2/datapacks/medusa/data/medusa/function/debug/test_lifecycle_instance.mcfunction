@@ -68,6 +68,21 @@ execute unless score $eye_removed md_tmp matches 1 run say MEDUSA_EYE_RECOVERY_F
 execute unless entity @e[type=minecraft:item_display,tag=md.pedestal_display,distance=..110] run say MEDUSA_EYE_RECOVERY_FAILED
 execute unless entity @e[type=minecraft:interaction,tag=md.pedestal_interaction,distance=..110] run say MEDUSA_EYE_RECOVERY_FAILED
 
+# Pre-spawn ritual interruption: a paid offering is escrowed and refunded if awakening is interrupted before boss spawn.
+tag @e[type=minecraft:item,distance=..110] add md.pre_refund
+function medusa:arena/pedestal/remove with storage medusa:macro lifecycle
+scoreboard players set @s md_eye_state 2
+scoreboard players set @s md_ritual_paid 1
+scoreboard players set @s md_state 1
+function medusa:instance/recover_loaded
+execute if score @s md_state matches 4 if score @s md_ritual_paid matches 0 if entity @e[type=minecraft:item,tag=!md.pre_refund,distance=..110] if entity @e[type=minecraft:item_display,tag=md.pedestal_display,distance=..110] run say MEDUSA_RITUAL_REFUND_OK
+execute unless score @s md_state matches 4 run say MEDUSA_RITUAL_REFUND_FAILED
+execute unless score @s md_ritual_paid matches 0 run say MEDUSA_RITUAL_REFUND_FAILED
+execute unless entity @e[type=minecraft:item,tag=!md.pre_refund,distance=..110] run say MEDUSA_RITUAL_REFUND_FAILED
+execute unless entity @e[type=minecraft:item_display,tag=md.pedestal_display,distance=..110] run say MEDUSA_RITUAL_REFUND_FAILED
+kill @e[type=minecraft:item,tag=!md.pre_refund,distance=..110]
+tag @e[type=minecraft:item,tag=md.pre_refund,distance=..110] remove md.pre_refund
+
 # Restart recovery: emulate an active rematch with the Eye removed; load recovery must reset to ritual_ready.
 function medusa:arena/pedestal/remove with storage medusa:macro lifecycle
 scoreboard players set @s md_eye_state 1
