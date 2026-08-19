@@ -23,6 +23,7 @@ public final class EnvironmentPredictorRegistry {
         return new EnvironmentPredictorRegistry(List.of(
             new BurnPredictor(),
             new ContactHazardPredictor(),
+            new LightningPredictor(),
             new DrowningPredictor(),
             new SuffocationPredictor(),
             new FreezePredictor(),
