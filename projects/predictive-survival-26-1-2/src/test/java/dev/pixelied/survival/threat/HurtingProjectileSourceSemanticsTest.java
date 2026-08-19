@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HurtingProjectileSourceSemanticsTest {
+    private static final String DIRECT_ID = "projectile:hurting:1:direct";
     private final ProjectilePredictor predictor = new ProjectilePredictor();
 
     @Test
@@ -94,7 +95,72 @@ class HurtingProjectileSourceSemanticsTest {
         assertFalse(event.blockable());
     }
 
+    @Test
+    void smallFireballAcceptedHitCreatesFiveDependentBurnPulses() {
+        List<ThreatEvent> events = predict(
+            "minecraft:small_fireball",
+            Map.of("raw_damage", "5", "source_key", "minecraft:fireball", "acceleration_power", "0"),
+            DifficultySnapshot.NORMAL,
+            128
+        );
+        ThreatEvent direct = events.stream().filter(event -> event.id().equals(DIRECT_ID)).findFirst().orElseThrow();
+        List<ThreatEvent> burns = events.stream().filter(event -> event.id().contains(":on_fire:")).toList();
+
+        assertEquals(5, burns.size());
+        for (ThreatEvent burn : burns) {
+            assertEquals("minecraft:on_fire", burn.damage().sourceKey());
+            assertEquals(1f, burn.damage().rawDamage().max(), 0.0001f);
+            assertTrue(burn.damage().has(DamageFlag.IS_FIRE));
+            assertTrue(burn.damage().has(DamageFlag.BYPASSES_ARMOR));
+            assertTrue(burn.damage().has(DamageFlag.BYPASSES_SHIELD));
+            assertFalse(burn.blockable());
+            assertEquals(DIRECT_ID, burn.requiresAcceptedEventId().orElseThrow());
+            assertTrue(burn.impact().earliest() >= direct.impact().earliest());
+        }
+    }
+
+    @Test
+    void witherSkullAcceptedHitCreatesDifficultyDependentWitherIiPulses() {
+        Map<String, String> properties = Map.of(
+            "raw_damage", "8",
+            "source_key", "minecraft:wither_skull",
+            "acceleration_power", "0"
+        );
+
+        List<ThreatEvent> normal = predict("minecraft:wither_skull", properties, DifficultySnapshot.NORMAL, 256);
+        List<ThreatEvent> hard = predict("minecraft:wither_skull", properties, DifficultySnapshot.HARD, 256);
+        List<ThreatEvent> easy = predict("minecraft:wither_skull", properties, DifficultySnapshot.EASY, 256);
+
+        List<ThreatEvent> normalWither = witherPulses(normal);
+        List<ThreatEvent> hardWither = witherPulses(hard);
+        List<ThreatEvent> easyWither = witherPulses(easy);
+        assertEquals(10, normalWither.size());
+        assertEquals(13, hardWither.size());
+        assertTrue(easyWither.isEmpty());
+
+        for (ThreatEvent wither : hardWither) {
+            assertEquals("minecraft:wither", wither.damage().sourceKey());
+            assertEquals(1f, wither.damage().rawDamage().max(), 0.0001f);
+            assertTrue(wither.damage().has(DamageFlag.BYPASSES_ARMOR));
+            assertTrue(wither.damage().has(DamageFlag.BYPASSES_SHIELD));
+            assertFalse(wither.blockable());
+            assertEquals(DIRECT_ID, wither.requiresAcceptedEventId().orElseThrow());
+        }
+    }
+
     private ThreatEvent direct(String type, Map<String, String> properties) {
+        return predict(type, properties, DifficultySnapshot.NORMAL, 128).stream()
+            .filter(event -> event.id().equals(DIRECT_ID))
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private List<ThreatEvent> predict(
+        String type,
+        Map<String, String> properties,
+        DifficultySnapshot difficulty,
+        int decisionHistory
+    ) {
         WorldSnapshot.EntitySnapshot projectile = new WorldSnapshot.EntitySnapshot(
             "hurting:1",
             type,
@@ -103,15 +169,20 @@ class HurtingProjectileSourceSemanticsTest {
             new AabbSnapshot(-0.5, 0.5, -0.2, 0.5, 1.5, 0.8),
             properties
         );
-        return predictor.predict(context(projectile)).stream()
-            .filter(event -> event.id().equals("projectile:hurting:1:direct"))
-            .findFirst()
-            .orElseThrow();
+        return predictor.predict(context(projectile, difficulty, decisionHistory));
     }
 
-    private static PredictionContext context(WorldSnapshot.EntitySnapshot entity) {
+    private static List<ThreatEvent> witherPulses(List<ThreatEvent> events) {
+        return events.stream().filter(event -> event.id().contains(":wither_skull_wither:")).toList();
+    }
+
+    private static PredictionContext context(
+        WorldSnapshot.EntitySnapshot entity,
+        DifficultySnapshot difficulty,
+        int decisionHistory
+    ) {
         PlayerSnapshot player = new PlayerSnapshot(
-            20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
+            20f, 0f, false, false, false, difficulty,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
             DeathProtectionSnapshot.none(), new AabbSnapshot(6.7, 0, 0, 7.3, 1.8, 0.6),
             new Vec3Snapshot(6.7, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
@@ -120,7 +191,7 @@ class HurtingProjectileSourceSemanticsTest {
             player,
             new WorldSnapshot(List.of(entity), List.of()),
             new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
-            EngineLimits.defaults()
+            new EngineLimits(128, 32, 80, decisionHistory)
         );
     }
 }
