@@ -5,6 +5,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Guardian;
+import net.minecraft.world.entity.monster.warden.Warden;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,17 +34,27 @@ public final class MinecraftSpecialThreatSnapshotAnnotator {
         Integer entityId = parseEntityId(snapshot.id());
         if (entityId == null) return snapshot;
         Entity live = level.getEntity(entityId);
-        if (!(live instanceof Guardian guardian)) return snapshot;
+        if (live == null) return snapshot;
 
         Map<String, String> properties = new LinkedHashMap<>(snapshot.properties());
-        LivingEntity target = guardian.getActiveAttackTarget();
-        properties.put(
-            "guardian_beam_target_local",
-            Boolean.toString(target != null && target.getUUID().equals(player.getUUID()))
-        );
-        int conservativeAttackTicks = Math.max(0, (int) Math.floor(guardian.getClientSideAttackTime()));
-        properties.put("guardian_attack_ticks", Integer.toString(conservativeAttackTicks));
-        properties.put("guardian_attack_duration", Integer.toString(Math.max(1, guardian.getAttackDuration())));
+        if (live instanceof Guardian guardian) {
+            LivingEntity target = guardian.getActiveAttackTarget();
+            properties.put(
+                "guardian_beam_target_local",
+                Boolean.toString(target != null && target.getUUID().equals(player.getUUID()))
+            );
+            int conservativeAttackTicks = Math.max(0, (int) Math.floor(guardian.getClientSideAttackTime()));
+            properties.put("guardian_attack_ticks", Integer.toString(conservativeAttackTicks));
+            properties.put("guardian_attack_duration", Integer.toString(Math.max(1, guardian.getAttackDuration())));
+        }
+        if (live instanceof Warden warden && warden.sonicBoomAnimationState.isStarted()) {
+            long elapsedMillis = Math.max(0L, warden.sonicBoomAnimationState.getTimeInMillis(warden.tickCount));
+            int elapsedTicks = elapsedMillis >= Integer.MAX_VALUE * 50L
+                ? Integer.MAX_VALUE
+                : (int) Math.floor(elapsedMillis / 50.0d);
+            properties.put("warden_sonic_ticks", Integer.toString(elapsedTicks));
+        }
+        if (properties.equals(snapshot.properties())) return snapshot;
         return new WorldSnapshot.EntitySnapshot(
             snapshot.id(), snapshot.typeKey(), snapshot.position(), snapshot.velocity(), snapshot.boundingBox(), properties
         );
