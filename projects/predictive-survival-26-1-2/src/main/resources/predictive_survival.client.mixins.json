@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "dev.pixelied.survival.mixin",
+  "client": [
+    "AbstractArrowAccessor",
+    "FallingBlockEntityAccessor",
+    "FireworkRocketAccessor",
+    "FoodDataAccessor",
+    "PrimedTntAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

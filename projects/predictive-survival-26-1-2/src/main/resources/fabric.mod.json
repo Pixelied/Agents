@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "predictive_survival",
+  "version": "${version}",
+  "name": "Predictive Survival",
+  "description": "Predicts observable lethal damage and chooses server-valid survival actions.",
+  "authors": ["Pixelied"],
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.pixelied.survival.PredictiveSurvivalClient"
+    ]
+  },
+  "mixins": [
+    "predictive_survival.client.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.1.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
