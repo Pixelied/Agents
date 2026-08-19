@@ -16,6 +16,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
@@ -99,6 +100,7 @@ public final class MinecraftWorldSnapshotFactory {
     private static boolean isThreatRelevant(Entity entity) {
         if (entity instanceof AreaEffectCloud
             || entity instanceof EvokerFangs
+            || entity instanceof LightningBolt
             || entity instanceof FallingBlockEntity
             || entity instanceof PrimedTnt
             || entity instanceof EndCrystal
