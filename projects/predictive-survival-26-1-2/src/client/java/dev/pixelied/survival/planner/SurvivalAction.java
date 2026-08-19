@@ -284,7 +284,8 @@ public interface SurvivalAction {
             Objects.requireNonNull(timeline, "timeline");
             List<ThreatEvent> events = withoutThreats(timeline, removedThreatIds);
             DamageSourceSnapshot pearlDamage = new DamageSourceSnapshot(
-                DamageRange.exact(5f), EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.IS_FALL),
+                DamageRange.exact(5f),
+                EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD, DamageFlag.IS_FALL),
                 false, 1f, false, Optional.empty(), "minecraft:ender_pearl"
             );
             events.add(new ThreatEvent(

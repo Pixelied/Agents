@@ -41,7 +41,7 @@ public final class OpaqueTippedArrowPredictor implements ThreatPredictor {
             if (direct.isEmpty()) continue;
 
             ThreatEvent arrowHit = direct.get();
-            EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.BYPASSES_ARMOR);
+            EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD);
             DamageSourceSnapshot source = new DamageSourceSnapshot(
                 new DamageRange(0f, Float.MAX_VALUE),
                 flags,
@@ -60,7 +60,7 @@ public final class OpaqueTippedArrowPredictor implements ThreatPredictor {
                 arrowHit.sourcePosition(),
                 arrowHit.impactPosition(),
                 arrowHit.avoidable(),
-                arrowHit.blockable(),
+                false,
                 arrowHit.relocatable(),
                 false
             ));

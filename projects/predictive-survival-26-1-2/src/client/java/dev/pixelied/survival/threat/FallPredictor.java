@@ -43,7 +43,11 @@ public final class FallPredictor implements ThreatPredictor {
     private Optional<ThreatEvent> landingThreat(LandingPrediction landing) {
         if (landing.rawFallDamage().max() <= 0f) return Optional.empty();
         boolean stalagmite = "minecraft:pointed_dripstone".equals(landing.surfaceBlockId());
-        EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.IS_FALL);
+        EnumSet<DamageFlag> flags = EnumSet.of(
+            DamageFlag.BYPASSES_ARMOR,
+            DamageFlag.BYPASSES_SHIELD,
+            DamageFlag.IS_FALL
+        );
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             landing.rawFallDamage(),
             flags,
@@ -80,6 +84,7 @@ public final class FallPredictor implements ThreatPredictor {
             DamageRange.exact(4f),
             EnumSet.of(
                 DamageFlag.BYPASSES_ARMOR,
+                DamageFlag.BYPASSES_SHIELD,
                 DamageFlag.BYPASSES_INVULNERABILITY,
                 DamageFlag.BYPASSES_RESISTANCE
             ),
@@ -152,7 +157,7 @@ public final class FallPredictor implements ThreatPredictor {
             if (intersectsConfirmedBlock(next, context.world().blocks())) {
                 DamageSourceSnapshot source = new DamageSourceSnapshot(
                     DamageRange.exact(raw),
-                    EnumSet.of(DamageFlag.BYPASSES_ARMOR),
+                    EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
                     false,
                     1f,
                     false,
