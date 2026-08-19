@@ -7,9 +7,5 @@ tag @s remove md.staff_beamed
 scoreboard players set @s md_staff_stone_timer 0
 scoreboard players set @s md_staff_stone_limit 0
 scoreboard players set @s md_staff_beam_tick 0
-effect clear @s minecraft:invisibility
-effect clear @s minecraft:slowness
-effect clear @s minecraft:weakness
-effect clear @s minecraft:mining_fatigue
 particle minecraft:block{block_state:{Name:"minecraft:stone"}} ~ ~1 ~ 0.5 0.8 0.5 0.08 35 force
 playsound minecraft:block.stone.break master @a[distance=..16] ~ ~ ~ 0.9 1.15
