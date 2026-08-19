@@ -32,6 +32,15 @@ class EntityTaggingContractTests(unittest.TestCase):
                     offenders.append(f"{path.relative_to(FN)}: {line}")
         self.assertEqual(offenders, [])
 
+    def test_runtime_summons_use_execute_summon_executor(self):
+        offenders = []
+        for path in FN.rglob('*.mcfunction'):
+            for line in path.read_text(encoding='utf-8').splitlines():
+                stripped = line.strip()
+                if stripped.startswith('summon minecraft:'):
+                    offenders.append(f"{path.relative_to(FN)}: {stripped}")
+        self.assertEqual(offenders, [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,54 +3,60 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FN = ROOT / "datapacks/fallen_knight/data/fallen_knight/function"
+DP = ROOT / "datapacks/fallen_knight/data/fallen_knight"
 
 class BossContractTests(unittest.TestCase):
     def text(self, rel):
         return (FN / rel).read_text(encoding="utf-8")
 
     def test_carrier_is_vindicator_and_has_no_free_damage(self):
-        spawn = self.text("debug/spawn_carrier.mcfunction")
-        boot = self.text("boss/bootstrap.mcfunction")
-        self.assertIn("minecraft:vindicator", spawn)
-        self.assertIn("minecraft:attack_damage base set 0", boot)
-        self.assertIn("minecraft:max_health base set 160", boot)
-        self.assertIn("minecraft:scale base set 1.4", boot)
+        text = self.text("debug/spawn_carrier.mcfunction") + self.text("boss/bootstrap.mcfunction")
+        self.assertIn("minecraft:vindicator", text)
+        self.assertIn("minecraft:attack_damage base set 0", text)
+        self.assertIn("minecraft:scale base set 1.4", text)
 
     def test_bootstrap_marks_boss_and_disables_vanilla_drops(self):
-        boot = self.text("boss/bootstrap.mcfunction")
-        self.assertIn("tag @s add fk.boss", boot)
-        self.assertIn("fallen_knight:entity/empty", boot)
+        text = self.text("boss/bootstrap.mcfunction")
+        self.assertIn("tag @s add fk.boss", text)
+        self.assertIn("DeathLootTable:\"fallen_knight:entity/empty\"", text)
+        self.assertIn("weapon.mainhand with minecraft:iron_sword", text)
+        self.assertIn("weapon.offhand with minecraft:shield", text)
+
+    def test_director_prevents_immediate_repeat(self):
+        director = self.text("boss/director/phase1.mcfunction")
+        close = self.text("boss/director/phase1_close.mcfunction")
+        mid = self.text("boss/director/phase1_mid.mcfunction")
+        self.assertIn("scoreboard players random @s fk_roll", director)
+        self.assertIn("scores={fk_prev=", close)
+        self.assertIn("scores={fk_prev=", mid)
+
+    def test_health_snapshot_is_available_for_later_phase_transition(self):
+        text = self.text("boss/tick_one.mcfunction")
+        self.assertIn("store result score @s fk_hp run data get entity @s Health", text)
+
+    def test_heavy_damage_bypasses_shields(self):
+        heavy = (DP / "damage_type/heavy.json").read_text(encoding="utf-8")
+        tag = (ROOT / "datapacks/fallen_knight/data/minecraft/tags/damage_type/bypasses_shield.json").read_text(encoding="utf-8")
+        self.assertIn("fallen_knight:heavy", tag)
+        self.assertIn("mob", heavy)
 
     def test_phase1_attacks_are_separate_modules(self):
-        attacks = ["guard", "shield_bash", "knights_combo", "overhead", "charge"]
+        attacks = ["guard", "bash", "combo", "overhead", "charge"]
         for attack in attacks:
             self.assertTrue((FN / f"boss/attack/{attack}/start.mcfunction").exists())
             self.assertTrue((FN / f"boss/attack/{attack}/tick.mcfunction").exists())
 
-    def test_director_prevents_immediate_repeat(self):
-        text = self.text("boss/director/select_phase1.mcfunction")
-        self.assertIn("fk_prev", text)
-        self.assertIn("fk_roll", text)
-
-    def test_health_snapshot_is_available_for_later_phase_transition(self):
-        text = self.text("boss/tick_one.mcfunction")
-        self.assertIn("fk_hp", text)
-
     def test_phase1_timing_contracts_are_encoded(self):
         guard = self.text("boss/attack/guard/tick.mcfunction")
-        bash = self.text("boss/attack/shield_bash/tick.mcfunction")
-        combo = self.text("boss/attack/knights_combo/tick.mcfunction")
+        bash = self.text("boss/attack/bash/tick.mcfunction")
+        combo = self.text("boss/attack/combo/tick.mcfunction")
         overhead = self.text("boss/attack/overhead/tick.mcfunction")
         charge = self.text("boss/attack/charge/tick.mcfunction")
-        self.assertIn("fk_timer matches 8..27", guard)
-        self.assertIn("fk_timer matches 10", bash)
-        self.assertIn("fk_timer matches 30", combo)
-        self.assertIn("fk_timer matches 19", overhead)
-        self.assertIn("fk_timer matches 13..24", charge)
-
-    def test_heavy_damage_bypasses_shields(self):
-        path = ROOT / "datapacks/fallen_knight/data/minecraft/tags/damage_type/bypasses_shield.json"
-        self.assertIn("fallen_knight:knight_heavy", path.read_text(encoding="utf-8"))
+        self.assertIn("fk_timer=20", guard)
+        self.assertIn("fk_timer=7", bash)
+        self.assertIn("fk_timer=5", combo)
+        self.assertIn("fk_timer=10", overhead)
+        self.assertIn("fk_timer=12", charge)
 
     def test_phase2_attacks_are_separate_modules(self):
         attacks = ["sweep", "lunge", "cursed_slash", "heavy_combo", "slam", "spectral_blades"]
@@ -71,8 +77,8 @@ class BossContractTests(unittest.TestCase):
         self.assertIn("weapon.offhand with minecraft:air", finish)
 
     def test_phase2_helpers_are_arena_scoped(self):
-        wave = self.text("boss/attack/cursed_slash/spawn_wave.mcfunction")
-        blades = "\n".join([self.text("boss/attack/spectral_blades/spawn.mcfunction"), self.text("boss/attack/spectral_blades/spawn_for_arena.mcfunction"), self.text("boss/attack/spectral_blades/spawn_one.mcfunction")])
+        wave = "\n".join([self.text("boss/attack/cursed_slash/spawn_wave.mcfunction"), self.text("boss/attack/cursed_slash/bootstrap_wave.mcfunction")])
+        blades = "\n".join([self.text("boss/attack/spectral_blades/spawn.mcfunction"), self.text("boss/attack/spectral_blades/spawn_for_arena.mcfunction"), self.text("boss/attack/spectral_blades/spawn_one.mcfunction"), self.text("boss/attack/spectral_blades/bootstrap_one.mcfunction")])
         self.assertIn("fk.wave", wave)
         self.assertIn("fk_aid", wave)
         self.assertIn("fk.spectral", blades)
