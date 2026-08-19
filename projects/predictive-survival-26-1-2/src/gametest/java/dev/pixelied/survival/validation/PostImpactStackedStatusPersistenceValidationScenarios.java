@@ -81,9 +81,12 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
                 context.waitTick();
                 SurvivalEngine.EngineFrame frame = context.computeOnClient(minecraft -> runtime.capture());
                 Observation observation = singleplayer.getServer().computeOnServer(server -> observe(server, setup.projectileId()));
+                boolean clientProjectilePresent = frame.context().world().entities().stream()
+                    .anyMatch(entity -> entity.id().equals(Integer.toString(setup.projectileId())));
 
                 if (postImpact == null
                     && !observation.projectilePresent()
+                    && !clientProjectilePresent
                     && observation.witherAmplifier() == 1) {
                     postImpact = frame;
                     postImpactTick = tick;
@@ -104,8 +107,8 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
 
             if (postImpact == null || downgradeTick < 0 || firstTailDamage == null) {
                 throw new AssertionError(
-                    "fixture did not reach post-impact hidden-tail damage; postImpactTick=" + postImpactTick
-                        + " postImpactObservation=" + postImpactObservation
+                    "fixture did not reach client-observed projectile removal plus hidden-tail damage; postImpactTick="
+                        + postImpactTick + " postImpactObservation=" + postImpactObservation
                         + " downgradeTick=" + downgradeTick + " firstTailDamage=" + firstTailDamage
                 );
             }
@@ -120,7 +123,7 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
             long actualTailDelay = firstTailDamage.tick() - postImpactTick;
             if (latestPredicted < actualTailDelay) {
                 throw new AssertionError(
-                    "known hidden Wither tail was forgotten after splash projectile removal; "
+                    "known hidden Wither tail was forgotten after splash projectile removal from the client snapshot; "
                         + "postImpactTick=" + postImpactTick
                         + " actualTailDelay=" + actualTailDelay
                         + " latestPostImpactPrediction=" + latestPredicted
