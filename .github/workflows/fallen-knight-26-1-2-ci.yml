@@ -2,7 +2,7 @@ name: Fallen Knight 26.1.2 CI
 
 on:
   push:
-    branches: ["main", "feat/fallen-knight-26-1-2"]
+    branches: ["main", "feat/fallen-knight-26-1-2", "fix/fallen-knight-playtest", "fix/fallen-knight-playtest-v2"]
     paths:
       - "projects/fallen-knight-26-1-2/**"
       - ".github/workflows/fallen-knight-26-1-2-ci.yml"
@@ -66,7 +66,7 @@ jobs:
           cp -R datapacks/fallen_knight run/world/datapacks/fallen_knight
           printf 'eula=true\n' > run/eula.txt
           printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\n' > run/server.properties
-      - name: Boot server and exercise Fallen Knight carrier commands
+      - name: Boot server and exercise real runtime paths
         shell: bash
         run: |
           set -euo pipefail
@@ -78,25 +78,26 @@ jobs:
             echo 'data get entity @e[tag=fk.boss,limit=1] Health'
             echo 'attribute @e[tag=fk.boss,limit=1] minecraft:scale base get'
             echo 'data get entity @e[tag=fk.boss,limit=1] DeathLootTable'
+            echo 'function fallen_knight:debug/remove_test_entities'
+            echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/server_smoke'
+            sleep 2
+            echo 'execute in minecraft:overworld positioned 64 100 64 run place structure fallen_knight:fallen_castle'
+            sleep 2
             echo 'stop'
-          } | timeout 90s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
+          } | timeout 100s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
           grep -q 'Done (' server.log
-          ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs' server.log
+          ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to instantiate function|Missing arguments to function|Failed to load|Errors in currently selected data packs|Couldn.t parse|Exception loading' server.log
 
   package:
     needs: [static-contracts, exact-runtime]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build distributable ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd projects/fallen-knight-26-1-2
-          zip -qr "$GITHUB_WORKSPACE/fallen-knight-26.1.2-latest.zip" . \
-            -x 'run/*' 'tools/server/*' '__pycache__/*' '*.pyc' '.DS_Store'
+      - name: Build installable release ZIPs
+        working-directory: projects/fallen-knight-26-1-2
+        run: python3 scripts/build_release.py --output "$GITHUB_WORKSPACE/dist"
       - uses: actions/upload-artifact@v4
         with:
-          name: fallen-knight-26.1.2-latest
-          path: fallen-knight-26.1.2-latest.zip
+          name: fallen-knight-26.1.2-fixed
+          path: dist/*.zip
           if-no-files-found: error
