@@ -35,12 +35,9 @@ public final class ThreatPredictorRegistry {
         Objects.requireNonNull(context, "context");
         Map<String, ThreatEvent> mergedById = new LinkedHashMap<>();
 
+        mergePredicted(mergedById, new ObservationOverflowPredictor().predict(context));
         for (ThreatPredictor predictor : predictors) {
-            List<ThreatEvent> predicted = Objects.requireNonNull(predictor.predict(context), "predictor result");
-            for (ThreatEvent event : predicted) {
-                Objects.requireNonNull(event, "threat event");
-                mergedById.merge(event.id(), event, ThreatPredictorRegistry::merge);
-            }
+            mergePredicted(mergedById, Objects.requireNonNull(predictor.predict(context), "predictor result"));
         }
 
         List<ThreatEvent> merged = new ArrayList<>(mergedById.values());
@@ -50,6 +47,13 @@ public final class ThreatPredictorRegistry {
             context.limits().maxThreats(),
             "predictive_survival:threat_overflow"
         );
+    }
+
+    private static void mergePredicted(Map<String, ThreatEvent> mergedById, List<ThreatEvent> predicted) {
+        for (ThreatEvent event : predicted) {
+            Objects.requireNonNull(event, "threat event");
+            mergedById.merge(event.id(), event, ThreatPredictorRegistry::merge);
+        }
     }
 
     private static ThreatEvent merge(ThreatEvent first, ThreatEvent second) {
