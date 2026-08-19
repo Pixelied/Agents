@@ -167,7 +167,11 @@ AttackKnownCrystal(realEntityId)
 PlaceCrystal(approvedBase)
 ```
 
-back-to-back when both interactions are individually legal under current client state and the placement is safe under the approved predicted transition.
+back-to-back when the ordered burst is legal under the known server transition: the attack targets a real observed crystal, the same base would be legal once that crystal is removed, reach/rotation/hand state are valid, and no other known blocker invalidates the placement.
+
+This is intentionally different from requiring the replacement to be legal against the unchanged client world before the attack. In Minecraft 26.1.2, the normal `MultiPlayerGameMode.useItemOn` prediction path computes the local item-use result and still emits the normal `ServerboundUseItemOnPacket` for the interaction. Therefore the client may still visually contain the attacked crystal and locally predict the End Crystal item use as failed while the ordered server interaction can succeed after the preceding attack is processed. V2 uses the normal vanilla interaction path; it does not fabricate a packet or entity.
+
+Because a locally failed prediction may not shrink the crystal stack immediately, `InventoryManager`/the pending-action ledger must reserve one crystal for an in-flight predicted replacement until spawn/ack/inventory reconciliation resolves it. The reactive lane must not repeatedly spend the same locally-visible item count during that window.
 
 The next attack cannot occur until the new crystal's real spawn/entity ID is observed:
 
@@ -177,7 +181,7 @@ known #381 -> attack -> place -> wait only for spawn ID -> observed #402 -> atta
 
 This is the intended high-throughput same-base reuse pattern. V2 does not attempt to place multiple simultaneous crystals into the same occupied volume.
 
-If the placement is rejected, the base becomes blocked, another entity occupies the volume, inventory is exhausted, target geometry becomes bad, or reconciliation disproves an assumption, the recycle loop stops immediately and returns control to refreshed approvals.
+If the placement is rejected, the base becomes blocked, another entity occupies the volume, inventory is exhausted/reserved, target geometry becomes bad, or reconciliation disproves an assumption, the recycle loop stops immediately and returns control to refreshed approvals.
 
 ### 7.5 No artificial fast-lane CPS cap
 
@@ -186,7 +190,7 @@ The `Lethal Speed` strategy does not impose a stopwatch-based attack/place CPS l
 - real vanilla legality;
 - server-observed entity IDs;
 - required server feedback boundaries;
-- current hand/inventory state;
+- current/reserved hand and inventory state;
 - rotation mode and alignment;
 - duplicate-action suppression;
 - self-survival policy;
@@ -379,9 +383,9 @@ It should maintain, at minimum:
 - safe fallback pressure;
 - preparation opportunities.
 
-The scanner may use simplified bounded search, the existing beam planner in a demoted role, or a cheaper Future-style max-damage selector depending on the task. Immediate break/place ranking should strongly favor cheap max-useful-damage decisions rather than expensive multi-step search.
+For immediate break/place/recycle ranking, V2 uses a cheap Future-style selector over the bounded target-local damage map: maximize useful target damage/lethal value subject to self-risk, legality, timing, and current hurt-window state. This selector is the default strategic source for hot-path approvals.
 
-A deep planner is allowed to improve preparation but cannot block an already-approved strong immediate action merely because a better theoretical line may exist later.
+The existing beam planner is retained only for setup/preparation exploration and optional comparison experiments. It has no authority to block an already-approved immediate hit and is never called by the reactive event path.
 
 ## 12. ActionArbiter
 
@@ -391,10 +395,10 @@ Checks include:
 
 - approval revision still current;
 - target still valid;
-- action still legal and within reach;
+- ordered transition legality still holds;
 - required entity ID still known/live;
-- required block state still plausible/current;
-- required hand/hotbar stack actually present;
+- required block state or predicted post-prior-action state is still plausible;
+- required hand/hotbar stack is actually present or correctly reserved;
 - rotation requirement satisfied or can be satisfied under configured mode;
 - self-risk within configured strategy;
 - duplicate token not already sent;
@@ -410,6 +414,7 @@ V2 preserves truthful hotbar/inventory handling and vanilla interaction paths.
 - No offhand theft from future emergency AutoTotem ownership.
 - Restocking is kept out of timing-critical committed/reactive bursts where possible.
 - Main-hand item requirements are explicit.
+- Predicted/in-flight consumption is represented by reservations so local prediction mismatches cannot double-spend a visible stack.
 - Rotation modes remain real/visible: `ADAPTIVE`, `INSTANT`, `SMOOTH`.
 - `Lethal Speed + ADAPTIVE` may instantly perform the real rotation for a high-confidence lethal/critical reactive action, while ordinary setup may rotate smoothly.
 - No silent/server-only rotation state.
@@ -479,9 +484,11 @@ Strategic:
 - candidate counts;
 - current prepared opportunities.
 
-### 14.4 Config ownership
+### 14.4 Config ownership and optional integration
 
 Use a central `OptimizerConfig` value/snapshot. UI edits a copy and atomically applies/saves the validated result. Subsystems consume config snapshots; they must not own UI widgets or independent mutable copies of the same setting.
+
+Mod Menu support is optional at runtime. When Mod Menu is absent, the optimizer must still load and the O-key toggle/HUD must still work. The Mod Menu integration is isolated behind its optional integration entrypoint/classes and uses soft metadata/dependency semantics rather than making the optimizer itself depend on Mod Menu at runtime.
 
 ## 15. Diagnostics and performance metrics
 
@@ -541,7 +548,7 @@ Diagnostics must be cached/read-only at render time; HUD rendering must not perf
 
 ### 16.3 Demote, do not necessarily delete
 
-The existing beam planner may survive behind `StrategicScanner` for setup/preparation or comparison experiments. It must not sit on the critical spawn/pop/recycle execution path.
+The existing beam planner survives behind `StrategicScanner` for setup/preparation and comparison experiments. It does not sit on the critical spawn/pop/recycle execution path.
 
 ## 17. Testing strategy
 
@@ -576,16 +583,23 @@ Direct event replays verify:
 - pop -> prepared finisher preempts recycle;
 - stale approval -> no dispatch;
 - duplicate event -> no duplicate action;
-- missing hand item -> no illegal dispatch;
+- missing/reserved hand item -> no illegal/double-spend dispatch;
 - target invalidation -> immediate stop.
 
-The hot path receives a strict CPU budget and should consist primarily of constant/small bounded work. Exact thresholds should be benchmarked on CI/dev hardware and chosen from measured data rather than guessed in this design.
+On the same benchmark machine/replay harness, the V2 reactive decision path must achieve both:
+
+- at least 5x lower median event->dispatch CPU latency than the equivalent V1 runtime path; and
+- <= 1.0 ms p50 and <= 2.0 ms p95 event->dispatch CPU latency for pre-approved spawn->break and pop->finisher replays.
+
+These are client CPU-path gates, not promises about network/server completion time.
 
 ### 17.3 Recycle state-machine tests
 
 Cover:
 
 - successful repeated break/place/spawn cycles;
+- client-local placement prediction failure followed by successful ordered server replacement;
+- in-flight inventory reservation and later reconciliation;
 - late spawn;
 - rejected placement;
 - other-player interference;
@@ -624,12 +638,12 @@ Before V2 replaces V1, run the full Java 25 unit test, build, and Minecraft Game
 V2 replaces the current runtime only when all are true:
 
 1. Damage predictions are at least as accurate as V1; exact-observable cases match vanilla tests and uncertain live cases expose honest ranges.
-2. Crystal spawn -> approved break and totem pop -> prepared finisher paths are materially faster than V1 in measured event-to-dispatch benchmarks.
-3. Crystal recycle works without duplicate spam, invented IDs, stale loops, or illegal placements.
+2. Pre-approved crystal spawn -> break and totem pop -> finisher meet the Section 17.2 latency gates and materially outperform V1 on the same replay harness.
+3. Crystal recycle works without duplicate spam, invented IDs, stale loops, illegal server-state assumptions, or inventory double-spending.
 4. Timing decisions use typed event distributions and actual sequence dependencies rather than a one-size-fits-all one-action estimate.
 5. `LETHAL_SPEED` never delays a strong immediate approved action solely for a theoretical future improvement.
 6. Self-survival and vanilla legality checks remain enforced according to strategy.
-7. Mod Menu configuration works without making Mod Menu a hard runtime requirement unless dependency constraints for the target version make that unavoidable; packaging must document the final dependency behavior.
+7. Mod Menu integration is optional at runtime; the optimizer loads and remains controllable without Mod Menu installed.
 8. Full Java 25 unit/build/GameTest verification passes.
 9. Diagnostics can explain common slow/weak outcomes as timing, state, damage, geometry, rotation, inventory, server rejection, or interference rather than leaving an opaque failure.
 
