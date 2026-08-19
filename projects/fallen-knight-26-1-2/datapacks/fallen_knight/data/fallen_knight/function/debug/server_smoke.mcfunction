@@ -1,10 +1,14 @@
 # Console-safe smoke test used by CI. Uses an isolated high arena ID and cleans itself up.
 kill @e[tag=fk.server_smoke]
-summon minecraft:marker ~ ~ ~ {Tags:["fk.arena","fk.server_smoke"]}
+summon minecraft:marker ~ ~ ~
+tag @e[type=minecraft:marker,tag=!fk.server_smoke,sort=nearest,limit=1,distance=..1] add fk.server_smoke
+tag @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1,distance=..1] add fk.arena
 scoreboard players set @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1] fk_aid 999999
 scoreboard players set @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1] fk_state 1
 scoreboard players set @e[type=minecraft:marker,tag=fk.server_smoke,sort=nearest,limit=1] fk_maxhp 160
-summon minecraft:vindicator ~ ~1 ~ {Tags:["fk.boss","fk.server_smoke"],PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,NoAI:1b,Invulnerable:1b}
+summon minecraft:vindicator ~ ~1 ~ {PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,NoAI:1b,Invulnerable:1b}
+tag @e[type=minecraft:vindicator,tag=!fk.server_smoke,sort=nearest,limit=1,distance=..2] add fk.server_smoke
+tag @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1,distance=..2] add fk.boss
 execute as @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1] run function fallen_knight:boss/bootstrap
 scoreboard players set @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1] fk_aid 999999
 scoreboard players set @e[type=minecraft:vindicator,tag=fk.server_smoke,sort=nearest,limit=1] fk_maxhp 160
