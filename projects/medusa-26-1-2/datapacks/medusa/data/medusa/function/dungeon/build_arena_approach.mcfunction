@@ -17,6 +17,9 @@ fill ~44 ~-9 ~64 ~45 ~-9 ~72 minecraft:stone_brick_slab[type=top,waterlogged=fal
 fill ~48 ~-9 ~64 ~49 ~-9 ~72 minecraft:stone_brick_slab[type=top,waterlogged=false]
 setblock ~41 ~-9 ~68 minecraft:soul_lantern[hanging=true]
 setblock ~45 ~-9 ~68 minecraft:soul_lantern[hanging=true]
+# Final seal only opens once all three dungeon puzzle flags are complete.
+fill ~43 ~-17 ~64 ~43 ~-13 ~68 minecraft:iron_bars
+setblock ~43 ~-12 ~66 minecraft:chiseled_stone_bricks
 # Rubble / age at the threshold.
 setblock ~42 ~-17 ~63 minecraft:stone_brick_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]
 setblock ~43 ~-17 ~73 minecraft:stone_brick_slab[type=bottom,waterlogged=false]
