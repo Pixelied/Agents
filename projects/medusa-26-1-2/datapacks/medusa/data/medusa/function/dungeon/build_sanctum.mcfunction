@@ -1,11 +1,11 @@
 # Snake-infested inner sanctum: compressed ritual hall before the boss arena.
 # connector: sanctum->arena_approach
-# Main hall shell and floor, physically connected to Blind Passage.
-fill ~-3 ~-18 ~58 ~43 ~-10 ~72 minecraft:stone_bricks
-fill ~-2 ~-17 ~59 ~42 ~-11 ~71 minecraft:air
-fill ~-2 ~-18 ~59 ~42 ~-18 ~71 minecraft:polished_deepslate
+# Main hall begins east of the Blind Passage gate at x=-2 so it cannot erase that gate.
+fill ~-1 ~-18 ~58 ~43 ~-10 ~72 minecraft:stone_bricks
+fill ~-1 ~-17 ~59 ~42 ~-11 ~71 minecraft:air
+fill ~-1 ~-18 ~59 ~42 ~-18 ~71 minecraft:polished_deepslate
 # Broken central procession path.
-fill ~-2 ~-18 ~63 ~42 ~-18 ~67 minecraft:cracked_deepslate_tiles
+fill ~-1 ~-18 ~63 ~42 ~-18 ~67 minecraft:cracked_deepslate_tiles
 fill ~5 ~-18 ~64 ~9 ~-18 ~66 minecraft:mossy_stone_bricks
 fill ~17 ~-18 ~63 ~21 ~-18 ~67 minecraft:cracked_stone_bricks
 fill ~30 ~-18 ~64 ~35 ~-18 ~66 minecraft:mossy_stone_bricks
