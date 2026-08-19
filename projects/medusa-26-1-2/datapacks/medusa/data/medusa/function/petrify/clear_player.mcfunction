@@ -8,8 +8,3 @@ scoreboard players set @s md_petr 0
 scoreboard players set @s md_pct 0
 scoreboard players set @s md_decay 0
 scoreboard players set @s md_grace 0
-effect clear @s minecraft:resistance
-effect clear @s minecraft:slowness
-effect clear @s minecraft:weakness
-effect clear @s minecraft:mining_fatigue
-effect clear @s minecraft:invisibility
