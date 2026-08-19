@@ -9,6 +9,7 @@ import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.damage.ArmorPieceSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
@@ -77,6 +78,33 @@ class ThreatTimelineSimulatorTest {
     }
 
     @Test
+    void rejectedPrerequisiteHitSuppressesDependentThreat() {
+        PlayerSnapshot start = playerWithHurtState(20f, new HurtState(DamageRange.exact(5f), 20, Confidence.EXACT));
+        ThreatEvent direct = event("direct", 4f, 0);
+        ThreatEvent dependent = dependentEvent("dependent", 3f, 1, "direct");
+
+        TimelineResult result = simulator.simulate(start, new ThreatTimeline(List.of(direct, dependent)));
+
+        assertTrue(result.eventResult("direct").damageResult().rejected());
+        assertEquals(1, result.eventResults().size());
+        assertEquals(20f, result.finalHealth(), 0.0001f);
+    }
+
+    @Test
+    void acceptedPrerequisiteHitEnablesDependentThreat() {
+        PlayerSnapshot start = playerWithHurtState(20f, new HurtState(DamageRange.exact(5f), 20, Confidence.EXACT));
+        ThreatEvent direct = event("direct", 6f, 0);
+        ThreatEvent dependent = dependentEvent("dependent", 3f, 1, "direct");
+
+        TimelineResult result = simulator.simulate(start, new ThreatTimeline(List.of(direct, dependent)));
+
+        assertFalse(result.eventResult("direct").damageResult().rejected());
+        assertFalse(result.eventResult("dependent").damageResult().rejected());
+        assertEquals(2, result.eventResults().size());
+        assertEquals(16f, result.finalHealth(), 0.0001f);
+    }
+
+    @Test
     void armorBreakFromFirstEventChangesSecondEventMitigation() {
         ArmorPieceSnapshot chest = new ArmorPieceSnapshot(CHEST, 8f, 2f, 0, 3, true);
         MitigationSnapshot mitigation = new MitigationSnapshot(8f, 2f, 1f, 0, false, 0, List.of(chest));
@@ -119,11 +147,30 @@ class ThreatTimelineSimulatorTest {
         );
     }
 
+    private static ThreatEvent dependentEvent(String id, float raw, long tick, String prerequisiteId) {
+        DamageSourceSnapshot source = new DamageSourceSnapshot(
+            DamageRange.exact(raw), Set.of(DamageFlag.BYPASSES_COOLDOWN), false, 1f, false, Optional.empty(), "test:" + id
+        );
+        return new ThreatEvent(
+            id, ThreatKind.OTHER, new TickWindow(tick, tick), source, Confidence.EXACT,
+            Optional.empty(), Optional.empty(), true, true, true, false, Optional.of(prerequisiteId)
+        );
+    }
+
     private static PlayerSnapshot player(float health, MitigationSnapshot mitigation, DeathProtectionSnapshot protection) {
         return new PlayerSnapshot(
             health, 0f, false, false, false, DifficultySnapshot.NORMAL,
             mitigation, StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(), protection,
             new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
+            new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
+        );
+    }
+
+    private static PlayerSnapshot playerWithHurtState(float health, HurtState hurtState) {
+        return new PlayerSnapshot(
+            health, 0f, false, false, false, DifficultySnapshot.NORMAL,
+            MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), hurtState,
+            DeathProtectionSnapshot.none(), new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
             new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
         );
     }
