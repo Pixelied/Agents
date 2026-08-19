@@ -46,7 +46,10 @@ public final class OptimizerHud {
 
     private void extract(GuiGraphicsExtractor graphics, DeltaTracker ignored) {
         ClientCombatDiagnostics diagnostics = diagnosticsSupplier.get();
-        if (!diagnostics.enabled() || !diagnostics.hudEnabled()) {
+        if (!diagnostics.enabled()) {
+            return;
+        }
+        if (!diagnostics.hudEnabled()) {
             return;
         }
 
