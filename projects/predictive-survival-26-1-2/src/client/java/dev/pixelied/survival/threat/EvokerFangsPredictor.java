@@ -58,7 +58,7 @@ public final class EvokerFangsPredictor implements ThreatPredictor {
                 Optional.of(entity.position()),
                 Optional.of(entity.position()),
                 true,
-                false,
+                true,
                 true,
                 false
             ));
