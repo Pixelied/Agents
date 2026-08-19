@@ -45,7 +45,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,17 +59,10 @@ public final class MinecraftWorldSnapshotFactory {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(limits, "limits");
 
-        List<Entity> tracked = new ArrayList<>();
+        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>();
         for (Entity entity : level.entitiesForRendering()) {
             if (entity == player || !entity.isAlive() || entity.isRemoved()) continue;
-            tracked.add(entity);
-        }
-        tracked.sort(Comparator.comparingDouble(player::distanceToSqr));
-
-        int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
-        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, tracked.size()));
-        for (int i = 0; i < tracked.size() && entities.size() < entityCap; i++) {
-            entities.add(entitySnapshot(tracked.get(i), player));
+            entities.add(entitySnapshot(entity, player));
         }
 
         return new WorldSnapshot(entities, captureBlocks(level, player.blockPosition()));
