@@ -33,6 +33,8 @@ final class TippedArrowPotionValidationScenarios {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             SurvivalValidationClientGameTest.reset(player, 20f);
             player.setDeltaMovement(Vec3.ZERO);
+            player.getFoodData().setFoodLevel(17);
+            player.getFoodData().setSaturation(0f);
             ServerLevel level = (ServerLevel) player.level();
 
             ItemStack tippedArrow = new ItemStack(Items.TIPPED_ARROW);
@@ -122,6 +124,8 @@ final class TippedArrowPotionValidationScenarios {
                 Entity projectile = player.level().getEntity(projectileId);
                 if (projectile != null) projectile.discard();
                 SurvivalValidationClientGameTest.reset(player, 20f);
+                player.getFoodData().setFoodLevel(20);
+                player.getFoodData().setSaturation(5f);
             });
             context.waitTick();
         }
