@@ -92,7 +92,11 @@ public final class ProjectilePredictor implements ThreatPredictor {
                     case ARROW_LIKE, LLAMA_SPIT -> current.velocity();
                     default -> next.velocity();
                 };
-                directHit(entity, family, impactVelocity, impact, next.tick()).ifPresent(events::add);
+                Optional<ThreatEvent> direct = directHit(entity, family, impactVelocity, impact, next.tick());
+                direct.ifPresent(events::add);
+                direct.ifPresent(event -> events.addAll(
+                    HurtingProjectileFollowups.afterAcceptedDirectHit(context, entity, impact, event)
+                ));
                 splashPotionImpact(context, entity, impact, null, next.tick(), true).ifPresent(events::add);
                 events.addAll(poisonPotionImpacts(context, entity, impact, next.tick(), true));
                 events.addAll(witherPotionImpacts(context, entity, impact, next.tick(), true));
