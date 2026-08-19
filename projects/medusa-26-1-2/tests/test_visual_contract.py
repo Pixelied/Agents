@@ -70,7 +70,7 @@ class VisualContract(unittest.TestCase):
     def test_boss_name_is_not_serialized_json_text(self):
         bootstrap = (FN / "boss/bootstrap.mcfunction").read_text()
         self.assertNotIn(
-            "CustomName:'{\\\"text\\\":\\\"Medusa\\\"",
+            "CustomName:'{\"text\":\"Medusa\"",
             bootstrap,
             "26.1.2 renders the serialized JSON string literally above the boss",
         )
