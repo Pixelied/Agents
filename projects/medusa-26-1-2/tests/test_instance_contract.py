@@ -127,3 +127,34 @@ class SpectatorIsolationContract(unittest.TestCase):
             watchdog,
             "players who switch to Spectator during a fight must be removed from the encounter",
         )
+
+class GoldenEyeInstanceIdentityContract(unittest.TestCase):
+    def test_player_eye_items_carry_and_validate_their_temple_id(self):
+        give_eye = FN / "arena/pedestal/give_eye.mcfunction"
+        self.assertTrue(give_eye.is_file(), "instance-scoped Golden Eye giver is missing")
+        give_text = give_eye.read_text()
+        self.assertIn('md_item:"golden_gorgon_eye",md_eid:$(eid)', give_text)
+        self.assertIn("$give @a[tag=md.eye_interactor,limit=1]", give_text)
+
+        for rel in ["arena/pedestal/take_first_eye.mcfunction", "ritual/take_eye.mcfunction"]:
+            text = (FN / rel).read_text()
+            self.assertIn("function medusa:arena/pedestal/give_eye with storage medusa:macro eye", text)
+            self.assertNotIn("loot give @a[tag=md.eye_interactor,limit=1] loot medusa:items/golden_gorgon_eye", text)
+
+        validate = (FN / "ritual/validate_player.mcfunction").read_text()
+        consume = (FN / "ritual/consume_and_commit.mcfunction").read_text()
+        self.assertIn('md_eid:$(eid)', validate, "ritual must require the Eye belonging to this temple")
+        self.assertIn('md_eid:$(eid)', consume, "ritual must consume only the Eye belonging to this temple")
+
+    def test_eye_return_purges_only_matching_instance_copies(self):
+        clear_carried = (FN / "reward/clear_carried_eye.mcfunction").read_text()
+        clear_dropped = FN / "reward/clear_dropped_eye.mcfunction"
+        return_eye = (FN / "reward/return_eye.mcfunction").read_text()
+        recover = (FN / "instance/recover_one.mcfunction").read_text()
+
+        self.assertIn('@a minecraft:player_head[minecraft:custom_data~{md_item:"golden_gorgon_eye",md_eid:$(eid)}]', clear_carried)
+        self.assertNotIn("tag=md.participant", clear_carried, "the canonical Eye may have been handed to a non-participant")
+        self.assertTrue(clear_dropped.is_file(), "dropped canonical Eye cleanup is missing")
+        self.assertIn('md_eid:$(eid)', clear_dropped.read_text())
+        self.assertIn("function medusa:reward/clear_dropped_eye with storage medusa:macro eye", return_eye)
+        self.assertIn("md_eye_state matches 1 run function medusa:reward/return_eye", recover)
