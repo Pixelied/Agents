@@ -17,15 +17,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VanillaDamageSimulatorTest {
     @Test
-    void armorThatBreaksIsRemovedBeforeSameHitArmorCalculation() {
+    void armorThatBreaksStillMitigatesTheSameHitButIsAbsentAfterward() {
         var chest = ArmorPieceState.testPiece(8.0f, 3.0f, 1, 0.0f);
+        var target = SimCombatant.testPlayer(20.0f).withChest(chest);
+        var request = DamageRequest.explosion(16.0f);
+
+        var result = VanillaDamageSimulator.apply(target, request);
+        float expectedSameHitArmor = VanillaMitigationPipeline.afterArmor(
+            result.trace().acceptedIncoming(),
+            target.equipment(),
+            request
+        );
+
+        assertTrue(result.trace().brokenSlots().contains(EquipmentSlot.CHEST));
+        assertEquals(expectedSameHitArmor, result.trace().postArmor(), 0.0001f);
+        assertTrue(result.trace().postArmor() < result.trace().acceptedIncoming());
+        assertEquals(0.0f, result.target().equipment().armorPoints(), 0.0001f);
+
+        var next = VanillaDamageSimulator.apply(
+            result.target().withHurtWindow(new HurtWindowState(0, 0.0f)),
+            request
+        );
+        assertEquals(16.0f, next.trace().postArmor(), 0.0001f);
+    }
+
+    @Test
+    void enchantmentOnArmorThatBreaksDoesNotProtectTheSameHitAfterDurabilityBreak() {
+        var chest = ArmorPieceState.testPiece(8.0f, 3.0f, 1, 8.0f);
         var target = SimCombatant.testPlayer(20.0f).withChest(chest);
 
         var result = VanillaDamageSimulator.apply(target, DamageRequest.explosion(16.0f));
 
         assertTrue(result.trace().brokenSlots().contains(EquipmentSlot.CHEST));
-        assertEquals(0.0f, result.target().equipment().armorPoints(), 0.0001f);
-        assertTrue(result.trace().postArmor() > 0.0f);
+        assertEquals(result.trace().postArmor(), result.trace().postMagic(), 0.0001f);
     }
 
     @Test
