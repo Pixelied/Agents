@@ -22,6 +22,7 @@ import dev.pixelied.survival.threat.FallPredictor;
 import dev.pixelied.survival.threat.MeleePredictor;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.threat.ReactiveDamagePredictor;
+import dev.pixelied.survival.threat.SplashStatusThreatMemory;
 import dev.pixelied.survival.threat.ThreatPredictor;
 import dev.pixelied.survival.threat.ThreatPredictorRegistry;
 import dev.pixelied.survival.timing.ServerTimingEstimator;
@@ -48,6 +49,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final MinecraftInventorySnapshotFactory inventorySnapshots;
     private final ServerTimingEstimator timingEstimator;
     private final AreaEffectCloudAttributionTracker cloudAttributions;
+    private final SplashStatusThreatMemory splashStatusMemory;
     private final ThreatPredictorRegistry predictors;
     private final SurvivalCandidateGenerator candidateGenerator;
     private final DeathProtectionActionExecutor protectionExecutor;
@@ -68,6 +70,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.inventorySnapshots = new MinecraftInventorySnapshotFactory();
         this.timingEstimator = new ServerTimingEstimator();
         this.cloudAttributions = new AreaEffectCloudAttributionTracker();
+        this.splashStatusMemory = new SplashStatusThreatMemory();
         EnvironmentPredictorRegistry environment = EnvironmentPredictorRegistry.defaults();
         this.predictors = new ThreatPredictorRegistry(List.<ThreatPredictor>of(
             new ExplosionPredictor(),
@@ -75,7 +78,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             new MeleePredictor(),
             new FallPredictor(),
             new ReactiveDamagePredictor(),
-            environment::predict
+            environment::predict,
+            splashStatusMemory
         ));
         this.candidateGenerator = new SurvivalCandidateGenerator();
         this.protectionExecutor = new DeathProtectionActionExecutor();
@@ -113,6 +117,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         PredictionContext context = new PredictionContext(playerSnapshot, world, timing, limits);
         List<ThreatEvent> predicted = predictors.predictAll(context);
         cloudAttributions.observePredictedThreats(clientTick, predicted);
+        splashStatusMemory.observePredictedThreats(context, predicted);
         ThreatTimeline timeline = new ThreatTimeline(predicted);
         List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu);
 
