@@ -11,7 +11,6 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -19,9 +18,12 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
     @GameTest
     public void exposedCrystalDamageMatchesVanilla(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer target = helper.makeMockServerPlayerInLevel();
-        target.setGameMode(GameType.SURVIVAL);
+        ServerPlayer target = GameTestCombatants.makeSurvivalPlayer(level);
         target.setHealth(target.getMaxHealth());
+        helper.assertTrue(
+            !target.getAbilities().invulnerable && !target.isCreative(),
+            "differential fixture must be a damageable survival player"
+        );
         Vec3 center = target.position().add(9.0, 0.0, 0.0);
         float before = target.getHealth();
 
