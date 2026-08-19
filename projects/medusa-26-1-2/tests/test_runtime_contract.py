@@ -99,3 +99,19 @@ class RuntimeEntrypointContract(unittest.TestCase):
         debug = (FN / "debug/test_petrification_damage.mcfunction").read_text()
         self.assertIn("effect clear @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
         self.assertIn("effect give @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
+
+    def test_manual_damage_probe_spawns_in_the_executors_loaded_chunk(self):
+        debug = (FN / "debug/test_petrification_damage.mcfunction").read_text()
+        self.assertNotIn("summon minecraft:husk 8 101 0", debug, "manual debug probe must not depend on the CI world's fixed origin")
+        self.assertIn("summon minecraft:husk ~ ~ ~", debug, "manual debug probe should spawn beside the command executor")
+
+    def test_removed_husk_attack_sound_is_not_used(self):
+        offenders = []
+        for path in FN.rglob("*.mcfunction"):
+            if "minecraft:entity.husk.attack" in path.read_text():
+                offenders.append(str(path.relative_to(ROOT)))
+        self.assertEqual(offenders, [], "26.1.2 reports minecraft:entity.husk.attack as unknown: " + ", ".join(offenders))
+
+
+if __name__ == "__main__":
+    unittest.main()
