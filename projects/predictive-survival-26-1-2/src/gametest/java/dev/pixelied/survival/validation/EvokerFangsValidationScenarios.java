@@ -17,7 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.ArmorStand;
-import net.minecraft.world.entity.monster.EvokerFangs;
+import net.minecraft.world.entity.projectile.EvokerFangs;
 import net.minecraft.world.phys.Vec3;
 
 final class EvokerFangsValidationScenarios {
