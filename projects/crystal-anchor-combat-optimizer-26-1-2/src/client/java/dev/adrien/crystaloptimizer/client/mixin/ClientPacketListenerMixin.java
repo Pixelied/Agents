@@ -2,12 +2,23 @@ package dev.adrien.crystaloptimizer.client.mixin;
 
 import dev.adrien.crystaloptimizer.client.execution.InteractionTimingRecorder;
 import dev.adrien.crystaloptimizer.client.intel.ClientObservationBus;
+import dev.adrien.crystaloptimizer.client.v2.ClientCombatEventBus;
+import dev.adrien.crystaloptimizer.client.v2.ClientTimingObserver;
+import dev.adrien.crystaloptimizer.v2.reactive.CombatEvent;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundBlockChangedAckPacket;
+import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
+import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
+import net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
 import net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -34,8 +45,80 @@ public abstract class ClientPacketListenerMixin {
         ClientObservationBus.instance().onEntityEventPacket(packet, System.nanoTime());
     }
 
+    @Inject(method = "handleAddEntity", at = @At("TAIL"))
+    private void crystaloptimizer$v2AddEntity(ClientboundAddEntityPacket packet, CallbackInfo ci) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) {
+            return;
+        }
+        Entity entity = level.getEntity(packet.getId());
+        if (!(entity instanceof EndCrystal crystal)) {
+            return;
+        }
+
+        BlockPos base = BlockPos.containing(
+            crystal.getX(),
+            crystal.getY() - 1.0,
+            crystal.getZ()
+        ).immutable();
+        long nowNanos = System.nanoTime();
+        ClientTimingObserver.instance().onCrystalSpawned(base, nowNanos);
+        ClientCombatEventBus.instance().publish(
+            new CombatEvent.CrystalSpawned(crystal.getId(), base, nowNanos)
+        );
+    }
+
+    @Inject(method = "handleRemoveEntities", at = @At("HEAD"))
+    private void crystaloptimizer$v2RemoveEntities(ClientboundRemoveEntitiesPacket packet, CallbackInfo ci) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) {
+            return;
+        }
+
+        for (int entityId : packet.getEntityIds()) {
+            Entity entity = level.getEntity(entityId);
+            if (!(entity instanceof EndCrystal crystal)) {
+                continue;
+            }
+            BlockPos base = BlockPos.containing(
+                crystal.getX(),
+                crystal.getY() - 1.0,
+                crystal.getZ()
+            ).immutable();
+            long nowNanos = System.nanoTime();
+            ClientTimingObserver.instance().onCrystalRemoved(entityId, nowNanos);
+            ClientCombatEventBus.instance().publish(
+                new CombatEvent.CrystalRemoved(entityId, base, nowNanos)
+            );
+        }
+    }
+
+    @Inject(method = "handleBlockUpdate", at = @At("TAIL"))
+    private void crystaloptimizer$v2BlockUpdate(ClientboundBlockUpdatePacket packet, CallbackInfo ci) {
+        long nowNanos = System.nanoTime();
+        ClientCombatEventBus.instance().publish(
+            new CombatEvent.BlockChanged(packet.getPos().immutable(), nowNanos)
+        );
+    }
+
+    @Inject(method = "handleChunkBlocksUpdate", at = @At("TAIL"))
+    private void crystaloptimizer$v2ChunkBlocksUpdate(
+        ClientboundSectionBlocksUpdatePacket packet,
+        CallbackInfo ci
+    ) {
+        long nowNanos = System.nanoTime();
+        packet.runUpdates((pos, state) -> ClientCombatEventBus.instance().publish(
+            new CombatEvent.BlockChanged(pos.immutable(), nowNanos)
+        ));
+    }
+
     @Inject(method = "handleBlockChangedAck", at = @At("TAIL"))
     private void crystaloptimizer$blockChangedAck(ClientboundBlockChangedAckPacket packet, CallbackInfo ci) {
-        InteractionTimingRecorder.instance().recordAck(packet.sequence(), System.nanoTime());
+        long nowNanos = System.nanoTime();
+        InteractionTimingRecorder.instance().recordAck(packet.sequence(), nowNanos);
+        ClientTimingObserver.instance().onBlockAck(packet.sequence(), nowNanos);
+        ClientCombatEventBus.instance().publish(
+            new CombatEvent.BlockAcked(packet.sequence(), nowNanos)
+        );
     }
 }
