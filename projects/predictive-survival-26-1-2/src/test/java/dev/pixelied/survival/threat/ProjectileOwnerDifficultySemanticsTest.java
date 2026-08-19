@@ -115,6 +115,28 @@ class ProjectileOwnerDifficultySemanticsTest {
         assertTrue(event.damage().scalesWithDifficulty());
     }
 
+    @Test
+    void collisionExplosionAlwaysScalesRegardlessOfProjectileOwner() {
+        WorldSnapshot.EntitySnapshot fireball = movingProjectile(
+            "unattributed",
+            "minecraft:fireball",
+            Map.of(
+                "raw_damage", "6",
+                "explosion_radius", "1",
+                "source_key", "minecraft:unattributed_fireball",
+                "scales_with_difficulty", "false",
+                "acceleration_power", "0"
+            )
+        );
+
+        ThreatEvent explosion = predictor.predict(movingContext(fireball)).stream()
+            .filter(candidate -> candidate.id().equals("projectile:unattributed:explosion"))
+            .findFirst()
+            .orElseThrow();
+
+        assertTrue(explosion.damage().scalesWithDifficulty());
+    }
+
     private static WorldSnapshot.EntitySnapshot movingProjectile(
         String id,
         String type,
