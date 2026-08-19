@@ -22,6 +22,7 @@ import net.minecraft.world.phys.Vec3;
 
 final class MinecartTntValidationScenarios {
     private static final EngineLimits LIMITS = EngineLimits.defaults();
+    private static final float MAX_OPAQUE_EXPLOSION_RADIUS = 1088f;
 
     private MinecartTntValidationScenarios() {
     }
@@ -81,8 +82,11 @@ final class MinecartTntValidationScenarios {
                 if (fuseMin != 0 || fuseMax <= 0 || fuseMax > 80) {
                     throw new AssertionError("unsafe TNT minecart fuse bounds: " + snapshot.properties());
                 }
-                if (Math.abs(radiusMin - 4f) > 0.0001f || radiusMax < radiusMin) {
-                    throw new AssertionError("unsafe TNT minecart explosion-radius bounds: " + snapshot.properties());
+                if (Math.abs(radiusMin - 4f) > 0.0001f || radiusMax < MAX_OPAQUE_EXPLOSION_RADIUS) {
+                    throw new AssertionError(
+                        "TNT minecart client cannot observe hidden explosion NBT, so radius max must cover the full "
+                            + "vanilla-legal bound " + MAX_OPAQUE_EXPLOSION_RADIUS + ": " + snapshot.properties()
+                    );
                 }
                 if (!Boolean.parseBoolean(snapshot.properties().getOrDefault("scales_with_difficulty", "false"))) {
                     throw new AssertionError("TNT minecart snapshot did not expose difficulty scaling");
