@@ -19,7 +19,7 @@ final class CrammingRuntimeValidationScenarios {
         int cowId = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             Cow cow = new Cow(EntityType.COW, player.level());
-            cow.snapTo(player.getX(), player.getY(), player.getZ(), 0f, 0f);
+            cow.snapTo(player.getX() + 2d, player.getY(), player.getZ(), 0f, 0f);
             cow.setNoAi(true);
             player.level().addFreshEntity(cow);
             return cow.getId();
@@ -28,16 +28,30 @@ final class CrammingRuntimeValidationScenarios {
         try {
             context.waitFor(minecraft -> minecraft.player != null
                 && minecraft.level != null
-                && minecraft.level.getEntity(cowId) instanceof Cow
-                && !minecraft.level.getPushableEntities(
+                && minecraft.level.getEntity(cowId) instanceof Cow);
+
+            boolean predicted = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null || minecraft.level == null) {
+                    throw new AssertionError("client player/level unavailable for cramming validation");
+                }
+                Entity cow = minecraft.level.getEntity(cowId);
+                if (!(cow instanceof Cow)) {
+                    throw new AssertionError("client did not retain tracked cramming fixture cow");
+                }
+
+                // Establish the observation on the client immediately before capture so normal
+                // entity-push physics cannot race the test before production reads the overlap.
+                cow.setPos(minecraft.player.getX(), minecraft.player.getY(), minecraft.player.getZ());
+                if (minecraft.level.getPushableEntities(
                     minecraft.player,
                     minecraft.player.getBoundingBox()
-                ).isEmpty());
+                ).isEmpty()) {
+                    throw new AssertionError("client fixture failed to establish a pushable overlap");
+                }
 
-            boolean predicted = context.computeOnClient(minecraft ->
-                new MinecraftSurvivalRuntime(minecraft).capture().timeline().events().stream()
-                    .anyMatch(event -> "minecraft:cramming".equals(event.damage().sourceKey()))
-            );
+                return new MinecraftSurvivalRuntime(minecraft).capture().timeline().events().stream()
+                    .anyMatch(event -> "minecraft:cramming".equals(event.damage().sourceKey()));
+            });
             if (!predicted) {
                 throw new AssertionError(
                     "production runtime omitted conservative cramming threat for an overlapping pushable entity"
