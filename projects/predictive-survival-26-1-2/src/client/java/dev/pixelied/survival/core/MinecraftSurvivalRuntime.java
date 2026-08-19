@@ -17,6 +17,7 @@ import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalCandidateGenerator;
 import dev.pixelied.survival.threat.AreaEffectCloudAttributionTracker;
 import dev.pixelied.survival.threat.EnvironmentPredictorRegistry;
+import dev.pixelied.survival.threat.EvokerFangsPredictor;
 import dev.pixelied.survival.threat.ExplosionPredictor;
 import dev.pixelied.survival.threat.FallPredictor;
 import dev.pixelied.survival.threat.GuardianBeamPredictor;
@@ -83,6 +84,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             new ShulkerBulletPredictor(),
             new GuardianBeamPredictor(),
             new WardenSonicBoomPredictor(),
+            new EvokerFangsPredictor(),
             new MeleePredictor(),
             new FallPredictor(),
             new ReactiveDamagePredictor(),
