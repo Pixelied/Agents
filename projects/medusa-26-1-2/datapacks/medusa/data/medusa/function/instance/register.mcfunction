@@ -8,6 +8,7 @@ scoreboard players set @s md_p2_done 0
 scoreboard players set @s md_p3_done 0
 scoreboard players set @s md_dungeon_clear 0
 scoreboard players set @s md_rewarded 0
+scoreboard players set @s md_ritual_paid 0
 tag @s remove md.new_instance
 function medusa:dungeon/build_generated
 function medusa:arena/pedestal/spawn_eye
