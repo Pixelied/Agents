@@ -1,5 +1,7 @@
 # Crystal + Anchor Combat Optimizer 26.1.2
 
+**Version 0.2.0**
+
 Experimental fully client-side Fabric combat optimizer for Minecraft Java 26.1.2. V2 uses an event-driven reactive combat lane for low decision latency while keeping the source-grounded vanilla simulation and legality core.
 
 ## Requirements
@@ -8,7 +10,9 @@ Experimental fully client-side Fabric combat optimizer for Minecraft Java 26.1.2
 - Java 25
 - Fabric Loader 0.19.3+
 - Fabric API 0.155.2+26.1.2
-- Mod Menu 18.0.0-beta.1 is optional
+- Mod Menu 18.0.0-beta.1 (optional)
+
+Mod Menu is optional; the mod still loads, toggles, and renders its HUD without it.
 
 ## Install
 
@@ -18,7 +22,7 @@ Experimental fully client-side Fabric combat optimizer for Minecraft Java 26.1.2
 4. Launch Minecraft 26.1.2.
 5. Press `O` to toggle the optimizer.
 
-The module starts disabled by default. Settings are persisted in `crystaloptimizer.json`.
+The module starts disabled by default. Default strategy is Lethal Speed. Settings are persisted in `crystaloptimizer.json`.
 
 ## V2 runtime
 
@@ -26,7 +30,7 @@ The module starts disabled by default. Settings are persisted in `crystaloptimiz
 - immutable approvals are published to a shared combat blackboard
 - crystal spawn/removal, totem, equipment, block, inventory, target-movement, and config events feed a constant-time reactive lane
 - the reactive lane materializes only already-approved actions, runs a linear current-state arbiter, and dispatches normal vanilla interactions
-- same-base crystal recycling is `break -> place -> wait for the real server-observed spawn ID -> break -> place`; future entity IDs are never invented
+- same-base crystal recycling is `break -> place -> wait for the real server-observed spawn ID -> break -> place`; future entity IDs are never invented, and attacks use only real server entity IDs
 - typed timing tracks block acknowledgement, crystal place-to-spawn, crystal attack-to-removal, visible totem refill, and server cadence with bounded p50/p90 distributions
 - exact-observable explosion damage uses the verified vanilla 26.1.2 mechanics; incomplete remote state is represented as lower/expected/upper damage instead of a guessed scalar
 - hurt-window selection values useful marginal damage and lethal timing instead of raw damage or CPS alone

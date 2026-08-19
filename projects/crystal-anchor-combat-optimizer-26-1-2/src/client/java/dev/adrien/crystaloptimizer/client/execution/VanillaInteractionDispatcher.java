@@ -23,7 +23,7 @@ import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
-public final class VanillaInteractionDispatcher implements ActionDispatcher {
+public final class VanillaInteractionDispatcher {
     private final Minecraft minecraft;
     private final RotationController rotations;
     private final RotationMode rotationMode;
@@ -38,7 +38,6 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
         this.rotationMode = Objects.requireNonNull(rotationMode, "rotationMode");
     }
 
-    @Override
     public DispatchReceipt dispatch(CombatAction action) {
         return dispatch(action, rotationMode, false);
     }
