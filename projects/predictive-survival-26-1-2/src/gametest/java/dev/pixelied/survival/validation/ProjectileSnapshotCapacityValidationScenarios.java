@@ -17,7 +17,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
-import net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
@@ -109,17 +108,18 @@ final class ProjectileSnapshotCapacityValidationScenarios {
 
             List<Integer> fillerIds = new ArrayList<>();
             for (int i = 0; i < EXPECTED_ENTITY_BUDGET; i++) {
-                Snowball snowball = new Snowball(
+                Arrow filler = new Arrow(
                     level,
                     player.getX() + 4d,
                     player.getY() + 1d,
                     player.getZ() + 0.5d * i,
-                    new ItemStack(Items.SNOWBALL)
+                    new ItemStack(Items.ARROW),
+                    null
                 );
-                snowball.setNoGravity(true);
-                snowball.setDeltaMovement(Vec3.ZERO);
-                level.addFreshEntity(snowball);
-                fillerIds.add(snowball.getId());
+                filler.setNoGravity(true);
+                filler.setDeltaMovement(Vec3.ZERO);
+                level.addFreshEntity(filler);
+                fillerIds.add(filler.getId());
             }
 
             Arrow arrow = damagingArrow(level, player);
@@ -130,7 +130,7 @@ final class ProjectileSnapshotCapacityValidationScenarios {
         try {
             context.waitFor(minecraft -> minecraft.level != null
                 && minecraft.level.getEntity(setup.projectileId()) instanceof Arrow
-                && setup.fillerIds().stream().allMatch(id -> minecraft.level.getEntity(id) instanceof Snowball));
+                && setup.fillerIds().stream().allMatch(id -> minecraft.level.getEntity(id) instanceof Arrow));
 
             OverflowObservation observation = context.computeOnClient(minecraft -> {
                 if (minecraft.player == null || minecraft.level == null) {
