@@ -37,3 +37,10 @@ fill ~-27 ~-11 ~47 ~-23 ~-11 ~48 minecraft:cracked_stone_bricks
 # South exit remains barred until the mirror alignment is solved.
 fill ~-27 ~-17 ~54 ~-23 ~-12 ~56 minecraft:air
 fill ~-27 ~-17 ~55 ~-23 ~-13 ~55 minecraft:iron_bars
+# Once opened, this authored L-corridor guarantees a physical route to Blind Passage.
+fill ~-27 ~-18 ~56 ~-23 ~-18 ~61 minecraft:polished_deepslate
+fill ~-26 ~-17 ~56 ~-24 ~-12 ~61 minecraft:air
+fill ~-26 ~-18 ~59 ~-18 ~-18 ~63 minecraft:polished_deepslate
+fill ~-26 ~-17 ~60 ~-18 ~-12 ~62 minecraft:air
+setblock ~-25 ~-11 ~58 minecraft:soul_lantern[hanging=true]
+setblock ~-20 ~-11 ~61 minecraft:soul_lantern[hanging=true]
