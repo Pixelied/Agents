@@ -15,6 +15,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Creeper;
@@ -38,6 +39,8 @@ final class HurtingProjectileSourceValidationScenarios {
         validateFireball(context, singleplayer, false);
         validateFireball(context, singleplayer, true);
         validateWitherSkull(context, singleplayer);
+        validateUnresolvedMobOwnerFailsClosedOnHard(context, singleplayer, false);
+        validateUnresolvedMobOwnerFailsClosedOnHard(context, singleplayer, true);
     }
 
     private static void validateFireball(
@@ -112,6 +115,76 @@ final class HurtingProjectileSourceValidationScenarios {
         }
     }
 
+    private static void validateUnresolvedMobOwnerFailsClosedOnHard(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        boolean witherSkull
+    ) {
+        HardSetup setup = singleplayer.getServer().computeOnServer(server -> {
+            Difficulty previousDifficulty = server.getWorldData().getDifficulty();
+            server.setDifficulty(Difficulty.HARD, true);
+            ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            ServerLevel level = (ServerLevel) player.level();
+            Creeper owner = owner(level, player);
+            AbstractHurtingProjectile projectile = witherSkull
+                ? new WitherSkull(EntityType.WITHER_SKULL, level)
+                : new LargeFireball(EntityType.FIREBALL, level);
+            projectile.setOwner(owner);
+            place(projectile, player);
+            level.addFreshEntity(projectile);
+            return new HardSetup(projectile.getId(), owner.getId(), previousDifficulty);
+        });
+
+        String id = witherSkull ? "wither_skull_unresolved_owner" : "large_fireball_unresolved_owner";
+        try {
+            context.waitFor(minecraft -> minecraft.level != null
+                && minecraft.level.getDifficulty() == Difficulty.HARD
+                && minecraft.level.getEntity(setup.projectileId()) != null
+                && minecraft.level.getEntity(setup.ownerId()) != null);
+            context.computeOnClient(minecraft -> {
+                minecraft.level.removeEntity(setup.ownerId(), Entity.RemovalReason.DISCARDED);
+                Entity projectile = minecraft.level.getEntity(setup.projectileId());
+                if (!(projectile instanceof AbstractHurtingProjectile hurting) || hurting.getOwner() != null) {
+                    throw new AssertionError("client owner eviction did not make " + id + " ownership unresolved");
+                }
+                return null;
+            });
+
+            ThreatEvent event = captureDirect(context, setup.projectileId(), id);
+            if (!event.damage().scalesWithDifficulty()) {
+                throw new AssertionError(id + " must conservatively retain HARD mob difficulty scaling when owner is unresolved");
+            }
+            if (witherSkull) {
+                if (!"minecraft:magic".equals(event.damage().sourceKey())) {
+                    throw new AssertionError("unresolved wither-skull source must fail closed to magic: " + event.damage().sourceKey());
+                }
+                if (Math.abs(event.damage().rawDamage().min() - 5f) > EPSILON
+                    || Math.abs(event.damage().rawDamage().max() - 8f) > EPSILON) {
+                    throw new AssertionError("unresolved wither-skull damage must cover vanilla 5..8 ambiguity: " + event.damage().rawDamage());
+                }
+                if (!event.damage().has(DamageFlag.BYPASSES_ARMOR)
+                    || !event.damage().has(DamageFlag.BYPASSES_SHIELD)
+                    || event.blockable()) {
+                    throw new AssertionError("unresolved wither-skull must not credit armor/shield mitigation: " + event.damage().flags());
+                }
+            } else {
+                if (!event.damage().has(DamageFlag.IS_PROJECTILE) || !event.damage().has(DamageFlag.IS_FIRE)) {
+                    throw new AssertionError("unresolved fireball must preserve vanilla fire+projectile tags: " + event.damage().flags());
+                }
+            }
+        } finally {
+            singleplayer.getServer().runOnServer(server -> {
+                server.setDifficulty(setup.previousDifficulty(), true);
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                Entity projectile = player.level().getEntity(setup.projectileId());
+                if (projectile != null) projectile.discard();
+                Entity owner = player.level().getEntity(setup.ownerId());
+                if (owner != null) owner.discard();
+            });
+            context.waitTick();
+        }
+    }
+
     private static ThreatEvent captureDirect(ClientGameTestContext context, int projectileId, String id) {
         context.waitFor(minecraft -> minecraft.level != null && minecraft.level.getEntity(projectileId) != null);
         return context.computeOnClient(minecraft -> {
@@ -162,5 +235,8 @@ final class HurtingProjectileSourceValidationScenarios {
     }
 
     private record Setup(int projectileId, int ownerId) {
+    }
+
+    private record HardSetup(int projectileId, int ownerId, Difficulty previousDifficulty) {
     }
 }
