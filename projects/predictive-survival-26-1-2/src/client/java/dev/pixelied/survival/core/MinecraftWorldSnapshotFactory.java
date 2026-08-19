@@ -148,8 +148,12 @@ public final class MinecraftWorldSnapshotFactory {
         if (entity instanceof Projectile || entity instanceof AreaEffectCloud) {
             properties.put("observation_age_ticks", "1");
         }
-        if (entity instanceof Projectile) {
+        if (entity instanceof Projectile projectile) {
             properties.put("projectile_age_ticks", Integer.toString(Math.max(0, entity.tickCount)));
+            properties.put(
+                "scales_with_difficulty",
+                Boolean.toString(conservativeScalesWithDifficulty(projectile.getOwner(), player.level().getDifficulty()))
+            );
         }
 
         if (entity instanceof AbstractArrow arrow) {
@@ -158,10 +162,6 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("critical", Boolean.toString(arrow.isCritArrow()));
             properties.put("pierce_level", Byte.toString(arrow.getPierceLevel()));
             properties.put("in_ground", Boolean.toString(accessor.predictiveSurvival$isInGround()));
-            properties.put(
-                "scales_with_difficulty",
-                Boolean.toString(conservativeScalesWithDifficulty(arrow.getOwner(), player.level().getDifficulty()))
-            );
             if (entity instanceof Arrow potionArrow) {
                 properties.put("arrow_tipped", Boolean.toString(potionArrow.getColor() != -1));
             }
