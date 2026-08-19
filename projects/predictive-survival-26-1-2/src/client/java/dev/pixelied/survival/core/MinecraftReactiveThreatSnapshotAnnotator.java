@@ -31,7 +31,7 @@ public final class MinecraftReactiveThreatSnapshotAnnotator {
             return new AnnotatedSnapshot(player, world);
         }
 
-        int thornsLevels = visibleThornsLevels(living);
+        String thornsLevels = visibleThornsLevels(living);
         Map<String, String> playerState = new LinkedHashMap<>(player.stateProperties());
         playerState.put("outgoing_attack_target_id", Integer.toString(target.getId()));
         PlayerSnapshot annotatedPlayer = copyPlayer(player, playerState);
@@ -44,7 +44,7 @@ public final class MinecraftReactiveThreatSnapshotAnnotator {
                 continue;
             }
             Map<String, String> properties = new LinkedHashMap<>(entity.properties());
-            properties.put("thorns_levels", Integer.toString(thornsLevels));
+            properties.put("thorns_levels", thornsLevels);
             entities.add(new WorldSnapshot.EntitySnapshot(
                 entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.boundingBox(), properties
             ));
@@ -52,17 +52,18 @@ public final class MinecraftReactiveThreatSnapshotAnnotator {
         return new AnnotatedSnapshot(annotatedPlayer, new WorldSnapshot(entities, world.blocks()));
     }
 
-    private static int visibleThornsLevels(LivingEntity target) {
+    private static String visibleThornsLevels(LivingEntity target) {
         Holder<Enchantment> thorns = target.level().registryAccess()
             .lookupOrThrow(Registries.ENCHANTMENT)
             .getOrThrow(Enchantments.THORNS);
-        int total = 0;
+        List<String> levels = new ArrayList<>();
         for (EquipmentSlot slot : EquipmentSlot.VALUES) {
             if (slot.getType() != EquipmentSlot.Type.HUMANOID_ARMOR) continue;
             ItemStack stack = target.getItemBySlot(slot);
-            total = Math.addExact(total, EnchantmentHelper.getItemEnchantmentLevel(thorns, stack));
+            int level = EnchantmentHelper.getItemEnchantmentLevel(thorns, stack);
+            if (level > 0) levels.add(Integer.toString(level));
         }
-        return total;
+        return String.join(",", levels);
     }
 
     private static PlayerSnapshot copyPlayer(PlayerSnapshot player, Map<String, String> state) {
