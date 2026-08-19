@@ -97,7 +97,7 @@ class WorldgenContractTests(unittest.TestCase):
         self.assertEqual(trade["wants"]["count"], 16)
         self.assertEqual(trade["additional_wants"]["id"], "minecraft:compass")
         maps = [f for f in trade["given_item_modifiers"] if f["function"] == "minecraft:exploration_map"]
-        self.assertEqual(maps[0]["destination"], "#fallen_knight:castle")
+        self.assertEqual(maps[0]["destination"], "fallen_knight:castle")
         tag = json.loads((MC / "tags/villager_trade/cartographer/level_3.json").read_text(encoding="utf-8"))
         self.assertFalse(tag.get("replace", False))
         self.assertIn("fallen_knight:castle_map", tag["values"])
