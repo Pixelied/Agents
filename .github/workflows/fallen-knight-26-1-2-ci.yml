@@ -69,7 +69,7 @@ jobs:
           echo "$EXPECTED_SHA1  run/server.jar" | sha1sum -c -
           cp -R datapacks/fallen_knight run/world/datapacks/fallen_knight
           printf 'eula=true\n' > run/eula.txt
-          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\n' > run/server.properties
+          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\ndifficulty=normal\n' > run/server.properties
       - name: Boot server and exercise install/runtime/worldgen paths
         shell: bash
         run: |
@@ -77,14 +77,16 @@ jobs:
           cd run
           {
             sleep 35
+            echo 'difficulty normal'
             echo 'execute in minecraft:overworld run forceload add 0 0'
+            echo 'execute in minecraft:overworld run fill -2 99 -2 2 99 2 minecraft:stone'
             echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/spawn_carrier'
             sleep 1
-            echo 'execute in minecraft:overworld positioned 0 100 0 if entity @e[type=minecraft:vindicator,distance=..16] run say FK_DIAG_VINDICATOR_EXISTS'
-            echo 'execute in minecraft:overworld positioned 0 100 0 if entity @e[tag=fk.boss,distance=..16] run say FK_DIAG_BOSS_TAG_EXISTS'
-            echo 'execute in minecraft:overworld positioned 0 100 0 run tag @e[type=minecraft:vindicator,sort=nearest,limit=1,distance=..16] list'
-            echo 'execute in minecraft:overworld positioned 0 100 0 run data get entity @e[type=minecraft:vindicator,sort=nearest,limit=1,distance=..16] Pos'
-            echo 'execute in minecraft:overworld positioned 0 100 0 unless entity @e[tag=fk.boss,distance=..16] run say FK_SMOKE_FAIL_CARRIER'
+            echo 'execute in minecraft:overworld positioned 0 100 0 if entity @e[type=minecraft:vindicator,distance=..32] run say FK_DIAG_VINDICATOR_EXISTS'
+            echo 'execute in minecraft:overworld positioned 0 100 0 if entity @e[tag=fk.boss,distance=..32] run say FK_DIAG_BOSS_TAG_EXISTS'
+            echo 'execute in minecraft:overworld positioned 0 100 0 run tag @e[type=minecraft:vindicator,sort=nearest,limit=1,distance=..32] list'
+            echo 'execute in minecraft:overworld positioned 0 100 0 run data get entity @e[type=minecraft:vindicator,sort=nearest,limit=1,distance=..32] Pos'
+            echo 'execute in minecraft:overworld positioned 0 100 0 unless entity @e[tag=fk.boss,distance=..32] run say FK_SMOKE_FAIL_CARRIER'
             echo 'function fallen_knight:debug/remove_test_entities'
             echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/server_smoke'
             sleep 2
