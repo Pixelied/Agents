@@ -4,7 +4,7 @@ This document separates exact-runtime evidence from source-confirmed and determi
 
 ## Exact runtime confirmation
 
-The dedicated Fabric client GameTest source set launches Minecraft Java 26.1.2 with an integrated server and currently verifies all of the following against authoritative server state:
+The dedicated Fabric client GameTest source set launches Minecraft Java 26.1.2 with an integrated server and currently verifies all of the following against authoritative server state or the real production client snapshot/runtime boundary:
 
 - Generic damage parity and `player_attack` damage parity.
 - Diamond-chestplate armor + Resistance I + Protection IV mitigation parity using the runtime enchantment registry.
@@ -15,12 +15,26 @@ The dedicated Fabric client GameTest source set launches Minecraft Java 26.1.2 w
 - Explosion exposure and final-health parity for radius-4 TNT-scale and radius-6 crystal-scale explosions, both unobstructed and behind real obsidian cover. The test compares `ExplosionExposure.seenPercent` directly with vanilla `ServerExplosion.getSeenPercent` before applying the explosion.
 - A live Hard-difficulty TNT case through the production client world snapshot and `ExplosionPredictor`. The test synchronizes client/server player position, requires the predictor's pre-difficulty raw blast damage to equal the server's vanilla exposure calculation, and then requires exact final-health parity after vanilla Hard difficulty scaling.
 - Live TNT, End Crystal, and explosive respawn-anchor snapshot metadata for difficulty-scaled explosion damage. Crystal and bad-respawn metadata are compared at the production snapshot boundary rather than inferred only from unit fixtures.
+- A primed TNT minecart producing a bounded explosion threat through the production snapshot/predictor path.
 - Live arrow prediction through the actual client world snapshot + `ProjectilePredictor`, including impact-window containment and final-health parity.
 - Live trident prediction through the same path, including Minecraft 26.1.2's fixed 8 raw entity-hit damage and impact-window containment.
 - Hard-difficulty mob-owned arrow and mob-owned trident cases. A real non-player `LivingEntity` owns each projectile, and final predicted health must equal the authoritative server hit after vanilla difficulty scaling.
 - Owner-sensitive difficulty metadata for mob-owned Large Fireballs, Small Fireballs, and Wither Skulls. Each test asks the server's actual `DamageSource.scalesWithDifficulty()` result, requires the production client snapshot to expose the same value, and requires every `ProjectilePredictor` threat emitted for that projectile to preserve it.
+- Snapshot admission remains fail-closed under pressure: distant damaging arrows remain observable, harmless tracked entities cannot crowd out a damaging projectile, and excess threat-relevant entities produce the explicit observation-overflow marker instead of being silently discarded. Dedicated small-cap cases cover both Evoker Fangs and lightning.
+- A client-visible Shulker Bullet producing a pre-impact projectile threat.
+- An active Guardian beam producing its bounded pre-impact damage sequence.
+- An observed Warden sonic-boom charge producing a pre-impact sonic threat.
+- Visible Evoker Fangs producing a pre-impact `minecraft:indirect_magic` threat through the production runtime. The model preserves vanilla's armor bypass while keeping shield blocking available, and it conservatively allows difficulty scaling because the owning living entity is not reliably exposed to the client snapshot.
 - Runtime damage-source/tag + final-health parity for fall, Ender Pearl, wind charge, mace smash, lava, on-fire, drowning, freezing, Wither, Thorns, suffocation/in-wall, and starvation damage.
 - A real burning-client observability case where the client receives `isOnFire == true` while its local `remainingFireTicks == 0`. The live predictor must still produce a bounded potential `minecraft:on_fire` event whose window contains the authoritative server damage tick and whose final-damage result matches the server.
+- Live contact-hazard wiring through `MinecraftSurvivalRuntime`: standing on synchronized magma reaches the production timeline as `minecraft:hot_floor` rather than existing only in an isolated predictor test.
+- Conservative cramming observability through the production runtime. A real tracked pushable entity is overlapped with the local player at capture time and must produce a potential `minecraft:cramming` threat without pretending the hidden server gamerule is known.
+- A client-visible lightning bolt in the vanilla strike box produces four conservative cooldown-eligible potential threats. The exact-runtime fixture deliberately uses a server `visualOnly` bolt to prove fail-closed behavior when that server-only flag is unavailable to the client.
+- Reactive Thorns through the production runtime with two independently enchanted visible armor pieces. The observation preserves per-piece levels rather than summing them into one proc, producing two independent bounded retaliations; the threat metadata also preserves vanilla shield eligibility.
+- A tipped arrow carrying Wither retains a pre-impact status threat.
+- Dragon-fireball observable damage reaches the pre-impact threat model.
+- Splash and lingering Harming, Poison, and Wither paths are exercised through real potion metadata. This includes wall-impact splash falloff, poison/wither future tick persistence, stacked hidden Wither tails, post-projectile-removal persistence, bounded infinite-Wither handling, and lingering cloud handoff for damaging status effects.
+- Potion snapshot metadata required for timing/effect prediction is validated at the production boundary.
 
 The client GameTest waits until the integrated server reports `ServerGamePacketListenerImpl.hasClientLoaded()` before authoritative damage checks. This matters because Minecraft 26.1.2 treats a not-yet-loaded server player as invulnerable.
 
@@ -33,16 +47,16 @@ The following behavior is derived from the supplied Minecraft 26.1.2 source and 
 - Full mitigation ordering: difficulty scaling, invulnerability gates, blocking, freezing multiplier, helmet handling, hurt cooldown, armor/toughness, Resistance, enchantment protection, absorption, health, and death protection.
 - Armor durability and sequential armor-break behavior, including a later hit becoming more damaging after a piece breaks.
 - Conservative hurt-cooldown uncertainty handling when server `lastHurt` is not confidently known. Unknown state is never credited as protection.
-- Shield angle checks, bypass-shield behavior, piercing-projectile behavior, and conservative server-confirmed use warmup.
+- Shield angle checks, bypass-shield behavior, piercing-projectile behavior, conservative server-confirmed use warmup, and predictor/planner metadata consistency for shield-eligible threats such as Evoker Fangs and Thorns.
 - Multi-hit chronological simulation, including carried cooldown state, armor durability, absorption/effects, death-protection consumption, and continued simulation after a pop.
-- Explosions for crystals, primed TNT, charged/normal creepers, beds/respawn anchors where explosive, fireworks, and explosion-capable projectiles. Cover is credited only when collision geometry is proven; unknown or partial shapes do not grant optimistic blast safety. Merely touching a block face at the ray origin while moving away does not count as blast cover.
+- Explosions for crystals, primed TNT, TNT minecarts, charged/normal creepers, beds/respawn anchors where explosive, fireworks, and explosion-capable projectiles. Cover is credited only when collision geometry is proven; unknown or partial shapes do not grant optimistic blast safety. Merely touching a block face at the ray origin while moving away does not count as blast cover.
 - Projectile motion/collision families including arrows, tridents, thrown projectiles, hurting projectiles, fireworks, projectile-size-aware swept collision, wall interception, live-observation-age compensation, and conservative unknown projectile metadata.
 - Projectile difficulty ownership is captured explicitly for the runtime-proven families: arrows/tridents and Large Fireballs, Small Fireballs, and Wither Skulls scale when owned by a non-player `LivingEntity`, while player/ownerless variants do not receive that optimistic assumption.
 - Potential melee, mace smash, mob attacks, and Minecraft 26.1.2 spear/KineticWeapon conditions. Uncommitted enemy attacks remain potential rather than being treated as guaranteed future clicks.
 - Falls, void damage, elytra wall collision, stalagmite/falling-object damage, and exact private falling-block damage coefficients captured through narrow mixin accessors.
-- Periodic/environmental hazards including lava, fire, drowning, suffocation/cramming, freezing, starvation, world border, poison-floor behavior, and lethal Wither ticking.
+- Periodic/environmental hazards including lava, fire, contact hazards, drowning, suffocation, cramming, freezing, starvation, world border, poison-floor behavior, lethal Wither ticking, and observable lightning.
 - When the client knows an exact remaining fire countdown, on-fire damage uses that exact phase. When only the synchronized burning flag is observable, the predictor emits 20-tick bounded `POTENTIAL` windows instead of inventing a server countdown or dropping the threat.
-- Reactive Thorns bounds and the guaranteed 5 raw self-damage from a locally owned Ender Pearl. If an exact pearl collision tick is unavailable, the live predictor uses a bounded projectile-horizon window instead of dropping the damage.
+- Reactive Thorns bounds are modeled independently per visible enchanted armor piece, and the guaranteed 5 raw self-damage from a locally owned Ender Pearl is modeled separately. If an exact pearl collision tick is unavailable, the live predictor uses a bounded projectile-horizon window instead of dropping the damage.
 - Death-protection routing across selected main hand, offhand, alternate hotbar selection, and server-valid menu `SWAP` routes. Active offhand shielding can force a mainhand protection route instead of destroying shield state.
 - Conservative server-authority timing for held-slot changes, inventory/equipment mutations, item use, cover placement, movement/rescue actions, and item-use warmup. A zero additional-warmup action still pays the next packet-processing window unless it is a true no-op/already-active state.
 - Pending multi-tick actions retain execution progress across a normal threat countdown. If the same threat's absolute impact schedule unexpectedly tightens, the engine revalidates the active action and can immediately replace it with another survival-producing plan instead of waiting on a now-impossible deadline.
@@ -75,8 +89,11 @@ These are intentional limitations, not silent assumptions:
 - The client cannot observe the authoritative server `lastHurt` value directly. Production snapshots therefore do not optimistically credit unknown hurt-cooldown protection; this can create unnecessary survival actions, but it avoids a false-safe lethal prediction.
 - Live enchantment mitigation is conservative where exact source-specific protection cannot be proven from current client state; the planner must prefer unnecessary protection over a false safety claim.
 - The client does not receive the server's authoritative fire countdown. A synchronized burning flag with no usable countdown is represented as bounded potential fire timing rather than exact timing.
+- The server's `maxEntityCramming` gamerule is not available as trusted synchronized client state. An overlapping tracked pushable entity therefore creates a conservative `POTENTIAL` cramming threat; the client does not claim that cramming damage is certain.
+- Lightning's server-only `visualOnly` state is not trusted as client-observable. A visible bolt whose vanilla strike box overlaps the player therefore fails closed as potential damaging lightning even when an authoritative test server knows that particular bolt is cosmetic. False positives in this case are intentional.
+- Evoker Fangs can expose the damaging entity without exposing all owner/timing state needed for exact prediction. Pre-event timing and owner-dependent difficulty behavior are therefore conservative rather than optimistically assumed safe.
 - Generic movement and block-placement/clutch actions are represented and simulatable, but the production dispatcher refuses to invent an unproven movement path or legal support face. If a concrete server-valid route is unavailable, execution fails and the engine replans.
-- Thorns prediction requires an observable outgoing-attack target. Remote armor visibility alone does not imply that the local player will attack.
+- Thorns prediction requires an observable outgoing-attack target. Remote armor visibility alone does not imply that the local player will attack. When a target is known, visible Thorns enchantment levels are kept per armor piece because vanilla evaluates pieces independently.
 - Experimental intentional-damage strategies start disabled (`runtimeValidated == false`) and are not promoted by source reasoning alone. No deliberate hurt-cooldown manipulation strategy is currently runtime-promoted.
 - The debug HUD is optional and off by default. Normal chat and disk logging are not used for routine decisions.
 
@@ -90,6 +107,13 @@ gradle --no-daemon compileGametestJava processGametestResources
 xvfb-run -a gradle --no-daemon runClientGameTest
 ```
 
-CI also verifies that the production JAR contains no `dev/pixelied/survival/validation/` GameTest classes and uploads the production JAR only after the project build, exact-runtime GameTests, and packaging-isolation checks pass.
+Repository/workspace verification:
 
-The repository-level workspace validator is a separate required gate. The current feature-branch validation workflow passes alongside the project build/runtime workflow; task and lease metadata are kept separate from the production JAR.
+```bash
+python -m unittest discover -s tests -v
+python agentctl.py validate
+```
+
+CI verifies that the production JAR contains no `dev/pixelied/survival/validation/` GameTest classes and uploads the production JAR only after the project build, exact-runtime GameTests, and packaging-isolation checks pass.
+
+The repository-level workspace validator is a separate required gate. The feature-branch validation workflow runs the repository Python test suite and `agentctl.py validate`; task and lease metadata remain separate from the production JAR.
