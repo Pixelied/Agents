@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -157,7 +158,10 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("critical", Boolean.toString(arrow.isCritArrow()));
             properties.put("pierce_level", Byte.toString(arrow.getPierceLevel()));
             properties.put("in_ground", Boolean.toString(accessor.predictiveSurvival$isInGround()));
-            properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(arrow.getOwner())));
+            properties.put(
+                "scales_with_difficulty",
+                Boolean.toString(conservativeScalesWithDifficulty(arrow.getOwner(), player.level().getDifficulty()))
+            );
             if (entity instanceof Arrow potionArrow) {
                 properties.put("arrow_tipped", Boolean.toString(potionArrow.getColor() != -1));
             }
@@ -168,27 +172,28 @@ public final class MinecraftWorldSnapshotFactory {
 
         if (entity instanceof AbstractHurtingProjectile hurtingProjectile) {
             Entity owner = hurtingProjectile.getOwner();
+            boolean scalesWithDifficulty = conservativeScalesWithDifficulty(owner, player.level().getDifficulty());
             properties.put("acceleration_power", Double.toString(hurtingProjectile.accelerationPower));
             if (entity instanceof LargeFireball) {
                 properties.put("raw_damage", "6");
                 properties.put("explosion_radius", "1");
                 properties.put("source_key", owner == null ? "minecraft:unattributed_fireball" : "minecraft:fireball");
-                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(owner)));
+                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty));
             } else if (entity instanceof SmallFireball) {
                 properties.put("raw_damage", "5");
                 properties.put("source_key", owner == null ? "minecraft:unattributed_fireball" : "minecraft:fireball");
-                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(owner)));
+                properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty));
             } else if (entity instanceof WitherSkull) {
                 properties.put("explosion_radius", "1");
                 if (owner instanceof LivingEntity) {
                     properties.put("raw_damage", "8");
                     properties.put("source_key", "minecraft:wither_skull");
-                    properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty(owner)));
+                    properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty));
                 } else {
                     properties.put("raw_damage_min", "5");
                     properties.put("raw_damage_max", "8");
                     properties.put("source_key", "minecraft:magic");
-                    properties.put("scales_with_difficulty", "false");
+                    properties.put("scales_with_difficulty", Boolean.toString(scalesWithDifficulty));
                 }
             }
         }
@@ -412,6 +417,11 @@ public final class MinecraftWorldSnapshotFactory {
             }
         }
         return List.copyOf(blocks);
+    }
+
+    private static boolean conservativeScalesWithDifficulty(Entity owner, Difficulty difficulty) {
+        if (owner != null) return scalesWithDifficulty(owner);
+        return difficulty == Difficulty.HARD;
     }
 
     private static boolean scalesWithDifficulty(Entity owner) {
