@@ -1,7 +1,6 @@
 package dev.adrien.crystaloptimizer.v2.timing;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumMap;
@@ -69,7 +68,7 @@ public final class TimingEngine {
             throw new IllegalArgumentException("nowNanos must be non-negative");
         }
         if (transition == TimingTransition.IMMEDIATE) {
-            return new TimingDistribution(0, 0.0, 0.0, 0.0, 1.0, nowNanos);
+            return TimingDistribution.immediate(nowNanos);
         }
 
         Deque<Sample> samples = completed.get(transition);
@@ -124,17 +123,19 @@ public final class TimingEngine {
         }
 
         int hardBoundaries = 0;
+        for (TimingTransition transition : transitions) {
+            Objects.requireNonNull(transition, "transition");
+            if (transition.hardFeedback()) {
+                hardBoundaries++;
+            }
+        }
+
         double expectedMillis = 0.0;
         double p90Millis = 0.0;
         double confidence = 1.0;
-
         for (TimingTransition transition : transitions) {
-            Objects.requireNonNull(transition, "transition");
             if (transition == TimingTransition.IMMEDIATE) {
                 continue;
-            }
-            if (transition.hardFeedback()) {
-                hardBoundaries++;
             }
 
             TimingDistribution distribution = distribution(transition, nowNanos);
