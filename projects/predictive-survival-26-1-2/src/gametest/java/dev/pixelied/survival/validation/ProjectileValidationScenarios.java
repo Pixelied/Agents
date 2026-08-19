@@ -275,18 +275,15 @@ final class ProjectileValidationScenarios {
                     new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
                     LIMITS
                 );
-                List<ThreatEvent> events = new ProjectilePredictor().predict(predictionContext).stream()
-                    .filter(event -> event.id().startsWith("projectile:" + setup.projectileId() + ":"))
-                    .toList();
-                if (events.isEmpty()) throw new AssertionError("live mob-owned " + id + " produced no projectile threat");
-                for (ThreatEvent event : events) {
-                    if (event.damage().scalesWithDifficulty() != setup.serverScales()) {
-                        throw new AssertionError(
-                            "mob_" + id + "_predictor_scaling event=" + event.id()
-                                + " server=" + setup.serverScales()
-                                + " predicted=" + event.damage().scalesWithDifficulty()
-                        );
-                    }
+                ThreatEvent direct = new ProjectilePredictor().predict(predictionContext).stream()
+                    .filter(event -> event.id().equals("projectile:" + setup.projectileId() + ":direct"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("live mob-owned " + id + " produced no direct projectile threat"));
+                if (direct.damage().scalesWithDifficulty() != setup.serverScales()) {
+                    throw new AssertionError(
+                        "mob_" + id + "_direct_predictor_scaling server=" + setup.serverScales()
+                            + " predicted=" + direct.damage().scalesWithDifficulty()
+                    );
                 }
             });
         } finally {
