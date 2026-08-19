@@ -112,3 +112,18 @@ class InstanceIsolationContract(unittest.TestCase):
         )
         self.assertNotIn("tag=md.statue_shell,distance=..36", cleanup)
         self.assertNotIn("tag=md.statue_hitbox,distance=..36", cleanup)
+
+class SpectatorIsolationContract(unittest.TestCase):
+    def test_spectators_are_not_registered_or_kept_as_participants(self):
+        register = (FN / "instance/participants/register_initial.mcfunction").read_text()
+        watchdog = (FN / "instance/watchdog.mcfunction").read_text()
+        self.assertGreaterEqual(
+            register.count("gamemode=!spectator"),
+            3,
+            "every initial/late participant selector must exclude Spectator players",
+        )
+        self.assertIn(
+            'gamemode=spectator] run function medusa:instance/participants/clear_player',
+            watchdog,
+            "players who switch to Spectator during a fight must be removed from the encounter",
+        )
