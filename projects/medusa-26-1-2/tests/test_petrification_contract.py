@@ -73,3 +73,21 @@ class RescueContract(unittest.TestCase):
         self.assertTrue(suffocate.is_file(), "suffocation function is missing")
         self.assertIn("md.petrified", enter.read_text())
         self.assertIn("damage @s 2 medusa:petrification", suffocate.read_text())
+
+class PetrificationEffectCompatibilityContract(unittest.TestCase):
+    def test_petrification_does_not_clear_preexisting_player_effects(self):
+        tick = (FN / "petrify/tick_player.mcfunction").read_text()
+        suffocate = (FN / "petrify/suffocate.mcfunction").read_text()
+        break_free = (FN / "petrify/break_free.mcfunction").read_text()
+        clear_player = (FN / "petrify/clear_player.mcfunction").read_text()
+        participant_clear = (FN / "instance/participants/clear_player.mcfunction").read_text()
+        bypass = ROOT / "datapacks/medusa/data/minecraft/tags/damage_type/bypasses_resistance.json"
+
+        self.assertTrue(bypass.is_file(), "petrification damage must bypass Resistance without deleting the player's effect")
+        self.assertIn("medusa:petrification", bypass.read_text())
+        self.assertNotIn("effect clear", suffocate, "suffocation damage already bypasses Resistance and must not erase potion/beacon effects")
+        self.assertNotIn("effect clear", break_free, "breaking free must not erase pre-existing potion/beacon effects")
+        self.assertNotIn("effect clear", clear_player, "participant cleanup must not erase pre-existing potion/beacon effects")
+        self.assertNotIn("effect clear", participant_clear, "leaving an encounter must not erase pre-existing potion/beacon effects")
+        for effect in ["resistance", "slowness", "weakness", "mining_fatigue", "invisibility"]:
+            self.assertIn(f"effect give @s minecraft:{effect} 1", tick, "full-petrification overlays should expire quickly instead of being globally cleared")
