@@ -86,6 +86,9 @@ public final class MinecraftWorldSnapshotFactory {
         if (entity instanceof Projectile || entity instanceof AreaEffectCloud) {
             properties.put("observation_age_ticks", "1");
         }
+        if (entity instanceof Projectile) {
+            properties.put("projectile_age_ticks", Integer.toString(Math.max(0, entity.tickCount)));
+        }
 
         if (entity instanceof AbstractArrow arrow) {
             AbstractArrowAccessor accessor = (AbstractArrowAccessor) (Object) arrow;
@@ -214,6 +217,11 @@ public final class MinecraftWorldSnapshotFactory {
     }
 
     private static void snapshotPotionContents(ItemStack stack, Map<String, String> properties) {
+        Float durationScale = stack.get(DataComponents.POTION_DURATION_SCALE);
+        if (durationScale != null) {
+            properties.put("potion_duration_scale", Float.toString(durationScale));
+        }
+
         PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
         if (contents == null) return;
 
