@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
@@ -29,12 +28,35 @@ public final class ActionArbiter {
         OptimizerConfig config,
         long nowNanos
     ) {
+        return evaluateFrom(
+            approval,
+            actions,
+            0,
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    public ArbitrationResult evaluateFrom(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
         Objects.requireNonNull(approval, "approval");
         Objects.requireNonNull(actions, "actions");
         Objects.requireNonNull(view, "view");
         Objects.requireNonNull(pendingItems, "pendingItems");
         Objects.requireNonNull(config, "config");
-        if (nowNanos < 0L || actions.isEmpty()) {
+        if (nowNanos < 0L
+            || actions.isEmpty()
+            || startIndex < 0
+            || startIndex >= actions.size()) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
         }
 
@@ -56,7 +78,12 @@ public final class ActionArbiter {
 
         Map<Item, Integer> burstDemand = new HashMap<>();
         Integer previousAttack = null;
-        for (CombatAction action : actions) {
+        if (startIndex > 0 && actions.get(startIndex - 1) instanceof AttackKnownCrystal attack) {
+            previousAttack = attack.entityId();
+        }
+
+        for (int actionIndex = startIndex; actionIndex < actions.size(); actionIndex++) {
+            CombatAction action = actions.get(actionIndex);
             if (action instanceof AttackKnownCrystal attack) {
                 if (!config.crystals()) {
                     return ArbitrationResult.rejected(ArbitrationResult.Reason.FEATURE_DISABLED);
@@ -173,7 +200,7 @@ public final class ActionArbiter {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.UNSUPPORTED_ACTION);
         }
 
-        return ArbitrationResult.approved(actions);
+        return ArbitrationResult.approved(actions.subList(startIndex, actions.size()));
     }
 
     private static ArbitrationResult requireItem(

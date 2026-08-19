@@ -1,6 +1,7 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
 import dev.adrien.crystaloptimizer.client.config.OptimizerConfigService;
+import dev.adrien.crystaloptimizer.client.execution.DispatchReceipt;
 import dev.adrien.crystaloptimizer.client.execution.HotbarRestocker;
 import dev.adrien.crystaloptimizer.client.execution.RotationController;
 import dev.adrien.crystaloptimizer.client.execution.VanillaInteractionDispatcher;
@@ -13,6 +14,7 @@ import dev.adrien.crystaloptimizer.v2.execution.PendingItemLedger;
 import dev.adrien.crystaloptimizer.v2.reactive.CombatEvent;
 import dev.adrien.crystaloptimizer.v2.reactive.ReactiveCombatEngine;
 import dev.adrien.crystaloptimizer.v2.reactive.ReactiveDecision;
+import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboard;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboardSnapshot;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageMap;
@@ -22,6 +24,7 @@ import dev.adrien.crystaloptimizer.v2.strategy.HurtWindowTracker;
 import dev.adrien.crystaloptimizer.v2.timing.TimingDistribution;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
 import dev.adrien.crystaloptimizer.v2.timing.TimingTransition;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -43,6 +46,7 @@ public final class ClientCombatCoordinator {
     private final ClientCombatDiagnostics diagnostics;
     private final Runnable strategicTick;
     private final Consumer<CombatEvent> eventObserver;
+    private PendingContinuation continuation;
 
     public ClientCombatCoordinator(
         OptimizerConfigService configService,
@@ -210,6 +214,10 @@ public final class ClientCombatCoordinator {
         OptimizerConfig config = configService.current();
         diagnostics.recordConfig(config);
         if (!config.enabled()) {
+            continuation = null;
+            return;
+        }
+        if (resumeContinuation(config)) {
             return;
         }
         strategicTick.run();
@@ -225,6 +233,7 @@ public final class ClientCombatCoordinator {
         OptimizerConfig config = configService.current();
         diagnostics.recordConfig(config);
         if (!config.enabled()) {
+            continuation = null;
             return;
         }
 
@@ -240,25 +249,113 @@ public final class ClientCombatCoordinator {
         }
 
         ReactiveDecision selected = decision.orElseThrow();
-        ArbitrationResult allowed = arbiter.evaluate(
-            selected.approval(),
-            selected.actions(),
-            liveView,
-            pendingItems,
-            config,
-            System.nanoTime()
-        );
-        if (!allowed.allowed()) {
-            diagnostics.recordRejection(allowed.reason());
+        if (continuation != null
+            && !preempts(selected.slot(), continuation.decision().slot())) {
             return;
         }
-
-        burstDispatcher.dispatch(selected, config);
-        diagnostics.recordDispatch(selected, System.nanoTime());
+        continuation = null;
+        dispatchDecision(selected, 0, config);
     }
 
     public ClientCombatDiagnostics diagnostics() {
         return diagnostics;
+    }
+
+    private boolean resumeContinuation(OptimizerConfig config) {
+        PendingContinuation pending = continuation;
+        if (pending == null) {
+            return false;
+        }
+        if (pending.waitTicks() > 0) {
+            continuation = pending.withWaitTicks(pending.waitTicks() - 1);
+            return true;
+        }
+        if (pending.nextActionIndex() >= pending.decision().actions().size()) {
+            continuation = null;
+            return true;
+        }
+
+        dispatchDecision(pending.decision(), pending.nextActionIndex(), config);
+        return true;
+    }
+
+    private void dispatchDecision(
+        ReactiveDecision decision,
+        int startIndex,
+        OptimizerConfig config
+    ) {
+        long nowNanos = System.nanoTime();
+        ArbitrationResult allowed = startIndex == 0
+            ? arbiter.evaluate(
+                decision.approval(),
+                decision.actions(),
+                liveView,
+                pendingItems,
+                config,
+                nowNanos
+            )
+            : arbiter.evaluateFrom(
+                decision.approval(),
+                decision.actions(),
+                startIndex,
+                liveView,
+                pendingItems,
+                config,
+                nowNanos
+            );
+        if (!allowed.allowed()) {
+            diagnostics.recordRejection(allowed.reason());
+            continuation = null;
+            return;
+        }
+
+        BurstReceipt receipt = startIndex == 0
+            ? burstDispatcher.dispatch(decision, config)
+            : burstDispatcher.dispatchFrom(decision, config, startIndex);
+        diagnostics.recordDispatch(decision, System.nanoTime());
+        updateContinuation(decision, startIndex, receipt);
+    }
+
+    private void updateContinuation(
+        ReactiveDecision decision,
+        int startIndex,
+        BurstReceipt receipt
+    ) {
+        List<DispatchReceipt> receipts = receipt.receipts();
+        if (receipts.isEmpty()) {
+            continuation = null;
+            return;
+        }
+
+        int sentCount = 0;
+        while (sentCount < receipts.size()
+            && receipts.get(sentCount).status() == DispatchReceipt.Status.SENT) {
+            sentCount++;
+        }
+        int nextActionIndex = startIndex + sentCount;
+
+        if (sentCount == receipts.size()) {
+            continuation = nextActionIndex < decision.actions().size()
+                ? new PendingContinuation(decision, nextActionIndex, 0)
+                : null;
+            return;
+        }
+
+        DispatchReceipt terminal = receipts.get(sentCount);
+        continuation = switch (terminal.status()) {
+            case DEFERRED -> new PendingContinuation(decision, nextActionIndex, 0);
+            case WAITING -> new PendingContinuation(
+                decision,
+                Math.min(decision.actions().size(), nextActionIndex + 1),
+                terminal.waitTicks()
+            );
+            case FAILED -> null;
+            case SENT -> throw new IllegalStateException("sent receipt escaped sent prefix");
+        };
+    }
+
+    private static boolean preempts(ApprovalSlot challenger, ApprovalSlot pending) {
+        return challenger.ordinal() < pending.ordinal();
     }
 
     private static double immediateLethalMillis(DamageMap map) {
@@ -269,5 +366,25 @@ public final class ClientCombatCoordinator {
             .filter(Double::isFinite)
             .min()
             .orElse(Double.POSITIVE_INFINITY);
+    }
+
+    private record PendingContinuation(
+        ReactiveDecision decision,
+        int nextActionIndex,
+        int waitTicks
+    ) {
+        private PendingContinuation {
+            Objects.requireNonNull(decision, "decision");
+            if (nextActionIndex < 0 || nextActionIndex > decision.actions().size()) {
+                throw new IllegalArgumentException("nextActionIndex outside reactive decision");
+            }
+            if (waitTicks < 0) {
+                throw new IllegalArgumentException("waitTicks must be non-negative");
+            }
+        }
+
+        PendingContinuation withWaitTicks(int nextWaitTicks) {
+            return new PendingContinuation(decision, nextActionIndex, nextWaitTicks);
+        }
     }
 }

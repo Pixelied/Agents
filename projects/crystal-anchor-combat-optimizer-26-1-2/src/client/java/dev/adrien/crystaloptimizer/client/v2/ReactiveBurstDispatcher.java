@@ -35,13 +35,29 @@ public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
 
     @Override
     public BurstReceipt dispatch(ReactiveDecision decision, OptimizerConfig config) {
+        return dispatchFrom(decision, config, 0);
+    }
+
+    @Override
+    public BurstReceipt dispatchFrom(
+        ReactiveDecision decision,
+        OptimizerConfig config,
+        int startIndex
+    ) {
         Objects.requireNonNull(decision, "decision");
         Objects.requireNonNull(config, "config");
+        if (startIndex < 0 || startIndex > decision.actions().size()) {
+            throw new IllegalArgumentException("startIndex outside reactive decision");
+        }
+        if (startIndex == decision.actions().size()) {
+            return BurstReceipt.empty();
+        }
+
         List<DispatchReceipt> receipts = new ArrayList<>();
         List<Long> reservationIds = new ArrayList<>();
         boolean critical = decision.slot() != ApprovalSlot.PREPARE;
 
-        for (int index = 0; index < decision.actions().size(); index++) {
+        for (int index = startIndex; index < decision.actions().size(); index++) {
             CombatAction action = decision.actions().get(index);
             long reservationId = reserveIfNeeded(decision.actionId(), index, action);
             if (reservationId >= 0L) {

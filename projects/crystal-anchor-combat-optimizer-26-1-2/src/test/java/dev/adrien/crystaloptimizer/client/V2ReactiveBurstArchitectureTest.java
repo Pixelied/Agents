@@ -25,7 +25,7 @@ final class V2ReactiveBurstArchitectureTest {
         assertTrue(vanilla.contains("minecraft.gameMode.attack(player, entity)"));
         assertTrue(vanilla.contains("minecraft.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit)"));
         assertTrue(vanilla.contains("rotations.updateToward(target, mode, critical)"));
-        assertTrue(burst.contains("for (int index = 0; index < decision.actions().size(); index++)"));
+        assertTrue(burst.contains("for (int index = startIndex; index < decision.actions().size(); index++)"));
         assertTrue(burst.contains("receipt.status() != DispatchReceipt.Status.SENT"));
         assertTrue(outgoing.contains("ServerboundAttackPacket"));
         assertFalse(vanilla.contains("new EndCrystal"));
