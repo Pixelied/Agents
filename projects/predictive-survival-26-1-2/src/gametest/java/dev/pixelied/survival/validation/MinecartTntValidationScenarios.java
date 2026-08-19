@@ -42,11 +42,22 @@ final class MinecartTntValidationScenarios {
             minecart.setNoGravity(true);
             minecart.setDeltaMovement(Vec3.ZERO);
             level.addFreshEntity(minecart);
-            minecart.primeFuse(null);
             return minecart.getId();
         });
 
         try {
+            context.waitFor(minecraft -> minecraft.level != null
+                && minecraft.level.getEntity(entityId) instanceof MinecartTNT);
+
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                Entity entity = ((ServerLevel) player.level()).getEntity(entityId);
+                if (!(entity instanceof MinecartTNT minecart)) {
+                    throw new AssertionError("server TNT minecart disappeared before priming");
+                }
+                minecart.primeFuse(null);
+            });
+
             context.waitFor(minecraft -> minecraft.level != null
                 && minecraft.level.getEntity(entityId) instanceof MinecartTNT minecart
                 && minecart.isPrimed());
