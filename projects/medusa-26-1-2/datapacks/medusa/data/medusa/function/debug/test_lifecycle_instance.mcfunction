@@ -42,6 +42,18 @@ execute unless entity @e[type=minecraft:block_display,tag=md.iso_other,distance=
 execute unless entity @e[type=minecraft:interaction,tag=md.iso_other,distance=..12] run say MEDUSA_INSTANCE_ISOLATION_FAILED
 kill @e[tag=md.iso_other,distance=..12]
 
+# Canonical Eye identity probe: returning one temple's dropped Eye must not purge another temple's Eye.
+summon minecraft:item ~8 ~ ~ {Tags:["md.eye_id_one"],Item:{id:"minecraft:player_head",count:1,components:{"minecraft:custom_data":{md_item:"golden_gorgon_eye",md_eid:111}}}}
+summon minecraft:item ~9 ~ ~ {Tags:["md.eye_id_two"],Item:{id:"minecraft:player_head",count:1,components:{"minecraft:custom_data":{md_item:"golden_gorgon_eye",md_eid:222}}}}
+data modify storage medusa:macro eye_probe.eid set value 111
+function medusa:reward/clear_dropped_eye with storage medusa:macro eye_probe
+execute unless entity @e[type=minecraft:item,tag=md.eye_id_one,distance=..12] if entity @e[type=minecraft:item,tag=md.eye_id_two,distance=..12] run say MEDUSA_EYE_INSTANCE_ID_OK
+execute if entity @e[type=minecraft:item,tag=md.eye_id_one,distance=..12] run say MEDUSA_EYE_INSTANCE_ID_FAILED
+execute unless entity @e[type=minecraft:item,tag=md.eye_id_two,distance=..12] run say MEDUSA_EYE_INSTANCE_ID_FAILED
+kill @e[type=minecraft:item,tag=md.eye_id_two,distance=..12]
+# Instantiate the player-give macro on the exact runtime as well; no target is expected in headless CI.
+function medusa:arena/pedestal/give_eye {eid:111}
+
 # Death must atomically resolve reward state, remove the boss, return the Eye, and enter ritual_ready.
 execute as @e[type=minecraft:husk,tag=md.boss,distance=..110,limit=1,sort=nearest] at @s run function medusa:boss/death/start
 execute if score @s md_state matches 4 if score @s md_rewarded matches 1 if score @s md_killed matches 1 unless entity @e[type=minecraft:husk,tag=md.boss,distance=..110] if entity @e[type=minecraft:item_display,tag=md.pedestal_display,distance=..110] run say MEDUSA_DEATH_STATE_OK
