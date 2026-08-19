@@ -45,6 +45,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,13 +60,39 @@ public final class MinecraftWorldSnapshotFactory {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(limits, "limits");
 
-        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>();
+        List<Entity> tracked = new ArrayList<>();
         for (Entity entity : level.entitiesForRendering()) {
             if (entity == player || !entity.isAlive() || entity.isRemoved()) continue;
-            entities.add(entitySnapshot(entity, player));
+            tracked.add(entity);
+        }
+        tracked.sort(
+            Comparator.comparingInt(MinecraftWorldSnapshotFactory::threatPriority)
+                .thenComparingDouble(player::distanceToSqr)
+        );
+
+        int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
+        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, tracked.size()));
+        for (int i = 0; i < tracked.size() && entities.size() < entityCap; i++) {
+            entities.add(entitySnapshot(tracked.get(i), player));
         }
 
         return new WorldSnapshot(entities, captureBlocks(level, player.blockPosition()));
+    }
+
+    private static int threatPriority(Entity entity) {
+        if (entity instanceof Projectile
+            || entity instanceof AreaEffectCloud
+            || entity instanceof FallingBlockEntity
+            || entity instanceof PrimedTnt
+            || entity instanceof EndCrystal) {
+            return 0;
+        }
+        if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) return 0;
+        if (entity instanceof LivingEntity living) {
+            var attackDamage = living.getAttribute(Attributes.ATTACK_DAMAGE);
+            if (attackDamage != null && attackDamage.getValue() > 0d) return 0;
+        }
+        return 1;
     }
 
     private static WorldSnapshot.EntitySnapshot entitySnapshot(Entity entity, LocalPlayer player) {
