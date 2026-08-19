@@ -56,6 +56,23 @@ class ThreatCapOverflowSafetyTest {
         );
     }
 
+    @Test
+    void oneDeathProtectionItemCannotMakeUnknownOverflowLookSafe() {
+        PredictionContext context = context(2, new DeathProtectionSnapshot(true, false));
+        ThreatPredictor burst = ignored -> List.of(
+            threat("early", 1, 1f),
+            threat("late:lethal:1", 2, 100f),
+            threat("late:lethal:2", 3, 100f)
+        );
+
+        List<ThreatEvent> capped = new ThreatPredictorRegistry(List.of(burst)).predictAll(context);
+
+        assertFalse(
+            new ThreatTimelineSimulator().simulate(context.player(), new ThreatTimeline(capped)).survived(),
+            "one collapsed overflow event must not let one death-protection item stand in for an unknown multi-hit sequence"
+        );
+    }
+
     private static List<ThreatEvent> overflowingThreats() {
         return List.of(
             threat("early:1", 1, 1f),
@@ -85,10 +102,14 @@ class ThreatCapOverflowSafetyTest {
     }
 
     private static PredictionContext context(int maxThreats) {
+        return context(maxThreats, DeathProtectionSnapshot.none());
+    }
+
+    private static PredictionContext context(int maxThreats, DeathProtectionSnapshot deathProtection) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
-            DeathProtectionSnapshot.none(), new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
+            deathProtection, new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
             new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
         );
         return new PredictionContext(
