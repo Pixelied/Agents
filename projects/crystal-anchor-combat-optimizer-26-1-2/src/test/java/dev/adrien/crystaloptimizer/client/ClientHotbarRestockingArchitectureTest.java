@@ -10,24 +10,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientHotbarRestockingArchitectureTest {
     @Test
-    void liveRuntimeRestocksOnlyOutsideTimingCriticalExecutionUsingVanillaSwap() throws IOException {
-        Path runtimePath = Path.of(
-            "src/client/java/dev/adrien/crystaloptimizer/client/ClientCombatRuntime.java"
+    void v2StrategicTickRestocksOnlyOutsidePendingReactiveReservationsUsingVanillaSwap() throws IOException {
+        Path coordinatorPath = Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatCoordinator.java"
         );
         Path restockerPath = Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/execution/HotbarRestocker.java"
         );
-        String runtime = Files.readString(runtimePath);
+        String coordinator = Files.readString(coordinatorPath);
 
         assertTrue(Files.exists(restockerPath), "live vanilla hotbar restocker must exist");
         String restocker = Files.readString(restockerPath);
 
-        assertTrue(runtime.contains("HotbarRestocker"));
-        assertTrue(runtime.contains("engine.phase() == CommitPhase.NORMAL"),
-            "inventory mutation must be forbidden during committed/reconciling execution");
-        assertTrue(runtime.contains("restocker.restockOne(self)"));
-        assertTrue(runtime.contains("return;"),
-            "a restock tick must stop before snapshot/planning to avoid racing predicted inventory state");
+        assertTrue(coordinator.contains("HotbarRestocker"));
+        assertTrue(coordinator.contains("pendingItems.reservationCount() == 0"),
+            "inventory mutation must not race an outstanding reactive item reservation");
+        assertTrue(coordinator.contains("restocker.restockOne(self)"));
+        int restock = coordinator.indexOf("restocker.restockOne(self)");
+        int scanner = coordinator.indexOf("scanner.scan(", restock);
+        int stop = coordinator.indexOf("return;", restock);
+        assertTrue(restock >= 0 && stop > restock && scanner > stop,
+            "a restock tick must stop before strategic scanning to avoid racing inventory state");
 
         assertTrue(restocker.contains("player.containerMenu != player.inventoryMenu"),
             "restocking must reject menus whose slot mapping is not the normal player inventory");
@@ -39,6 +42,8 @@ class ClientHotbarRestockingArchitectureTest {
         assertTrue(restocker.contains("sourceInventorySlot()"));
         assertTrue(restocker.contains("hotbarSlot()"));
 
+        assertFalse(restocker.contains("CommitPhase"),
+            "V2 restocking must not depend on the removed V1 commit state machine");
         assertFalse(restocker.contains("ServerboundContainerClickPacket"),
             "restocker must call the vanilla controller, not construct raw container packets");
         assertFalse(restocker.contains("getOffhandItem"),

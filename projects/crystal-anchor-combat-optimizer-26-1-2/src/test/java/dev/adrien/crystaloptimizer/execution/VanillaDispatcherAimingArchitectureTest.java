@@ -5,11 +5,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VanillaDispatcherAimingArchitectureTest {
     @Test
-    void realVisibleAimGatesCrystalAndBlockInteractions() throws IOException {
+    void realVisibleAimGatesCrystalAndBlockInteractionsWithoutV1Scheduler() throws IOException {
         Path dispatcherPath = Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/execution/VanillaInteractionDispatcher.java"
         );
@@ -17,8 +18,12 @@ class VanillaDispatcherAimingArchitectureTest {
 
         assertTrue(source.contains("rotations.updateToward("),
             "dispatcher must drive the existing real RotationController before interactions");
-        assertTrue(source.contains("scheduler.phase() == CommitPhase.COMMITTED"),
-            "V1 compatibility dispatch must preserve commit-aware ADAPTIVE rotation");
+        assertTrue(source.contains("return dispatch(action, rotationMode, false);"),
+            "ordinary dispatch must use real configured rotation without fabricating a V1 commit state");
+        assertFalse(source.contains("CommitScheduler"),
+            "V2 dispatcher must not retain the superseded V1 scheduler");
+        assertFalse(source.contains("CommitPhase"),
+            "V2 criticality is supplied explicitly by the reactive lane");
         assertTrue(source.contains("DispatchReceipt.deferred(\"real rotation still converging\")"),
             "normal smooth aiming must defer the action until the visible rotation reaches target");
 

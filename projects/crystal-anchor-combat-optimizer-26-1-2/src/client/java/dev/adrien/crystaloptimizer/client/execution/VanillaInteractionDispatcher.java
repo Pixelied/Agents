@@ -10,8 +10,6 @@ import dev.adrien.crystaloptimizer.action.PlaceObsidian;
 import dev.adrien.crystaloptimizer.action.Rotate;
 import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.action.Wait;
-import dev.adrien.crystaloptimizer.execution.CommitPhase;
-import dev.adrien.crystaloptimizer.execution.CommitScheduler;
 import dev.adrien.crystaloptimizer.execution.RotationMode;
 import java.util.Objects;
 import net.minecraft.client.Minecraft;
@@ -28,7 +26,6 @@ import net.minecraft.world.phys.Vec3;
 public final class VanillaInteractionDispatcher implements ActionDispatcher {
     private final Minecraft minecraft;
     private final RotationController rotations;
-    private final CommitScheduler scheduler;
     private final RotationMode rotationMode;
 
     public VanillaInteractionDispatcher(
@@ -38,29 +35,12 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
     ) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
         this.rotations = Objects.requireNonNull(rotations, "rotations");
-        this.scheduler = null;
-        this.rotationMode = Objects.requireNonNull(rotationMode, "rotationMode");
-    }
-
-    public VanillaInteractionDispatcher(
-        Minecraft minecraft,
-        RotationController rotations,
-        CommitScheduler scheduler,
-        RotationMode rotationMode
-    ) {
-        this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
-        this.rotations = Objects.requireNonNull(rotations, "rotations");
-        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.rotationMode = Objects.requireNonNull(rotationMode, "rotationMode");
     }
 
     @Override
     public DispatchReceipt dispatch(CombatAction action) {
-        return dispatch(
-            action,
-            rotationMode,
-            scheduler != null && scheduler.phase() == CommitPhase.COMMITTED
-        );
+        return dispatch(action, rotationMode, false);
     }
 
     public DispatchReceipt dispatch(CombatAction action, RotationMode mode, boolean critical) {
