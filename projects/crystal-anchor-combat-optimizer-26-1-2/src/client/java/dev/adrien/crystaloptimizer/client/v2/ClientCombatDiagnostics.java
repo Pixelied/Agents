@@ -18,6 +18,7 @@ public final class ClientCombatDiagnostics {
     private volatile DamageEstimate targetDamage = DamageEstimate.exact(0.0f, 0L, 0L);
     private volatile float worstSelfDamage;
     private volatile boolean enabled;
+    private volatile boolean hudEnabled = true;
     private volatile OptimizerStrategy strategy = OptimizerStrategy.LETHAL_SPEED;
     private volatile ApprovalSlot selectedApproval;
     private volatile String targetName = "";
@@ -26,6 +27,7 @@ public final class ClientCombatDiagnostics {
 
     public void recordConfig(OptimizerConfig config) {
         enabled = config.enabled();
+        hudEnabled = config.hud();
         strategy = config.strategy();
     }
 
@@ -70,6 +72,7 @@ public final class ClientCombatDiagnostics {
     public DamageEstimate targetDamage() { return targetDamage; }
     public float worstSelfDamage() { return worstSelfDamage; }
     public boolean enabled() { return enabled; }
+    public boolean hudEnabled() { return hudEnabled; }
     public OptimizerStrategy strategy() { return strategy; }
     public Optional<ApprovalSlot> selectedApproval() { return Optional.ofNullable(selectedApproval); }
     public String targetName() { return targetName; }

@@ -67,6 +67,9 @@ public final class OptimizerHud {
             if (!diagnostics.enabled()) {
                 return;
             }
+            if (!diagnostics.hudEnabled()) {
+                return;
+            }
             List<Line> lines = new ArrayList<>();
             lines.add(new Line("CRYSTAL OPTIMIZER V2  " + diagnostics.strategy().name(), TITLE_COLOR));
             lines.add(new Line(

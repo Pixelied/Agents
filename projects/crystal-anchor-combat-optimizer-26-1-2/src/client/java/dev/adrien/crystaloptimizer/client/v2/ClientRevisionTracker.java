@@ -23,6 +23,10 @@ final class ClientRevisionTracker {
         return revision == null ? 0L : revision.get();
     }
 
+    void markInventoryMutation() {
+        inventoryRevision.incrementAndGet();
+    }
+
     void observe(CombatEvent event) {
         if (event instanceof CombatEvent.BlockChanged) {
             worldRevision.incrementAndGet();

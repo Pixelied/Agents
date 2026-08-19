@@ -1,10 +1,10 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
 import dev.adrien.crystaloptimizer.client.config.OptimizerConfigService;
+import dev.adrien.crystaloptimizer.client.execution.HotbarRestocker;
 import dev.adrien.crystaloptimizer.client.execution.RotationController;
 import dev.adrien.crystaloptimizer.client.execution.VanillaInteractionDispatcher;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
-import dev.adrien.crystaloptimizer.execution.CommitScheduler;
 import dev.adrien.crystaloptimizer.execution.InventoryCoordinator;
 import dev.adrien.crystaloptimizer.v2.execution.ActionArbiter;
 import dev.adrien.crystaloptimizer.v2.execution.ArbitrationResult;
@@ -111,6 +111,8 @@ public final class ClientCombatCoordinator {
             new HurtWindowTracker()
         );
         PendingItemLedger pendingItems = new PendingItemLedger();
+        InventoryCoordinator inventory = new InventoryCoordinator();
+        HotbarRestocker restocker = new HotbarRestocker(minecraft, inventory);
         ClientLiveCombatView liveView = new ClientLiveCombatView(
             minecraft,
             revisions::worldRevision,
@@ -118,11 +120,9 @@ public final class ClientCombatCoordinator {
             revisions::inventoryRevision,
             configService::revision
         );
-        CommitScheduler compatibilityScheduler = new CommitScheduler(new InventoryCoordinator());
         VanillaInteractionDispatcher vanilla = new VanillaInteractionDispatcher(
             minecraft,
             new RotationController(minecraft, MAX_VISIBLE_ROTATION_DEGREES_PER_UPDATE),
-            compatibilityScheduler,
             configService.current().rotationMode()
         );
         ReactiveBurstDispatcher burstDispatcher = new ReactiveBurstDispatcher(
@@ -140,6 +140,12 @@ public final class ClientCombatCoordinator {
             if (self == null || level == null) {
                 targets.clear();
                 diagnostics.recordTarget("");
+                return;
+            }
+            if (config.autoRestock()
+                && pendingItems.reservationCount() == 0
+                && restocker.restockOne(self)) {
+                revisions.markInventoryMutation();
                 return;
             }
 

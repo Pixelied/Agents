@@ -34,6 +34,17 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
     public VanillaInteractionDispatcher(
         Minecraft minecraft,
         RotationController rotations,
+        RotationMode rotationMode
+    ) {
+        this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
+        this.rotations = Objects.requireNonNull(rotations, "rotations");
+        this.scheduler = null;
+        this.rotationMode = Objects.requireNonNull(rotationMode, "rotationMode");
+    }
+
+    public VanillaInteractionDispatcher(
+        Minecraft minecraft,
+        RotationController rotations,
         CommitScheduler scheduler,
         RotationMode rotationMode
     ) {
@@ -48,7 +59,7 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
         return dispatch(
             action,
             rotationMode,
-            scheduler.phase() == CommitPhase.COMMITTED
+            scheduler != null && scheduler.phase() == CommitPhase.COMMITTED
         );
     }
 
