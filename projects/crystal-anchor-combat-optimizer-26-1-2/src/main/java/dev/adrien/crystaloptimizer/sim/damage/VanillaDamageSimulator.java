@@ -76,9 +76,13 @@ public final class VanillaDamageSimulator {
             acceptedIncoming,
             request
         );
+        // Vanilla damages armor items before CombatRules runs, but armor/toughness
+        // attribute modifiers are removed only by the later equipment-update pass.
+        // Therefore a piece that breaks still mitigates this hit, while its now-empty
+        // ItemStack no longer contributes enchantment protection afterward.
         float postArmor = VanillaMitigationPipeline.afterArmor(
             acceptedIncoming,
-            equipmentDamage.equipment(),
+            target.equipment(),
             request
         );
         float postMagic = VanillaMitigationPipeline.afterEffectsAndEnchantments(
