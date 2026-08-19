@@ -44,9 +44,10 @@ public final class EnvironmentPredictorRegistry {
             for (ThreatEvent event : predicted) events.add(Objects.requireNonNull(event, "threat event"));
         }
         events.sort(ORDER);
-        if (events.size() > context.limits().maxThreats()) {
-            events = new ArrayList<>(events.subList(0, context.limits().maxThreats()));
-        }
-        return List.copyOf(events);
+        return ThreatOverflowCondenser.cap(
+            events,
+            context.limits().maxThreats(),
+            "predictive_survival:environment_threat_overflow"
+        );
     }
 }
