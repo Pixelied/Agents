@@ -99,10 +99,13 @@ public final class AreaEffectCloudPredictor implements ThreatPredictor {
             cloud.properties().get(prefix + "application_health_threshold_exclusive"),
             0f
         );
+        boolean scalesWithDifficulty = Boolean.parseBoolean(
+            cloud.properties().getOrDefault(prefix + "scales_with_difficulty", "false")
+        );
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
             EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
-            false,
+            scalesWithDifficulty,
             1f,
             false,
             Optional.of(cloud.position()),
