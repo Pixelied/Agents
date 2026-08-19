@@ -120,6 +120,8 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
             4
         );
         target.setItemSlot(EquipmentSlot.CHEST, chest);
+        syncEquipment(target);
+        helper.assertTrue(target.getArmorValue() > 0, "fixture armor attributes must be active");
         assertSingleExplosionMatches(
             helper,
             target,
@@ -134,6 +136,8 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
         ItemStack chest = new ItemStack(Items.DIAMOND_CHESTPLATE);
         chest.setDamageValue(chest.getMaxDamage() - 1);
         target.setItemSlot(EquipmentSlot.CHEST, chest);
+        syncEquipment(target);
+        helper.assertTrue(target.getArmorValue() > 0, "fixture armor attributes must be active");
 
         ExplosionContext explosion = ExplosionContext.crystal(target.position().add(3.0, 0.0, 0.0));
         SimCombatant initial = GameTestCombatants.exactFirstHit(target);
@@ -205,7 +209,7 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
         ServerPlayer target = freshTarget(helper);
         target.setHealth(6.0f);
         target.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.TOTEM_OF_UNDYING));
-        ExplosionContext pop = ExplosionContext.crystal(target.position().add(7.0, 0.0, 0.0));
+        ExplosionContext pop = ExplosionContext.crystal(target.position().add(5.0, 0.0, 0.0));
         ExplosionContext finisher = ExplosionContext.crystal(target.position().add(3.0, 0.0, 0.0));
 
         DamageResult popPredicted = predict(
@@ -250,6 +254,10 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
             "differential fixture must be discoverable by ServerLevel entity queries"
         );
         return target;
+    }
+
+    private static void syncEquipment(ServerPlayer target) {
+        target.tick();
     }
 
     private static void assertSingleExplosionMatches(
