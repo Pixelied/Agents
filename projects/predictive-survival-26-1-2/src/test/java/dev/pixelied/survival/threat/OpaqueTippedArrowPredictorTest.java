@@ -51,8 +51,8 @@ class OpaqueTippedArrowPredictorTest {
         assertEquals(new DamageRange(0f, Float.MAX_VALUE), payload.damage().rawDamage());
         assertEquals("minecraft:indirect_magic", payload.damage().sourceKey());
         assertTrue(payload.damage().has(DamageFlag.BYPASSES_ARMOR));
-        assertTrue(payload.damage().has(DamageFlag.BYPASSES_SHIELD));
-        assertFalse(payload.blockable());
+        assertFalse(payload.damage().has(DamageFlag.BYPASSES_SHIELD));
+        assertEquals(direct.blockable(), payload.blockable());
         assertEquals(Confidence.UNKNOWN, payload.confidence());
     }
 
