@@ -15,6 +15,7 @@ class RuntimeEntrypointContract(unittest.TestCase):
             "debug/start_test_boss.mcfunction",
             "debug/give_test_items.mcfunction",
             "debug/test_petrification_damage.mcfunction",
+            "debug/test_gaze_pipeline.mcfunction",
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing runtime debug entrypoint: {rel}")
 
@@ -31,15 +32,20 @@ class RuntimeEntrypointContract(unittest.TestCase):
         temple_pos = text.find("function medusa:admin/place_temple")
         boss_pos = text.find("function medusa:debug/start_test_boss")
         damage_pos = text.find("function medusa:debug/test_petrification_damage")
+        gaze_pos = text.find("function medusa:debug/test_gaze_pipeline")
         done_pos = text.find("MEDUSA_SMOKE_DONE")
         self.assertGreaterEqual(temple_pos, 0)
         self.assertGreater(boss_pos, temple_pos, "boss smoke must run after the blocking temple build returns")
         self.assertGreater(damage_pos, boss_pos, "damage smoke must run after boss bootstrap")
-        self.assertGreater(done_pos, damage_pos, "smoke completion marker must be emitted last")
+        self.assertGreater(gaze_pos, damage_pos, "gaze smoke must run after the damage probe")
+        self.assertGreater(done_pos, gaze_pos, "smoke completion marker must be emitted last")
 
     def test_exact_runtime_workflow_waits_for_in_game_smoke_completion(self):
         workflow = (REPO / ".github/workflows/medusa-26-1-2-ci.yml").read_text()
         self.assertIn("grep -q 'MEDUSA_SMOKE_DONE' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_GAZE_LOS_OK' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_GAZE_PETRIFICATION_OK' server.log", workflow)
         self.assertNotIn("echo 'function medusa:debug/start_test_boss'", workflow)
         self.assertNotIn("echo 'function medusa:debug/test_petrification_damage'", workflow)
         self.assertIn("Serialization errors", workflow, "runtime gate must reject entity/data serialization warnings")
