@@ -72,11 +72,7 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
             SurvivalEngine.EngineFrame postImpact = null;
             int postImpactTick = -1;
             Observation postImpactObservation = null;
-            float previousHealth = 20f;
-            int downgradeTick = -1;
-            DamageSample firstTailDamage = null;
-
-            for (int tick = 1; tick <= 120; tick++) {
+            for (int tick = 1; tick <= 20; tick++) {
                 anchor(singleplayer, setup.playerAnchor());
                 context.waitTick();
                 SurvivalEngine.EngineFrame frame = context.computeOnClient(minecraft -> runtime.capture());
@@ -84,33 +80,18 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
                 boolean clientProjectilePresent = frame.context().world().entities().stream()
                     .anyMatch(entity -> entity.id().equals(Integer.toString(setup.projectileId())));
 
-                if (postImpact == null
-                    && !observation.projectilePresent()
+                if (!observation.projectilePresent()
                     && !clientProjectilePresent
                     && observation.witherAmplifier() == 1) {
                     postImpact = frame;
                     postImpactTick = tick;
                     postImpactObservation = observation;
-                }
-
-                if (postImpact != null && downgradeTick < 0 && observation.witherAmplifier() == 0) {
-                    downgradeTick = tick;
-                }
-                if (downgradeTick >= 0
-                    && tick > downgradeTick
-                    && observation.health() < previousHealth - EPSILON) {
-                    firstTailDamage = new DamageSample(tick, observation);
                     break;
                 }
-                previousHealth = observation.health();
             }
 
-            if (postImpact == null || downgradeTick < 0 || firstTailDamage == null) {
-                throw new AssertionError(
-                    "fixture did not reach client-observed projectile removal plus hidden-tail damage; postImpactTick="
-                        + postImpactTick + " postImpactObservation=" + postImpactObservation
-                        + " downgradeTick=" + downgradeTick + " firstTailDamage=" + firstTailDamage
-                );
+            if (postImpact == null) {
+                throw new AssertionError("fixture never reached a client-observed post-impact Wither II frame");
             }
 
             List<ThreatEvent> postImpactWither = postImpact.timeline().events().stream()
@@ -120,15 +101,46 @@ final class PostImpactStackedStatusPersistenceValidationScenarios {
                 .mapToLong(event -> event.impact().latest())
                 .max()
                 .orElse(-1L);
-            long actualTailDelay = firstTailDamage.tick() - postImpactTick;
-            throw new AssertionError(
-                "post-impact stacked status diagnostic: postImpactTick=" + postImpactTick
-                    + " actualTailDelay=" + actualTailDelay
-                    + " latestPostImpactPrediction=" + latestPredicted
-                    + " postImpactObservation=" + postImpactObservation
-                    + " firstTailDamage=" + firstTailDamage
-                    + " postImpactWither=" + postImpactWither
-            );
+
+            float previousHealth = postImpactObservation.health();
+            DamageSample lateHiddenDamage = null;
+            int finalTick = Math.min(220, postImpactTick + 160);
+            for (int tick = postImpactTick + 1; tick <= finalTick; tick++) {
+                anchor(singleplayer, setup.playerAnchor());
+                context.waitTick();
+                Observation observation = singleplayer.getServer().computeOnServer(server -> observe(server, setup.projectileId()));
+                if (observation.health() < previousHealth - EPSILON) {
+                    long delay = tick - postImpactTick;
+                    if (delay > latestPredicted) {
+                        lateHiddenDamage = new DamageSample(tick, observation);
+                        break;
+                    }
+                    previousHealth = observation.health();
+                }
+            }
+
+            if (lateHiddenDamage == null) {
+                throw new AssertionError(
+                    "fixture produced no damaging hidden Wither pulse after the post-impact prediction deadline; "
+                        + "postImpactTick=" + postImpactTick
+                        + " latestPostImpactPrediction=" + latestPredicted
+                        + " postImpactObservation=" + postImpactObservation
+                        + " postImpactWither=" + postImpactWither
+                );
+            }
+
+            long actualLateDelay = lateHiddenDamage.tick() - postImpactTick;
+            if (latestPredicted < actualLateDelay) {
+                throw new AssertionError(
+                    "known hidden Wither tail was forgotten after splash projectile removal from the client snapshot; "
+                        + "postImpactTick=" + postImpactTick
+                        + " actualLateDelay=" + actualLateDelay
+                        + " latestPostImpactPrediction=" + latestPredicted
+                        + " postImpactObservation=" + postImpactObservation
+                        + " lateHiddenDamage=" + lateHiddenDamage
+                        + " postImpactWither=" + postImpactWither
+                );
+            }
         } finally {
             singleplayer.getServer().runOnServer(server -> {
                 ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
