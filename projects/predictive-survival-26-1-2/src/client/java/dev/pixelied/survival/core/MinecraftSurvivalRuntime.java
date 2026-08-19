@@ -22,6 +22,7 @@ import dev.pixelied.survival.threat.FallPredictor;
 import dev.pixelied.survival.threat.MeleePredictor;
 import dev.pixelied.survival.threat.ProjectilePredictor;
 import dev.pixelied.survival.threat.ReactiveDamagePredictor;
+import dev.pixelied.survival.threat.ShulkerBulletPredictor;
 import dev.pixelied.survival.threat.SplashStatusThreatMemory;
 import dev.pixelied.survival.threat.ThreatPredictor;
 import dev.pixelied.survival.threat.ThreatPredictorRegistry;
@@ -75,6 +76,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.predictors = new ThreatPredictorRegistry(List.<ThreatPredictor>of(
             new ExplosionPredictor(),
             new ProjectilePredictor(),
+            new ShulkerBulletPredictor(),
             new MeleePredictor(),
             new FallPredictor(),
             new ReactiveDamagePredictor(),
