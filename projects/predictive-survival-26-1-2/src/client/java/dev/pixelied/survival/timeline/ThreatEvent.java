@@ -33,10 +33,11 @@ public record ThreatEvent(
         sourcePosition = Objects.requireNonNull(sourcePosition, "sourcePosition");
         impactPosition = Objects.requireNonNull(impactPosition, "impactPosition");
         requiresAcceptedEventId = Objects.requireNonNull(requiresAcceptedEventId, "requiresAcceptedEventId");
-        requiresAcceptedEventId.ifPresent(requiredId -> {
+        if (requiresAcceptedEventId.isPresent()) {
+            String requiredId = requiresAcceptedEventId.get();
             if (requiredId.isBlank()) throw new IllegalArgumentException("required event id must not be blank");
             if (requiredId.equals(id)) throw new IllegalArgumentException("event cannot require itself");
-        });
+        }
     }
 
     public ThreatEvent(
