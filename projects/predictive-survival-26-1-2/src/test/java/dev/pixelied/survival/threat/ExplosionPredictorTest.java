@@ -41,6 +41,22 @@ class ExplosionPredictorTest {
     }
 
     @Test
+    void tntMinecartCanCarryBoundedFuseAndExplosionRadius() {
+        WorldSnapshot.EntitySnapshot minecart = entity("minecart:1", "minecraft:tnt_minecart", Map.of(
+            "explosion_radius_min", "4.0",
+            "explosion_radius_max", "11.5",
+            "fuse_ticks_min", "0",
+            "fuse_ticks_max", "73"
+        ));
+
+        ThreatEvent event = new ExplosionPredictor().predict(context(List.of(minecart))).getFirst();
+        assertEquals(new TickWindow(0, 73), event.impact());
+        assertEquals(Confidence.BOUNDED, event.confidence());
+        assertTrue(event.damage().rawDamage().max() > event.damage().rawDamage().min());
+        assertTrue(event.damage().flags().contains(IS_EXPLOSION));
+    }
+
+    @Test
     void triggerableCrystalWithoutFuseIsPotentialImmediateThreat() {
         WorldSnapshot.EntitySnapshot crystal = entity("crystal:7", "minecraft:end_crystal", Map.of(
             "explosion_radius", "6.0",
