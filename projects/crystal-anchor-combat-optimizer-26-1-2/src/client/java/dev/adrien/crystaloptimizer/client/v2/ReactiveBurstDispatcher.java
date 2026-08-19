@@ -18,7 +18,7 @@ import java.util.Objects;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
-public final class ReactiveBurstDispatcher {
+public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
     private final VanillaInteractionDispatcher dispatcher;
     private final LiveCombatView view;
     private final PendingItemLedger pendingItems;
@@ -33,6 +33,7 @@ public final class ReactiveBurstDispatcher {
         this.pendingItems = Objects.requireNonNull(pendingItems, "pendingItems");
     }
 
+    @Override
     public BurstReceipt dispatch(ReactiveDecision decision, OptimizerConfig config) {
         Objects.requireNonNull(decision, "decision");
         Objects.requireNonNull(config, "config");
