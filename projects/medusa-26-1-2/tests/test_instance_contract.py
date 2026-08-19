@@ -62,6 +62,29 @@ class LifecycleContract(unittest.TestCase):
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing lifecycle function: {rel}")
 
+    def test_pre_spawn_ritual_interruption_refunds_pending_offering(self):
+        load = (FN / "load.mcfunction").read_text()
+        register = (FN / "instance/register.mcfunction").read_text()
+        consume = (FN / "ritual/consume_and_commit.mcfunction").read_text()
+        awakening_finish = (FN / "arena/awakening/finish.mcfunction").read_text()
+        reset_finish = (FN / "arena/reset/finish.mcfunction").read_text()
+        refund = FN / "ritual/refund_pending.mcfunction"
+        refund_loot = ROOT / "datapacks/medusa/data/medusa/loot_table/rewards/ritual_refund.json"
+
+        self.assertIn("scoreboard objectives add md_ritual_paid dummy", load)
+        self.assertIn("scoreboard players set @s md_ritual_paid 0", register)
+        self.assertIn("md_ritual_paid 1", consume)
+        self.assertIn("scoreboard players set @s md_ritual_paid 0", awakening_finish)
+        self.assertIn("function medusa:ritual/refund_pending", reset_finish)
+        self.assertTrue(refund.is_file(), "pending ritual refund function is missing")
+        self.assertIn("md_ritual_paid 0", refund.read_text())
+        self.assertTrue(refund_loot.is_file(), "ritual refund loot table is missing")
+        text = refund_loot.read_text()
+        self.assertIn('"count": 4', text)
+        self.assertIn('"md_item": "gorgon_scale"', text)
+        self.assertIn('"count": 1', text)
+        self.assertIn('"md_item": "serpent_fang"', text)
+
 class InstanceIsolationContract(unittest.TestCase):
     def test_petrified_statue_helpers_are_scoped_by_instance_id(self):
         spawn = (FN / "petrify/statue/spawn.mcfunction").read_text()
