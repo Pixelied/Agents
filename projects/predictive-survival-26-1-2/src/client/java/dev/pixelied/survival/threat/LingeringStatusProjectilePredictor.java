@@ -136,7 +136,7 @@ public final class LingeringStatusProjectilePredictor implements ThreatPredictor
 
         int interval = intervalTicks(baseInterval, amplifier);
         int firstOffset = cloudDuration % interval;
-        long horizon = context.limits().maxProjectileHorizonTicks();
+        long horizon = context.limits().maxDecisionHistory();
         int application = 0;
 
         for (int elapsed = firstOffset; elapsed < cloudDuration; elapsed += interval) {
