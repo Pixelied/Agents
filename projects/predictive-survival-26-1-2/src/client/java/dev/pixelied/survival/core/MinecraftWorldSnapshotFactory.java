@@ -52,8 +52,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class MinecraftWorldSnapshotFactory {
-    private static final double ENTITY_HORIZONTAL_RANGE = 48d;
-    private static final double ENTITY_VERTICAL_RANGE = 32d;
     private static final int BLOCK_HORIZONTAL_RANGE = 8;
     private static final int BLOCK_VERTICAL_RANGE = 12;
 
@@ -62,17 +60,17 @@ public final class MinecraftWorldSnapshotFactory {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(limits, "limits");
 
-        List<Entity> nearby = level.getEntities(
-            player,
-            player.getBoundingBox().inflate(ENTITY_HORIZONTAL_RANGE, ENTITY_VERTICAL_RANGE, ENTITY_HORIZONTAL_RANGE),
-            entity -> entity.isAlive() && !entity.isRemoved()
-        );
-        nearby.sort(Comparator.comparingDouble(player::distanceToSqr));
+        List<Entity> tracked = new ArrayList<>();
+        for (Entity entity : level.entitiesForRendering()) {
+            if (entity == player || !entity.isAlive() || entity.isRemoved()) continue;
+            tracked.add(entity);
+        }
+        tracked.sort(Comparator.comparingDouble(player::distanceToSqr));
 
         int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
-        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, nearby.size()));
-        for (int i = 0; i < nearby.size() && entities.size() < entityCap; i++) {
-            entities.add(entitySnapshot(nearby.get(i), player));
+        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, tracked.size()));
+        for (int i = 0; i < tracked.size() && entities.size() < entityCap; i++) {
+            entities.add(entitySnapshot(tracked.get(i), player));
         }
 
         return new WorldSnapshot(entities, captureBlocks(level, player.blockPosition()));
