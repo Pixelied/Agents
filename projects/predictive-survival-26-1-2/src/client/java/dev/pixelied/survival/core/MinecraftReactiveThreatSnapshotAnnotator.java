@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -56,7 +57,9 @@ public final class MinecraftReactiveThreatSnapshotAnnotator {
             .lookupOrThrow(Registries.ENCHANTMENT)
             .getOrThrow(Enchantments.THORNS);
         int total = 0;
-        for (ItemStack stack : target.getArmorSlots()) {
+        for (EquipmentSlot slot : EquipmentSlot.VALUES) {
+            if (slot.getType() != EquipmentSlot.Type.HUMANOID_ARMOR) continue;
+            ItemStack stack = target.getItemBySlot(slot);
             total = Math.addExact(total, EnchantmentHelper.getItemEnchantmentLevel(thorns, stack));
         }
         return total;
