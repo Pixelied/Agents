@@ -19,7 +19,8 @@ public record ThreatEvent(
     boolean avoidable,
     boolean blockable,
     boolean relocatable,
-    boolean canDisableBlocking
+    boolean canDisableBlocking,
+    Optional<String> requiresAcceptedEventId
 ) {
     public ThreatEvent {
         id = Objects.requireNonNull(id, "id");
@@ -31,5 +32,39 @@ public record ThreatEvent(
         confidence = Objects.requireNonNull(confidence, "confidence");
         sourcePosition = Objects.requireNonNull(sourcePosition, "sourcePosition");
         impactPosition = Objects.requireNonNull(impactPosition, "impactPosition");
+        requiresAcceptedEventId = Objects.requireNonNull(requiresAcceptedEventId, "requiresAcceptedEventId");
+        requiresAcceptedEventId.ifPresent(requiredId -> {
+            if (requiredId.isBlank()) throw new IllegalArgumentException("required event id must not be blank");
+            if (requiredId.equals(id)) throw new IllegalArgumentException("event cannot require itself");
+        });
+    }
+
+    public ThreatEvent(
+        String id,
+        ThreatKind kind,
+        TickWindow impact,
+        DamageSourceSnapshot damage,
+        Confidence confidence,
+        Optional<Vec3Snapshot> sourcePosition,
+        Optional<Vec3Snapshot> impactPosition,
+        boolean avoidable,
+        boolean blockable,
+        boolean relocatable,
+        boolean canDisableBlocking
+    ) {
+        this(
+            id,
+            kind,
+            impact,
+            damage,
+            confidence,
+            sourcePosition,
+            impactPosition,
+            avoidable,
+            blockable,
+            relocatable,
+            canDisableBlocking,
+            Optional.empty()
+        );
     }
 }
