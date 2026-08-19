@@ -1,149 +1,160 @@
-# generated from FIXED_MAZE_V1; run scripts/generate_temple.py to update
+# generated from CINEMATIC_MAZE_V2; run scripts/generate_temple.py to update
+# continuous route: surface -> descent -> Averted Eyes -> labyrinth/Borrowed Gaze -> Blind Passage -> sanctum -> arena
 function medusa:dungeon/build_surface
+function medusa:dungeon/build_descent
+# cinematic underground labyrinth shell
+fill ~-42 ~-18 ~38 ~8 ~-11 ~88 minecraft:stone_bricks
+fill ~-39 ~-18 ~41 ~-1 ~-18 ~43 minecraft:polished_deepslate
+fill ~-39 ~-17 ~41 ~-1 ~-12 ~43 minecraft:air
+fill ~3 ~-18 ~41 ~8 ~-18 ~43 minecraft:polished_deepslate
+fill ~3 ~-17 ~41 ~8 ~-12 ~43 minecraft:air
+fill ~-39 ~-18 ~44 ~-37 ~-18 ~46 minecraft:cracked_deepslate_tiles
+fill ~-39 ~-17 ~44 ~-37 ~-12 ~46 minecraft:air
+fill ~-9 ~-18 ~44 ~-7 ~-18 ~46 minecraft:polished_deepslate
+fill ~-9 ~-17 ~44 ~-7 ~-12 ~46 minecraft:air
+fill ~3 ~-18 ~44 ~5 ~-18 ~46 minecraft:polished_deepslate
+fill ~3 ~-17 ~44 ~5 ~-12 ~46 minecraft:air
+fill ~-39 ~-18 ~47 ~-37 ~-18 ~49 minecraft:polished_deepslate
+fill ~-39 ~-17 ~47 ~-37 ~-12 ~49 minecraft:air
+fill ~-33 ~-18 ~47 ~-19 ~-18 ~49 minecraft:cracked_deepslate_tiles
+fill ~-33 ~-17 ~47 ~-19 ~-12 ~49 minecraft:air
+fill ~-15 ~-18 ~47 ~-13 ~-18 ~49 minecraft:cracked_deepslate_tiles
+fill ~-15 ~-17 ~47 ~-13 ~-12 ~49 minecraft:air
+fill ~-9 ~-18 ~47 ~-7 ~-18 ~49 minecraft:polished_deepslate
+fill ~-9 ~-17 ~47 ~-7 ~-12 ~49 minecraft:air
+fill ~-3 ~-18 ~47 ~5 ~-18 ~49 minecraft:polished_deepslate
+fill ~-3 ~-17 ~47 ~5 ~-12 ~49 minecraft:air
+fill ~-39 ~-18 ~50 ~-37 ~-18 ~52 minecraft:polished_deepslate
+fill ~-39 ~-17 ~50 ~-37 ~-12 ~52 minecraft:air
+fill ~-30 ~-18 ~50 ~-25 ~-18 ~52 minecraft:polished_deepslate
+fill ~-30 ~-17 ~50 ~-25 ~-12 ~52 minecraft:air
+fill ~-21 ~-18 ~50 ~-13 ~-18 ~52 minecraft:polished_deepslate
+fill ~-21 ~-17 ~50 ~-13 ~-12 ~52 minecraft:air
+fill ~-9 ~-18 ~50 ~-7 ~-18 ~52 minecraft:cracked_deepslate_tiles
+fill ~-9 ~-17 ~50 ~-7 ~-12 ~52 minecraft:air
+fill ~-3 ~-18 ~50 ~5 ~-18 ~52 minecraft:polished_deepslate
+fill ~-3 ~-17 ~50 ~5 ~-12 ~52 minecraft:air
+fill ~-39 ~-18 ~53 ~-25 ~-18 ~55 minecraft:cracked_deepslate_tiles
+fill ~-39 ~-17 ~53 ~-25 ~-12 ~55 minecraft:air
+fill ~-21 ~-18 ~53 ~-19 ~-18 ~55 minecraft:cracked_deepslate_tiles
+fill ~-21 ~-17 ~53 ~-19 ~-12 ~55 minecraft:air
+fill ~-15 ~-18 ~53 ~-13 ~-18 ~55 minecraft:polished_deepslate
+fill ~-15 ~-17 ~53 ~-13 ~-12 ~55 minecraft:air
+fill ~-9 ~-18 ~53 ~-7 ~-18 ~55 minecraft:polished_deepslate
+fill ~-9 ~-17 ~53 ~-7 ~-12 ~55 minecraft:air
+fill ~-3 ~-18 ~53 ~5 ~-18 ~55 minecraft:cracked_deepslate_tiles
+fill ~-3 ~-17 ~53 ~5 ~-12 ~55 minecraft:air
+fill ~-39 ~-18 ~56 ~-37 ~-18 ~58 minecraft:polished_deepslate
+fill ~-39 ~-17 ~56 ~-37 ~-12 ~58 minecraft:air
+fill ~-21 ~-18 ~56 ~-13 ~-18 ~58 minecraft:polished_deepslate
+fill ~-21 ~-17 ~56 ~-13 ~-12 ~58 minecraft:air
+fill ~-9 ~-18 ~56 ~-7 ~-18 ~58 minecraft:polished_deepslate
+fill ~-9 ~-17 ~56 ~-7 ~-12 ~58 minecraft:air
+fill ~3 ~-18 ~56 ~5 ~-18 ~58 minecraft:cracked_deepslate_tiles
+fill ~3 ~-17 ~56 ~5 ~-12 ~58 minecraft:air
+fill ~-39 ~-18 ~59 ~-37 ~-18 ~61 minecraft:polished_deepslate
+fill ~-39 ~-17 ~59 ~-37 ~-12 ~61 minecraft:air
+fill ~-33 ~-18 ~59 ~-19 ~-18 ~61 minecraft:polished_deepslate
+fill ~-33 ~-17 ~59 ~-19 ~-12 ~61 minecraft:air
+fill ~-15 ~-18 ~59 ~-13 ~-18 ~61 minecraft:polished_deepslate
+fill ~-15 ~-17 ~59 ~-13 ~-12 ~61 minecraft:air
+fill ~-9 ~-18 ~59 ~5 ~-18 ~61 minecraft:cracked_deepslate_tiles
+fill ~-9 ~-17 ~59 ~5 ~-12 ~61 minecraft:air
+fill ~-39 ~-18 ~62 ~-37 ~-18 ~64 minecraft:cracked_deepslate_tiles
+fill ~-39 ~-17 ~62 ~-37 ~-12 ~64 minecraft:air
+fill ~-33 ~-18 ~62 ~-31 ~-18 ~64 minecraft:polished_deepslate
+fill ~-33 ~-17 ~62 ~-31 ~-12 ~64 minecraft:air
+fill ~-24 ~-18 ~62 ~-22 ~-18 ~64 minecraft:polished_deepslate
+fill ~-24 ~-17 ~62 ~-22 ~-12 ~64 minecraft:air
+fill ~-15 ~-18 ~62 ~-13 ~-18 ~64 minecraft:polished_deepslate
+fill ~-15 ~-17 ~62 ~-13 ~-12 ~64 minecraft:air
+fill ~-6 ~-18 ~62 ~-4 ~-18 ~64 minecraft:polished_deepslate
+fill ~-6 ~-17 ~62 ~-4 ~-12 ~64 minecraft:air
+fill ~-39 ~-18 ~65 ~-37 ~-18 ~67 minecraft:polished_deepslate
+fill ~-39 ~-17 ~65 ~-37 ~-12 ~67 minecraft:air
+fill ~-33 ~-18 ~65 ~-31 ~-18 ~67 minecraft:cracked_deepslate_tiles
+fill ~-33 ~-17 ~65 ~-31 ~-12 ~67 minecraft:air
+fill ~-27 ~-18 ~65 ~-19 ~-18 ~67 minecraft:polished_deepslate
+fill ~-27 ~-17 ~65 ~-19 ~-12 ~67 minecraft:air
+fill ~-15 ~-18 ~65 ~5 ~-18 ~67 minecraft:cracked_deepslate_tiles
+fill ~-15 ~-17 ~65 ~5 ~-12 ~67 minecraft:air
+fill ~-39 ~-18 ~68 ~-37 ~-18 ~70 minecraft:polished_deepslate
+fill ~-39 ~-17 ~68 ~-37 ~-12 ~70 minecraft:air
+fill ~-33 ~-18 ~68 ~-31 ~-18 ~70 minecraft:polished_deepslate
+fill ~-33 ~-17 ~68 ~-31 ~-12 ~70 minecraft:air
+fill ~-27 ~-18 ~68 ~-19 ~-18 ~70 minecraft:cracked_deepslate_tiles
+fill ~-27 ~-17 ~68 ~-19 ~-12 ~70 minecraft:air
+fill ~-15 ~-18 ~68 ~-13 ~-18 ~70 minecraft:polished_deepslate
+fill ~-15 ~-17 ~68 ~-13 ~-12 ~70 minecraft:air
+fill ~3 ~-18 ~68 ~5 ~-18 ~70 minecraft:polished_deepslate
+fill ~3 ~-17 ~68 ~5 ~-12 ~70 minecraft:air
+fill ~-39 ~-18 ~71 ~-37 ~-18 ~73 minecraft:cracked_deepslate_tiles
+fill ~-39 ~-17 ~71 ~-37 ~-12 ~73 minecraft:air
+fill ~-33 ~-18 ~71 ~-31 ~-18 ~73 minecraft:polished_deepslate
+fill ~-33 ~-17 ~71 ~-31 ~-12 ~73 minecraft:air
+fill ~-27 ~-18 ~71 ~-25 ~-18 ~73 minecraft:polished_deepslate
+fill ~-27 ~-17 ~71 ~-25 ~-12 ~73 minecraft:air
+fill ~-21 ~-18 ~71 ~-13 ~-18 ~73 minecraft:cracked_deepslate_tiles
+fill ~-21 ~-17 ~71 ~-13 ~-12 ~73 minecraft:air
+fill ~-9 ~-18 ~71 ~5 ~-18 ~73 minecraft:polished_deepslate
+fill ~-9 ~-17 ~71 ~5 ~-12 ~73 minecraft:air
+fill ~-39 ~-18 ~74 ~-37 ~-18 ~76 minecraft:polished_deepslate
+fill ~-39 ~-17 ~74 ~-37 ~-12 ~76 minecraft:air
+fill ~-33 ~-18 ~74 ~-31 ~-18 ~76 minecraft:cracked_deepslate_tiles
+fill ~-33 ~-17 ~74 ~-31 ~-12 ~76 minecraft:air
+fill ~-27 ~-18 ~74 ~-25 ~-18 ~76 minecraft:polished_deepslate
+fill ~-27 ~-17 ~74 ~-25 ~-12 ~76 minecraft:air
+fill ~-9 ~-18 ~74 ~-7 ~-18 ~76 minecraft:polished_deepslate
+fill ~-9 ~-17 ~74 ~-7 ~-12 ~76 minecraft:air
+fill ~-39 ~-18 ~77 ~-31 ~-18 ~79 minecraft:polished_deepslate
+fill ~-39 ~-17 ~77 ~-31 ~-12 ~79 minecraft:air
+fill ~-27 ~-18 ~77 ~-25 ~-18 ~79 minecraft:cracked_deepslate_tiles
+fill ~-27 ~-17 ~77 ~-25 ~-12 ~79 minecraft:air
+fill ~-21 ~-18 ~77 ~-13 ~-18 ~79 minecraft:polished_deepslate
+fill ~-21 ~-17 ~77 ~-13 ~-12 ~79 minecraft:air
+fill ~-9 ~-18 ~77 ~5 ~-18 ~79 minecraft:cracked_deepslate_tiles
+fill ~-9 ~-17 ~77 ~5 ~-12 ~79 minecraft:air
+fill ~-39 ~-18 ~80 ~-37 ~-18 ~82 minecraft:cracked_deepslate_tiles
+fill ~-39 ~-17 ~80 ~-37 ~-12 ~82 minecraft:air
+fill ~-27 ~-18 ~80 ~-25 ~-18 ~82 minecraft:polished_deepslate
+fill ~-27 ~-17 ~80 ~-25 ~-12 ~82 minecraft:air
+fill ~-21 ~-18 ~80 ~-19 ~-18 ~82 minecraft:cracked_deepslate_tiles
+fill ~-21 ~-17 ~80 ~-19 ~-12 ~82 minecraft:air
+fill ~-15 ~-18 ~80 ~-13 ~-18 ~82 minecraft:polished_deepslate
+fill ~-15 ~-17 ~80 ~-13 ~-12 ~82 minecraft:air
+fill ~-9 ~-18 ~80 ~-1 ~-18 ~82 minecraft:polished_deepslate
+fill ~-9 ~-17 ~80 ~-1 ~-12 ~82 minecraft:air
+fill ~3 ~-18 ~80 ~5 ~-18 ~82 minecraft:polished_deepslate
+fill ~3 ~-17 ~80 ~5 ~-12 ~82 minecraft:air
+fill ~-39 ~-18 ~83 ~-25 ~-18 ~85 minecraft:polished_deepslate
+fill ~-39 ~-17 ~83 ~-25 ~-12 ~85 minecraft:air
+fill ~-21 ~-18 ~83 ~-19 ~-18 ~85 minecraft:polished_deepslate
+fill ~-21 ~-17 ~83 ~-19 ~-12 ~85 minecraft:air
+fill ~-15 ~-18 ~83 ~5 ~-18 ~85 minecraft:cracked_deepslate_tiles
+fill ~-15 ~-17 ~83 ~5 ~-12 ~85 minecraft:air
+setblock ~-29 ~-12 ~42 minecraft:soul_lantern[hanging=true]
+setblock ~-17 ~-17 ~42 minecraft:cobweb
+setblock ~-5 ~-17 ~42 minecraft:moss_carpet
+setblock ~-29 ~-12 ~48 minecraft:soul_lantern[hanging=true]
+setblock ~-29 ~-17 ~51 minecraft:cobweb
+setblock ~1 ~-12 ~51 minecraft:soul_lantern[hanging=true]
+setblock ~-35 ~-17 ~54 minecraft:moss_carpet
+setblock ~-14 ~-17 ~57 minecraft:cobweb
+setblock ~-8 ~-12 ~57 minecraft:soul_lantern[hanging=true]
+setblock ~-32 ~-17 ~63 minecraft:moss_carpet
+setblock ~-14 ~-12 ~63 minecraft:soul_lantern[hanging=true]
+setblock ~-23 ~-17 ~66 minecraft:cobweb
+setblock ~-23 ~-12 ~69 minecraft:soul_lantern[hanging=true]
+setblock ~-8 ~-17 ~72 minecraft:moss_carpet
+setblock ~-5 ~-17 ~72 minecraft:cobweb
+setblock ~-26 ~-12 ~75 minecraft:soul_lantern[hanging=true]
+setblock ~-14 ~-12 ~81 minecraft:soul_lantern[hanging=true]
+setblock ~-38 ~-17 ~84 minecraft:moss_carpet
+setblock ~4 ~-12 ~84 minecraft:soul_lantern[hanging=true]
+# authored chambers carve into the maze after the shell so they read as destinations
+function medusa:dungeon/build_puzzle_averted_room
+function medusa:dungeon/build_puzzle_borrowed_room
+function medusa:dungeon/build_puzzle_blind_room
+function medusa:dungeon/build_sanctum
 function medusa:dungeon/build_arena
-# fixed underground labyrinth
-fill ~-42 ~-18 ~16 ~41 ~-15 ~75 minecraft:stone_bricks
-fill ~-38 ~-18 ~20 ~-19 ~-18 ~23 minecraft:polished_deepslate
-fill ~-38 ~-17 ~20 ~-19 ~-15 ~23 minecraft:air
-fill ~-14 ~-18 ~20 ~13 ~-18 ~23 minecraft:polished_deepslate
-fill ~-14 ~-17 ~20 ~13 ~-15 ~23 minecraft:air
-fill ~18 ~-18 ~20 ~37 ~-18 ~23 minecraft:polished_deepslate
-fill ~18 ~-17 ~20 ~37 ~-15 ~23 minecraft:air
-setblock ~-37 ~-18 ~21 minecraft:chiseled_stone_bricks
-setblock ~35 ~-18 ~21 minecraft:gilded_blackstone
-fill ~-22 ~-18 ~24 ~-19 ~-18 ~27 minecraft:polished_deepslate
-fill ~-22 ~-17 ~24 ~-19 ~-15 ~27 minecraft:air
-fill ~-14 ~-18 ~24 ~-11 ~-18 ~27 minecraft:polished_deepslate
-fill ~-14 ~-17 ~24 ~-11 ~-15 ~27 minecraft:air
-fill ~10 ~-18 ~24 ~13 ~-18 ~27 minecraft:polished_deepslate
-fill ~10 ~-17 ~24 ~13 ~-15 ~27 minecraft:air
-fill ~18 ~-18 ~24 ~21 ~-18 ~27 minecraft:polished_deepslate
-fill ~18 ~-17 ~24 ~21 ~-15 ~27 minecraft:air
-fill ~34 ~-18 ~24 ~37 ~-18 ~27 minecraft:polished_deepslate
-fill ~34 ~-17 ~24 ~37 ~-15 ~27 minecraft:air
-fill ~-38 ~-18 ~28 ~-19 ~-18 ~31 minecraft:polished_deepslate
-fill ~-38 ~-17 ~28 ~-19 ~-15 ~31 minecraft:air
-fill ~-14 ~-18 ~28 ~-11 ~-18 ~31 minecraft:polished_deepslate
-fill ~-14 ~-17 ~28 ~-11 ~-15 ~31 minecraft:air
-fill ~-6 ~-18 ~28 ~5 ~-18 ~31 minecraft:polished_deepslate
-fill ~-6 ~-17 ~28 ~5 ~-15 ~31 minecraft:air
-fill ~10 ~-18 ~28 ~13 ~-18 ~31 minecraft:polished_deepslate
-fill ~10 ~-17 ~28 ~13 ~-15 ~31 minecraft:air
-fill ~18 ~-18 ~28 ~29 ~-18 ~31 minecraft:polished_deepslate
-fill ~18 ~-17 ~28 ~29 ~-15 ~31 minecraft:air
-fill ~34 ~-18 ~28 ~37 ~-18 ~31 minecraft:polished_deepslate
-fill ~34 ~-17 ~28 ~37 ~-15 ~31 minecraft:air
-fill ~-38 ~-18 ~32 ~-35 ~-18 ~35 minecraft:polished_deepslate
-fill ~-38 ~-17 ~32 ~-35 ~-15 ~35 minecraft:air
-fill ~-14 ~-18 ~32 ~-11 ~-18 ~35 minecraft:polished_deepslate
-fill ~-14 ~-17 ~32 ~-11 ~-15 ~35 minecraft:air
-fill ~-6 ~-18 ~32 ~-3 ~-18 ~35 minecraft:polished_deepslate
-fill ~-6 ~-17 ~32 ~-3 ~-15 ~35 minecraft:air
-fill ~2 ~-18 ~32 ~5 ~-18 ~35 minecraft:polished_deepslate
-fill ~2 ~-17 ~32 ~5 ~-15 ~35 minecraft:air
-fill ~10 ~-18 ~32 ~13 ~-18 ~35 minecraft:polished_deepslate
-fill ~10 ~-17 ~32 ~13 ~-15 ~35 minecraft:air
-fill ~26 ~-18 ~32 ~29 ~-18 ~35 minecraft:polished_deepslate
-fill ~26 ~-17 ~32 ~29 ~-15 ~35 minecraft:air
-fill ~34 ~-18 ~32 ~37 ~-18 ~35 minecraft:polished_deepslate
-fill ~34 ~-17 ~32 ~37 ~-15 ~35 minecraft:air
-setblock ~-5 ~-18 ~33 minecraft:cut_copper
-fill ~-38 ~-18 ~36 ~-11 ~-18 ~39 minecraft:polished_deepslate
-fill ~-38 ~-17 ~36 ~-11 ~-15 ~39 minecraft:air
-fill ~-6 ~-18 ~36 ~-3 ~-18 ~39 minecraft:polished_deepslate
-fill ~-6 ~-17 ~36 ~-3 ~-15 ~39 minecraft:air
-fill ~2 ~-18 ~36 ~5 ~-18 ~39 minecraft:polished_deepslate
-fill ~2 ~-17 ~36 ~5 ~-15 ~39 minecraft:air
-fill ~10 ~-18 ~36 ~29 ~-18 ~39 minecraft:polished_deepslate
-fill ~10 ~-17 ~36 ~29 ~-15 ~39 minecraft:air
-fill ~34 ~-18 ~36 ~37 ~-18 ~39 minecraft:polished_deepslate
-fill ~34 ~-17 ~36 ~37 ~-15 ~39 minecraft:air
-fill ~-38 ~-18 ~40 ~-35 ~-18 ~43 minecraft:polished_deepslate
-fill ~-38 ~-17 ~40 ~-35 ~-15 ~43 minecraft:air
-fill ~-6 ~-18 ~40 ~-3 ~-18 ~43 minecraft:polished_deepslate
-fill ~-6 ~-17 ~40 ~-3 ~-15 ~43 minecraft:air
-fill ~2 ~-18 ~40 ~5 ~-18 ~43 minecraft:polished_deepslate
-fill ~2 ~-17 ~40 ~5 ~-15 ~43 minecraft:air
-fill ~34 ~-18 ~40 ~37 ~-18 ~43 minecraft:polished_deepslate
-fill ~34 ~-17 ~40 ~37 ~-15 ~43 minecraft:air
-fill ~-38 ~-18 ~44 ~-3 ~-18 ~47 minecraft:polished_deepslate
-fill ~-38 ~-17 ~44 ~-3 ~-15 ~47 minecraft:air
-fill ~2 ~-18 ~44 ~37 ~-18 ~47 minecraft:polished_deepslate
-fill ~2 ~-17 ~44 ~37 ~-15 ~47 minecraft:air
-setblock ~-25 ~-18 ~45 minecraft:oxidized_cut_copper
-setblock ~23 ~-18 ~45 minecraft:redstone_block
-fill ~-30 ~-18 ~48 ~-27 ~-18 ~51 minecraft:polished_deepslate
-fill ~-30 ~-17 ~48 ~-27 ~-15 ~51 minecraft:air
-fill ~2 ~-18 ~48 ~5 ~-18 ~51 minecraft:polished_deepslate
-fill ~2 ~-17 ~48 ~5 ~-15 ~51 minecraft:air
-fill ~34 ~-18 ~48 ~37 ~-18 ~51 minecraft:polished_deepslate
-fill ~34 ~-17 ~48 ~37 ~-15 ~51 minecraft:air
-fill ~-38 ~-18 ~52 ~-27 ~-18 ~55 minecraft:polished_deepslate
-fill ~-38 ~-17 ~52 ~-27 ~-15 ~55 minecraft:air
-fill ~-22 ~-18 ~52 ~-3 ~-18 ~55 minecraft:polished_deepslate
-fill ~-22 ~-17 ~52 ~-3 ~-15 ~55 minecraft:air
-fill ~2 ~-18 ~52 ~21 ~-18 ~55 minecraft:polished_deepslate
-fill ~2 ~-17 ~52 ~21 ~-15 ~55 minecraft:air
-fill ~26 ~-18 ~52 ~37 ~-18 ~55 minecraft:polished_deepslate
-fill ~26 ~-17 ~52 ~37 ~-15 ~55 minecraft:air
-fill ~-38 ~-18 ~56 ~-35 ~-18 ~59 minecraft:polished_deepslate
-fill ~-38 ~-17 ~56 ~-35 ~-15 ~59 minecraft:air
-fill ~-22 ~-18 ~56 ~-19 ~-18 ~59 minecraft:polished_deepslate
-fill ~-22 ~-17 ~56 ~-19 ~-15 ~59 minecraft:air
-fill ~-6 ~-18 ~56 ~-3 ~-18 ~59 minecraft:polished_deepslate
-fill ~-6 ~-17 ~56 ~-3 ~-15 ~59 minecraft:air
-fill ~2 ~-18 ~56 ~5 ~-18 ~59 minecraft:polished_deepslate
-fill ~2 ~-17 ~56 ~5 ~-15 ~59 minecraft:air
-fill ~18 ~-18 ~56 ~21 ~-18 ~59 minecraft:polished_deepslate
-fill ~18 ~-17 ~56 ~21 ~-15 ~59 minecraft:air
-fill ~26 ~-18 ~56 ~29 ~-18 ~59 minecraft:polished_deepslate
-fill ~26 ~-17 ~56 ~29 ~-15 ~59 minecraft:air
-fill ~-38 ~-18 ~60 ~-19 ~-18 ~63 minecraft:polished_deepslate
-fill ~-38 ~-17 ~60 ~-19 ~-15 ~63 minecraft:air
-fill ~-14 ~-18 ~60 ~-3 ~-18 ~63 minecraft:polished_deepslate
-fill ~-14 ~-17 ~60 ~-3 ~-15 ~63 minecraft:air
-fill ~2 ~-18 ~60 ~13 ~-18 ~63 minecraft:polished_deepslate
-fill ~2 ~-17 ~60 ~13 ~-15 ~63 minecraft:air
-fill ~18 ~-18 ~60 ~37 ~-18 ~63 minecraft:polished_deepslate
-fill ~18 ~-17 ~60 ~37 ~-15 ~63 minecraft:air
-setblock ~-37 ~-18 ~61 minecraft:gilded_blackstone
-setblock ~-13 ~-18 ~61 minecraft:chiseled_deepslate
-fill ~-22 ~-18 ~64 ~-19 ~-18 ~67 minecraft:polished_deepslate
-fill ~-22 ~-17 ~64 ~-19 ~-15 ~67 minecraft:air
-fill ~2 ~-18 ~64 ~5 ~-18 ~67 minecraft:polished_deepslate
-fill ~2 ~-17 ~64 ~5 ~-15 ~67 minecraft:air
-fill ~10 ~-18 ~64 ~13 ~-18 ~67 minecraft:polished_deepslate
-fill ~10 ~-17 ~64 ~13 ~-15 ~67 minecraft:air
-fill ~34 ~-18 ~64 ~37 ~-18 ~67 minecraft:polished_deepslate
-fill ~34 ~-17 ~64 ~37 ~-15 ~67 minecraft:air
-fill ~-38 ~-18 ~68 ~5 ~-18 ~71 minecraft:polished_deepslate
-fill ~-38 ~-17 ~68 ~5 ~-15 ~71 minecraft:air
-fill ~10 ~-18 ~68 ~37 ~-18 ~71 minecraft:polished_deepslate
-fill ~10 ~-17 ~68 ~37 ~-15 ~71 minecraft:air
-setblock ~31 ~-18 ~69 minecraft:lodestone
-# deterministic age/atmosphere accents
-setblock ~-33 ~-15 ~21 minecraft:soul_lantern[hanging=true]
-setblock ~-11 ~-17 ~45 minecraft:cobweb
-setblock ~13 ~-15 ~61 minecraft:soul_lantern[hanging=true]
-setblock ~-35 ~-16 ~22 minecraft:vine[north=true]
-setblock ~35 ~-16 ~69 minecraft:vine[south=true]
-# Averted Eyes controls
-setblock ~-5 ~-17 ~33 minecraft:stone_button[face=floor,facing=north,powered=false]
-setblock ~-4 ~-17 ~33 minecraft:stone_button[face=floor,facing=north,powered=false]
-setblock ~-3 ~-17 ~33 minecraft:stone_button[face=floor,facing=north,powered=false]
-setblock ~-5 ~-17 ~34 minecraft:stone_button[face=floor,facing=north,powered=false]
-setblock ~-5 ~-16 ~33 minecraft:stone_brick_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]
-setblock ~-4 ~-16 ~33 minecraft:stone_brick_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]
-setblock ~-3 ~-16 ~33 minecraft:stone_brick_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]
-# Borrowed Gaze controls
-setblock ~-25 ~-17 ~45 minecraft:stone_button[face=floor,facing=north,powered=false]
-setblock ~-24 ~-17 ~45 minecraft:stone_button[face=floor,facing=north,powered=false]
-setblock ~-25 ~-16 ~45 minecraft:lightning_rod[facing=north,waterlogged=false]
-setblock ~-24 ~-16 ~45 minecraft:lightning_rod[facing=north,waterlogged=false]
-# Blind Passage
-setblock ~-13 ~-16 ~60 minecraft:observer[facing=east]
-setblock ~-9 ~-16 ~60 minecraft:observer[facing=east]
-setblock ~-13 ~-16 ~63 minecraft:observer[facing=east]
-setblock ~-9 ~-16 ~63 minecraft:observer[facing=east]
-setblock ~-11 ~-17 ~61 minecraft:stone_bricks
-setblock ~-7 ~-17 ~62 minecraft:stone_bricks
+function medusa:dungeon/build_arena_approach
