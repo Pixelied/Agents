@@ -19,6 +19,9 @@ public final class ExplosionDifferentialGameTests implements CustomTestMethodInv
     public void exposedCrystalDamageMatchesVanilla(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         ServerPlayer target = GameTestCombatants.makeSurvivalPlayer(level);
+        Vec3 testPosition = helper.absoluteVec(new Vec3(2.5, 2.0, 2.5));
+        target.absSnapTo(testPosition.x, testPosition.y, testPosition.z, 0.0f, 0.0f);
+        level.getChunkSource().move(target);
         target.setHealth(target.getMaxHealth());
         helper.assertTrue(
             !target.getAbilities().invulnerable && !target.isCreative(),
