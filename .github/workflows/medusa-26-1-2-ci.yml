@@ -91,6 +91,9 @@ jobs:
           grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log
           grep -q 'MEDUSA_GAZE_LOS_OK' server.log
           grep -q 'MEDUSA_GAZE_PETRIFICATION_OK' server.log
+          grep -q 'MEDUSA_STAFF_QUICK_ISOLATION_OK' server.log
+          grep -q 'MEDUSA_STAFF_NOAI_COMPAT_OK' server.log
+          grep -q 'MEDUSA_STAFF_BOSS_LIMIT_OK' server.log
           grep -q 'MEDUSA_PHASE2_OK' server.log
           grep -q 'MEDUSA_PHASE3_OK' server.log
           grep -q 'MEDUSA_DEATH_STATE_OK' server.log
