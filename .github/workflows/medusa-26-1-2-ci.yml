@@ -81,6 +81,11 @@ jobs:
           grep -q 'Done (' server.log
           grep -q 'MEDUSA_RAW_MARKER_OK' server.log
           grep -q 'MEDUSA_INSTANCE_IMMEDIATE_OK' server.log
+          grep -q 'MEDUSA_P1_GATE_OK' server.log
+          grep -q 'MEDUSA_P2_GATE_OK' server.log
+          grep -q 'MEDUSA_P3_GATE_OK' server.log
+          grep -q 'MEDUSA_FINAL_GATE_OK' server.log
+          grep -q 'MEDUSA_EYE_PRESENT_OK' server.log
           grep -q 'MEDUSA_BOSS_OK' server.log
           grep -q 'MEDUSA_PETRIFICATION_DAMAGE_OK' server.log
           grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log
