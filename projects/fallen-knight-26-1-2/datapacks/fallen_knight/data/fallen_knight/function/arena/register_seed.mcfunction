@@ -8,4 +8,4 @@ scoreboard players set @s fk_eid 0
 scoreboard players set @s fk_join 0
 scoreboard players set @s fk_reset 0
 function fallen_knight:arena/spawn_dormant_boss
-setblock ~ ~-2 ~ minecraft:air
+execute if block ~ ~-2 ~ minecraft:spawner run setblock ~ ~-2 ~ minecraft:air

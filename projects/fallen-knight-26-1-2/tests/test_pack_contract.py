@@ -32,5 +32,12 @@ class PackContractTests(unittest.TestCase):
         self.assertIn("fallen_knight:load", load["values"])
         self.assertIn("fallen_knight:tick", tick["values"])
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_custom_item_models_resolve(self):
+        names = ("oathbreaker", "cursed_sword_fragment", "broken_plate", "knights_oath")
+        for name in names:
+            item = self.load_json(RP / f"assets/fallen_knight/items/{name}.json")
+            self.assertEqual(item["model"]["type"], "minecraft:model")
+            self.assertEqual(item["model"]["model"], f"fallen_knight:item/{name}")
+            self.assertTrue((RP / f"assets/fallen_knight/models/item/{name}.json").exists())
+
+if __name__ == "__main__": unittest.main()

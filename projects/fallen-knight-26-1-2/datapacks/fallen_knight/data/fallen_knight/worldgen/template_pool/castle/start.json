@@ -1,0 +1,12 @@
+{
+  "elements": [{
+    "element": {
+      "element_type":"minecraft:single_pool_element",
+      "location":"fallen_knight:castle/main",
+      "processors":"minecraft:empty",
+      "projection":"rigid"
+    },
+    "weight":1
+  }],
+  "fallback":"minecraft:empty"
+}
