@@ -66,13 +66,13 @@ final class TippedArrowPotionValidationScenarios {
                     .filter(entity -> entity.id().equals(Integer.toString(projectileId)))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("tipped arrow missing from production snapshot"));
-                ThreatEvent witherThreat = frame.timeline().events().stream()
-                    .filter(event -> event.id().startsWith("projectile:" + projectileId + ":"))
-                    .filter(event -> "minecraft:wither".equals(event.damage().sourceKey()))
+                ThreatEvent payloadThreat = frame.timeline().events().stream()
+                    .filter(event -> event.id().equals("projectile:" + projectileId + ":opaque_potion"))
                     .findFirst()
                     .orElse(null);
                 return new ClientObservation(
-                    witherThreat != null,
+                    payloadThreat != null,
+                    Boolean.parseBoolean(snapshot.properties().getOrDefault("arrow_tipped", "false")),
                     arrow.getColor(),
                     BuiltInRegistries.ITEM.getKey(pickup.getItem()).toString(),
                     clientContents.hasEffects(),
@@ -112,9 +112,17 @@ final class TippedArrowPotionValidationScenarios {
                         + " witherDamage=" + witherDamage + " client=" + client
                 );
             }
-            if (!client.predictedWither()) {
+            if (client.potionColor() == -1
+                || !"minecraft:arrow".equals(client.pickupItem())
+                || client.clientPickupHasEffects()) {
                 throw new AssertionError(
-                    "tipped arrow applied damaging vanilla Wither but production emitted no pre-impact Wither threat; "
+                    "26.1.2 client authority boundary changed for tipped arrows; expected synchronized color but opaque pickup payload: "
+                        + client
+                );
+            }
+            if (!client.snapshotTipped() || !client.predictedPayload()) {
+                throw new AssertionError(
+                    "opaque tipped arrow applied damaging vanilla Wither but production emitted no conservative pre-impact payload threat; "
                         + "firstWither=" + firstWither + " witherDamage=" + witherDamage + " client=" + client
                 );
             }
@@ -132,7 +140,8 @@ final class TippedArrowPotionValidationScenarios {
     }
 
     private record ClientObservation(
-        boolean predictedWither,
+        boolean predictedPayload,
+        boolean snapshotTipped,
         int potionColor,
         String pickupItem,
         boolean clientPickupHasEffects,
