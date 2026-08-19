@@ -36,7 +36,7 @@ public final class AreaEffectCloudAttributionTracker {
             CloudAttribution attribution;
             if (threat.id().endsWith(DRAGON_BREATH_MARKER)) {
                 projectileKey = threat.id().substring(0, threat.id().length() - DRAGON_BREATH_MARKER.length());
-                attribution = CloudAttribution.dragonBreath();
+                attribution = CloudAttribution.dragonBreath(threat);
             } else if (threat.id().endsWith(LINGERING_POTION_MARKER)) {
                 projectileKey = threat.id().substring(0, threat.id().length() - LINGERING_POTION_MARKER.length());
                 attribution = CloudAttribution.lingeringPotion(threat);
@@ -137,6 +137,7 @@ public final class AreaEffectCloudAttributionTracker {
     ) {
         properties.put(prefix + "instant_damage", Float.toString(attribution.rawDamage()));
         properties.put(prefix + "source_key", attribution.sourceKey());
+        properties.put(prefix + "scales_with_difficulty", Boolean.toString(attribution.scalesWithDifficulty()));
         properties.put(prefix + "reapplication_delay_ticks", Integer.toString(attribution.reapplicationDelayTicks()));
         properties.put(prefix + "attribution", attribution.attributionKey());
         properties.put(
@@ -232,20 +233,22 @@ public final class AreaEffectCloudAttributionTracker {
         String hazardKey,
         float rawDamage,
         String sourceKey,
+        boolean scalesWithDifficulty,
         int reapplicationDelayTicks,
         String attributionKey,
         float applicationHealthThresholdExclusive,
         long firstDamageEarliestTick,
         long firstDamageLatestTick
     ) {
-        private static CloudAttribution dragonBreath() {
+        private static CloudAttribution dragonBreath(ThreatEvent threat) {
             return new CloudAttribution(
                 "dragon_breath",
-                6f,
-                "minecraft:indirect_magic",
+                threat.damage().rawDamage().max(),
+                threat.damage().sourceKey(),
+                threat.damage().scalesWithDifficulty(),
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
                 "dragon_breath",
-                0f,
+                threat.damage().applicationHealthThresholdExclusive(),
                 -1L,
                 -1L
             );
@@ -256,6 +259,7 @@ public final class AreaEffectCloudAttributionTracker {
                 "lingering_potion",
                 threat.damage().rawDamage().max(),
                 threat.damage().sourceKey(),
+                threat.damage().scalesWithDifficulty(),
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
                 "lingering_potion",
                 threat.damage().applicationHealthThresholdExclusive(),
@@ -274,6 +278,7 @@ public final class AreaEffectCloudAttributionTracker {
                 attributionKey + ":" + statusKey,
                 threat.damage().rawDamage().max(),
                 threat.damage().sourceKey(),
+                threat.damage().scalesWithDifficulty(),
                 DEFAULT_REAPPLICATION_DELAY_TICKS,
                 attributionKey,
                 threat.damage().applicationHealthThresholdExclusive(),
