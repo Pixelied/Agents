@@ -298,7 +298,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         int firstOffset = duration % interval;
 
         TickWindow collision = observedImpactWindow(entity, tick);
-        long horizon = context.limits().maxProjectileHorizonTicks();
+        long horizon = context.limits().maxDecisionHistory();
         List<ThreatEvent> events = new ArrayList<>();
         int application = 0;
         for (int elapsed = firstOffset; elapsed < duration; elapsed += interval) {
@@ -348,7 +348,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
         int firstOffset = duration % interval;
 
         TickWindow collision = observedImpactWindow(entity, tick);
-        long horizon = context.limits().maxProjectileHorizonTicks();
+        long horizon = context.limits().maxDecisionHistory();
         List<ThreatEvent> events = new ArrayList<>();
         int application = 0;
         for (int elapsed = firstOffset; elapsed < duration; elapsed += interval) {
