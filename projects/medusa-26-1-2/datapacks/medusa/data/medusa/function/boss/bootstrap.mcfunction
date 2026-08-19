@@ -5,7 +5,7 @@ scoreboard players operation @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort
 execute as @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] run attribute @s minecraft:max_health base set 300
 execute as @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] run attribute @s minecraft:attack_damage base set 0
 execute as @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] run attribute @s minecraft:scale base set 1.4
-execute as @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] run data merge entity @s {Health:300.0f,PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,CustomName:'{"text":"Medusa","color":"dark_green","bold":true}',CustomNameVisible:0b,DeathLootTable:"medusa:entity/empty"}
+execute as @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] run data merge entity @s {Health:300.0f,PersistenceRequired:1b,CanPickUpLoot:0b,Silent:1b,CustomName:{text:"Medusa",color:"dark_green",bold:true},CustomNameVisible:0b,DeathLootTable:"medusa:entity/empty"}
 scoreboard players set @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] md_phase 1
 scoreboard players set @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] md_timer 0
 scoreboard players set @e[type=minecraft:husk,tag=md.new_boss,limit=1,sort=nearest] md_attack 0
