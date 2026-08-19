@@ -253,8 +253,6 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
         List<Integer> offsets = new ArrayList<>();
         for (int elapsed = 0; elapsed <= maxTicks && active != null; elapsed++) {
             if (active.duration == -1) {
-                // Infinite effects use target.tickCount for phase, which is not synchronized as an authoritative
-                // server phase. Infinite pre-application payloads are handled by a separate conservative path.
                 break;
             }
             if (active.duration <= 0) break;
@@ -313,8 +311,9 @@ public final class StackedPotionStatusPredictor implements ThreatPredictor {
         if (sourceDuration <= 0) return Set.of();
         int duration = deliveryKind == DeliveryKind.LINGERING
             ? scaledLingeringDuration(sourceDuration, durationScale)
-            : sourceDuration;
+            : scaledSplashDuration(sourceDuration, durationScale);
         if (duration <= 0) return Set.of();
+        if (deliveryKind == DeliveryKind.SPLASH && duration != -1 && duration <= EFFECT_CUTOFF_TICKS) return Set.of();
         int amplifier = nonNegativeInt(entity.properties().get("potion_" + kind + "_amplifier"), 0);
         int interval = intervalTicks(baseInterval, amplifier);
         int first = duration % interval;
