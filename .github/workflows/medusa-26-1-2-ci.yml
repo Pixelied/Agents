@@ -83,6 +83,9 @@ jobs:
           grep -q 'MEDUSA_INSTANCE_IMMEDIATE_OK' server.log
           grep -q 'MEDUSA_BOSS_OK' server.log
           grep -q 'MEDUSA_PETRIFICATION_DAMAGE_OK' server.log
+          grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log
+          grep -q 'MEDUSA_GAZE_LOS_OK' server.log
+          grep -q 'MEDUSA_GAZE_PETRIFICATION_OK' server.log
           grep -q 'MEDUSA_SMOKE_DONE' server.log
           ! grep -Eq 'MEDUSA_RAW_MARKER_MISSING|MEDUSA_INSTANCE_IMMEDIATE_MISSING|MEDUSA_BOSS_MISSING|MEDUSA_.*_FAILED' server.log
           ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs|Could not load|Serialization errors' server.log
