@@ -57,7 +57,8 @@ class PostImpactHorizonPredictorTest {
                 "potion_wither_duration_ticks", "240",
                 "potion_wither_amplifier", "0",
                 "potion_duration_scale", "1.0",
-                "potion_splash_radius", "4.0"
+                "potion_splash_radius", "4.0",
+                "no_gravity", "true"
             )),
             List.of(wall),
             EngineLimits.defaults()
