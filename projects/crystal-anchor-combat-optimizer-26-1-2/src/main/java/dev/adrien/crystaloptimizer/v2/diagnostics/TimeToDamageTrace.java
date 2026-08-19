@@ -1,15 +1,20 @@
 package dev.adrien.crystaloptimizer.v2.diagnostics;
 
+import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
+import java.util.Objects;
+
 public record TimeToDamageTrace(
     long actionId,
     long eventObservedNanos,
     long decisionCompleteNanos,
     long dispatchCompleteNanos,
-    long resultObservedNanos
+    long resultObservedNanos,
+    DamageEstimate targetDamage
 ) {
     public static final long RESULT_PENDING = -1L;
 
     public TimeToDamageTrace {
+        Objects.requireNonNull(targetDamage, "targetDamage");
         if (actionId < 0L || eventObservedNanos < 0L) {
             throw new IllegalArgumentException("actionId and event timestamp must be non-negative");
         }
@@ -30,12 +35,29 @@ public record TimeToDamageTrace(
         long decisionCompleteNanos,
         long dispatchCompleteNanos
     ) {
+        return dispatched(
+            actionId,
+            eventObservedNanos,
+            decisionCompleteNanos,
+            dispatchCompleteNanos,
+            DamageEstimate.exact(0.0f, 0L, 0L)
+        );
+    }
+
+    public static TimeToDamageTrace dispatched(
+        long actionId,
+        long eventObservedNanos,
+        long decisionCompleteNanos,
+        long dispatchCompleteNanos,
+        DamageEstimate targetDamage
+    ) {
         return new TimeToDamageTrace(
             actionId,
             eventObservedNanos,
             decisionCompleteNanos,
             dispatchCompleteNanos,
-            RESULT_PENDING
+            RESULT_PENDING,
+            targetDamage
         );
     }
 
@@ -45,7 +67,8 @@ public record TimeToDamageTrace(
             eventObservedNanos,
             decisionCompleteNanos,
             dispatchCompleteNanos,
-            resultNanos
+            resultNanos,
+            targetDamage
         );
     }
 

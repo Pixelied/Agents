@@ -48,7 +48,9 @@ public final class ClientCombatCoordinator {
     }
 
     public void tick() {
-        if (!configService.current().enabled()) {
+        OptimizerConfig config = configService.current();
+        diagnostics.recordConfig(config);
+        if (!config.enabled()) {
             return;
         }
         strategicTick.run();
@@ -57,6 +59,7 @@ public final class ClientCombatCoordinator {
     public void onEvent(CombatEvent event) {
         Objects.requireNonNull(event, "event");
         OptimizerConfig config = configService.current();
+        diagnostics.recordConfig(config);
         if (!config.enabled()) {
             return;
         }
