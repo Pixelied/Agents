@@ -8,8 +8,10 @@ import dev.pixelied.survival.damage.HurtState;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public final class ThreatTimelineSimulator {
     private static final int MAX_PERMUTATION_GROUP = 6;
@@ -34,17 +36,34 @@ public final class ThreatTimelineSimulator {
     public TimelineResult simulate(PlayerSnapshot start, ThreatTimeline timeline) {
         List<ThreatEvent> sorted = new ArrayList<>(timeline.events());
         sorted.sort(BASE_ORDER);
+        Set<String> timelineEventIds = new HashSet<>();
+        for (ThreatEvent event : sorted) {
+            if (!timelineEventIds.add(event.id())) {
+                throw new IllegalArgumentException("duplicate threat event id: " + event.id());
+            }
+        }
 
         PlayerSnapshot working = start;
         long previousTick = 0;
         List<TimelineEventResult> allResults = new ArrayList<>();
         int consumed = 0;
         Optional<String> firstLethal = Optional.empty();
+        Set<String> acceptedEventIds = new HashSet<>();
+        Set<String> processedEventIds = new HashSet<>();
 
         for (List<ThreatEvent> group : overlapGroups(sorted)) {
-            GroupOutcome outcome = worstGroupOutcome(working, previousTick, group);
+            GroupOutcome outcome = worstGroupOutcome(
+                working,
+                previousTick,
+                group,
+                acceptedEventIds,
+                processedEventIds,
+                timelineEventIds
+            );
             working = outcome.player();
             previousTick = outcome.lastTick();
+            acceptedEventIds = new HashSet<>(outcome.acceptedEventIds());
+            processedEventIds = new HashSet<>(outcome.processedEventIds());
             allResults.addAll(outcome.results());
             consumed += outcome.consumedProtection();
             if (firstLethal.isEmpty() && outcome.firstLethalEventId().isPresent()) {
@@ -63,21 +82,61 @@ public final class ThreatTimelineSimulator {
         );
     }
 
-    private GroupOutcome worstGroupOutcome(PlayerSnapshot start, long previousTick, List<ThreatEvent> group) {
+    private GroupOutcome worstGroupOutcome(
+        PlayerSnapshot start,
+        long previousTick,
+        List<ThreatEvent> group,
+        Set<String> acceptedBefore,
+        Set<String> processedBefore,
+        Set<String> timelineEventIds
+    ) {
         if (group.size() == 1) {
             long[] schedule = schedule(group, previousTick);
-            return simulateOrder(start, previousTick, group, schedule);
+            GroupOutcome outcome = simulateOrder(
+                start,
+                previousTick,
+                group,
+                schedule,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds
+            );
+            if (outcome == null) {
+                throw new IllegalArgumentException("No feasible ordering for dependent threat group");
+            }
+            return outcome;
         }
 
         if (group.size() > MAX_PERMUTATION_GROUP) {
             List<ThreatEvent> fallback = new ArrayList<>(group);
             fallback.sort(CONSERVATIVE_FALLBACK_ORDER);
             long[] schedule = schedule(fallback, previousTick);
-            if (schedule == null) {
-                fallback.sort(BASE_ORDER);
-                schedule = schedule(fallback, previousTick);
+            GroupOutcome outcome = schedule == null ? null : simulateOrder(
+                start,
+                previousTick,
+                fallback,
+                schedule,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds
+            );
+            if (outcome != null) return outcome;
+
+            fallback.sort(BASE_ORDER);
+            schedule = schedule(fallback, previousTick);
+            outcome = schedule == null ? null : simulateOrder(
+                start,
+                previousTick,
+                fallback,
+                schedule,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds
+            );
+            if (outcome == null) {
+                throw new IllegalArgumentException("No feasible ordering for dependent threat group");
             }
-            return simulateOrder(start, previousTick, fallback, schedule);
+            return outcome;
         }
 
         List<List<ThreatEvent>> permutations = new ArrayList<>();
@@ -86,7 +145,16 @@ public final class ThreatTimelineSimulator {
         for (List<ThreatEvent> permutation : permutations) {
             long[] schedule = schedule(permutation, previousTick);
             if (schedule == null) continue;
-            GroupOutcome candidate = simulateOrder(start, previousTick, permutation, schedule);
+            GroupOutcome candidate = simulateOrder(
+                start,
+                previousTick,
+                permutation,
+                schedule,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds
+            );
+            if (candidate == null) continue;
             if (worst == null || isWorse(candidate, worst)) {
                 worst = candidate;
             }
@@ -98,18 +166,46 @@ public final class ThreatTimelineSimulator {
         return worst;
     }
 
-    private GroupOutcome simulateOrder(PlayerSnapshot start, long previousTick, List<ThreatEvent> order, long[] schedule) {
+    private GroupOutcome simulateOrder(
+        PlayerSnapshot start,
+        long previousTick,
+        List<ThreatEvent> order,
+        long[] schedule,
+        Set<String> acceptedBefore,
+        Set<String> processedBefore,
+        Set<String> timelineEventIds
+    ) {
         if (schedule == null) throw new IllegalArgumentException("order has no feasible schedule");
         PlayerSnapshot working = start;
         long lastTick = previousTick;
         List<TimelineEventResult> results = new ArrayList<>();
         int consumed = 0;
         Optional<String> firstLethal = Optional.empty();
+        Set<String> acceptedEventIds = new HashSet<>(acceptedBefore);
+        Set<String> processedEventIds = new HashSet<>(processedBefore);
+        Set<String> groupEventIds = new HashSet<>();
+        for (ThreatEvent event : order) groupEventIds.add(event.id());
 
         for (int i = 0; i < order.size(); i++) {
             ThreatEvent event = order.get(i);
             long eventTick = schedule[i];
             working = ageHurtState(working, eventTick - lastTick);
+            lastTick = eventTick;
+
+            Optional<String> requiredId = event.requiresAcceptedEventId();
+            if (requiredId.isPresent() && !acceptedEventIds.contains(requiredId.get())) {
+                String prerequisite = requiredId.get();
+                if (!processedEventIds.contains(prerequisite)) {
+                    if (groupEventIds.contains(prerequisite) || timelineEventIds.contains(prerequisite)) {
+                        return null;
+                    }
+                    throw new IllegalArgumentException(
+                        "threat event " + event.id() + " requires unknown event " + prerequisite
+                    );
+                }
+                processedEventIds.add(event.id());
+                continue;
+            }
 
             DamageResult damageResult = damageSimulator.simulate(working, event.damage());
             float finalDamage = damageResult.trace().has(DamageStage.HEALTH_DAMAGE)
@@ -122,9 +218,10 @@ public final class ThreatTimelineSimulator {
                 damageResult
             ));
 
+            processedEventIds.add(event.id());
+            if (!damageResult.rejected()) acceptedEventIds.add(event.id());
             if (damageResult.deathProtectionConsumed()) consumed++;
             working = damageResult.after();
-            lastTick = eventTick;
 
             if (working.health() <= 0f && !damageResult.deathProtectionConsumed()) {
                 firstLethal = Optional.of(event.id());
@@ -138,7 +235,9 @@ public final class ThreatTimelineSimulator {
             results,
             consumed,
             firstLethal,
-            working.health() > 0f && firstLethal.isEmpty()
+            working.health() > 0f && firstLethal.isEmpty(),
+            Set.copyOf(acceptedEventIds),
+            Set.copyOf(processedEventIds)
         );
     }
 
@@ -224,6 +323,10 @@ public final class ThreatTimelineSimulator {
             return candidate.consumedProtection() > currentWorst.consumedProtection();
         }
 
+        if (candidate.acceptedEventIds().size() != currentWorst.acceptedEventIds().size()) {
+            return candidate.acceptedEventIds().size() > currentWorst.acceptedEventIds().size();
+        }
+
         int count = Math.min(candidate.results().size(), currentWorst.results().size());
         for (int i = 0; i < count; i++) {
             float candidateRaw = candidate.results().get(i).preMitigationRaw();
@@ -244,7 +347,9 @@ public final class ThreatTimelineSimulator {
         List<TimelineEventResult> results,
         int consumedProtection,
         Optional<String> firstLethalEventId,
-        boolean survived
+        boolean survived,
+        Set<String> acceptedEventIds,
+        Set<String> processedEventIds
     ) {
     }
 }
