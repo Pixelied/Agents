@@ -30,6 +30,7 @@ public final class EnvironmentPredictorRegistry {
             new StatusEffectPredictor(),
             new SplashStatusProjectilePredictor(),
             new LingeringStatusProjectilePredictor(),
+            new StackedPotionStatusPredictor(),
             new OpaqueTippedArrowPredictor(),
             new AreaEffectCloudPredictor()
         ));
