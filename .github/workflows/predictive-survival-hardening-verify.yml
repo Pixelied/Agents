@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - ci/predictive-survival-hardening-verify
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'ci/predictive-survival-hardening/**'
+      - '.github/workflows/predictive-survival-hardening-verify.yml'
 
 permissions:
   contents: read
