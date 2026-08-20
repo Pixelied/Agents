@@ -1,9 +1,12 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
 import dev.adrien.crystaloptimizer.action.AttackKnownCrystal;
+import dev.adrien.crystaloptimizer.action.ChargeAnchor;
 import dev.adrien.crystaloptimizer.action.CombatAction;
 import dev.adrien.crystaloptimizer.action.DetonateAnchor;
+import dev.adrien.crystaloptimizer.action.PlaceAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
+import dev.adrien.crystaloptimizer.action.PlaceObsidian;
 import dev.adrien.crystaloptimizer.action.SimulationServices;
 import dev.adrien.crystaloptimizer.candidate.CandidateFeatureEstimator;
 import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
@@ -20,10 +23,12 @@ import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import dev.adrien.crystaloptimizer.v2.state.SpawnCrystalCycle;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageMap;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
+import dev.adrien.crystaloptimizer.v2.strategy.StrategicPreparationPlanner;
 import dev.adrien.crystaloptimizer.v2.timing.SequenceTiming;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
 import dev.adrien.crystaloptimizer.v2.timing.TimingTransition;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,6 +43,7 @@ public final class ClientDamageMapBuilder {
 
     private final ClientCombatSnapshotBuilder snapshots;
     private final CandidateGenerator candidates;
+    private final StrategicPreparationPlanner preparation;
     private final DamageEngine damageEngine;
     private final ClientDamageScenarioFactory scenarios;
     private final TimingEngine timingEngine;
@@ -45,6 +51,7 @@ public final class ClientDamageMapBuilder {
     public ClientDamageMapBuilder(Minecraft minecraft, TimingEngine timingEngine) {
         this.snapshots = new ClientCombatSnapshotBuilder(Objects.requireNonNull(minecraft, "minecraft"));
         this.candidates = new CandidateGenerator(CandidateFeatureEstimator.conservative());
+        this.preparation = new StrategicPreparationPlanner(candidates);
         this.damageEngine = new DamageEngine();
         this.scenarios = new ClientDamageScenarioFactory();
         this.timingEngine = Objects.requireNonNull(timingEngine, "timingEngine");
@@ -142,6 +149,21 @@ public final class ClientDamageMapBuilder {
             );
         }
 
+        preparation.plan(state, config).ifPresent(actions -> {
+            String id = "prepare:" + Integer.toHexString(actions.hashCode());
+            result.put(id, new DamageOpportunity(
+                id,
+                new FixedActionSequence(actions),
+                DamageEstimate.exact(0.0f, snapshot.worldRevision(), snapshot.worldRevision()),
+                0.0f,
+                SequenceTiming.immediate(),
+                false,
+                false,
+                !preparationDependencies(actions).isEmpty(),
+                preparationDependencies(actions)
+            ));
+        });
+
         return new DamageMap(target.getUUID(), targetRevision, worldRevision, result);
     }
 
@@ -187,6 +209,24 @@ public final class ClientDamageMapBuilder {
             positionDependent,
             dependencies
         ));
+    }
+
+    private static Set<BlockPos> preparationDependencies(List<CombatAction> actions) {
+        LinkedHashSet<BlockPos> dependencies = new LinkedHashSet<>();
+        for (CombatAction action : actions) {
+            if (action instanceof PlaceCrystal place) {
+                dependencies.add(place.basePos());
+            } else if (action instanceof PlaceObsidian place) {
+                dependencies.add(place.pos());
+            } else if (action instanceof PlaceAnchor place) {
+                dependencies.add(place.pos());
+            } else if (action instanceof ChargeAnchor charge) {
+                dependencies.add(charge.pos());
+            } else if (action instanceof DetonateAnchor detonate) {
+                dependencies.add(detonate.pos());
+            }
+        }
+        return Set.copyOf(dependencies);
     }
 
     private static float totalSelfDamage(CombatState state, ExplosionContext explosion) {

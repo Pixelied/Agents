@@ -84,7 +84,10 @@ public final class ClientStrategicScanner {
             opportunity -> opportunity.id().startsWith("place:"),
             context, map, inventoryRevision, configRevision, nowNanos);
         putSelected(approvals, ApprovalSlot.PRESSURE, all,
-            opportunity -> true,
+            opportunity -> !opportunity.id().startsWith("prepare:"),
+            context, map, inventoryRevision, configRevision, nowNanos);
+        putSelected(approvals, ApprovalSlot.PREPARE, all,
+            opportunity -> opportunity.id().startsWith("prepare:"),
             context, map, inventoryRevision, configRevision, nowNanos);
 
         blackboard.publish(new CombatBlackboardSnapshot(

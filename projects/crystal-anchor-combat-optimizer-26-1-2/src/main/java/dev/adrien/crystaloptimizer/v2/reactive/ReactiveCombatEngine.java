@@ -4,7 +4,9 @@ import dev.adrien.crystaloptimizer.action.CombatAction;
 import dev.adrien.crystaloptimizer.v2.state.ActionApproval;
 import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboardSnapshot;
+import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -15,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public final class ReactiveCombatEngine {
     private static final int MAX_DUPLICATE_KEYS = 256;
+    private static final long PROACTIVE_RETRY_NANOS = 250_000_000L;
     private static final List<ApprovalSlot> PRIORITY = List.of(
         ApprovalSlot.LETHAL,
         ApprovalSlot.FINISHER,
@@ -29,6 +32,8 @@ public final class ReactiveCombatEngine {
     private final AtomicLong nextActionId = new AtomicLong();
     private final ArrayDeque<EventKey> duplicateOrder = new ArrayDeque<>();
     private final Set<EventKey> duplicateKeys = new HashSet<>();
+    private ProactiveKey lastProactiveKey;
+    private long lastProactiveNanos = Long.MIN_VALUE;
 
     public synchronized Optional<ReactiveDecision> decide(
         CombatEvent event,
@@ -41,7 +46,7 @@ public final class ReactiveCombatEngine {
             throw new IllegalArgumentException("decision cannot precede event");
         }
 
-        for (ApprovalSlot slot : PRIORITY) {
+        for (ApprovalSlot slot : priorityFor(event)) {
             ActionApproval approval = snapshot.approvals().get(slot);
             if (approval == null || !eventMatches(slot, event, approval.targetId())) {
                 continue;
@@ -68,9 +73,48 @@ public final class ReactiveCombatEngine {
         return Optional.empty();
     }
 
+    public synchronized Optional<ReactiveDecision> decideProactive(
+        CombatBlackboardSnapshot snapshot,
+        long decisionCompleteNanos
+    ) {
+        Objects.requireNonNull(snapshot, "snapshot");
+
+        for (ApprovalSlot slot : PRIORITY) {
+            if (slot == ApprovalSlot.FINISHER || slot == ApprovalSlot.RECYCLE) {
+                continue;
+            }
+            ActionApproval approval = snapshot.approvals().get(slot);
+            if (approval == null || !(approval.actionSpec() instanceof FixedActionSequence fixed)) {
+                continue;
+            }
+
+            List<CombatAction> actions = fixed.actions();
+            ProactiveKey key = ProactiveKey.of(slot, approval, actions);
+            if (key.equals(lastProactiveKey)
+                && lastProactiveNanos != Long.MIN_VALUE
+                && decisionCompleteNanos - lastProactiveNanos < PROACTIVE_RETRY_NANOS) {
+                return Optional.empty();
+            }
+
+            lastProactiveKey = key;
+            lastProactiveNanos = decisionCompleteNanos;
+            return Optional.of(new ReactiveDecision(
+                nextActionId.getAndIncrement(),
+                slot,
+                approval,
+                actions,
+                decisionCompleteNanos,
+                decisionCompleteNanos
+            ));
+        }
+        return Optional.empty();
+    }
+
     public synchronized void clearDuplicateHistory() {
         duplicateOrder.clear();
         duplicateKeys.clear();
+        lastProactiveKey = null;
+        lastProactiveNanos = Long.MIN_VALUE;
     }
 
     private void remember(EventKey key) {
@@ -79,6 +123,20 @@ public final class ReactiveCombatEngine {
         while (duplicateOrder.size() > MAX_DUPLICATE_KEYS) {
             duplicateKeys.remove(duplicateOrder.removeFirst());
         }
+    }
+
+    private static List<ApprovalSlot> priorityFor(CombatEvent event) {
+        if (!(event instanceof CombatEvent.CrystalSpawned)) {
+            return PRIORITY;
+        }
+        ArrayList<ApprovalSlot> priority = new ArrayList<>(PRIORITY.size());
+        priority.add(ApprovalSlot.RECYCLE);
+        for (ApprovalSlot slot : PRIORITY) {
+            if (slot != ApprovalSlot.RECYCLE) {
+                priority.add(slot);
+            }
+        }
+        return List.copyOf(priority);
     }
 
     private static boolean eventMatches(ApprovalSlot slot, CombatEvent event, UUID targetId) {
@@ -94,6 +152,38 @@ public final class ReactiveCombatEngine {
             case CombatEvent.TargetMoved moved -> moved.targetId().equals(targetId);
             default -> true;
         };
+    }
+
+    private record ProactiveKey(
+        UUID targetId,
+        ApprovalSlot slot,
+        long targetRevision,
+        long worldRevision,
+        long inventoryRevision,
+        long configRevision,
+        List<CombatAction> actions
+    ) {
+        private ProactiveKey {
+            Objects.requireNonNull(targetId, "targetId");
+            Objects.requireNonNull(slot, "slot");
+            actions = List.copyOf(actions);
+        }
+
+        static ProactiveKey of(
+            ApprovalSlot slot,
+            ActionApproval approval,
+            List<CombatAction> actions
+        ) {
+            return new ProactiveKey(
+                approval.targetId(),
+                slot,
+                approval.targetRevision(),
+                approval.worldRevision(),
+                approval.inventoryRevision(),
+                approval.configRevision(),
+                actions
+            );
+        }
     }
 
     private record EventKey(long approvalId, int type, long high, long low) {
