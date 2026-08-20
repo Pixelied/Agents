@@ -10,8 +10,6 @@ import dev.adrien.crystaloptimizer.action.PlaceObsidian;
 import dev.adrien.crystaloptimizer.action.Rotate;
 import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.action.Wait;
-import dev.adrien.crystaloptimizer.execution.CommitPhase;
-import dev.adrien.crystaloptimizer.execution.CommitScheduler;
 import dev.adrien.crystaloptimizer.execution.RotationMode;
 import java.util.Objects;
 import net.minecraft.client.Minecraft;
@@ -25,34 +23,35 @@ import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
-public final class VanillaInteractionDispatcher implements ActionDispatcher {
+public final class VanillaInteractionDispatcher {
     private final Minecraft minecraft;
     private final RotationController rotations;
-    private final CommitScheduler scheduler;
     private final RotationMode rotationMode;
 
     public VanillaInteractionDispatcher(
         Minecraft minecraft,
         RotationController rotations,
-        CommitScheduler scheduler,
         RotationMode rotationMode
     ) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
         this.rotations = Objects.requireNonNull(rotations, "rotations");
-        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.rotationMode = Objects.requireNonNull(rotationMode, "rotationMode");
     }
 
-    @Override
     public DispatchReceipt dispatch(CombatAction action) {
+        return dispatch(action, rotationMode, false);
+    }
+
+    public DispatchReceipt dispatch(CombatAction action, RotationMode mode, boolean critical) {
         Objects.requireNonNull(action, "action");
+        Objects.requireNonNull(mode, "mode");
 
         if (action instanceof Rotate rotate) {
             boolean reached = rotations.applyAngles(
                 rotate.yaw(),
                 rotate.pitch(),
-                rotationMode,
-                scheduler.phase() == CommitPhase.COMMITTED
+                mode,
+                critical
             );
             return reached
                 ? DispatchReceipt.sent("real rotation applied")
@@ -81,7 +80,7 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
             if (!(entity instanceof EndCrystal)) {
                 return DispatchReceipt.failed("server-observed crystal entity is no longer present");
             }
-            if (!aimAt(entity.getBoundingBox().getCenter())) {
+            if (!aimAt(entity.getBoundingBox().getCenter(), mode, critical)) {
                 return DispatchReceipt.deferred("real rotation still converging");
             }
             minecraft.gameMode.attack(player, entity);
@@ -89,34 +88,58 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
             return DispatchReceipt.sent("attacked known crystal " + attack.entityId());
         }
         if (action instanceof PlaceCrystal placeCrystal) {
-            return useItemOn(player, topHit(placeCrystal.basePos()), "placed crystal interaction");
+            return useItemOn(
+                player,
+                topHit(placeCrystal.basePos()),
+                "placed crystal interaction",
+                mode,
+                critical
+            );
         }
         if (action instanceof PlaceObsidian placeObsidian) {
             BlockHitResult hit = placementHit(level, placeObsidian.pos());
             if (hit == null) {
                 return DispatchReceipt.failed("no legal adjacent support face for obsidian placement");
             }
-            return useItemOn(player, hit, "placed obsidian interaction");
+            return useItemOn(player, hit, "placed obsidian interaction", mode, critical);
         }
         if (action instanceof PlaceAnchor placeAnchor) {
             BlockHitResult hit = placementHit(level, placeAnchor.pos());
             if (hit == null) {
                 return DispatchReceipt.failed("no legal adjacent support face for anchor placement");
             }
-            return useItemOn(player, hit, "placed anchor interaction");
+            return useItemOn(player, hit, "placed anchor interaction", mode, critical);
         }
         if (action instanceof ChargeAnchor chargeAnchor) {
-            return useItemOn(player, topHit(chargeAnchor.pos()), "charged anchor interaction");
+            return useItemOn(
+                player,
+                topHit(chargeAnchor.pos()),
+                "charged anchor interaction",
+                mode,
+                critical
+            );
         }
         if (action instanceof DetonateAnchor detonateAnchor) {
-            return useItemOn(player, topHit(detonateAnchor.pos()), "detonated anchor interaction");
+            return useItemOn(
+                player,
+                topHit(detonateAnchor.pos()),
+                "detonated anchor interaction",
+                mode,
+                critical
+            );
         }
 
         return DispatchReceipt.failed("unsupported combat action: " + action.getClass().getSimpleName());
     }
 
-    private DispatchReceipt useItemOn(LocalPlayer player, BlockHitResult hit, String detail) {
-        if (!aimAt(hit.getLocation())) {
+    private DispatchReceipt useItemOn(
+        LocalPlayer player,
+        BlockHitResult hit,
+        String detail,
+        RotationMode mode,
+        boolean critical
+    ) {
+        if (!aimAt(hit.getLocation(), mode, critical)) {
             return DispatchReceipt.deferred("real rotation still converging");
         }
         minecraft.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit);
@@ -124,12 +147,8 @@ public final class VanillaInteractionDispatcher implements ActionDispatcher {
         return DispatchReceipt.sent(detail);
     }
 
-    private boolean aimAt(Vec3 target) {
-        return rotations.updateToward(
-            target,
-            rotationMode,
-            scheduler.phase() == CommitPhase.COMMITTED
-        );
+    private boolean aimAt(Vec3 target, RotationMode mode, boolean critical) {
+        return rotations.updateToward(target, mode, critical);
     }
 
     private static BlockHitResult topHit(BlockPos pos) {

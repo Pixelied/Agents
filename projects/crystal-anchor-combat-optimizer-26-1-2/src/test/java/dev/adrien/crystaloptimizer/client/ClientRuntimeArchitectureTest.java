@@ -11,36 +11,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientRuntimeArchitectureTest {
     @Test
-    void clientInitializerRegistersToggleAndDrivesOneRuntimeFromEndClientTick() throws IOException {
-        Path initializerPath = Path.of(
+    void clientInitializerRegistersToggleAndDrivesV2CoordinatorFromEndClientTick() throws IOException {
+        String initializer = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/CrystalOptimizerClient.java"
-        );
-        Path runtimePath = Path.of(
-            "src/client/java/dev/adrien/crystaloptimizer/client/ClientCombatRuntime.java"
-        );
-
-        assertTrue(Files.exists(runtimePath), "live client combat runtime must exist");
-        String initializer = Files.readString(initializerPath);
-        String runtime = Files.readString(runtimePath);
+        ));
+        String coordinator = Files.readString(Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatCoordinator.java"
+        ));
+        String dispatcher = Files.readString(Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/execution/VanillaInteractionDispatcher.java"
+        ));
 
         assertTrue(initializer.contains("KeyMappingHelper.registerKeyMapping"));
         assertTrue(initializer.contains("ClientTickEvents.END_CLIENT_TICK.register"));
         assertTrue(initializer.contains("consumeClick()"));
-        assertTrue(initializer.contains("new ClientCombatRuntime"));
-        assertFalse(initializer.contains("KeyBindingHelper"), "26.1 runtime must not use the legacy helper name");
+        assertTrue(initializer.contains("configService.apply("));
+        assertTrue(initializer.contains("coordinator.tick()"));
+        assertFalse(initializer.contains("ClientCombatRuntime"));
+        assertFalse(initializer.contains("KeyBindingHelper"),
+            "26.1 runtime must not use the legacy helper name");
 
         for (String required : List.of(
-            "ClientCombatSnapshotBuilder",
-            "TargetSelector",
-            "TargetPredictor",
-            "BeamPlanner",
-            "CombatRuntimeEngine",
-            "VanillaInteractionDispatcher",
-            "RuntimeFrame"
+            "ClientDamageMapBuilder",
+            "TargetManager",
+            "ClientStrategicScanner",
+            "ReactiveCombatEngine",
+            "ReactiveBurstDispatcher",
+            "VanillaInteractionDispatcher"
         )) {
-            assertTrue(runtime.contains(required), "runtime is missing integration: " + required);
+            assertTrue(coordinator.contains(required), "V2 coordinator is missing integration: " + required);
         }
 
+        String productionExecution = initializer + coordinator + dispatcher;
         for (String forbidden : List.of(
             "setPos(",
             "setDeltaMovement(",
@@ -51,7 +53,8 @@ class ClientRuntimeArchitectureTest {
             "new ServerboundUseItemOnPacket",
             "new ServerboundInteractPacket"
         )) {
-            assertFalse(runtime.contains(forbidden), "runtime contains forbidden primitive: " + forbidden);
+            assertFalse(productionExecution.contains(forbidden),
+                "V2 runtime contains forbidden primitive: " + forbidden);
         }
     }
 }

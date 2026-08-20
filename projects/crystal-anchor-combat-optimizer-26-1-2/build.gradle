@@ -9,6 +9,13 @@ base {
     archivesName = project.archives_base_name
 }
 
+repositories {
+    maven {
+        name = "Terraformers"
+        url = "https://maven.terraformersmc.com/"
+    }
+}
+
 loom {
     splitEnvironmentSourceSets()
 
@@ -34,6 +41,7 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation "com.terraformersmc:modmenu:${project.modmenu_version}"
     testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
 }
 

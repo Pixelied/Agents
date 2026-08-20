@@ -1,6 +1,10 @@
 package dev.adrien.crystaloptimizer.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.adrien.crystaloptimizer.client.config.OptimizerConfigService;
+import dev.adrien.crystaloptimizer.client.v2.ClientCombatCoordinator;
+import dev.adrien.crystaloptimizer.client.v2.ClientCombatEventBus;
+import dev.adrien.crystaloptimizer.v2.reactive.CombatEvent;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -14,12 +18,16 @@ public final class CrystalOptimizerClient implements ClientModInitializer {
     );
 
     private KeyMapping toggleKey;
-    private ClientCombatRuntime runtime;
+    private OptimizerConfigService configService;
+    private ClientCombatCoordinator coordinator;
 
     @Override
     public void onInitializeClient() {
-        runtime = new ClientCombatRuntime(Minecraft.getInstance());
-        OptimizerHud.register(runtime);
+        configService = OptimizerConfigService.instance();
+        coordinator = ClientCombatCoordinator.create(Minecraft.getInstance(), configService);
+        ClientCombatEventBus.instance().subscribe(coordinator::onEvent);
+        OptimizerHud.register(coordinator::diagnostics);
+
         toggleKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.crystaloptimizer.toggle",
             InputConstants.Type.KEYSYM,
@@ -29,9 +37,15 @@ public final class CrystalOptimizerClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleKey.consumeClick()) {
-                runtime.setEnabled(!runtime.enabled());
+                configService.apply(
+                    configService.current().withEnabled(!configService.current().enabled())
+                );
+                ClientCombatEventBus.instance().publish(new CombatEvent.ConfigChanged(
+                    configService.revision(),
+                    System.nanoTime()
+                ));
             }
-            runtime.tick();
+            coordinator.tick();
         });
     }
 }

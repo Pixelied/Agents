@@ -1,6 +1,5 @@
 package dev.adrien.crystaloptimizer.client.execution;
 
-import dev.adrien.crystaloptimizer.execution.CommitPhase;
 import dev.adrien.crystaloptimizer.execution.HotbarRestockPlanner;
 import dev.adrien.crystaloptimizer.execution.InventoryCoordinator;
 import dev.adrien.crystaloptimizer.execution.InventoryStackView;
@@ -11,7 +10,6 @@ import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.inventory.ContainerInput;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 public final class HotbarRestocker {
@@ -54,46 +52,6 @@ public final class HotbarRestocker {
             player
         );
         return true;
-    }
-
-    public boolean restock(Item item, int hotbarSlot, CommitPhase phase) {
-        Objects.requireNonNull(item, "item");
-        Objects.requireNonNull(phase, "phase");
-        if (hotbarSlot < 0 || hotbarSlot > 8) {
-            throw new IllegalArgumentException("hotbarSlot must be in [0, 8]");
-        }
-        if (phase == CommitPhase.COMMITTED || phase == CommitPhase.RECONCILING) {
-            return false;
-        }
-        if (reservedByOtherSystem(hotbarSlot)) {
-            return false;
-        }
-
-        LocalPlayer player = minecraft.player;
-        if (player == null
-            || minecraft.gameMode == null
-            || minecraft.screen != null
-            || player.containerMenu != player.inventoryMenu) {
-            return false;
-        }
-        if (player.getInventory().getItem(hotbarSlot).is(item)) {
-            return true;
-        }
-
-        for (int inventoryIndex = 9; inventoryIndex <= 35; inventoryIndex++) {
-            if (!player.getInventory().getItem(inventoryIndex).is(item)) {
-                continue;
-            }
-            minecraft.gameMode.handleContainerInput(
-                player.containerMenu.containerId,
-                inventoryIndex,
-                hotbarSlot,
-                ContainerInput.SWAP,
-                player
-            );
-            return true;
-        }
-        return false;
     }
 
     private boolean reservedByOtherSystem(int hotbarSlot) {
