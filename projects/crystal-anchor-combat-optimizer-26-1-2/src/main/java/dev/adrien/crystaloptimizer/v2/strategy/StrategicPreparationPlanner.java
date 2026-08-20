@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public final class StrategicPreparationPlanner {
     private final CandidateGenerator candidates;
@@ -30,16 +31,21 @@ public final class StrategicPreparationPlanner {
 
         List<Candidate> current = candidates.generate(state);
 
-        Optional<Candidate> direct = current.stream()
+        Optional<PlannedSequence> direct = current.stream()
             .filter(candidate -> directPreparation(candidate.action(), config))
-            .max(preparationComparator());
-        if (direct.isPresent()) {
-            return Optional.of(List.of(direct.orElseThrow().action()));
-        }
+            .max(preparationComparator())
+            .map(candidate -> new PlannedSequence(
+                List.of(candidate.action()),
+                score(candidate)
+            ));
 
-        return current.stream()
+        Optional<PlannedSequence> viaSelection = current.stream()
             .filter(candidate -> candidate.action() instanceof SelectHotbarSlot)
             .map(candidate -> unlockedSequence(state, candidate, config))
+            .flatMap(Optional::stream)
+            .max(Comparator.comparingDouble(PlannedSequence::score));
+
+        return Stream.of(direct, viaSelection)
             .flatMap(Optional::stream)
             .max(Comparator.comparingDouble(PlannedSequence::score))
             .map(PlannedSequence::actions);
