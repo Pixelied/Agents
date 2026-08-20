@@ -42,6 +42,37 @@ final class ReactiveCombatEngineTest {
     }
 
     @Test
+    void crystalSpawnUsesSpawnSpecificRecycleInsteadOfStaleHigherPriorityPlacement() {
+        ReactiveCombatEngine engine = new ReactiveCombatEngine();
+        ActionApproval lethalPlace = approval(
+            11L,
+            ApprovalSlot.LETHAL,
+            new FixedActionSequence(java.util.List.of(new PlaceCrystal(base)))
+        );
+        ActionApproval recycle = approval(
+            12L,
+            ApprovalSlot.RECYCLE,
+            new SpawnCrystalCycle(base, true)
+        );
+        CombatBlackboardSnapshot snapshot = snapshot(Map.of(
+            ApprovalSlot.LETHAL, lethalPlace,
+            ApprovalSlot.RECYCLE, recycle
+        ));
+
+        ReactiveDecision decision = engine.decide(
+            new CombatEvent.CrystalSpawned(713, base, 1_100L),
+            snapshot,
+            1_110L
+        ).orElseThrow();
+
+        assertEquals(ApprovalSlot.RECYCLE, decision.slot());
+        assertEquals(
+            java.util.List.of(new AttackKnownCrystal(713), new PlaceCrystal(base)),
+            decision.actions()
+        );
+    }
+
+    @Test
     void popFinisherPreemptsRecycle() {
         ReactiveCombatEngine engine = new ReactiveCombatEngine();
         ActionApproval finisher = approval(
