@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/predictive-survival-26-1-2
+      - fix/predictive-survival-26-1-2-hardening
     paths:
       - 'projects/predictive-survival-26-1-2/**'
       - '.github/workflows/predictive-survival-26-1-2-ci.yml'
