@@ -49,6 +49,7 @@ jobs:
               exit "$status"
             fi
           fi
+          git am ci/predictive-survival-hardening/post-recovery.patch
           git status --short
 
       - name: Set up Java 25
