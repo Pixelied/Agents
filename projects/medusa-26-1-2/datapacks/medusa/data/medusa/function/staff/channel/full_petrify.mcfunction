@@ -2,8 +2,9 @@ tag @s add md.staff_petrified
 scoreboard players set @s md_staff_stone_timer 0
 scoreboard players set @s md_staff_stone_limit 100
 execute if entity @s[tag=md.boss] run scoreboard players set @s md_staff_stone_limit 30
-execute unless entity @s[type=minecraft:player] run data merge entity @s {NoAI:1b}
-execute unless entity @s[type=minecraft:player] run tag @s add md.staff_noai_applied
+tag @s remove md.staff_noai_applied
+execute unless entity @s[type=minecraft:player] unless data entity @s {NoAI:1b} run tag @s add md.staff_noai_applied
+execute if entity @s[tag=md.staff_noai_applied] run data merge entity @s {NoAI:1b}
 execute store result storage medusa:macro staff_stone.tid int 1 run scoreboard players get @s md_tid
 function medusa:staff/channel/clear_helpers with storage medusa:macro staff_stone
 summon minecraft:marker ~ ~ ~ {Tags:["md.staff_stone_anchor","md.new_staff_stone_anchor"]}

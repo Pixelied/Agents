@@ -1,126 +1,122 @@
 from __future__ import annotations
-
 import argparse
 from pathlib import Path
+import random
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "datapacks/medusa/data/medusa/function/dungeon/build_generated.mcfunction"
 
-FIXED_MAZE_V1 = [
-    "#####################",
-    "#E....#.......#....L#",
-    "#####.#.#####.#.###.#",
-    "#.....#.#...#.#...#.#",
-    "#.#####.#A#.#.###.#.#",
-    "#.......#.#.#.....#.#",
-    "#.#######.#.#######.#",
-    "#...B.....#.....T...#",
-    "###.#######.#######.#",
-    "#...#.....#.....#...#",
-    "#.###.###.#.###.#.###",
-    "#L....#C..#...#.....#",
-    "#####.#####.#.#####.#",
-    "#...........#.....I.#",
-    "#####################",
-]
-
-TILE = 4
+CINEMATIC_MAZE_V2 = "dfs-17x17-seed-26012"
+MAZE_WIDTH = 17
+MAZE_DEPTH = 17
+TILE = 3
 BASE_X = -42
 BASE_Y = -18
-BASE_Z = 16
-REQUIRED = "EABCI"
-SPECIAL_BLOCKS = {
-    "E": "minecraft:chiseled_stone_bricks",
-    "A": "minecraft:cut_copper",
-    "B": "minecraft:oxidized_cut_copper",
-    "C": "minecraft:chiseled_deepslate",
-    "L": "minecraft:gilded_blackstone",
-    "T": "minecraft:redstone_block",
-    "I": "minecraft:lodestone",
-}
-
-
-def validate_map() -> None:
-    widths = {len(row) for row in FIXED_MAZE_V1}
-    if len(widths) != 1:
-        raise ValueError(f"maze rows have inconsistent widths: {sorted(widths)}")
-    for symbol in REQUIRED:
-        count = sum(row.count(symbol) for row in FIXED_MAZE_V1)
-        if count != 1:
-            raise ValueError(f"expected exactly one {symbol}, found {count}")
+BASE_Z = 38
+SEED = 26012
 
 
 def rel(n: int) -> str:
     return "~" if n == 0 else f"~{n}"
 
 
-def runs(row: str):
-    start = 0
-    wall = row[0] == "#"
-    for idx in range(1, len(row) + 1):
-        next_wall = idx < len(row) and row[idx] == "#"
-        if idx == len(row) or next_wall != wall:
-            yield start, idx - 1, wall
-            if idx < len(row):
-                start = idx
-                wall = next_wall
+def build_maze() -> list[list[str]]:
+    grid = [["#"] * MAZE_WIDTH for _ in range(MAZE_DEPTH)]
+    rng = random.Random(SEED)
+    start = (1, MAZE_WIDTH - 2)
+    stack = [start]
+    grid[start[0]][start[1]] = "."
+    while stack:
+        z, x = stack[-1]
+        choices = []
+        for dz, dx in ((0, 2), (0, -2), (2, 0), (-2, 0)):
+            nz, nx = z + dz, x + dx
+            if 1 <= nz < MAZE_DEPTH - 1 and 1 <= nx < MAZE_WIDTH - 1 and grid[nz][nx] == "#":
+                choices.append((nz, nx, dz, dx))
+        if not choices:
+            stack.pop()
+            continue
+        nz, nx, dz, dx = rng.choice(choices)
+        grid[z + dz // 2][x + dx // 2] = "."
+        grid[nz][nx] = "."
+        stack.append((nz, nx))
+
+    loop_candidates = []
+    for z in range(1, MAZE_DEPTH - 1):
+        for x in range(1, MAZE_WIDTH - 1):
+            if grid[z][x] != "#":
+                continue
+            horizontal = grid[z][x - 1] == "." and grid[z][x + 1] == "."
+            vertical = grid[z - 1][x] == "." and grid[z + 1][x] == "."
+            if horizontal or vertical:
+                loop_candidates.append((z, x))
+    rng.shuffle(loop_candidates)
+    for z, x in loop_candidates[:12]:
+        grid[z][x] = "."
+
+    # East-side entrance from the Averted Eyes chamber.
+    grid[1][MAZE_WIDTH - 2] = "."
+    grid[1][MAZE_WIDTH - 1] = "."
+    return grid
+
+
+def open_runs(row: list[str]):
+    x = 0
+    while x < len(row):
+        if row[x] != ".":
+            x += 1
+            continue
+        start = x
+        while x + 1 < len(row) and row[x + 1] == ".":
+            x += 1
+        yield start, x
+        x += 1
 
 
 def render() -> str:
-    validate_map()
-    width = len(FIXED_MAZE_V1[0])
-    depth = len(FIXED_MAZE_V1)
-    maze_x2 = BASE_X + width * TILE - 1
-    maze_z2 = BASE_Z + depth * TILE - 1
+    grid = build_maze()
+    x2 = BASE_X + MAZE_WIDTH * TILE - 1
+    z2 = BASE_Z + MAZE_DEPTH * TILE - 1
     lines = [
-        "# generated from FIXED_MAZE_V1; run scripts/generate_temple.py to update",
+        "# generated from CINEMATIC_MAZE_V2; run scripts/generate_temple.py to update",
+        "# continuous route: surface -> descent -> Averted Eyes -> labyrinth/Borrowed Gaze -> Blind Passage -> sanctum -> arena",
         "function medusa:dungeon/build_surface",
-        "function medusa:dungeon/build_arena",
-        "# fixed underground labyrinth",
-        f"fill {rel(BASE_X)} {rel(BASE_Y)} {rel(BASE_Z)} {rel(maze_x2)} {rel(BASE_Y + 3)} {rel(maze_z2)} minecraft:stone_bricks",
+        "function medusa:dungeon/build_descent",
+        "# cinematic underground labyrinth shell",
+        f"fill {rel(BASE_X)} {rel(BASE_Y)} {rel(BASE_Z)} {rel(x2)} {rel(BASE_Y + 7)} {rel(z2)} minecraft:stone_bricks",
     ]
-    for z, row in enumerate(FIXED_MAZE_V1):
+
+    for z, row in enumerate(grid):
         z1 = BASE_Z + z * TILE
-        z2 = z1 + TILE - 1
-        for x_start, x_end, wall in runs(row):
-            if wall:
-                continue
+        z3 = z1 + TILE - 1
+        for x_start, x_end in open_runs(row):
             x1 = BASE_X + x_start * TILE
-            x2 = BASE_X + (x_end + 1) * TILE - 1
-            lines.append(f"fill {rel(x1)} {rel(BASE_Y)} {rel(z1)} {rel(x2)} {rel(BASE_Y)} {rel(z2)} minecraft:polished_deepslate")
-            lines.append(f"fill {rel(x1)} {rel(BASE_Y + 1)} {rel(z1)} {rel(x2)} {rel(BASE_Y + 3)} {rel(z2)} minecraft:air")
-        for x, cell in enumerate(row):
-            if cell in SPECIAL_BLOCKS:
-                x1 = BASE_X + x * TILE
-                lines.append(f"setblock {rel(x1 + 1)} {rel(BASE_Y)} {rel(z1 + 1)} {SPECIAL_BLOCKS[cell]}")
+            x3 = BASE_X + (x_end + 1) * TILE - 1
+            floor = "minecraft:polished_deepslate" if (z + x_start) % 3 else "minecraft:cracked_deepslate_tiles"
+            lines.append(f"fill {rel(x1)} {rel(BASE_Y)} {rel(z1)} {rel(x3)} {rel(BASE_Y)} {rel(z3)} {floor}")
+            lines.append(f"fill {rel(x1)} {rel(BASE_Y + 1)} {rel(z1)} {rel(x3)} {rel(BASE_Y + 6)} {rel(z3)} minecraft:air")
+
+    # Deterministic landmarks help players orient without revealing the solution.
+    open_cells = [(z, x) for z, row in enumerate(grid) for x, cell in enumerate(row) if cell == "."]
+    for i, (z, x) in enumerate(open_cells):
+        cx = BASE_X + x * TILE + 1
+        cz = BASE_Z + z * TILE + 1
+        if i % 17 == 3:
+            lines.append(f"setblock {rel(cx)} {rel(BASE_Y + 6)} {rel(cz)} minecraft:soul_lantern[hanging=true]")
+        elif i % 23 == 7:
+            lines.append(f"setblock {rel(cx)} {rel(BASE_Y + 1)} {rel(cz)} minecraft:cobweb")
+        elif i % 29 == 11:
+            lines.append(f"setblock {rel(cx)} {rel(BASE_Y + 1)} {rel(cz)} minecraft:moss_carpet")
+
     lines.extend([
-        "# deterministic age/atmosphere accents",
-        f"setblock {rel(BASE_X + 9)} {rel(BASE_Y + 3)} {rel(BASE_Z + 5)} minecraft:soul_lantern[hanging=true]",
-        f"setblock {rel(BASE_X + 31)} {rel(BASE_Y + 1)} {rel(BASE_Z + 29)} minecraft:cobweb",
-        f"setblock {rel(BASE_X + 55)} {rel(BASE_Y + 3)} {rel(BASE_Z + 45)} minecraft:soul_lantern[hanging=true]",
-        f"setblock {rel(BASE_X + 7)} {rel(BASE_Y + 2)} {rel(BASE_Z + 6)} minecraft:vine[north=true]",
-        f"setblock {rel(BASE_X + 77)} {rel(BASE_Y + 2)} {rel(BASE_Z + 53)} minecraft:vine[south=true]",
-        "# Averted Eyes controls",
-        "setblock ~-5 ~-17 ~33 minecraft:stone_button[face=floor,facing=north,powered=false]",
-        "setblock ~-4 ~-17 ~33 minecraft:stone_button[face=floor,facing=north,powered=false]",
-        "setblock ~-3 ~-17 ~33 minecraft:stone_button[face=floor,facing=north,powered=false]",
-        "setblock ~-5 ~-17 ~34 minecraft:stone_button[face=floor,facing=north,powered=false]",
-        "setblock ~-5 ~-16 ~33 minecraft:stone_brick_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]",
-        "setblock ~-4 ~-16 ~33 minecraft:stone_brick_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]",
-        "setblock ~-3 ~-16 ~33 minecraft:stone_brick_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]",
-        "# Borrowed Gaze controls",
-        "setblock ~-25 ~-17 ~45 minecraft:stone_button[face=floor,facing=north,powered=false]",
-        "setblock ~-24 ~-17 ~45 minecraft:stone_button[face=floor,facing=north,powered=false]",
-        "setblock ~-25 ~-16 ~45 minecraft:lightning_rod[facing=north,waterlogged=false]",
-        "setblock ~-24 ~-16 ~45 minecraft:lightning_rod[facing=north,waterlogged=false]",
-        "# Blind Passage",
-        "setblock ~-13 ~-16 ~60 minecraft:observer[facing=east]",
-        "setblock ~-9 ~-16 ~60 minecraft:observer[facing=east]",
-        "setblock ~-13 ~-16 ~63 minecraft:observer[facing=east]",
-        "setblock ~-9 ~-16 ~63 minecraft:observer[facing=east]",
-        "setblock ~-11 ~-17 ~61 minecraft:stone_bricks",
-        "setblock ~-7 ~-17 ~62 minecraft:stone_bricks",
+        "# authored chambers carve into the maze after the shell so they read as destinations",
+        "function medusa:dungeon/build_puzzle_averted_room",
+        "function medusa:dungeon/build_puzzle_borrowed_room",
+        "function medusa:dungeon/build_puzzle_blind_room",
+        "function medusa:dungeon/build_sanctum",
+        "function medusa:dungeon/build_arena",
+        "function medusa:dungeon/build_arena_approach",
         "",
     ])
     return "\n".join(lines)
@@ -133,16 +129,15 @@ def main() -> int:
     text = render()
     if args.check:
         if not OUT.exists():
-            print(f"generated output missing: {OUT.relative_to(ROOT)}", file=sys.stderr)
+            print(f"generated output missing: {OUT}", file=sys.stderr)
             return 1
         if OUT.read_text(encoding="utf-8") != text:
-            print(f"generated output is stale: {OUT.relative_to(ROOT)}", file=sys.stderr)
+            print(f"generated output is stale: {OUT}", file=sys.stderr)
             return 1
         return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text, encoding="utf-8")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

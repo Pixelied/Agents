@@ -21,6 +21,7 @@ scoreboard objectives add md_staff dummy
 scoreboard objectives add md_lock dummy
 scoreboard objectives add md_use dummy
 scoreboard objectives add md_rewarded dummy
+scoreboard objectives add md_ritual_paid dummy
 scoreboard players add $next_eid md_eid 0
 scoreboard players add $next_aid md_aid 0
 scoreboard players add $next_tid md_tid 0
@@ -49,6 +50,8 @@ scoreboard players set $28 md_tmp 28
 scoreboard players set $100 md_tmp 100
 scoreboard objectives add md_gaze_tick dummy
 scoreboard objectives add md_gaze_hit dummy
+scoreboard objectives add md_angle_ok dummy
+scoreboard objectives add md_los_ok dummy
 scoreboard objectives add md_ray dummy
 scoreboard objectives add md_gorgon_active dummy
 scoreboard players set $10 md_tmp 10
