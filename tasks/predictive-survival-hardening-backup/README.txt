@@ -1,0 +1,1 @@
+Recovery bundle for local checkpoint 6c12750. Concatenate part-00..part-05, base64-decode, gunzip, then apply with git am to a checkout of main 0c4b21da1060d2510bf64fa0971e5c18b982783d. This backup branch exists only to preserve in-progress Predictive Survival hardening work across sandbox resets.
