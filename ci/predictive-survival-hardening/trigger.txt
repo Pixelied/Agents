@@ -1,0 +1,1 @@
+verify recovered hardening bundle on Java 25
