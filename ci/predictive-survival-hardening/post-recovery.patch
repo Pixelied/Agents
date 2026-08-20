@@ -1,0 +1,116 @@
+From be3c52f6936d421870b88d7329e0780f20bee445 Mon Sep 17 00:00:00 2001
+From: OpenAI Recovery <recovery@openai.local>
+Date: Thu, 20 Aug 2026 22:57:56 +0000
+Subject: [PATCH] fix: preserve vanilla double mace fall distance
+
+---
+ .../core/MinecraftMeleeSnapshotAdapter.java      |  4 ++--
+ .../survival/threat/VanillaMobMeleeProfile.java  | 16 ++++++++++------
+ .../pixelied/survival/threat/WeaponSnapshot.java | 12 ++++++++----
+ .../threat/VanillaMobMeleeProfileTest.java       | 13 +++++++++++++
+ 4 files changed, 33 insertions(+), 12 deletions(-)
+
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java
+index dbaa570..6d0622e 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java
+@@ -96,7 +96,7 @@ final class MinecraftMeleeSnapshotAdapter {
+             properties.put("direct_damage_max", Float.toString(direct.max()));
+         }
+         properties.put("weapon_key", itemKey(weapon));
+-        properties.put("fall_distance", Float.toString(mob.fallDistance));
++        properties.put("fall_distance", Double.toString(mob.fallDistance));
+         properties.put("critical_possible", "false");
+         properties.put("line_of_sight", Boolean.toString(playerView.hasLineOfSight(mob)));
+         properties.put("scales_with_difficulty", "true");
+@@ -105,7 +105,7 @@ final class MinecraftMeleeSnapshotAdapter {
+         properties.put("blocking_disable_seconds", Float.toString(Math.max(0f, mob.getSecondsToDisableBlocking())));
+         properties.put("armor_effectiveness_adjustment", Float.toString(MinecraftDamageAdapter.armorEffectivenessAdjustment(weapon)));
+         properties.put("fire_aspect_level", Integer.toString(enchantmentLevel(weapon, Enchantments.FIRE_ASPECT)));
+-        if ("minecraft:mace".equals(itemKey(weapon)) && mob.fallDistance > 1.5f
++        if ("minecraft:mace".equals(itemKey(weapon)) && mob.fallDistance > 1.5d
+             && VanillaMobMeleeProfile.usesGenericItemAttackPipeline(typeKey)) {
+             properties.put("mace_smash", "true");
+         }
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/VanillaMobMeleeProfile.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/VanillaMobMeleeProfile.java
+index 5ce1f31..31702c5 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/VanillaMobMeleeProfile.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/VanillaMobMeleeProfile.java
+@@ -57,15 +57,19 @@ public final class VanillaMobMeleeProfile {
+         float attackAttributeValue,
+         float enchantmentDamageBonus,
+         String weaponKey,
+-        float fallDistance,
++        double fallDistance,
+         int densityLevel
+     ) {
+-        float result = Math.max(0f, attackAttributeValue) + Math.max(0f, enchantmentDamageBonus);
+-        if ("minecraft:mace".equals(weaponKey) && fallDistance > 1.5f) {
+-            result += WeaponSnapshot.maceSmashBonus(fallDistance);
+-            result += Math.max(0, densityLevel) * 0.5f * Math.max(0f, fallDistance);
++        if (!Double.isFinite(fallDistance) || fallDistance < 0d) {
++            throw new IllegalArgumentException("fallDistance must be finite and non-negative");
+         }
+-        return result;
++        double result = (double)Math.max(0f, attackAttributeValue) + Math.max(0f, enchantmentDamageBonus);
++        if ("minecraft:mace".equals(weaponKey) && fallDistance > 1.5d) {
++            result += WeaponSnapshot.maceSmashBonusDouble(fallDistance);
++            result += Math.max(0, densityLevel) * 0.5d * fallDistance;
++        }
++        if (!Double.isFinite(result) || result >= Float.MAX_VALUE) return Float.MAX_VALUE;
++        return (float)result;
+     }
+ 
+     private static DamageRange randomHalfPlusInt(float attack) {
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/WeaponSnapshot.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/WeaponSnapshot.java
+index 6d9e1fb..58c1483 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/WeaponSnapshot.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/WeaponSnapshot.java
+@@ -58,13 +58,17 @@ public record WeaponSnapshot(
+     }
+ 
+     public static float maceSmashBonus(double fallDistance) {
++        return saturatingFloat(maceSmashBonusDouble(fallDistance));
++    }
++
++    static double maceSmashBonusDouble(double fallDistance) {
+         if (!Double.isFinite(fallDistance) || fallDistance < 0d) {
+             throw new IllegalArgumentException("fallDistance must be finite and non-negative");
+         }
+-        if (fallDistance <= 1.5d) return 0f;
+-        if (fallDistance <= 3d) return saturatingFloat(4d * fallDistance);
+-        if (fallDistance <= 8d) return saturatingFloat(12d + 2d * (fallDistance - 3d));
+-        return saturatingFloat(22d + (fallDistance - 8d));
++        if (fallDistance <= 1.5d) return 0d;
++        if (fallDistance <= 3d) return 4d * fallDistance;
++        if (fallDistance <= 8d) return 12d + 2d * (fallDistance - 3d);
++        return 22d + (fallDistance - 8d);
+     }
+ 
+     public static float attackScale(float attackStrength) {
+diff --git a/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/threat/VanillaMobMeleeProfileTest.java b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/threat/VanillaMobMeleeProfileTest.java
+index 93e7b56..fe53db0 100644
+--- a/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/threat/VanillaMobMeleeProfileTest.java
++++ b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/threat/VanillaMobMeleeProfileTest.java
+@@ -62,6 +62,19 @@ class VanillaMobMeleeProfileTest {
+         assertEquals(30f, damage, 0.0001f);
+     }
+ 
++    @Test
++    void genericMaceDamagePreservesFractionalDoubleFallDistanceUntilFinalDamage() {
++        float damage = VanillaMobMeleeProfile.genericDirectDamage(
++            7f,
++            1f,
++            "minecraft:mace",
++            4.25d,
++            4
++        );
++        // Vanilla keeps Entity.fallDistance as double: 8 base + 14.5 smash + 8.5 Density IV.
++        assertEquals(31f, damage, 0.0001f);
++    }
++
+     private static void assertRange(float min, float max, DamageRange actual) {
+         assertEquals(min, actual.min(), 0.0001f);
+         assertEquals(max, actual.max(), 0.0001f);
+-- 
+2.47.3
