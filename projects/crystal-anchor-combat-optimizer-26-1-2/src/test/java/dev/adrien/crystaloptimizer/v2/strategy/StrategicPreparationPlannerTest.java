@@ -99,6 +99,38 @@ class StrategicPreparationPlannerTest {
     }
 
     @Test
+    void existingBaseWhileObsidianSelectedSwitchesToCrystalInsteadOfPlacingMoreSupport() {
+        CombatState state = state(
+            inventory(
+                1,
+                Map.of(
+                    1, Items.OBSIDIAN,
+                    2, Items.END_CRYSTAL
+                ),
+                Map.of(
+                    Items.OBSIDIAN, 16,
+                    Items.END_CRYSTAL, 16
+                )
+            ),
+            CombatRegion.of(
+                Map.of(
+                    SUPPORT, Blocks.STONE.defaultBlockState(),
+                    CRYSTAL_BASE, Blocks.OBSIDIAN.defaultBlockState()
+                ),
+                Map.of()
+            )
+        );
+
+        List<CombatAction> actions = planner.plan(state, config(true, false)).orElseThrow();
+
+        SelectHotbarSlot select = assertInstanceOf(SelectHotbarSlot.class, actions.get(0));
+        assertEquals(2, select.slot());
+        PlaceCrystal place = assertInstanceOf(PlaceCrystal.class, actions.get(1));
+        assertEquals(CRYSTAL_BASE, place.basePos());
+        assertEquals(2, actions.size());
+    }
+
+    @Test
     void coldAnchorStartSelectsAnchorThenPlacesIt() {
         CombatState state = state(
             inventory(
