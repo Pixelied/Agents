@@ -15,6 +15,9 @@ public final class DamageSimulator {
         if ((working.playerInvulnerable() || working.abilityInvulnerable()) && !bypassesInvulnerability) {
             return rejected(working, trace);
         }
+        if (working.mitigation().enchantmentImmuneTo(source)) {
+            return rejected(working, trace);
+        }
         if (working.deadOrDying()) {
             return rejected(working, trace);
         }
@@ -57,7 +60,7 @@ public final class DamageSimulator {
 
         before = damage;
         if (source.has(DamageFlag.DAMAGES_HELMET) && working.mitigation().helmetPresent()) {
-            MitigationSnapshot afterHelmetDamage = working.mitigation().damageHelmet(damage);
+            MitigationSnapshot afterHelmetDamage = working.mitigation().damageHelmet(source, damage);
             working = withState(working, working.health(), working.absorption(), afterHelmetDamage,
                 working.statusEffects(), working.hurtState(), working.deathProtection());
             damage *= 0.75f;
@@ -98,9 +101,9 @@ public final class DamageSimulator {
         MitigationSnapshot mitigation = player.mitigation();
         float before = damage;
         if (!source.has(DamageFlag.BYPASSES_ARMOR)) {
-            mitigation = mitigation.damageArmor(damage);
+            mitigation = mitigation.damageArmor(source, damage);
             damage = VanillaDamageMath.afterArmor(
-                damage, mitigation.armor(), mitigation.toughness(), mitigation.armorEffectivenessMultiplier()
+                damage, mitigation.armor(), mitigation.toughness(), source.armorEffectivenessAdjustment()
             );
         }
         trace.record(DamageStage.ARMOR, before, damage);
@@ -117,8 +120,8 @@ public final class DamageSimulator {
         if (!source.has(DamageFlag.BYPASSES_EFFECTS)
             && damage > 0f
             && !source.has(DamageFlag.BYPASSES_ENCHANTMENTS)
-            && mitigation.enchantmentProtection() > 0) {
-            damage = VanillaDamageMath.afterMagicProtection(damage, mitigation.enchantmentProtection());
+            && mitigation.enchantmentProtection(source) > 0) {
+            damage = VanillaDamageMath.afterMagicProtection(damage, mitigation.enchantmentProtection(source));
         }
         trace.record(DamageStage.MAGIC, before, damage);
 

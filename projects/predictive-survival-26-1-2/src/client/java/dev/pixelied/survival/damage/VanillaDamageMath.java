@@ -23,11 +23,11 @@ public final class VanillaDamageMath {
         return (int)Math.max(1f, damage / 4f);
     }
 
-    public static float afterArmor(float damage, float armor, float toughness, float armorEffectivenessMultiplier) {
+    public static float afterArmor(float damage, float armor, float toughness, float armorEffectivenessAdjustment) {
         float toughnessFactor = 2f + toughness / 4f;
         float realArmor = clamp(armor - damage / toughnessFactor, armor * 0.2f, 20f);
         float armorFraction = realArmor / 25f;
-        float modifiedArmorFraction = clamp(armorFraction * armorEffectivenessMultiplier, 0f, 1f);
+        float modifiedArmorFraction = clamp(armorFraction + armorEffectivenessAdjustment, 0f, 1f);
         return damage * (1f - modifiedArmorFraction);
     }
 
