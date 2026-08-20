@@ -6,6 +6,7 @@ import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboardSnapshot;
 import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -45,7 +46,7 @@ public final class ReactiveCombatEngine {
             throw new IllegalArgumentException("decision cannot precede event");
         }
 
-        for (ApprovalSlot slot : PRIORITY) {
+        for (ApprovalSlot slot : priorityFor(event)) {
             ActionApproval approval = snapshot.approvals().get(slot);
             if (approval == null || !eventMatches(slot, event, approval.targetId())) {
                 continue;
@@ -122,6 +123,20 @@ public final class ReactiveCombatEngine {
         while (duplicateOrder.size() > MAX_DUPLICATE_KEYS) {
             duplicateKeys.remove(duplicateOrder.removeFirst());
         }
+    }
+
+    private static List<ApprovalSlot> priorityFor(CombatEvent event) {
+        if (!(event instanceof CombatEvent.CrystalSpawned)) {
+            return PRIORITY;
+        }
+        ArrayList<ApprovalSlot> priority = new ArrayList<>(PRIORITY.size());
+        priority.add(ApprovalSlot.RECYCLE);
+        for (ApprovalSlot slot : PRIORITY) {
+            if (slot != ApprovalSlot.RECYCLE) {
+                priority.add(slot);
+            }
+        }
+        return List.copyOf(priority);
     }
 
     private static boolean eventMatches(ApprovalSlot slot, CombatEvent event, UUID targetId) {
