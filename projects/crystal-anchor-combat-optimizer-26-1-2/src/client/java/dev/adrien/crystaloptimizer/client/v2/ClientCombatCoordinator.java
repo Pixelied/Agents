@@ -221,6 +221,8 @@ public final class ClientCombatCoordinator {
             return;
         }
         strategicTick.run();
+        reactive.decideProactive(blackboard.snapshot(), System.nanoTime())
+            .ifPresent(decision -> dispatchDecision(decision, 0, config));
     }
 
     public void onEvent(CombatEvent event) {
