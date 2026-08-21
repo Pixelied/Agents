@@ -1,10 +1,13 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
+import dev.adrien.crystaloptimizer.action.AttackKnownCrystal;
+import dev.adrien.crystaloptimizer.action.DetonateAnchor;
 import dev.adrien.crystaloptimizer.client.config.OptimizerConfigService;
 import dev.adrien.crystaloptimizer.client.execution.DispatchReceipt;
 import dev.adrien.crystaloptimizer.client.execution.HotbarRestocker;
 import dev.adrien.crystaloptimizer.client.execution.RotationController;
 import dev.adrien.crystaloptimizer.client.execution.VanillaInteractionDispatcher;
+import dev.adrien.crystaloptimizer.client.intel.RemoteDamageWindowObserver;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.execution.InventoryCoordinator;
 import dev.adrien.crystaloptimizer.v2.execution.ActionArbiter;
@@ -108,11 +111,13 @@ public final class ClientCombatCoordinator {
         ClientRevisionTracker revisions = new ClientRevisionTracker();
         TimingEngine timingEngine = ClientTimingObserver.instance().timingEngine();
         ClientDamageMapBuilder damageMaps = new ClientDamageMapBuilder(minecraft, timingEngine);
+        HurtWindowTracker hurtWindows = new HurtWindowTracker();
+        RemoteDamageWindowObserver.instance().bind(hurtWindows);
         ClientStrategicScanner scanner = new ClientStrategicScanner(
             damageMaps,
             blackboard,
             new FastOpportunitySelector(),
-            new HurtWindowTracker()
+            hurtWindows
         );
         PendingItemLedger pendingItems = new PendingItemLedger();
         InventoryCoordinator inventory = new InventoryCoordinator();
@@ -328,8 +333,34 @@ public final class ClientCombatCoordinator {
         BurstReceipt receipt = startIndex == 0
             ? burstDispatcher.dispatch(decision, config)
             : burstDispatcher.dispatchFrom(decision, config, startIndex);
+        observeSentExplosionCandidates(decision, startIndex, receipt);
         diagnostics.recordDispatch(decision, System.nanoTime());
         updateContinuation(decision, startIndex, receipt);
+    }
+
+    private static void observeSentExplosionCandidates(
+        ReactiveDecision decision,
+        int startIndex,
+        BurstReceipt receipt
+    ) {
+        int count = Math.min(
+            receipt.receipts().size(),
+            Math.max(0, decision.actions().size() - startIndex)
+        );
+        long nowNanos = System.nanoTime();
+        for (int offset = 0; offset < count; offset++) {
+            if (receipt.receipts().get(offset).status() != DispatchReceipt.Status.SENT) {
+                continue;
+            }
+            var action = decision.actions().get(startIndex + offset);
+            if (action instanceof AttackKnownCrystal || action instanceof DetonateAnchor) {
+                RemoteDamageWindowObserver.instance().onExplosionCandidate(
+                    decision.approval().targetId(),
+                    decision.approval().targetDamage().postMitigationExpected(),
+                    nowNanos
+                );
+            }
+        }
     }
 
     private void updateContinuation(
