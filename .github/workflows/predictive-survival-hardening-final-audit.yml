@@ -1,0 +1,227 @@
+name: Predictive Survival Hardening Final Audit
+
+on:
+  push:
+    branches:
+      - ci/predictive-survival-hardening-recovery-check
+    paths-ignore:
+      - '.ci/predictive-survival-hardening/final-audit-*.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  final-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+      - name: Materialize already-proven recovered source delta
+        working-directory: projects/predictive-survival-26-1-2
+        run: gradle --no-daemon --console=plain help
+      - name: Apply final local audit changes in workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=projects/predictive-survival-26-1-2
+          cat > "$P/src/client/java/dev/pixelied/survival/core/MinecraftPlayerMeleeSnapshotAdapter.java" <<'JAVA'
+          package dev.pixelied.survival.core;
+
+          import dev.pixelied.survival.damage.MinecraftDamageAdapter;
+          import net.minecraft.core.component.DataComponents;
+          import net.minecraft.core.registries.BuiltInRegistries;
+          import net.minecraft.world.entity.Entity;
+          import net.minecraft.world.entity.EntityType;
+          import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+          import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+          import net.minecraft.world.entity.ai.attributes.Attributes;
+          import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
+          import net.minecraft.world.entity.player.Player;
+          import net.minecraft.world.item.ItemStack;
+          import net.minecraft.world.item.enchantment.Enchantments;
+          import net.minecraft.world.item.enchantment.ItemEnchantments;
+
+          import java.util.LinkedHashMap;
+          import java.util.Map;
+
+          final class MinecraftPlayerMeleeSnapshotAdapter {
+              private MinecraftPlayerMeleeSnapshotAdapter() {}
+
+              static Map<String, String> playerProperties(Player remotePlayer, LineOfSightView playerView) {
+                  AttributeSupplier defaults = DefaultAttributes.getSupplier(EntityType.PLAYER);
+                  AttributeInstance reconstructed = defaults.createInstance(ignored -> {}, Attributes.ATTACK_DAMAGE);
+                  if (reconstructed == null) return Map.of();
+                  AttributeInstance visibleAttack = remotePlayer.getAttribute(Attributes.ATTACK_DAMAGE);
+                  if (visibleAttack != null) {
+                      for (var modifier : visibleAttack.getModifiers()) reconstructed.addOrUpdateTransientModifier(modifier);
+                  }
+                  float attackAttribute = (float)Math.max(0d, reconstructed.getValue());
+                  if (attackAttribute <= 0f) return Map.of();
+                  ItemStack weapon = remotePlayer.getMainHandItem();
+                  int sharpness = enchantmentLevel(weapon, Enchantments.SHARPNESS);
+                  int density = enchantmentLevel(weapon, Enchantments.DENSITY);
+                  int fireAspect = enchantmentLevel(weapon, Enchantments.FIRE_ASPECT);
+                  Map<String, String> properties = new LinkedHashMap<>();
+                  properties.put("melee_capable", "true");
+                  properties.put("attack_damage", Float.toString(attackAttribute));
+                  properties.put("enchantment_bonus", Float.toString(sharpness <= 0 ? 0f : 1f + 0.5f * (sharpness - 1)));
+                  properties.put("attack_strength", "1.0");
+                  properties.put("weapon_key", itemKey(weapon));
+                  properties.put("fall_distance", Float.toString(remotePlayer.fallDistance));
+                  properties.put("critical_possible", "unknown");
+                  properties.put("line_of_sight", Boolean.toString(playerView.hasLineOfSight(remotePlayer)));
+                  properties.put("scales_with_difficulty", "false");
+                  properties.put("source_key", "minecraft:player_attack");
+                  properties.put("armor_effectiveness_adjustment", Float.toString(MinecraftDamageAdapter.armorEffectivenessAdjustment(weapon)));
+                  properties.put("fire_aspect_level", Integer.toString(fireAspect));
+                  properties.put("density_level", Integer.toString(density));
+                  properties.put("blocking_disable_seconds", Float.toString(Math.max(0f, remotePlayer.getSecondsToDisableBlocking())));
+                  properties.put("can_disable_blocking", Boolean.toString(remotePlayer.getSecondsToDisableBlocking() > 0f));
+                  AttributeInstance range = remotePlayer.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
+                  if (range != null) properties.put("attack_range", Double.toString(Math.max(0d, range.getValue())));
+                  return Map.copyOf(properties);
+              }
+
+              private static int enchantmentLevel(ItemStack stack, net.minecraft.resources.ResourceKey<net.minecraft.world.item.enchantment.Enchantment> key) {
+                  ItemEnchantments enchantments = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
+                  for (var entry : enchantments.entrySet()) if (entry.getKey().is(key)) return entry.getIntValue();
+                  return 0;
+              }
+
+              private static String itemKey(ItemStack stack) {
+                  return stack.isEmpty() ? "minecraft:air" : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+              }
+
+              interface LineOfSightView { boolean hasLineOfSight(Entity entity); }
+          }
+          JAVA
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java')
+          s=p.read_text()
+          start=s.index('        } else if (entity instanceof Player remotePlayer) {')
+          end=s.index('\n        }\n', start)+len('\n        }\n')
+          s=s[:start]+'        } else if (entity instanceof Player remotePlayer) {\n            properties.putAll(MinecraftPlayerMeleeSnapshotAdapter.playerProperties(remotePlayer, player::hasLineOfSight));\n        }\n'+s[end:]
+          p.write_text(s)
+          PY
+
+          cat > "$P/src/client/java/dev/pixelied/survival/damage/DeathProtectionSnapshot.java" <<'JAVA'
+          package dev.pixelied.survival.damage;
+
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Objects;
+          import java.util.Optional;
+          import java.util.Set;
+
+          public record DeathProtectionSnapshot(Optional<ProtectionItem> mainHand, Optional<ProtectionItem> offHand) {
+              public DeathProtectionSnapshot { mainHand=Objects.requireNonNull(mainHand); offHand=Objects.requireNonNull(offHand); }
+              public static DeathProtectionSnapshot none(){ return new DeathProtectionSnapshot(Optional.empty(), Optional.empty()); }
+              public Optional<Consumption> consumeFirst(){
+                  if(mainHand.isPresent()) return Optional.of(new Consumption(mainHand.get(),new DeathProtectionSnapshot(Optional.empty(),offHand)));
+                  if(offHand.isPresent()) return Optional.of(new Consumption(offHand.get(),new DeathProtectionSnapshot(mainHand,Optional.empty())));
+                  return Optional.empty();
+              }
+              public record Consumption(ProtectionItem item, DeathProtectionSnapshot remaining) {}
+              public sealed interface PostEffect {
+                  record Apply(List<EffectInstanceSnapshot> effects) implements PostEffect { public Apply { effects=List.copyOf(effects); } }
+                  record Remove(Set<String> effectKeys) implements PostEffect { public Remove { effectKeys=Set.copyOf(effectKeys); } }
+                  enum ClearAll implements PostEffect { INSTANCE }
+              }
+              public record ProtectionItem(boolean clearExistingEffects, Set<String> removedEffectKeys, List<EffectInstanceSnapshot> effects, boolean postEffectsExact, List<PostEffect> orderedPostEffects) {
+                  public ProtectionItem { removedEffectKeys=Set.copyOf(removedEffectKeys); effects=List.copyOf(effects); orderedPostEffects=List.copyOf(orderedPostEffects); }
+                  public ProtectionItem(boolean clearExistingEffects, Set<String> removedEffectKeys, List<EffectInstanceSnapshot> effects, boolean postEffectsExact){ this(clearExistingEffects,removedEffectKeys,effects,postEffectsExact,ordered(clearExistingEffects,removedEffectKeys,effects)); }
+                  public ProtectionItem(boolean clearExistingEffects,List<EffectInstanceSnapshot> effects){ this(clearExistingEffects,Set.of(),effects,true); }
+                  public static ProtectionItem vanillaTotem(){
+                      var effects=List.of(new EffectInstanceSnapshot("minecraft:regeneration",900,1),new EffectInstanceSnapshot("minecraft:absorption",100,1),new EffectInstanceSnapshot("minecraft:fire_resistance",800,0));
+                      return new ProtectionItem(true,Set.of(),effects,true,List.of(PostEffect.ClearAll.INSTANCE,new PostEffect.Apply(effects)));
+                  }
+                  public static ProtectionItem generic(){ return new ProtectionItem(false,Set.of(),List.of(),false,List.of()); }
+                  public static ProtectionItem exactGeneric(List<PostEffect> ordered){
+                      boolean clear=false; Set<String> removed=new java.util.LinkedHashSet<>(); List<EffectInstanceSnapshot> applied=new ArrayList<>();
+                      for(PostEffect e:ordered){ if(e instanceof PostEffect.ClearAll) clear=true; else if(e instanceof PostEffect.Remove r) removed.addAll(r.effectKeys()); else if(e instanceof PostEffect.Apply a) applied.addAll(a.effects()); }
+                      return new ProtectionItem(clear,removed,applied,true,ordered);
+                  }
+                  private static List<PostEffect> ordered(boolean clear,Set<String> removed,List<EffectInstanceSnapshot> effects){ List<PostEffect> out=new ArrayList<>(); if(clear)out.add(PostEffect.ClearAll.INSTANCE); if(!removed.isEmpty())out.add(new PostEffect.Remove(removed)); if(!effects.isEmpty())out.add(new PostEffect.Apply(effects)); return List.copyOf(out); }
+              }
+          }
+          JAVA
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/StatusEffectsSnapshot.java'); s=p.read_text()
+          if 'removeAll(Set<String>' not in s:
+              if 'import java.util.Set;' not in s: s=s.replace('import java.util.Map;\n','import java.util.Map;\nimport java.util.Set;\n')
+              marker='    public StatusEffectsSnapshot clearAll() {'
+              method='''    public StatusEffectsSnapshot removeAll(Set<String> effectKeys) {\n        if (effectKeys == null || effectKeys.isEmpty()) return this;\n        Map<String, EffectInstanceSnapshot> next = new java.util.LinkedHashMap<>(effects);\n        boolean changed=false; for(String key:effectKeys) changed |= next.remove(key)!=null;\n        if(!changed) return this;\n        int nextResistance=next.containsKey("minecraft:resistance")?next.get("minecraft:resistance").amplifier():-1;\n        boolean nextFireResistance=next.containsKey("minecraft:fire_resistance");\n        return new StatusEffectsSnapshot(nextFireResistance,nextResistance,next);\n    }\n\n'''
+              s=s.replace(marker,method+marker)
+          p.write_text(s)
+
+          p=Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/DamageSimulator.java'); s=p.read_text()
+          old='''        StatusEffectsSnapshot effects = item.clearExistingEffects()\n            ? afterDamage.statusEffects().clearAll()\n            : afterDamage.statusEffects();\n        effects = effects.apply(item.effects());\n'''
+          new='''        StatusEffectsSnapshot effects = afterDamage.statusEffects();\n        for (DeathProtectionSnapshot.PostEffect postEffect : item.orderedPostEffects()) {\n            if (postEffect instanceof DeathProtectionSnapshot.PostEffect.ClearAll) effects = effects.clearAll();\n            else if (postEffect instanceof DeathProtectionSnapshot.PostEffect.Remove remove) effects = effects.removeAll(remove.effectKeys());\n            else if (postEffect instanceof DeathProtectionSnapshot.PostEffect.Apply apply) effects = effects.apply(apply.effects());\n        }\n'''
+          if old in s: s=s.replace(old,new)
+          old2='''        PlayerSnapshot protectedPlayer = withState(\n            afterDamage, 1f, protectionAbsorption, mitigation, effects,\n            afterDamage.hurtState(), consumption.get().remaining()\n        );\n        return new DamageResult(protectedPlayer, trace.build(), false, true);\n'''
+          new2='''        PlayerSnapshot protectedPlayer = withState(\n            afterDamage, 1f, protectionAbsorption, mitigation, effects,\n            afterDamage.hurtState(), consumption.get().remaining()\n        );\n        if (!item.postEffectsExact()) protectedPlayer = withStateProperty(protectedPlayer, "death_protection_post_effects_unknown", "true");\n        return new DamageResult(protectedPlayer, trace.build(), false, true);\n'''
+          if old2 in s: s=s.replace(old2,new2)
+          if 'withStateProperty(PlayerSnapshot' not in s:
+              marker='    private static PlayerSnapshot withState(\n'
+              helper='''    private static PlayerSnapshot withStateProperty(PlayerSnapshot player, String key, String value) {\n        java.util.Map<String,String> properties=new java.util.LinkedHashMap<>(player.stateProperties()); properties.put(key,value);\n        return new PlayerSnapshot(player.health(),player.absorption(),player.playerInvulnerable(),player.abilityInvulnerable(),player.deadOrDying(),player.difficulty(),player.mitigation(),player.statusEffects(),player.blocking(),player.hurtState(),player.deathProtection(),player.boundingBox(),player.position(),player.velocity(),player.equipmentItemKeys(),properties);\n    }\n\n'''
+              s=s.replace(marker,helper+marker)
+          p.write_text(s)
+
+          p=Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/timeline/ThreatTimelineSimulator.java'); s=p.read_text()
+          old='            working.health() > 0f,'
+          if old in s: s=s.replace(old,'            working.health() > 0f && !Boolean.parseBoolean(working.state("death_protection_post_effects_unknown")),',1)
+          p.write_text(s)
+
+          p=Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java'); s=p.read_text()
+          if 'net.minecraft.world.item.consume_effects.*;' not in s: s=s.replace('import net.minecraft.world.item.component.DeathProtection;\n','import net.minecraft.world.item.component.DeathProtection;\nimport net.minecraft.world.item.consume_effects.*;\n')
+          start=s.index('    private static java.util.Optional<DeathProtectionSnapshot.ProtectionItem> protectionItem(ItemStack stack) {')
+          end=s.index('\n    private static ProtectionEnchantmentsSnapshot protectionEnchantments',start)
+          replacement='''    private static java.util.Optional<DeathProtectionSnapshot.ProtectionItem> protectionItem(ItemStack stack) {\n        DeathProtection component=stack.get(DataComponents.DEATH_PROTECTION); if(component==null)return java.util.Optional.empty();\n        if(component.equals(DeathProtection.TOTEM_OF_UNDYING))return java.util.Optional.of(DeathProtectionSnapshot.ProtectionItem.vanillaTotem());\n        return java.util.Optional.of(genericDeathProtection(component));\n    }\n\n    private static DeathProtectionSnapshot.ProtectionItem genericDeathProtection(DeathProtection component) {\n        List<DeathProtectionSnapshot.PostEffect> ordered=new ArrayList<>(); boolean postEffectsExact=true;\n        for(ConsumeEffect effect:component.deathEffects()){\n            if(effect instanceof ClearAllStatusEffectsConsumeEffect){ordered.add(DeathProtectionSnapshot.PostEffect.ClearAll.INSTANCE);continue;}\n            if(effect instanceof RemoveEffectsConsumeEffect remove){Set<String> keys=new LinkedHashSet<>(); for(Holder<MobEffect> holder:remove.effects())keys.add(holder.getRegisteredName()); ordered.add(new DeathProtectionSnapshot.PostEffect.Remove(keys));continue;}\n            if(effect instanceof ApplyStatusEffectsConsumeEffect apply){float probability=apply.probability(); if(!(probability>0f))continue; if(Float.compare(probability,1f)!=0){postEffectsExact=false;continue;} List<EffectInstanceSnapshot> effects=new ArrayList<>(); for(MobEffectInstance instance:apply.effects())effects.add(new EffectInstanceSnapshot(instance.getEffect().getRegisteredName(),instance.getDuration(),instance.getAmplifier())); ordered.add(new DeathProtectionSnapshot.PostEffect.Apply(effects));continue;}\n            if(effect instanceof PlaySoundConsumeEffect)continue;\n            postEffectsExact=false;\n        }\n        var exact=DeathProtectionSnapshot.ProtectionItem.exactGeneric(ordered);\n        return new DeathProtectionSnapshot.ProtectionItem(exact.clearExistingEffects(),exact.removedEffectKeys(),exact.effects(),postEffectsExact,ordered);\n    }\n'''
+          s=s[:start]+replacement+s[end:]
+          p.write_text(s)
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('projects/predictive-survival-26-1-2/build.gradle'); s=p.read_text()
+          s=s.replace('    implementation "com.terraformersmc:modmenu:${modmenu_version}"\n','    modCompileOnly "com.terraformersmc:modmenu:${modmenu_version}"\n    modLocalRuntime "com.terraformersmc:modmenu:${modmenu_version}"\n')
+          p.write_text(s)
+          PY
+      - name: Compile/build final audit slice
+        id: compile
+        shell: bash
+        run: |
+          set +e
+          (cd projects/predictive-survival-26-1-2 && gradle --no-daemon --console=plain clean test build compileGametestJava) > /tmp/final-audit-compile.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          mkdir -p .ci/predictive-survival-hardening
+          rm -f .ci/predictive-survival-hardening/final-audit-compile-GREEN.txt .ci/predictive-survival-hardening/final-audit-compile-RED.txt
+          if [ "$status" -eq 0 ]; then printf 'GREEN\n' > .ci/predictive-survival-hardening/final-audit-compile-GREEN.txt; else { grep -n -E 'error:|cannot find symbol|incompatible types|does not exist|symbol:|location:|FAILURE:' /tmp/final-audit-compile.log || true; printf '\n--- tail ---\n'; tail -n 180 /tmp/final-audit-compile.log; } > .ci/predictive-survival-hardening/final-audit-compile-RED.txt; fi
+          exit 0
+      - name: Persist concise compile result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -fd projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftPlayerMeleeSnapshotAdapter.java || true
+          git config user.name 'Predictive Survival Diagnostic CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .ci/predictive-survival-hardening/final-audit-compile-*.txt 2>/dev/null || true
+          git commit -m 'ci: persist final audit compile result [skip ci]' || exit 0
+          git push origin HEAD:ci/predictive-survival-hardening-recovery-check
+      - name: Enforce compile result
+        run: test "${{ steps.compile.outputs.status }}" = '0'
