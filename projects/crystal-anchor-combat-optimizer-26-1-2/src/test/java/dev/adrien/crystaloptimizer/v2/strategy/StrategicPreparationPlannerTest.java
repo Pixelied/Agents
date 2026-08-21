@@ -1,6 +1,8 @@
 package dev.adrien.crystaloptimizer.v2.strategy;
 
+import dev.adrien.crystaloptimizer.action.ChargeAnchor;
 import dev.adrien.crystaloptimizer.action.CombatAction;
+import dev.adrien.crystaloptimizer.action.DetonateAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
 import dev.adrien.crystaloptimizer.action.PlaceObsidian;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StrategicPreparationPlannerTest {
     private static final UUID SELF = UUID.fromString("00000000-0000-0000-0000-000000000971");
@@ -46,56 +49,43 @@ class StrategicPreparationPlannerTest {
     );
 
     @Test
-    void coldCrystalStartSelectsObsidianThenPlacesSupportedBase() {
+    void coldCrystalStartBuildsCompleteObsidianToCrystalChain() {
         CombatState state = state(
             inventory(
                 0,
-                Map.of(
-                    0, Items.DIAMOND_SWORD,
-                    1, Items.OBSIDIAN,
-                    2, Items.END_CRYSTAL
-                ),
-                Map.of(
-                    Items.DIAMOND_SWORD, 1,
-                    Items.OBSIDIAN, 16,
-                    Items.END_CRYSTAL, 16
-                )
+                Map.of(0, Items.DIAMOND_SWORD, 1, Items.OBSIDIAN, 2, Items.END_CRYSTAL),
+                Map.of(Items.DIAMOND_SWORD, 1, Items.OBSIDIAN, 16, Items.END_CRYSTAL, 16)
             ),
             CombatRegion.of(Map.of(SUPPORT, Blocks.STONE.defaultBlockState()), Map.of())
         );
 
         List<CombatAction> actions = planner.plan(state, config(true, false)).orElseThrow();
 
-        SelectHotbarSlot select = assertInstanceOf(SelectHotbarSlot.class, actions.get(0));
-        assertEquals(1, select.slot());
-        assertInstanceOf(PlaceObsidian.class, actions.get(1));
-        assertEquals(2, actions.size());
+        assertEquals(4, actions.size());
+        assertEquals(1, assertInstanceOf(SelectHotbarSlot.class, actions.get(0)).slot());
+        PlaceObsidian support = assertInstanceOf(PlaceObsidian.class, actions.get(1));
+        assertEquals(2, assertInstanceOf(SelectHotbarSlot.class, actions.get(2)).slot());
+        PlaceCrystal crystal = assertInstanceOf(PlaceCrystal.class, actions.get(3));
+        assertEquals(support.pos(), crystal.basePos());
     }
 
     @Test
-    void existingCrystalBaseSelectsCrystalThenPlacesIt() {
+    void existingCrystalBaseSelectsCrystalThenPlacesItWithoutNewSupport() {
         CombatState state = state(
             inventory(
                 0,
-                Map.of(
-                    0, Items.DIAMOND_SWORD,
-                    2, Items.END_CRYSTAL
-                ),
-                Map.of(
-                    Items.DIAMOND_SWORD, 1,
-                    Items.END_CRYSTAL, 16
-                )
+                Map.of(0, Items.DIAMOND_SWORD, 2, Items.END_CRYSTAL),
+                Map.of(Items.DIAMOND_SWORD, 1, Items.END_CRYSTAL, 16)
             ),
             CombatRegion.of(Map.of(CRYSTAL_BASE, Blocks.OBSIDIAN.defaultBlockState()), Map.of())
         );
 
         List<CombatAction> actions = planner.plan(state, config(true, false)).orElseThrow();
 
-        SelectHotbarSlot select = assertInstanceOf(SelectHotbarSlot.class, actions.get(0));
-        assertEquals(2, select.slot());
+        assertEquals(2, actions.size());
+        assertEquals(2, assertInstanceOf(SelectHotbarSlot.class, actions.get(0)).slot());
         PlaceCrystal place = assertInstanceOf(PlaceCrystal.class, actions.get(1));
         assertEquals(CRYSTAL_BASE, place.basePos());
-        assertEquals(2, actions.size());
     }
 
     @Test
@@ -103,58 +93,70 @@ class StrategicPreparationPlannerTest {
         CombatState state = state(
             inventory(
                 1,
-                Map.of(
-                    1, Items.OBSIDIAN,
-                    2, Items.END_CRYSTAL
-                ),
-                Map.of(
-                    Items.OBSIDIAN, 16,
-                    Items.END_CRYSTAL, 16
-                )
+                Map.of(1, Items.OBSIDIAN, 2, Items.END_CRYSTAL),
+                Map.of(Items.OBSIDIAN, 16, Items.END_CRYSTAL, 16)
             ),
             CombatRegion.of(
-                Map.of(
-                    SUPPORT, Blocks.STONE.defaultBlockState(),
-                    CRYSTAL_BASE, Blocks.OBSIDIAN.defaultBlockState()
-                ),
+                Map.of(SUPPORT, Blocks.STONE.defaultBlockState(), CRYSTAL_BASE, Blocks.OBSIDIAN.defaultBlockState()),
                 Map.of()
             )
         );
 
         List<CombatAction> actions = planner.plan(state, config(true, false)).orElseThrow();
 
-        SelectHotbarSlot select = assertInstanceOf(SelectHotbarSlot.class, actions.get(0));
-        assertEquals(2, select.slot());
-        PlaceCrystal place = assertInstanceOf(PlaceCrystal.class, actions.get(1));
-        assertEquals(CRYSTAL_BASE, place.basePos());
         assertEquals(2, actions.size());
+        assertEquals(2, assertInstanceOf(SelectHotbarSlot.class, actions.get(0)).slot());
+        assertEquals(CRYSTAL_BASE, assertInstanceOf(PlaceCrystal.class, actions.get(1)).basePos());
     }
 
     @Test
-    void coldAnchorStartSelectsAnchorThenPlacesIt() {
+    void coldAnchorStartBuildsCompleteAnchorGlowstoneDetonationChain() {
         CombatState state = state(
             inventory(
                 0,
-                Map.of(
-                    0, Items.DIAMOND_SWORD,
-                    3, Items.RESPAWN_ANCHOR,
-                    4, Items.GLOWSTONE
-                ),
-                Map.of(
-                    Items.DIAMOND_SWORD, 1,
-                    Items.RESPAWN_ANCHOR, 8,
-                    Items.GLOWSTONE, 16
-                )
+                Map.of(0, Items.DIAMOND_SWORD, 3, Items.RESPAWN_ANCHOR, 4, Items.GLOWSTONE),
+                Map.of(Items.DIAMOND_SWORD, 1, Items.RESPAWN_ANCHOR, 8, Items.GLOWSTONE, 16)
             ),
             CombatRegion.of(Map.of(SUPPORT, Blocks.STONE.defaultBlockState()), Map.of())
         );
 
         List<CombatAction> actions = planner.plan(state, config(false, true)).orElseThrow();
 
-        SelectHotbarSlot select = assertInstanceOf(SelectHotbarSlot.class, actions.get(0));
-        assertEquals(3, select.slot());
-        assertInstanceOf(PlaceAnchor.class, actions.get(1));
-        assertEquals(2, actions.size());
+        assertEquals(6, actions.size());
+        assertEquals(3, assertInstanceOf(SelectHotbarSlot.class, actions.get(0)).slot());
+        PlaceAnchor anchor = assertInstanceOf(PlaceAnchor.class, actions.get(1));
+        assertEquals(4, assertInstanceOf(SelectHotbarSlot.class, actions.get(2)).slot());
+        assertEquals(anchor.pos(), assertInstanceOf(ChargeAnchor.class, actions.get(3)).pos());
+        assertEquals(0, assertInstanceOf(SelectHotbarSlot.class, actions.get(4)).slot());
+        assertEquals(anchor.pos(), assertInstanceOf(DetonateAnchor.class, actions.get(5)).pos());
+    }
+
+    @Test
+    void noGlowstoneMeansNoNewAnchorSpend() {
+        CombatState state = state(
+            inventory(
+                0,
+                Map.of(0, Items.DIAMOND_SWORD, 3, Items.RESPAWN_ANCHOR),
+                Map.of(Items.DIAMOND_SWORD, 1, Items.RESPAWN_ANCHOR, 8)
+            ),
+            CombatRegion.of(Map.of(SUPPORT, Blocks.STONE.defaultBlockState()), Map.of())
+        );
+
+        assertTrue(planner.plan(state, config(false, true)).isEmpty());
+    }
+
+    @Test
+    void noCrystalMeansNoObsidianSetupSpend() {
+        CombatState state = state(
+            inventory(
+                0,
+                Map.of(0, Items.DIAMOND_SWORD, 1, Items.OBSIDIAN),
+                Map.of(Items.DIAMOND_SWORD, 1, Items.OBSIDIAN, 16)
+            ),
+            CombatRegion.of(Map.of(SUPPORT, Blocks.STONE.defaultBlockState()), Map.of())
+        );
+
+        assertTrue(planner.plan(state, config(true, false)).isEmpty());
     }
 
     private static OptimizerConfig config(boolean crystals, boolean anchors) {
@@ -209,10 +211,7 @@ class StrategicPreparationPlannerTest {
                 new Vec3(0.5, 65.5, 0.0),
                 6.0,
                 6.0,
-                List.of(
-                    spatial.get(SELF).boundingBox(),
-                    spatial.get(TARGET).boundingBox()
-                ),
+                List.of(spatial.get(SELF).boundingBox(), spatial.get(TARGET).boundingBox()),
                 false
             ),
             spatial,
