@@ -37,7 +37,10 @@ final class ShulkerBulletValidationScenarios {
             player.setDeltaMovement(Vec3.ZERO);
             ServerLevel level = (ServerLevel) player.level();
 
-            ArmorStand owner = new ArmorStand(level, player.getX(), player.getY(), player.getZ() + 8d);
+            // Stay inside ShulkerBullet's <2 block direct-homing branch. Starting farther away
+            // intentionally invokes vanilla's block-aware/random axis routing, which can hit terrain and
+            // makes a real-hit timing assertion nondeterministic.
+            ArmorStand owner = new ArmorStand(level, player.getX(), player.getY(), player.getZ() + 1.5d);
             owner.setNoGravity(true);
             level.addFreshEntity(owner);
             ShulkerBullet bullet = new ShulkerBullet(level, owner, player, null);
