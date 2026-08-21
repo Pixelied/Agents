@@ -1,0 +1,220 @@
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/mixin/KeyboardInputMixin.java
+@@ -0,0 +1,36 @@
++package dev.adrien.speedbridge.mixin;
++
++import dev.adrien.speedbridge.input.MovementInputProjection;
++import dev.adrien.speedbridge.input.MovementOverrideState;
++import net.minecraft.client.player.KeyboardInput;
++import net.minecraft.world.entity.player.Input;
++import net.minecraft.world.phys.Vec2;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.injection.At;
++import org.spongepowered.asm.mixin.injection.Inject;
++import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
++
++@Mixin(KeyboardInput.class)
++public abstract class KeyboardInputMixin {
++    @Inject(method = "tick", at = @At("RETURN"))
++    private void speedbridge$applyMovementFrame(CallbackInfo ci) {
++        if (!MovementOverrideState.active()) return;
++
++        ClientInputAccessor accessor = (ClientInputAccessor) this;
++        Input current = accessor.speedbridge$getKeyPresses();
++        if (current == null) current = Input.EMPTY;
++
++        MovementInputProjection projection = MovementInputProjection.from(
++                MovementOverrideState.relativeCommand());
++        accessor.speedbridge$setKeyPresses(new Input(
++                projection.forward(),
++                projection.backward(),
++                projection.left(),
++                projection.right(),
++                current.jump(),
++                current.shift(),
++                current.sprint()));
++        accessor.speedbridge$setMoveVector(new Vec2(
++                projection.leftImpulse(), projection.forwardImpulse()));
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/AssistedPlacementKind.java b/src/client/java/dev/adrien/speedbridge/placement/AssistedPlacementKind.java
+index 9f5ff61844938e0b679715774c27d5f0c94bea16..f3073e8cfb8d34a5730c45427f20932778513170 100644
+--- a/src/client/java/dev/adrien/speedbridge/placement/AssistedPlacementKind.java
++++ b/src/client/java/dev/adrien/speedbridge/placement/AssistedPlacementKind.java
+@@ -3,5 +3,9 @@ package dev.adrien.speedbridge.placement;
+ public enum AssistedPlacementKind {
+     LEVEL,
+     STAIR_LOWER,
+-    STAIR_UPPER
++    STAIR_UPPER;
++
++    public boolean isStair() {
++        return this == STAIR_LOWER || this == STAIR_UPPER;
++    }
+ }
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/MinecraftPlacementPort.java b/src/client/java/dev/adrien/speedbridge/placement/MinecraftPlacementPort.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3beb1e616dcc90f714728dbb16c850964f6c9b2
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/placement/MinecraftPlacementPort.java
+@@ -0,0 +1,76 @@
++package dev.adrien.speedbridge.placement;
++
++import dev.adrien.speedbridge.input.InputController;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.selection.BlockSelection;
++import net.minecraft.client.Minecraft;
++import net.minecraft.client.player.LocalPlayer;
++import net.minecraft.core.BlockPos;
++import net.minecraft.world.level.block.state.BlockState;
++import net.minecraft.world.phys.shapes.CollisionContext;
++
++public final class MinecraftPlacementPort implements PlacementAttemptPort, PlacementConfirmationPort {
++    private final Minecraft client;
++    private final PlacementValidator validator;
++    private final InputController inputController;
++    private final PlacementTarget target;
++    private final BlockSelection selection;
++
++    private MinecraftPlacementPort(
++            Minecraft client,
++            PlacementValidator validator,
++            InputController inputController,
++            PlacementTarget target,
++            BlockSelection selection
++    ) {
++        if (client == null) throw new IllegalArgumentException("client is required");
++        this.client = client;
++        this.validator = validator;
++        this.inputController = inputController;
++        this.target = target;
++        this.selection = selection;
++    }
++
++    public static MinecraftPlacementPort forAttempt(
++            Minecraft client,
++            PlacementValidator validator,
++            InputController inputController,
++            PlacementTarget target,
++            BlockSelection selection
++    ) {
++        if (validator == null || inputController == null || target == null || selection == null) {
++            throw new IllegalArgumentException("attempt dependencies are required");
++        }
++        return new MinecraftPlacementPort(client, validator, inputController, target, selection);
++    }
++
++    public static MinecraftPlacementPort forConfirmation(Minecraft client) {
++        return new MinecraftPlacementPort(client, null, null, null, null);
++    }
++
++    @Override
++    public PlacementValidationResult validate() {
++        if (validator == null || target == null || selection == null) {
++            throw new IllegalStateException("this port was not created for a placement attempt");
++        }
++        return validator.validate(client, target, selection.stack());
++    }
++
++    @Override
++    public boolean pulseUse(long tick) {
++        if (inputController == null) {
++            throw new IllegalStateException("this port was not created for a placement attempt");
++        }
++        return inputController.pulse(client, client.options.keyUse, tick, "use");
++    }
++
++    @Override
++    public boolean confirmed(GridPos position) {
++        LocalPlayer player = client.player;
++        if (player == null || position == null) return false;
++        BlockPos pos = new BlockPos(position.x(), position.y(), position.z());
++        BlockState state = player.level().getBlockState(pos);
++        return !state.isAir()
++                && !state.getCollisionShape(player.level(), pos, CollisionContext.of(player)).isEmpty();
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PendingPlacement.java b/src/client/java/dev/adrien/speedbridge/placement/PendingPlacement.java
+index ecb4191ffa6c54436a3aef397411d08bfc649c79..e154f6c0c1c01339135f9ecd8113a52ca8196d2d 100644
+--- a/src/client/java/dev/adrien/speedbridge/placement/PendingPlacement.java
++++ b/src/client/java/dev/adrien/speedbridge/placement/PendingPlacement.java
+@@ -1,6 +1,19 @@
+ package dev.adrien.speedbridge.placement;
+ 
++import dev.adrien.speedbridge.path.GridPos;
+ import dev.adrien.speedbridge.path.PathStep;
+-import net.minecraft.core.BlockPos;
+ 
+-public record PendingPlacement(BlockPos position, AssistedPlacementKind kind, long requestedTick, PathStep step) {}
++public record PendingPlacement(
++        PlacementRequest request,
++        long requestedTick
++) {
++    public PendingPlacement {
++        if (request == null) throw new IllegalArgumentException("placement request is required");
++        if (requestedTick < 0) throw new IllegalArgumentException("requestedTick must be non-negative");
++    }
++
++    public GridPos position() { return request.replacePos(); }
++    public AssistedPlacementKind kind() { return request.kind(); }
++    public PathStep step() { return request.pathStep(); }
++    public PlacementOwner owner() { return request.owner(); }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PlacementAttemptPort.java b/src/client/java/dev/adrien/speedbridge/placement/PlacementAttemptPort.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..d405478dc77c344a77c0a39a5bd0c8a635d18588
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/placement/PlacementAttemptPort.java
+@@ -0,0 +1,6 @@
++package dev.adrien.speedbridge.placement;
++
++public interface PlacementAttemptPort {
++    PlacementValidationResult validate();
++    boolean pulseUse(long tick);
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PlacementConfirmationPort.java b/src/client/java/dev/adrien/speedbridge/placement/PlacementConfirmationPort.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..85c7f0f01837df25743dfe43798715acfc20f092
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/placement/PlacementConfirmationPort.java
+@@ -0,0 +1,7 @@
++package dev.adrien.speedbridge.placement;
++
++import dev.adrien.speedbridge.path.GridPos;
++
++public interface PlacementConfirmationPort {
++    boolean confirmed(GridPos position);
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PlacementFailure.java b/src/client/java/dev/adrien/speedbridge/placement/PlacementFailure.java
+index 7c96d986652b3e4b108f8c61b1fee4fa50d34de0..9ff530a528ee89071d1481b36d1ecf3ad27cb574 100644
+--- a/src/client/java/dev/adrien/speedbridge/placement/PlacementFailure.java
++++ b/src/client/java/dev/adrien/speedbridge/placement/PlacementFailure.java
+@@ -19,7 +19,8 @@ public enum PlacementFailure {
+     LOWER_PLACEMENT_FAILED("Lower staircase placement was not confirmed"),
+     UPPER_PLACEMENT_FAILED("Upper staircase placement was not confirmed"),
+     ALREADY_ATTEMPTED("Already attempted this tick"),
+-    INTERACTION_REJECTED("Vanilla interaction rejected placement");
++    INTERACTION_REJECTED("Vanilla interaction rejected placement"),
++    INTERNAL_STATE("Internal bridge state was invalid");
+ 
+     private final String display;
+     PlacementFailure(String display) { this.display = display; }
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PlacementOwner.java b/src/client/java/dev/adrien/speedbridge/placement/PlacementOwner.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..e72ad8f22ae66143214f8e67b361addc02da9ea0
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/placement/PlacementOwner.java
+@@ -0,0 +1,39 @@
++package dev.adrien.speedbridge.placement;
++
++import dev.adrien.speedbridge.technique.TechniqueId;
++
++public record PlacementOwner(
++        long sessionGeneration,
++        String techniqueId,
++        long operationGeneration
++) {
++    public PlacementOwner {
++        if (sessionGeneration < 1 || operationGeneration < 1) {
++            throw new IllegalArgumentException("placement generations must be positive");
++        }

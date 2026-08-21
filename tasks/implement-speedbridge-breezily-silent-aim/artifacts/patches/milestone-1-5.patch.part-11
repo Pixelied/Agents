@@ -1,0 +1,57 @@
++  "$ROOT/src/client/java/dev/adrien/speedbridge/controller/BridgeSession.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/controller/BridgeContext.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/controller/BridgeContextBuilder.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/technique/TechniqueId.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/technique/TechniqueCapabilities.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/technique/TechniqueEvaluation.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/technique/TechniqueTick.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/technique/TechniqueAbortReason.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/technique/BridgeTechnique.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementRequest.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementResult.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementAttemptPort.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementConfirmationPort.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementPipeline.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PendingPlacement.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementOwner.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/AssistedPlacementKind.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/placement/Rotation.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/placement/RotationMath.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementCandidateScore.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementCadence.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementFailure.java" \
++  "$ROOT/src/client/java/dev/adrien/speedbridge/placement/PlacementValidationResult.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/stair/StaircaseRecovery.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/stair/StaircasePhase.java" \
+   "$ROOT/src/client/java/dev/adrien/speedbridge/stair/StaircaseObservation.java" \
+diff --git a/verification/26.2-input-hook.txt b/verification/26.2-input-hook.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..6e5399a09473bd9e9077ee2942efdb1e9f657bd3
+--- /dev/null
++++ b/verification/26.2-input-hook.txt
+@@ -0,0 +1,25 @@
++Minecraft 26.2 / mapped 1.21.11 input hook verification
++
++Primary mapped API references checked 2026-08-01:
++- net.minecraft.client.player.KeyboardInput extends ClientInput and overrides public void tick().
++- ClientInput exposes public Input keyPresses and protected Vec2 moveVector.
++- net.minecraft.world.entity.player.Input is a seven-boolean record:
++  forward, backward, left, right, jump, shift, sprint.
++- Vec2 movement convention is x = left impulse, y = forward impulse.
++
++Implementation boundary:
++- Inject into KeyboardInput#tick() at RETURN.
++- Preserve jump, shift, and sprint from the freshly sampled Input record.
++- Replace only movement booleans and moveVector while MovementOverrideState is active.
++- Do not construct movement packets; LocalPlayer consumes the adjusted vanilla ClientInput.
++
++References:
++https://mappings.dev/1.21.11/net/minecraft/client/player/KeyboardInput.html
++https://mappings.dev/1.21.11/net/minecraft/client/player/ClientInput.html
++https://mappings.dev/1.21.11/net/minecraft/world/entity/player/Input.html
++
++Local targeted verification:
++- Compiled the real movement-frame classes, ClientInput accessor, and KeyboardInput mixin
++  against minimal stubs matching the mapped 26.2 field/method signatures.
++- Result: Java compilation passed on 2026-08-01.
++- Full Fabric remap/runtime validation remains required in Java 25 CI.

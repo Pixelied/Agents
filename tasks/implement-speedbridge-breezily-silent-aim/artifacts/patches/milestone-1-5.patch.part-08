@@ -1,0 +1,219 @@
++        assertTrue(projection.backward());
++        assertFalse(projection.left());
++        assertTrue(projection.right());
++        assertEquals(-0.6f, projection.leftImpulse(), 1.0e-6f);
++        assertEquals(-0.8f, projection.forwardImpulse(), 1.0e-6f);
++    }
++
++    @Test
++    void overrideStateClearsWithoutLeavingACommandBehind() {
++        MovementOverrideState.publish(
++                MovementFrame.fromReferenceYaw(0.0f),
++                new MovementCommand(-1.0, 0.0),
++                180.0f);
++        assertTrue(MovementOverrideState.active());
++        assertNotEquals(MovementCommand.NONE, MovementOverrideState.relativeCommand());
++
++        MovementOverrideState.clear();
++
++        assertFalse(MovementOverrideState.active());
++        assertEquals(MovementCommand.NONE, MovementOverrideState.relativeCommand());
++    }
++
++    @Test
++    void movementComponentsAreClamped() {
++        MovementCommand command = new MovementCommand(4.0, -3.0);
++        assertEquals(1.0, command.forward(), EPSILON);
++        assertEquals(-1.0, command.strafe(), EPSILON);
++    }
++}
+diff --git a/src/test/java/dev/adrien/speedbridge/placement/PlacementPipelineTest.java b/src/test/java/dev/adrien/speedbridge/placement/PlacementPipelineTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..dcc4db9e5779767f6f5fc3fdb8a19401956a7c0c
+--- /dev/null
++++ b/src/test/java/dev/adrien/speedbridge/placement/PlacementPipelineTest.java
+@@ -0,0 +1,128 @@
++package dev.adrien.speedbridge.placement;
++
++import dev.adrien.speedbridge.aim.LogicalRotationRequest;
++import dev.adrien.speedbridge.path.BridgeHeading;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.PathStep;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++final class PlacementPipelineTest {
++    @Test
++    void rotationMustBeReadyBeforeValidationOrUsePulse() {
++        FakePort port = new FakePort();
++        PlacementPipeline pipeline = new PlacementPipeline();
++        PlacementRequest request = request(owner(1, "standard", 1), AssistedPlacementKind.LEVEL, 10, 16);
++
++        PlacementResult result = pipeline.attempt(request, request.owner(), false, false, 10, 0, port);
++
++        assertEquals(PlacementResult.Status.WAITING_ROTATION, result.status());
++        assertEquals(0, port.validations);
++        assertEquals(0, port.pulses);
++    }
++
++    @Test
++    void validRequestPulsesExactlyOnceAndConfirmsLater() {
++        FakePort port = new FakePort();
++        PlacementPipeline pipeline = new PlacementPipeline();
++        PlacementRequest request = request(owner(1, "standard", 1), AssistedPlacementKind.LEVEL, 10, 16);
++
++        PlacementResult attempted = pipeline.attempt(request, request.owner(), true, false, 10, 0, port);
++        PlacementResult duplicate = pipeline.attempt(request, request.owner(), true, false, 10, 0, port);
++        PlacementResult waiting = pipeline.poll(request.owner(), 11, port);
++        port.confirmed = true;
++        PlacementResult confirmed = pipeline.poll(request.owner(), 12, port);
++
++        assertEquals(PlacementResult.Status.WAITING_CONFIRMATION, attempted.status());
++        assertEquals(PlacementResult.Status.WAITING_CONFIRMATION, duplicate.status());
++        assertEquals(PlacementResult.Status.WAITING_CONFIRMATION, waiting.status());
++        assertEquals(PlacementResult.Status.CONFIRMED, confirmed.status());
++        assertEquals(1, port.validations);
++        assertEquals(1, port.pulses);
++        assertFalse(pipeline.hasPending());
++    }
++
++    @Test
++    void ownerMismatchIsIgnoredWithoutMutatingNewOperation() {
++        FakePort port = new FakePort();
++        PlacementPipeline pipeline = new PlacementPipeline();
++        PlacementRequest old = request(owner(1, "standard", 4), AssistedPlacementKind.STAIR_LOWER, 10, 12);
++        assertEquals(PlacementResult.Status.WAITING_CONFIRMATION,
++                pipeline.attempt(old, old.owner(), true, false, 10, 0, port).status());
++
++        for (PlacementOwner replacement : new PlacementOwner[] {
++                owner(2, "standard", 4),
++                owner(1, "breezily", 4),
++                owner(1, "standard", 5)
++        }) {
++            PlacementResult stale = pipeline.poll(replacement, 11, port);
++            assertEquals(PlacementResult.Status.STALE_IGNORED, stale.status());
++            assertFalse(pipeline.hasPending());
++            pipeline.reset();
++            pipeline.attempt(old, old.owner(), true, false, 10, 0, port);
++        }
++    }
++
++    @Test
++    void confirmationDeadlineProducesKindSpecificFailure() {
++        FakePort port = new FakePort();
++        PlacementPipeline pipeline = new PlacementPipeline();
++        PlacementRequest lower = request(owner(1, "standard", 3), AssistedPlacementKind.STAIR_LOWER, 10, 12);
++        pipeline.attempt(lower, lower.owner(), true, false, 10, 0, port);
++
++        PlacementResult timedOut = pipeline.poll(lower.owner(), 13, port);
++
++        assertEquals(PlacementResult.Status.TERMINAL_FAILURE, timedOut.status());
++        assertEquals(PlacementFailure.LOWER_PLACEMENT_FAILED, timedOut.failure());
++        assertFalse(pipeline.hasPending());
++    }
++
++    @Test
++    void resetAndPhysicalUseNeverLeaveAPendingAttempt() {
++        FakePort port = new FakePort();
++        PlacementPipeline pipeline = new PlacementPipeline();
++        PlacementRequest request = request(owner(1, "standard", 1), AssistedPlacementKind.LEVEL, 10, 16);
++
++        PlacementResult physical = pipeline.attempt(request, request.owner(), true, true, 10, 0, port);
++        assertEquals(PlacementResult.Status.RETRYABLE_FAILURE, physical.status());
++        assertEquals(PlacementFailure.PHYSICAL_USE_HELD, physical.failure());
++        assertEquals(0, port.pulses);
++
++        pipeline.attempt(request, request.owner(), true, false, 11, 0, port);
++        assertTrue(pipeline.hasPending());
++        pipeline.reset();
++        assertFalse(pipeline.hasPending());
++        assertEquals(PlacementResult.NOT_REQUESTED, pipeline.poll(request.owner(), 12, port));
++    }
++
++    private static PlacementRequest request(
++            PlacementOwner owner, AssistedPlacementKind kind, long earliest, long latest
++    ) {
++        GridPos pos = new GridPos(0, 4, -1);
++        PathStep step = PathStep.level(pos, new BridgeHeading(0, -1));
++        LogicalRotationRequest rotation = new LogicalRotationRequest(owner, new Rotation(180, 78), 2);
++        return new PlacementRequest(owner, pos, kind, step, rotation, earliest, latest);
++    }
++
++    private static PlacementOwner owner(long session, String technique, long operation) {
++        return new PlacementOwner(session, technique, operation);
++    }
++
++    private static final class FakePort implements PlacementAttemptPort, PlacementConfirmationPort {
++        int validations;
++        int pulses;
++        boolean confirmed;
++        PlacementFailure validationFailure = PlacementFailure.NONE;
++        boolean pulseAccepted = true;
++
++        @Override public PlacementValidationResult validate() {
++            validations++;
++            return validationFailure == PlacementFailure.NONE
++                    ? PlacementValidationResult.ok()
++                    : PlacementValidationResult.fail(validationFailure);
++        }
++        @Override public boolean pulseUse(long tick) { pulses++; return pulseAccepted; }
++        @Override public boolean confirmed(GridPos position) { return confirmed; }
++    }
++}
+diff --git a/src/test/java/dev/adrien/speedbridge/stair/StaircaseOwnershipRegressionTest.java b/src/test/java/dev/adrien/speedbridge/stair/StaircaseOwnershipRegressionTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..631936eb4e97ed64d7ebf4878f07d673d6652bcd
+--- /dev/null
++++ b/src/test/java/dev/adrien/speedbridge/stair/StaircaseOwnershipRegressionTest.java
+@@ -0,0 +1,65 @@
++package dev.adrien.speedbridge.stair;
++
++import dev.adrien.speedbridge.path.BridgeHeading;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.PathStep;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++final class StaircaseOwnershipRegressionTest {
++    private static final PathStep STEP = new PathStep(
++            new GridPos(0, 5, -1), new GridPos(0, 6, -1), new BridgeHeading(0, -1));
++
++    @Test
++    void staleLowerFailureCannotReactivateAResetCycle() {
++        StaircaseCycle cycle = new StaircaseCycle();
++        cycle.start(STEP, 10);
++        cycle.reset();
++
++        cycle.lowerFailed();
++
++        assertFalse(cycle.active(), "a stale callback must not reactivate an idle cycle");
++        assertNull(cycle.step());
++    }
++
++    @Test
++    void staleUpperFailureCannotReactivateAResetCycle() {
++        StaircaseCycle cycle = new StaircaseCycle();
++        cycle.start(STEP, 10);
++        cycle.reset();
++
++        cycle.upperFailed();
++        assertFalse(cycle.active(), "a stale callback must not reactivate an idle cycle");
++        assertNull(cycle.step());
++    }
++
++    @Test
++    void everyPublicTransitionPreservesActiveImpliesStep() {
++        StaircaseCycle cycle = new StaircaseCycle();
++        assertInvariant(cycle);
++
++        cycle.start(STEP, 1);
++        assertInvariant(cycle);
++        cycle.lowerAttempted(2);
++        assertInvariant(cycle);
++        cycle.lowerFailed();
++        assertInvariant(cycle);
++        cycle.reset();
++        assertInvariant(cycle);
++

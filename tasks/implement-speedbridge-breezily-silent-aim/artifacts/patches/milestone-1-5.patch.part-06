@@ -1,0 +1,220 @@
++            }
++            if (!owner.equals(request.owner())) {
++                throw new IllegalArgumentException("result owner must match request owner");
++            }
++        }
++        boolean failed = status == Status.RETRYABLE_FAILURE || status == Status.TERMINAL_FAILURE;
++        if (failed == (failure == PlacementFailure.NONE)) {
++            throw new IllegalArgumentException("failure status and failure reason must agree");
++        }
++    }
++
++    public static PlacementResult waitingRotation(PlacementRequest request) {
++        return of(Status.WAITING_ROTATION, request, PlacementFailure.NONE);
++    }
++
++    public static PlacementResult waitingConfirmation(PlacementRequest request) {
++        return of(Status.WAITING_CONFIRMATION, request, PlacementFailure.NONE);
++    }
++
++    public static PlacementResult confirmed(PlacementRequest request) {
++        return of(Status.CONFIRMED, request, PlacementFailure.NONE);
++    }
++
++    public static PlacementResult retryable(PlacementRequest request, PlacementFailure failure) {
++        return of(Status.RETRYABLE_FAILURE, request, requireFailure(failure));
++    }
++
++    public static PlacementResult terminal(PlacementRequest request, PlacementFailure failure) {
++        return of(Status.TERMINAL_FAILURE, request, requireFailure(failure));
++    }
++
++    public static PlacementResult staleIgnored(PlacementRequest request) {
++        return of(Status.STALE_IGNORED, request, PlacementFailure.NONE);
++    }
++
++    private static PlacementResult of(Status status, PlacementRequest request, PlacementFailure failure) {
++        if (request == null) throw new IllegalArgumentException("placement request is required");
++        return new PlacementResult(status, request.owner(), failure, request);
++    }
++
++    private static PlacementFailure requireFailure(PlacementFailure failure) {
++        if (failure == null || failure == PlacementFailure.NONE) {
++            throw new IllegalArgumentException("failure reason is required");
++        }
++        return failure;
++    }
++
++    public enum Status {
++        NOT_REQUESTED,
++        WAITING_ROTATION,
++        WAITING_CONFIRMATION,
++        CONFIRMED,
++        RETRYABLE_FAILURE,
++        TERMINAL_FAILURE,
++        STALE_IGNORED
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/stair/StaircaseCycle.java b/src/client/java/dev/adrien/speedbridge/stair/StaircaseCycle.java
+index d4d2860723d2ce24590ecba55847c6f3b8027968..0d9fc09f15995d7e4794ffd8b80fc66b8760178b 100644
+--- a/src/client/java/dev/adrien/speedbridge/stair/StaircaseCycle.java
++++ b/src/client/java/dev/adrien/speedbridge/stair/StaircaseCycle.java
+@@ -11,15 +11,18 @@ public final class StaircaseCycle {
+     private boolean upperAttempted;
+     private boolean lowerConfirmed;
+     private boolean upperConfirmed;
++    private long generation;
+ 
+     public StaircasePhase phase() { return phase; }
+     public PathStep step() { return step; }
++    public long generation() { return generation; }
+     public boolean active() {
+         return phase != StaircasePhase.IDLE;
+     }
+ 
+     public void start(PathStep step, long tick) {
+         if (step == null || !step.rising()) throw new IllegalArgumentException("A rising path step is required");
++        generation = generation == Long.MAX_VALUE ? 1 : generation + 1;
+         this.step = step;
+         phase = StaircasePhase.CROUCH_AND_JUMP;
+         phaseTick = tick;
+@@ -149,12 +152,24 @@ public final class StaircaseCycle {
+         phaseTick = tick;
+     }
+ 
+-    public void lowerFailed() {
++    public boolean lowerFailed() {
++        return lowerFailed(generation);
++    }
++
++    public boolean lowerFailed(long expectedGeneration) {
++        if (!active() || step == null || generation != expectedGeneration) return false;
+         phase = StaircasePhase.RECOVERY;
++        return true;
++    }
++
++    public boolean upperFailed() {
++        return upperFailed(generation);
+     }
+ 
+-    public void upperFailed() {
++    public boolean upperFailed(long expectedGeneration) {
++        if (!active() || step == null || generation != expectedGeneration) return false;
+         phase = StaircasePhase.RECOVERY;
++        return true;
+     }
+ 
+     public void reset() {
+diff --git a/src/client/java/dev/adrien/speedbridge/technique/BridgeTechnique.java b/src/client/java/dev/adrien/speedbridge/technique/BridgeTechnique.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a649b01e4d92d50be77cfd1e44ac8c005883276
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/technique/BridgeTechnique.java
+@@ -0,0 +1,14 @@
++package dev.adrien.speedbridge.technique;
++
++import dev.adrien.speedbridge.controller.BridgeContext;
++
++public interface BridgeTechnique {
++    TechniqueId id();
++    TechniqueCapabilities capabilities();
++    TechniqueEvaluation evaluate(BridgeContext context);
++    void begin(BridgeContext context);
++    TechniqueTick tick(BridgeContext context);
++    boolean canTransitionSafely(BridgeContext context);
++    void abort(TechniqueAbortReason reason);
++    void reset();
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/technique/TechniqueAbortReason.java b/src/client/java/dev/adrien/speedbridge/technique/TechniqueAbortReason.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..2c6182c50e54caceae50a937d81574e21531e0d5
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/technique/TechniqueAbortReason.java
+@@ -0,0 +1,16 @@
++package dev.adrien.speedbridge.technique;
++
++public enum TechniqueAbortReason {
++    NONE,
++    ACTIVATION_RELEASED,
++    INCOMPATIBLE_PATH,
++    UNSAFE_SUPPORT,
++    MISSED_PLACEMENT_WINDOW,
++    PLACEMENT_FAILED,
++    MANUAL_OVERRIDE,
++    SERVER_CORRECTION,
++    SCREEN_OR_FOCUS_LOST,
++    DIMENSION_CHANGED,
++    OUT_OF_BLOCKS,
++    INTERNAL_STATE
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/technique/TechniqueCapabilities.java b/src/client/java/dev/adrien/speedbridge/technique/TechniqueCapabilities.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..e27abc06e05415134c5f44c5b3d2cf7e0b54a748
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/technique/TechniqueCapabilities.java
+@@ -0,0 +1,38 @@
++package dev.adrien.speedbridge.technique;
++
++import dev.adrien.speedbridge.aim.AimMode;
++
++public record TechniqueCapabilities(
++        boolean straight,
++        boolean diagonal,
++        boolean level,
++        boolean ascending,
++        boolean descending,
++        boolean visibleAim,
++        boolean silentAim,
++        boolean fullBlockSupport,
++        boolean routineSneak,
++        boolean routineJump,
++        boolean automaticEligible,
++        double riskScore,
++        double speedScore
++) {
++    public TechniqueCapabilities {
++        requireNormalized(riskScore, "riskScore");
++        requireNormalized(speedScore, "speedScore");
++    }
++
++    public boolean supports(AimMode mode) {
++        if (mode == null) return false;
++        return switch (mode) {
++            case VISIBLE -> visibleAim;
++            case SILENT_PACKET -> silentAim;
++        };
++    }
++
++    private static void requireNormalized(double value, String name) {
++        if (!Double.isFinite(value) || value < 0.0 || value > 1.0) {
++            throw new IllegalArgumentException(name + " must be between 0 and 1");
++        }
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/technique/TechniqueEvaluation.java b/src/client/java/dev/adrien/speedbridge/technique/TechniqueEvaluation.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..12fd466c86b5a3938bbbf4bd7ffe6f8d07ea35d0
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/technique/TechniqueEvaluation.java
+@@ -0,0 +1,39 @@
++package dev.adrien.speedbridge.technique;
++
++public record TechniqueEvaluation(
++        boolean compatible,
++        String reason,
++        double readinessScore,
++        double safetyConfidence,
++        double speedScore,
++        boolean safeEntryNow
++) {
++    public TechniqueEvaluation {
++        reason = reason == null ? "" : reason;
++        requireNormalized(readinessScore, "readinessScore");
++        requireNormalized(safetyConfidence, "safetyConfidence");
++        requireNormalized(speedScore, "speedScore");
++        if (!compatible && reason.isBlank()) {
++            throw new IllegalArgumentException("incompatible evaluations require a reason");
++        }
++    }
++
++    public static TechniqueEvaluation compatible(

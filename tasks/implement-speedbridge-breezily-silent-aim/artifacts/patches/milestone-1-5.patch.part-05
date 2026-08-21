@@ -1,0 +1,220 @@
++        if (techniqueId == null || techniqueId.isBlank()) {
++            throw new IllegalArgumentException("techniqueId is required");
++        }
++        techniqueId = techniqueId.trim();
++    }
++
++    public PlacementOwner(long sessionGeneration, TechniqueId techniqueId, long operationGeneration) {
++        this(sessionGeneration, requireTechnique(techniqueId), operationGeneration);
++    }
++
++    public boolean matches(long session, TechniqueId technique, long operation) {
++        return technique != null
++                && sessionGeneration == session
++                && techniqueId.equals(technique.value())
++                && operationGeneration == operation;
++    }
++
++    public boolean matches(PlacementOwner other) {
++        return other != null && equals(other);
++    }
++
++    private static String requireTechnique(TechniqueId technique) {
++        if (technique == null) throw new IllegalArgumentException("techniqueId is required");
++        return technique.value();
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PlacementPipeline.java b/src/client/java/dev/adrien/speedbridge/placement/PlacementPipeline.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..33aebc974f3938cf5d98116bbf20e0156c48172d
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/placement/PlacementPipeline.java
+@@ -0,0 +1,127 @@
++package dev.adrien.speedbridge.placement;
++
++public final class PlacementPipeline {
++    private final PlacementCadence cadence = new PlacementCadence();
++    private PendingPlacement pending;
++
++    public PlacementResult attempt(
++            PlacementRequest request,
++            PlacementOwner activeOwner,
++            boolean rotationReady,
++            boolean physicalUseHeld,
++            long tick,
++            int delayTicks,
++            PlacementAttemptPort port
++    ) {
++        requireAttemptArguments(request, activeOwner, tick, port);
++
++        if (pending != null) {
++            if (!pending.owner().equals(activeOwner)) {
++                PlacementRequest stale = pending.request();
++                pending = null;
++                return PlacementResult.staleIgnored(stale);
++            }
++            return PlacementResult.waitingConfirmation(pending.request());
++        }
++        if (!request.owner().equals(activeOwner)) {
++            return PlacementResult.staleIgnored(request);
++        }
++        if (tick < request.earliestTick()) {
++            return PlacementResult.retryable(request, PlacementFailure.PLACEMENT_DELAY);
++        }
++        if (tick > request.latestSafeTick()) {
++            return PlacementResult.terminal(request, timeoutFailure(request.kind()));
++        }
++        if (!rotationReady) {
++            return PlacementResult.waitingRotation(request);
++        }
++        if (physicalUseHeld) {
++            return PlacementResult.retryable(request, PlacementFailure.PHYSICAL_USE_HELD);
++        }
++        if (!cadence.mayAttempt(tick, delayTicks)) {
++            return PlacementResult.retryable(request, PlacementFailure.PLACEMENT_DELAY);
++        }
++
++        PlacementValidationResult validation = port.validate();
++        if (!validation.valid()) {
++            return validation.failure().retryableDuringStairArc()
++                    ? PlacementResult.retryable(request, validation.failure())
++                    : PlacementResult.terminal(request, validation.failure());
++        }
++        if (!port.pulseUse(tick)) {
++            return PlacementResult.retryable(request, PlacementFailure.PHYSICAL_USE_HELD);
++        }
++
++        cadence.markAttempt(tick);
++        pending = new PendingPlacement(request, tick);
++        return PlacementResult.waitingConfirmation(request);
++    }
++
++    public PlacementResult poll(
++            PlacementOwner activeOwner,
++            long tick,
++            PlacementConfirmationPort port
++    ) {
++        if (activeOwner == null || port == null) {
++            throw new IllegalArgumentException("active owner and confirmation port are required");
++        }
++        if (tick < 0) throw new IllegalArgumentException("tick must be non-negative");
++        if (pending == null) return PlacementResult.NOT_REQUESTED;
++
++        PendingPlacement current = pending;
++        if (!current.owner().equals(activeOwner)) {
++            pending = null;
++            return PlacementResult.staleIgnored(current.request());
++        }
++        if (port.confirmed(current.position())) {
++            pending = null;
++            return PlacementResult.confirmed(current.request());
++        }
++        if (tick <= current.request().latestSafeTick()) {
++            return PlacementResult.waitingConfirmation(current.request());
++        }
++
++        pending = null;
++        return PlacementResult.terminal(
++                current.request(), timeoutFailure(current.kind()));
++    }
++
++    public boolean hasPending() {
++        return pending != null;
++    }
++
++    public PlacementRequest pendingRequest() {
++        return pending == null ? null : pending.request();
++    }
++
++    public boolean cancelOwner(PlacementOwner owner) {
++        if (pending == null || owner == null || !pending.owner().equals(owner)) return false;
++        pending = null;
++        return true;
++    }
++
++    public void reset() {
++        pending = null;
++        cadence.reset();
++    }
++
++    private static void requireAttemptArguments(
++            PlacementRequest request,
++            PlacementOwner activeOwner,
++            long tick,
++            PlacementAttemptPort port
++    ) {
++        if (request == null || activeOwner == null || port == null) {
++            throw new IllegalArgumentException("request, active owner, and attempt port are required");
++        }
++        if (tick < 0) throw new IllegalArgumentException("tick must be non-negative");
++    }
++
++    private static PlacementFailure timeoutFailure(AssistedPlacementKind kind) {
++        return switch (kind) {
++            case STAIR_LOWER -> PlacementFailure.LOWER_PLACEMENT_FAILED;
++            case STAIR_UPPER -> PlacementFailure.UPPER_PLACEMENT_FAILED;
++            case LEVEL -> PlacementFailure.INTERACTION_REJECTED;
++        };
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PlacementRequest.java b/src/client/java/dev/adrien/speedbridge/placement/PlacementRequest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..fbe061ff49604f35b3705a3d597b5d11f4f9d7dd
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/placement/PlacementRequest.java
+@@ -0,0 +1,27 @@
++package dev.adrien.speedbridge.placement;
++
++import dev.adrien.speedbridge.aim.LogicalRotationRequest;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.PathStep;
++
++public record PlacementRequest(
++        PlacementOwner owner,
++        GridPos replacePos,
++        AssistedPlacementKind kind,
++        PathStep pathStep,
++        LogicalRotationRequest rotation,
++        long earliestTick,
++        long latestSafeTick
++) {
++    public PlacementRequest {
++        if (owner == null || replacePos == null || kind == null || pathStep == null || rotation == null) {
++            throw new IllegalArgumentException("placement request fields are required");
++        }
++        if (!owner.equals(rotation.owner())) {
++            throw new IllegalArgumentException("placement and rotation owners must match");
++        }
++        if (earliestTick < 0 || latestSafeTick < earliestTick) {
++            throw new IllegalArgumentException("invalid placement window");
++        }
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/placement/PlacementResult.java b/src/client/java/dev/adrien/speedbridge/placement/PlacementResult.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..12821d71b754c5232523aa480ebbc78af6c5ad3e
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/placement/PlacementResult.java
+@@ -0,0 +1,79 @@
++package dev.adrien.speedbridge.placement;
++
++public record PlacementResult(
++        Status status,
++        PlacementOwner owner,
++        PlacementFailure failure,
++        PlacementRequest request
++) {
++    public static final PlacementResult NOT_REQUESTED = new PlacementResult(
++            Status.NOT_REQUESTED, null, PlacementFailure.NONE, null);
++
++    public PlacementResult {
++        if (status == null || failure == null) {
++            throw new IllegalArgumentException("placement result status and failure are required");
++        }
++        if (status == Status.NOT_REQUESTED) {
++            if (owner != null || request != null || failure != PlacementFailure.NONE) {
++                throw new IllegalArgumentException("not-requested result cannot carry placement state");
++            }
++        } else {
++            if (owner == null || request == null) {
++                throw new IllegalArgumentException("active placement results require owner and request");
