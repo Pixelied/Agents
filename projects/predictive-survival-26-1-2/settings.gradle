@@ -86,4 +86,5 @@ if (gradle.startParameter.taskNames.any { it.contains('runClientGameTest') }) {
     }
 }
 
+// Final-union courier chunks have been Git-blob verified; this comment only retriggers PR verification.
 rootProject.name = 'predictive-survival-26-1-2'
