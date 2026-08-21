@@ -86,6 +86,49 @@ class CandidatePrunerTest {
     }
 
     @Test
+    void zeroQuotaKeepsNoCandidatesFromThatCategory() {
+        Candidate crystal = new Candidate(
+            new Wait(1),
+            CandidateCategory.CRYSTAL_ATTACK,
+            features(40, 1, 0, 0, 0),
+            TacticalInterest.NONE
+        );
+        Candidate anchor = new Candidate(
+            new Wait(1),
+            CandidateCategory.ANCHOR_DETONATION,
+            features(12, 1, 0, 0, 0),
+            TacticalInterest.NONE
+        );
+        CandidateBudget budget = new CandidateBudget(0, 0, 1, 0, 0, 0);
+
+        var kept = pruner.prune(testState(), List.of(crystal, anchor), budget, true);
+
+        assertFalse(kept.contains(crystal));
+        assertTrue(kept.contains(anchor));
+    }
+
+    @Test
+    void unusedQuotaDoesNotSpillIntoAnotherCategory() {
+        Candidate anchorA = new Candidate(
+            new Wait(1),
+            CandidateCategory.ANCHOR_DETONATION,
+            features(20, 1, 0, 0, 0),
+            TacticalInterest.NONE
+        );
+        Candidate anchorB = new Candidate(
+            new Wait(1),
+            CandidateCategory.ANCHOR_DETONATION,
+            features(19, 1, 0, 0, 0),
+            TacticalInterest.NONE
+        );
+        CandidateBudget budget = new CandidateBudget(16, 36, 1, 12, 14, 8);
+
+        var kept = pruner.prune(testState(), List.of(anchorA, anchorB), budget, true);
+
+        assertEquals(1, kept.stream().filter(c -> c.category() == CandidateCategory.ANCHOR_DETONATION).count());
+    }
+
+    @Test
     void generatorEmitsExistingCrystalAnchorAndWaitCategories() {
         BlockPos anchorPos = new BlockPos(1, 64, 0);
         CombatState state = state(
