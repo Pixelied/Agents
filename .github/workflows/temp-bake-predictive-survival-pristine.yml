@@ -1,0 +1,156 @@
+name: TEMP Bake Predictive Survival Pristine
+
+on:
+  push:
+    branches:
+      - ci/predictive-survival-hardening-verify
+    paths:
+      - 'ci/predictive-survival-hardening/BAKE_PRISTINE'
+
+permissions:
+  contents: write
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout verification branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle 9.5.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Reconstruct exact green hardening composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='projects/predictive-survival-26-1-2'
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = '0c4b21da1060d2510bf64fa0971e5c18b982783d'
+
+          cat ci/predictive-survival-hardening/recovery/part-*.b64 | tr -d '\n' | base64 -d > /tmp/predictive-survival-hardening.patch.gz
+          echo 'fe582805d807b41e53c29e6875a2976ede61576a60a7a09f507029537fdcab7e  /tmp/predictive-survival-hardening.patch.gz' | sha256sum -c -
+          gzip -t /tmp/predictive-survival-hardening.patch.gz
+          git config user.name 'Predictive Survival Bake'
+          git config user.email 'predictive-survival-bake@example.invalid'
+
+          set +e
+          gzip -dc /tmp/predictive-survival-hardening.patch.gz | git am --3way
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            conflicts=$(git diff --name-only --diff-filter=U)
+            if [ "$conflicts" = '.github/workflows/predictive-survival-26-1-2-ci.yml' ]; then
+              git checkout --ours .github/workflows/predictive-survival-26-1-2-ci.yml
+              git add .github/workflows/predictive-survival-26-1-2-ci.yml
+              GIT_EDITOR=true git am --continue
+            else
+              printf 'Unexpected recovery conflicts:\n%s\n' "$conflicts"
+              git am --abort || true
+              exit "$status"
+            fi
+          fi
+
+          git am ci/predictive-survival-hardening/post-recovery.patch
+          git am ci/predictive-survival-hardening/runtime-test-fixes.patch
+          git apply --3way ci/predictive-survival-hardening/death-protection-parser.patch
+          rm -f "$project/src/test/java/dev/pixelied/survival/damage/MinecraftDeathProtectionComponentTest.java"
+          cp ci/predictive-survival-hardening/CustomDeathProtectionValidationScenarios.java \
+            "$project/src/gametest/java/dev/pixelied/survival/validation/CustomDeathProtectionValidationScenarios.java"
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java')
+          text = path.read_text()
+          needle = '            WitherSkeletonValidationScenarios.validateSourceFaithfulMeleeAndPreemptiveProtection(context, singleplayer);\n'
+          insert = needle + '            CustomDeathProtectionValidationScenarios.validateCustomDeathProtectionComponents(context, singleplayer);\n'
+          if 'CustomDeathProtectionValidationScenarios.validateCustomDeathProtectionComponents' not in text:
+              if needle not in text:
+                  raise SystemExit('Wither Skeleton runtime validation hook not found')
+              path.write_text(text.replace(needle, insert, 1))
+          PY
+
+          # The disposable verification settings file applies the exact routed2 + blocking-cooldown
+          # + shield-disable chain and performs the source-only START-tick/Mod Menu/runtime-hook edits.
+          (cd "$project" && gradle --no-daemon --console=plain help)
+          git diff --check
+
+      - name: Materialize clean source commit from current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='projects/predictive-survival-26-1-2'
+
+          rm -rf "$project/.gradle" "$project/build" "$project/run" "$project/.ci-hardening"
+          rm -f "$project/.ci-trigger" "$project/.hardening-ci-trigger" "$project/.urgent-ci-trigger" "$project/.ci-routed-protection-applied"
+          git show origin/main:"$project/settings.gradle" > "$project/settings.gradle"
+
+          rm -rf /tmp/baked-project
+          cp -a "$project" /tmp/baked-project
+
+          git reset --hard origin/main
+          git clean -fdx
+          rm -rf "$project"
+          cp -a /tmp/baked-project "$project"
+
+          git add "$project"
+          git diff --cached --check
+          unexpected=$(git diff --cached --name-only | grep -v '^projects/predictive-survival-26-1-2/' || true)
+          test -z "$unexpected"
+          test -n "$(git diff --cached --name-only)"
+          git commit -m 'Harden Predictive Survival 26.1.2 survival prediction'
+          test -z "$(git status --porcelain)"
+
+      - name: Test clean baked source
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --console=plain clean test build
+          gradle --no-daemon --console=plain compileGametestJava processGametestResources
+          xvfb-run -a gradle --no-daemon --console=plain runClientGameTest
+          rm -rf run
+          xvfb-run -a gradle --no-daemon --console=plain -PwithoutModMenu runClientGameTest
+
+          jar_file=$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          test -n "$jar_file"
+          ! jar tf "$jar_file" | grep -q '^dev/pixelied/survival/validation/'
+
+      - name: Validate repository and publish temporary clean commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 agentctl.py validate
+          git diff HEAD^..HEAD --check
+          unexpected=$(git diff --name-only HEAD^..HEAD | grep -v '^projects/predictive-survival-26-1-2/' || true)
+          test -z "$unexpected"
+          git push --force origin HEAD:refs/heads/tmp/predictive-survival-baked-latest
+
+      - name: Package baked verification artifacts
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bake-artifact
+          jar_file=$(find projects/predictive-survival-26-1-2/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          cp "$jar_file" /tmp/bake-artifact/
+          git archive --format=zip HEAD projects/predictive-survival-26-1-2 > /tmp/bake-artifact/predictive-survival-26.1.2-pristine-source.zip
+          (cd /tmp/bake-artifact && sha256sum * > SHA256SUMS.txt)
+          git rev-parse HEAD > /tmp/bake-artifact/BAKED_COMMIT.txt
+
+      - name: Upload baked verification artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictive-survival-pristine-bake
+          if-no-files-found: error
+          path: /tmp/bake-artifact/*
