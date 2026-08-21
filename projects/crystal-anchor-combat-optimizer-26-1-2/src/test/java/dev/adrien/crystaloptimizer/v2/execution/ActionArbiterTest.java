@@ -7,10 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.adrien.crystaloptimizer.action.AttackKnownCrystal;
 import dev.adrien.crystaloptimizer.action.CombatAction;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
+import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
 import dev.adrien.crystaloptimizer.v2.state.ActionApproval;
 import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
+import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import dev.adrien.crystaloptimizer.v2.state.SpawnCrystalCycle;
 import dev.adrien.crystaloptimizer.v2.strategy.OpportunityIntent;
 import dev.adrien.crystaloptimizer.v2.strategy.ResourceChain;
@@ -85,7 +87,7 @@ final class ActionArbiterTest {
             88L,
             targetId,
             ApprovalSlot.PLACE,
-            new dev.adrien.crystaloptimizer.v2.state.FixedActionSequence(List.of(new PlaceCrystal(base))),
+            new FixedActionSequence(List.of(new PlaceCrystal(base))),
             DamageEstimate.exact(16.0f, 3L, 5L),
             OpportunityIntent.PRESSURE,
             new SelfDamageEstimate(10.0f, 10.0f, false),
@@ -119,7 +121,7 @@ final class ActionArbiterTest {
             89L,
             targetId,
             ApprovalSlot.LETHAL,
-            new dev.adrien.crystaloptimizer.v2.state.FixedActionSequence(List.of(new AttackKnownCrystal(crystalId))),
+            new FixedActionSequence(List.of(new AttackKnownCrystal(crystalId))),
             DamageEstimate.exact(40.0f, 3L, 5L),
             OpportunityIntent.LETHAL,
             new SelfDamageEstimate(19.0f, 1.0f, true),
@@ -143,6 +145,44 @@ final class ActionArbiterTest {
 
         assertFalse(result.allowed());
         assertEquals(ArbitrationResult.Reason.SELF_TOTEM_POP, result.reason());
+    }
+
+    @Test
+    void continuationCanUseItemsAlreadyReservedByItsOwnCompleteChain() {
+        FakeView view = matchingView();
+        view.counts.put(Items.END_CRYSTAL, 1);
+        ResourceChain resources = ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0);
+        List<CombatAction> actions = List.of(new SelectHotbarSlot(0), new PlaceCrystal(base));
+        ActionApproval approval = new ActionApproval(
+            90L,
+            targetId,
+            ApprovalSlot.PREPARE,
+            new FixedActionSequence(actions),
+            DamageEstimate.exact(12.0f, 3L, 5L),
+            OpportunityIntent.PRESSURE,
+            new SelfDamageEstimate(2.0f, 18.0f, false),
+            resources,
+            SequenceTiming.immediate(),
+            3L,
+            9L,
+            11L,
+            13L,
+            5_000L
+        );
+        PendingItemLedger ledger = new PendingItemLedger();
+        ledger.reserveChain(12345L, resources, view::observedCount);
+
+        ArbitrationResult result = arbiter.evaluateFrom(
+            approval,
+            actions,
+            1,
+            view,
+            ledger,
+            OptimizerConfig.defaults(),
+            500L
+        );
+
+        assertTrue(result.allowed(), "continuation must not count its own group reservation against itself");
     }
 
     private void assertReason(
