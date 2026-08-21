@@ -45,6 +45,7 @@ public final class FastOpportunitySelector {
             .thenComparingDouble(opportunity -> opportunity.targetDamage().expected())
             .thenComparingInt(opportunity -> -opportunity.timing().hardFeedbackBoundaries())
             .thenComparingDouble(opportunity -> -safeCompletionMillis(opportunity))
+            .thenComparingDouble(opportunity -> -opportunity.resources().cost())
             .thenComparingDouble(opportunity -> -opportunity.worstCaseSelfDamage());
     }
 
