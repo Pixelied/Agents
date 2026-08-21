@@ -97,6 +97,10 @@ jobs:
           xvfb-run -a gradle --no-daemon --console=plain runClientGameTest > gametest-console.log 2>&1
           status=$?
           set -e
+          if [ "$status" -ne 0 ]; then
+            echo '--- exact client GameTest failure log ---'
+            cat gametest-console.log
+          fi
           exit "$status"
 
       - name: Verify reconstructed production jar isolation
