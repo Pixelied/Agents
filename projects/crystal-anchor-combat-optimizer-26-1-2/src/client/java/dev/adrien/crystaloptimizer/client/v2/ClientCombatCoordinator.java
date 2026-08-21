@@ -20,16 +20,21 @@ import dev.adrien.crystaloptimizer.v2.reactive.ReactiveDecision;
 import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboard;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboardSnapshot;
-import dev.adrien.crystaloptimizer.v2.strategy.DamageMap;
-import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
 import dev.adrien.crystaloptimizer.v2.strategy.FastOpportunitySelector;
 import dev.adrien.crystaloptimizer.v2.strategy.HurtWindowTracker;
+import dev.adrien.crystaloptimizer.v2.strategy.StrategicTargetSelector;
+import dev.adrien.crystaloptimizer.v2.strategy.TargetPreScore;
+import dev.adrien.crystaloptimizer.v2.strategy.TargetProtectionPolicyConfig;
 import dev.adrien.crystaloptimizer.v2.timing.TimingDistribution;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
 import dev.adrien.crystaloptimizer.v2.timing.TimingTransition;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -114,7 +119,6 @@ public final class ClientCombatCoordinator {
         HurtWindowTracker hurtWindows = new HurtWindowTracker();
         RemoteDamageWindowObserver.instance().bind(hurtWindows);
         ClientStrategicScanner scanner = new ClientStrategicScanner(
-            damageMaps,
             blackboard,
             new FastOpportunitySelector(),
             hurtWindows
@@ -141,6 +145,9 @@ public final class ClientCombatCoordinator {
         );
         ClientCombatDiagnostics diagnostics = new ClientCombatDiagnostics();
         TargetManager targets = new TargetManager();
+        StrategicTargetSelector selector = new StrategicTargetSelector();
+        TargetProtectionPolicyConfig protectionConfig = TargetProtectionPolicyConfig.defaults();
+        ClientTargetProtectionResolver protectionResolver = new ClientTargetProtectionResolver(minecraft);
 
         Runnable strategicTick = () -> {
             OptimizerConfig config = configService.current();
@@ -158,29 +165,60 @@ public final class ClientCombatCoordinator {
                 return;
             }
 
+            List<AbstractClientPlayer> observedPlayers = List.copyOf(level.players());
+            Set<UUID> protectedIds = protectionResolver.resolve(observedPlayers, protectionConfig);
+            List<TargetPreScore> preScores = targets.preScores(self, level, config, protectedIds);
+            if (preScores.isEmpty()) {
+                targets.clear();
+                diagnostics.recordTarget("");
+                return;
+            }
+
+            Map<UUID, AbstractClientPlayer> playersById = new LinkedHashMap<>();
+            for (AbstractClientPlayer player : observedPlayers) {
+                playersById.put(player.getUUID(), player);
+            }
             long worldRevision = revisions.worldRevision();
-            Optional<AbstractClientPlayer> selected = targets.select(
-                self,
-                level,
-                config,
-                candidate -> immediateLethalMillis(damageMaps.update(
+            StrategicEpoch epoch = new StrategicEpoch(targetId -> {
+                AbstractClientPlayer candidate = playersById.get(targetId);
+                if (candidate == null) {
+                    return dev.adrien.crystaloptimizer.v2.strategy.DamageMap.empty(
+                        targetId,
+                        revisions.targetRevision(targetId),
+                        worldRevision
+                    );
+                }
+                return damageMaps.update(
                     candidate,
                     worldRevision,
-                    revisions.targetRevision(candidate.getUUID()),
-                    config
-                ))
+                    revisions.targetRevision(targetId),
+                    config,
+                    protectedIds,
+                    protectionConfig
+                );
+            });
+            Optional<StrategicTargetSelector.Selection> selected = selector.selectBest(
+                preScores,
+                targets.stickyTarget().orElse(null),
+                Set.of(),
+                epoch::damageMap
             );
             if (selected.isEmpty()) {
                 diagnostics.recordTarget("");
                 return;
             }
 
-            AbstractClientPlayer target = selected.orElseThrow();
+            StrategicTargetSelector.Selection selection = selected.orElseThrow();
+            AbstractClientPlayer target = playersById.get(selection.targetId());
+            if (target == null || target.isRemoved() || target.isDeadOrDying()) {
+                diagnostics.recordTarget("");
+                return;
+            }
+            targets.markSelected(selection.targetId());
             long nowNanos = System.nanoTime();
-            scanner.scan(
+            scanner.publish(
                 target,
-                worldRevision,
-                revisions.targetRevision(target.getUUID()),
+                selection.damageMap(),
                 revisions.inventoryRevision(),
                 configService.revision(),
                 config,
@@ -403,16 +441,6 @@ public final class ClientCombatCoordinator {
 
     private static boolean preempts(ApprovalSlot challenger, ApprovalSlot pending) {
         return challenger.ordinal() < pending.ordinal();
-    }
-
-    private static double immediateLethalMillis(DamageMap map) {
-        return map.opportunities().values().stream()
-            .filter(DamageOpportunity::lethal)
-            .filter(opportunity -> opportunity.targetDamage().confidence() >= 0.80)
-            .mapToDouble(opportunity -> opportunity.timing().p90Millis())
-            .filter(Double::isFinite)
-            .min()
-            .orElse(Double.POSITIVE_INFINITY);
     }
 
     private record PendingContinuation(
