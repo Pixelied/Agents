@@ -1,0 +1,131 @@
+name: Predictive Survival Hardening Diagnostic 7
+
+on:
+  push:
+    branches:
+      - ci/predictive-survival-hardening-recovery-check
+    paths-ignore:
+      - '.ci/predictive-survival-hardening/modmenu-present-GREEN.txt'
+      - '.ci/predictive-survival-hardening/modmenu-present-RED.txt'
+      - '.ci/predictive-survival-hardening/modmenu-absent-GREEN.txt'
+      - '.ci/predictive-survival-hardening/modmenu-absent-RED.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  modmenu-present-absent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Register complete current runtime validation suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/WitherSkeletonMeleeValidationScenarios.java \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/TriggerableExplosionProtectionValidationScenarios.java
+          do
+            sed -i 's/ClientGameTestContext\.DEFAULT_TIMEOUT/200/g' "$file"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java')
+          s = p.read_text()
+          additions = [
+              ('            WitherSkeletonMeleeValidationScenarios.validateRealMeleeDamageFollowupAndProactiveProtection(context, singleplayer);\n',
+               '            HandRestorationValidationScenarios.validateSafeHandRestorationAfterThreatDisappears(context, singleplayer);\n'),
+              ('            TriggerableExplosionProtectionValidationScenarios.validateVisibleLethalCrystalArmsProtectionBeforeDetonation(context, singleplayer);\n',
+               '            RespawnAnchorProtectionValidationScenarios.validateChargedAnchorArmsProtectionBeforeInteraction(context, singleplayer);\n'),
+              ('            RespawnAnchorProtectionValidationScenarios.validateChargedAnchorArmsProtectionBeforeInteraction(context, singleplayer);\n',
+               '            ExplosiveBedProtectionValidationScenarios.validateNetherBedArmsProtectionBeforeInteraction(context, singleplayer);\n'),
+              ('            ExactRuntimeValidationScenarios.validateExactRuntime(context, singleplayer);\n',
+               '            ModMenuIntegrationValidationScenarios.validatePresentIntegrationAndNativeScreen(context);\n'),
+          ]
+          for marker, line in additions:
+              if line not in s:
+                  if marker not in s:
+                      raise SystemExit(f'registration marker missing: {marker.strip()}')
+                  s = s.replace(marker, marker + line)
+          p.write_text(s)
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+      - name: Materialize recovered source delta once
+        working-directory: projects/predictive-survival-26-1-2
+        run: gradle --no-daemon --console=plain compileGametestJava
+      - name: Switch recovered build to final optional Mod Menu scopes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('projects/predictive-survival-26-1-2/build.gradle')
+          s = p.read_text()
+          old = '    implementation "com.terraformersmc:modmenu:${modmenu_version}"\n'
+          new = '    modCompileOnly "com.terraformersmc:modmenu:${modmenu_version}"\n    modLocalRuntime "com.terraformersmc:modmenu:${modmenu_version}"\n'
+          if old not in s and new not in s:
+              raise SystemExit('recovered Mod Menu dependency line not found')
+          if old in s:
+              s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Verify final-scope build and Mod Menu-present runtime
+        id: present
+        shell: bash
+        run: |
+          set +e
+          (cd projects/predictive-survival-26-1-2 && gradle --no-daemon --console=plain clean test build compileGametestJava && xvfb-run -a gradle --no-daemon --console=plain runClientGameTest) > /tmp/modmenu-present.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          mkdir -p .ci/predictive-survival-hardening
+          rm -f .ci/predictive-survival-hardening/modmenu-present-GREEN.txt .ci/predictive-survival-hardening/modmenu-present-RED.txt
+          if [ "$status" -eq 0 ]; then
+            printf 'GREEN\n' > .ci/predictive-survival-hardening/modmenu-present-GREEN.txt
+          else
+            { grep -n -E 'AssertionError|failed|FAILED|Exception|ERROR|Mod Menu|modmenu|config' /tmp/modmenu-present.log || true; printf '\n--- tail ---\n'; tail -n 220 /tmp/modmenu-present.log; } > .ci/predictive-survival-hardening/modmenu-present-RED.txt
+          fi
+          exit 0
+      - name: Remove Mod Menu from runtime classpath and rerun full client suite
+        id: absent
+        if: steps.present.outputs.status == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i '/modLocalRuntime "com.terraformersmc:modmenu:${modmenu_version}"/d' projects/predictive-survival-26-1-2/build.gradle
+          set +e
+          (cd projects/predictive-survival-26-1-2 && xvfb-run -a gradle --no-daemon --console=plain runClientGameTest) > /tmp/modmenu-absent.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          mkdir -p .ci/predictive-survival-hardening
+          rm -f .ci/predictive-survival-hardening/modmenu-absent-GREEN.txt .ci/predictive-survival-hardening/modmenu-absent-RED.txt
+          if [ "$status" -eq 0 ]; then
+            printf 'GREEN\n' > .ci/predictive-survival-hardening/modmenu-absent-GREEN.txt
+          else
+            { grep -n -E 'NoClassDefFoundError|ClassNotFoundException|failed|FAILED|Exception|ERROR|modmenu|terraformersmc' /tmp/modmenu-absent.log || true; printf '\n--- tail ---\n'; tail -n 220 /tmp/modmenu-absent.log; } > .ci/predictive-survival-hardening/modmenu-absent-RED.txt
+          fi
+          exit 0
+      - name: Persist concise results
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -- projects/predictive-survival-26-1-2/build.gradle projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/WitherSkeletonMeleeValidationScenarios.java projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/TriggerableExplosionProtectionValidationScenarios.java || true
+          git config user.name 'Predictive Survival Diagnostic CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .ci/predictive-survival-hardening/modmenu-*.txt 2>/dev/null || true
+          git commit -m 'ci: persist Mod Menu present/absent result [skip ci]' || exit 0
+          git push origin HEAD:ci/predictive-survival-hardening-recovery-check
+      - name: Enforce result
+        shell: bash
+        run: |
+          test "${{ steps.present.outputs.status }}" = '0'
+          test "${{ steps.absent.outputs.status }}" = '0'
