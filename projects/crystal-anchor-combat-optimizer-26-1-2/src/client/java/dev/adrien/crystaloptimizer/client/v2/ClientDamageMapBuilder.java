@@ -17,12 +17,17 @@ import dev.adrien.crystaloptimizer.sim.damage.ExplosionContext;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionDamageCalculator26;
 import dev.adrien.crystaloptimizer.sim.damage.VanillaDamageSimulator;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
+import dev.adrien.crystaloptimizer.sim.model.HurtWindowState;
 import dev.adrien.crystaloptimizer.v2.damage.DamageEngine;
 import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
 import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import dev.adrien.crystaloptimizer.v2.state.SpawnCrystalCycle;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageMap;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
+import dev.adrien.crystaloptimizer.v2.strategy.LethalEfficiencyPolicy;
+import dev.adrien.crystaloptimizer.v2.strategy.OpportunityIntent;
+import dev.adrien.crystaloptimizer.v2.strategy.ResourceChain;
+import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
 import dev.adrien.crystaloptimizer.v2.strategy.StrategicPreparationPlanner;
 import dev.adrien.crystaloptimizer.v2.timing.SequenceTiming;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
@@ -36,6 +41,7 @@ import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 public final class ClientDamageMapBuilder {
@@ -106,7 +112,8 @@ public final class ClientDamageMapBuilder {
                     true,
                     Set.of(place.basePos(), BlockPos.containing(state.targetSpatial().position())),
                     config,
-                    snapshot.worldRevision()
+                    snapshot.worldRevision(),
+                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0)
                 );
                 addOpportunity(
                     result,
@@ -119,7 +126,8 @@ public final class ClientDamageMapBuilder {
                     true,
                     Set.of(place.basePos(), BlockPos.containing(state.targetSpatial().position())),
                     config,
-                    snapshot.worldRevision()
+                    snapshot.worldRevision(),
+                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0)
                 );
                 continue;
             }
@@ -134,6 +142,9 @@ public final class ClientDamageMapBuilder {
                 BlockPos.containing(explosion.center()),
                 BlockPos.containing(state.targetSpatial().position())
             );
+            ResourceChain resources = action instanceof DetonateAnchor
+                ? ResourceChain.of(Map.of(), 0.25)
+                : ResourceChain.none();
             addOpportunity(
                 result,
                 state,
@@ -145,7 +156,8 @@ public final class ClientDamageMapBuilder {
                 true,
                 dependencies,
                 config,
-                snapshot.worldRevision()
+                snapshot.worldRevision(),
+                resources
             );
         }
 
@@ -155,7 +167,9 @@ public final class ClientDamageMapBuilder {
                 id,
                 new FixedActionSequence(actions),
                 DamageEstimate.exact(0.0f, snapshot.worldRevision(), snapshot.worldRevision()),
-                0.0f,
+                OpportunityIntent.PREPARE,
+                new SelfDamageEstimate(0.0f, effectiveHealth(state.self()), false),
+                ResourceChain.none(),
                 SequenceTiming.immediate(),
                 false,
                 false,
@@ -178,7 +192,8 @@ public final class ClientDamageMapBuilder {
         boolean positionDependent,
         Set<BlockPos> dependencies,
         OptimizerConfig config,
-        long geometryRevision
+        long geometryRevision,
+        ResourceChain resources
     ) {
         DamageEstimate targetDamage = damageEngine.estimate(
             explosion,
@@ -187,22 +202,40 @@ public final class ClientDamageMapBuilder {
             geometryRevision,
             state.base().worldRevision()
         );
-        float selfDamage = totalSelfDamage(state, explosion);
-        float requiredDamage = state.target().health() <= config.facePlaceHealth()
-            ? 0.0f
-            : config.minDamage();
-        if (targetDamage.expected() < requiredDamage || selfDamage > config.maxSelfDamage()) {
-            return;
-        }
+        SelfDamageEstimate selfDamage = selfDamageEstimate(state, explosion);
 
         boolean wouldKillHealth = targetDamage.lowerBound() >= state.target().health();
         boolean popsTotem = wouldKillHealth && state.target().totem().available();
         boolean lethal = wouldKillHealth && !state.target().totem().available();
+        OpportunityIntent intent = lethal
+            ? OpportunityIntent.LETHAL
+            : popsTotem
+                ? OpportunityIntent.POP
+                : state.target().hurtWindow().invulnerableTime() > 10
+                    && targetDamage.lowerBound() > 0.0f
+                        ? OpportunityIntent.STAIRCASE
+                        : OpportunityIntent.PRESSURE;
+
+        float targetEffectiveHealth = effectiveHealth(state.target());
+        LethalEfficiencyPolicy.Decision admission = LethalEfficiencyPolicy.evaluate(
+            selfDamage,
+            intent,
+            targetDamage.expected(),
+            action instanceof AttackKnownCrystal,
+            targetEffectiveHealth,
+            config
+        );
+        if (!admission.allowed()) {
+            return;
+        }
+
         result.put(id, new DamageOpportunity(
             id,
             actionSpec,
             targetDamage,
+            intent,
             selfDamage,
+            resources,
             timing,
             lethal,
             popsTotem,
@@ -229,21 +262,39 @@ public final class ClientDamageMapBuilder {
         return Set.copyOf(dependencies);
     }
 
-    private static float totalSelfDamage(CombatState state, ExplosionContext explosion) {
-        var self = state.selfSpatial();
+    private static SelfDamageEstimate selfDamageEstimate(CombatState state, ExplosionContext explosion) {
+        var selfSpatial = state.selfSpatial();
         float incoming = ExplosionDamageCalculator26.incoming(
             explosion,
-            self.boundingBox(),
-            self.position(),
+            selfSpatial.boundingBox(),
+            selfSpatial.position(),
             state.geometry()
         );
-        var result = VanillaDamageSimulator.apply(
-            state.self(),
+        float effectiveBefore = effectiveHealth(state.self());
+        var pessimisticSelf = state.self().withHurtWindow(new HurtWindowState(0, 0.0f));
+        var damageResult = VanillaDamageSimulator.apply(
+            pessimisticSelf,
             DamageRequest.explosion(incoming)
                 .withDifficulty(state.base().difficulty())
                 .withSourcePosition(explosion.center())
         );
-        return result.uncertain() ? incoming : result.trace().postMagic();
+        if (damageResult.uncertain()) {
+            return new SelfDamageEstimate(effectiveBefore, 0.0f, false);
+        }
+
+        float effectiveAfter = effectiveHealth(damageResult.target());
+        float lostEffectiveHealth = damageResult.trace().totemTriggered()
+            ? Math.min(effectiveBefore, damageResult.trace().postMagic())
+            : Math.max(0.0f, effectiveBefore - effectiveAfter);
+        return new SelfDamageEstimate(
+            lostEffectiveHealth,
+            damageResult.trace().totemTriggered() ? 1.0f : effectiveAfter,
+            damageResult.trace().totemTriggered()
+        );
+    }
+
+    private static float effectiveHealth(dev.adrien.crystaloptimizer.sim.model.SimCombatant combatant) {
+        return combatant.health() + combatant.absorption();
     }
 
     private static boolean enabled(CombatAction action, OptimizerConfig config) {
