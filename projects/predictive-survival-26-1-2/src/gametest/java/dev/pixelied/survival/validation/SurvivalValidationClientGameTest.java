@@ -51,6 +51,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             LightningSnapshotCapacityValidationScenarios.validateLightningCannotBeSilentlyDroppedByRelevantEntityBudget(context, singleplayer);
             ShulkerBulletValidationScenarios.validateVisibleBulletProducesPreImpactThreat(context, singleplayer);
             GuardianBeamValidationScenarios.validateActiveBeamProducesPreImpactSequence(context, singleplayer);
+            WitherSkeletonValidationScenarios.validateSourceFaithfulMeleeAndPreemptiveProtection(context, singleplayer);
             WardenSonicBoomValidationScenarios.validateObservedChargeProducesSonicThreat(context, singleplayer);
             EvokerFangsValidationScenarios.validateVisibleFangsProducePreImpactThreat(context, singleplayer);
             ContactHazardRuntimeValidationScenarios.validateMagmaContactReachesProductionRuntime(context, singleplayer);
