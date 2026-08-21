@@ -13,23 +13,22 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class ObservedCombatantAssemblerTest {
     @Test
-    void selfUsesPessimisticAbsorptionLowerBoundAndUnknownActiveThreshold() {
-        EffectState effects = absorptionTwo();
-
+    void selfPreservesObservedAbsorption() {
         SimCombatant self = ObservedCombatantAssembler.self(
-            12.0f,
+            9.0f,
+            4.0f,
             EquipmentState.empty(),
-            effects,
+            EffectState.empty(),
             BlockingState.none(),
-            18,
-            true,
+            0,
             false,
+            true,
             false
         );
 
-        assertEquals(0.0f, self.absorption());
-        assertEquals(TotemState.MAINHAND, self.totem());
-        assertFalse(self.hurtWindow().lastHurtKnown());
+        assertEquals(4.0f, self.absorption());
+        assertEquals(13.0f, self.health() + self.absorption());
+        assertEquals(TotemState.OFFHAND, self.totem());
     }
 
     @Test
