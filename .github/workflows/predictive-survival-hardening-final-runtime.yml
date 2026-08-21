@@ -1,0 +1,104 @@
+name: Predictive Survival Hardening Final Runtime
+
+on:
+  push:
+    branches:
+      - ci/predictive-survival-hardening-recovery-check
+    paths-ignore:
+      - '.ci/predictive-survival-hardening/final-runtime-GREEN.txt'
+      - '.ci/predictive-survival-hardening/final-runtime-RED.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  final-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+      - name: Materialize already-proven recovered source delta
+        working-directory: projects/predictive-survival-26-1-2
+        run: gradle --no-daemon --console=plain help
+      - name: Reuse the exact Java-25-green final-audit transformation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby - <<'RUBY'
+          require 'yaml'
+          workflow = YAML.load_file('.github/workflows/predictive-survival-hardening-final-audit.yml', aliases: true)
+          steps = workflow.fetch('jobs').fetch('final-audit').fetch('steps')
+          step = steps.find { |candidate| candidate['name'] == 'Apply final local audit changes in workspace' }
+          raise 'final-audit apply step missing' unless step
+          File.write('/tmp/apply-final-audit.sh', step.fetch('run'))
+          RUBY
+          bash /tmp/apply-final-audit.sh
+      - name: Register every current runtime regression in the workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/WitherSkeletonMeleeValidationScenarios.java \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/TriggerableExplosionProtectionValidationScenarios.java
+          do
+            sed -i 's/ClientGameTestContext\.DEFAULT_TIMEOUT/200/g' "$file"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java')
+          s = p.read_text()
+          additions = [
+              ('            WitherSkeletonMeleeValidationScenarios.validateRealMeleeDamageFollowupAndProactiveProtection(context, singleplayer);\n',
+               '            HandRestorationValidationScenarios.validateSafeHandRestorationAfterThreatDisappears(context, singleplayer);\n'),
+              ('            TriggerableExplosionProtectionValidationScenarios.validateVisibleLethalCrystalArmsProtectionBeforeDetonation(context, singleplayer);\n',
+               '            RespawnAnchorProtectionValidationScenarios.validateChargedAnchorArmsProtectionBeforeInteraction(context, singleplayer);\n'),
+              ('            RespawnAnchorProtectionValidationScenarios.validateChargedAnchorArmsProtectionBeforeInteraction(context, singleplayer);\n',
+               '            ExplosiveBedProtectionValidationScenarios.validateNetherBedArmsProtectionBeforeInteraction(context, singleplayer);\n'),
+              ('            ExactRuntimeValidationScenarios.validateExactRuntime(context, singleplayer);\n',
+               '            ModMenuIntegrationValidationScenarios.validatePresentIntegrationAndNativeScreen(context);\n'),
+          ]
+          for marker, line in additions:
+              if line not in s:
+                  if marker not in s:
+                      raise SystemExit(f'registration marker missing: {marker.strip()}')
+                  s = s.replace(marker, marker + line)
+          p.write_text(s)
+          PY
+      - name: Run full exact final target verification slice
+        id: runtime
+        shell: bash
+        run: |
+          set +e
+          (cd projects/predictive-survival-26-1-2 && gradle --no-daemon --console=plain clean test build compileGametestJava && xvfb-run -a gradle --no-daemon --console=plain runClientGameTest) > /tmp/final-runtime.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          mkdir -p .ci/predictive-survival-hardening
+          rm -f .ci/predictive-survival-hardening/final-runtime-GREEN.txt .ci/predictive-survival-hardening/final-runtime-RED.txt
+          if [ "$status" -eq 0 ]; then
+            printf 'GREEN\n' > .ci/predictive-survival-hardening/final-runtime-GREEN.txt
+          else
+            { grep -n -E 'AssertionError|error:|cannot find symbol|failed|FAILED|Exception|ERROR|Wither|Crystal|Anchor|bed|restor|modmenu|death protection|Predictive Survival' /tmp/final-runtime.log || true; printf '\n--- tail ---\n'; tail -n 260 /tmp/final-runtime.log; } > .ci/predictive-survival-hardening/final-runtime-RED.txt
+          fi
+          exit 0
+      - name: Persist concise runtime result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -fd projects/predictive-survival-26-1-2 || true
+          git config user.name 'Predictive Survival Diagnostic CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .ci/predictive-survival-hardening/final-runtime-*.txt 2>/dev/null || true
+          git commit -m 'ci: persist final Predictive Survival runtime result [skip ci]' || exit 0
+          git push origin HEAD:ci/predictive-survival-hardening-recovery-check
+      - name: Enforce runtime result
+        run: test "${{ steps.runtime.outputs.status }}" = '0'
