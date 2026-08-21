@@ -24,6 +24,18 @@ public record HurtThresholdEstimate(
         return new HurtThresholdEstimate(threshold, threshold, threshold, 1.0);
     }
 
+    public static HurtThresholdEstimate bounded(
+        float lowerBound,
+        float expected,
+        float upperBound,
+        double confidence
+    ) {
+        if (confidence <= 0.0 || confidence >= 1.0) {
+            throw new IllegalArgumentException("bounded confidence must be strictly between 0 and 1");
+        }
+        return new HurtThresholdEstimate(lowerBound, expected, upperBound, confidence);
+    }
+
     public static HurtThresholdEstimate unprotected() {
         return exact(0.0f);
     }
