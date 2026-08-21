@@ -71,8 +71,8 @@ public final class ClientStrategicScanner {
             opportunity -> direct(opportunity) && opportunity.timing().hardFeedbackBoundaries() == 0,
             context, map, inventoryRevision, configRevision, nowNanos);
         putSelected(approvals, ApprovalSlot.STAIRCASE, all,
-            opportunity -> FastOpportunitySelector.usefulLowerBound(
-                opportunity.targetDamage().lowerBound(), threshold) > 0.0f,
+            opportunity -> FastOpportunitySelector.effectiveLowerBound(
+                opportunity.targetDamage(), context) > 0.0f,
             context, map, inventoryRevision, configRevision, nowNanos);
         putSelected(approvals, ApprovalSlot.RECYCLE, all,
             opportunity -> opportunity.id().startsWith("recycle:"),
