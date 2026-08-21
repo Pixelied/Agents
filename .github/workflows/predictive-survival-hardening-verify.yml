@@ -4,12 +4,8 @@ on:
   push:
     branches:
       - ci/predictive-survival-hardening-verify
-  pull_request:
-    branches:
-      - main
     paths:
-      - 'ci/predictive-survival-hardening/**'
-      - '.github/workflows/predictive-survival-hardening-verify.yml'
+      - 'ci/predictive-survival-hardening/READY'
 
 permissions:
   contents: read
@@ -25,8 +21,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat ci/predictive-survival-hardening/recovery/part-*.b64 | tr -d '\n' | base64 -d > /tmp/predictive-survival-hardening.patch.gz
-          echo 'fe582805d807b41e53c29e6875a2976ede61576a60a7a09f507029537fdcab7e  /tmp/predictive-survival-hardening.patch.gz' | sha256sum -c -
+          cat ci/predictive-survival-hardening/recovery/latest-*.b64 | tr -d '\n' | base64 -d > /tmp/predictive-survival-hardening.patch.gz
+          echo '41b985bc1729b0fde4498f93e117b8ba7ac89f68ee56085de22cce3372ca2d92  /tmp/predictive-survival-hardening.patch.gz' | sha256sum -c -
           gzip -t /tmp/predictive-survival-hardening.patch.gz
           git config user.name 'Predictive Survival CI'
           git config user.email 'predictive-survival-ci@example.invalid'
@@ -63,9 +59,9 @@ jobs:
           set -e
           if [ "$status" -ne 0 ]; then
             echo '--- gametest-console.log tail ---'
-            tail -n 180 gametest-console.log || true
+            tail -n 200 gametest-console.log || true
             echo '--- run/logs/latest.log tail ---'
-            tail -n 180 run/logs/latest.log || true
+            tail -n 200 run/logs/latest.log || true
           fi
           exit "$status"
 
