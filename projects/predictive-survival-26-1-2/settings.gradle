@@ -70,4 +70,12 @@ if (!routedMarker.exists()) {
     routedMarker.text = 'applied\n'
 }
 
+// The previous commit proved Mod Menu present. This disposable run removes it from the
+// actual GameTest runtime classpath while leaving the compile-only API available.
+if (gradle.startParameter.taskNames.any { it.contains('runClientGameTest') }) {
+    gradle.beforeProject { project ->
+        project.ext.set('withoutModMenu', true)
+    }
+}
+
 rootProject.name = 'predictive-survival-26-1-2'
