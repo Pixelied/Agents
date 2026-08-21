@@ -23,6 +23,7 @@ import dev.adrien.crystaloptimizer.v2.damage.DamageEngine;
 import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
 import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import dev.adrien.crystaloptimizer.v2.state.SpawnCrystalCycle;
+import dev.adrien.crystaloptimizer.v2.strategy.CollateralSafetyPolicy;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageMap;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
 import dev.adrien.crystaloptimizer.v2.strategy.LethalEfficiencyPolicy;
@@ -31,6 +32,7 @@ import dev.adrien.crystaloptimizer.v2.strategy.PreparationSequence;
 import dev.adrien.crystaloptimizer.v2.strategy.ResourceChain;
 import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
 import dev.adrien.crystaloptimizer.v2.strategy.StrategicPreparationPlanner;
+import dev.adrien.crystaloptimizer.v2.strategy.TargetProtectionPolicyConfig;
 import dev.adrien.crystaloptimizer.v2.timing.SequenceTiming;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
 import dev.adrien.crystaloptimizer.v2.timing.TimingTransition;
@@ -41,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
@@ -74,8 +77,31 @@ public final class ClientDamageMapBuilder {
         long targetRevision,
         OptimizerConfig config
     ) {
+        return update(
+            target,
+            worldRevision,
+            targetRevision,
+            config,
+            Set.of(),
+            TargetProtectionPolicyConfig.defaults()
+        );
+    }
+
+    public DamageMap update(
+        AbstractClientPlayer target,
+        long worldRevision,
+        long targetRevision,
+        OptimizerConfig config,
+        Set<UUID> protectedIds,
+        TargetProtectionPolicyConfig protectionConfig
+    ) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(config, "config");
+        Objects.requireNonNull(protectedIds, "protectedIds");
+        Objects.requireNonNull(protectionConfig, "protectionConfig");
+        if (protectedIds.contains(target.getUUID())) {
+            return DamageMap.empty(target.getUUID(), targetRevision, worldRevision);
+        }
         var snapshotOptional = snapshots.build(target);
         if (snapshotOptional.isEmpty()) {
             return DamageMap.empty(target.getUUID(), targetRevision, worldRevision);
@@ -120,7 +146,9 @@ public final class ClientDamageMapBuilder {
                     Set.of(place.basePos(), BlockPos.containing(state.targetSpatial().position())),
                     config,
                     snapshot.worldRevision(),
-                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0)
+                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0),
+                    protectedIds,
+                    protectionConfig
                 );
                 addOpportunity(
                     result,
@@ -134,7 +162,9 @@ public final class ClientDamageMapBuilder {
                     Set.of(place.basePos(), BlockPos.containing(state.targetSpatial().position())),
                     config,
                     snapshot.worldRevision(),
-                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0)
+                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0),
+                    protectedIds,
+                    protectionConfig
                 );
                 continue;
             }
@@ -164,7 +194,9 @@ public final class ClientDamageMapBuilder {
                 dependencies,
                 config,
                 snapshot.worldRevision(),
-                resources
+                resources,
+                protectedIds,
+                protectionConfig
             );
         }
 
@@ -183,7 +215,9 @@ public final class ClientDamageMapBuilder {
                 withTargetDependency(sequence.geometryDependencies(), state),
                 config,
                 snapshot.worldRevision(),
-                sequence.resources()
+                sequence.resources(),
+                protectedIds,
+                protectionConfig
             );
         }
 
@@ -202,7 +236,9 @@ public final class ClientDamageMapBuilder {
         Set<BlockPos> dependencies,
         OptimizerConfig config,
         long geometryRevision,
-        ResourceChain resources
+        ResourceChain resources,
+        Set<UUID> protectedIds,
+        TargetProtectionPolicyConfig protectionConfig
     ) {
         DamageEstimate targetDamage = damageEngine.estimate(
             explosion,
@@ -212,6 +248,19 @@ public final class ClientDamageMapBuilder {
             state.base().worldRevision()
         );
         SelfDamageEstimate selfDamage = selfDamageEstimate(state, explosion);
+        Map<UUID, DamageEstimate> protectedDamage = protectedDamage(
+            state,
+            explosion,
+            protectedIds,
+            geometryRevision
+        );
+        if (!CollateralSafetyPolicy.accepts(
+            protectedDamage,
+            state.base(),
+            protectionConfig.maxProtectedDamage()
+        )) {
+            return;
+        }
 
         boolean popsTotem = targetDamage.popProbability() == 1.0
             && targetDamage.confidence() >= CERTIFIED_OUTCOME_CONFIDENCE;
@@ -252,6 +301,36 @@ public final class ClientDamageMapBuilder {
             positionDependent,
             dependencies
         ));
+    }
+
+    private Map<UUID, DamageEstimate> protectedDamage(
+        CombatState state,
+        ExplosionContext explosion,
+        Set<UUID> protectedIds,
+        long geometryRevision
+    ) {
+        LinkedHashMap<UUID, DamageEstimate> damage = new LinkedHashMap<>();
+        for (UUID protectedId : protectedIds) {
+            if (protectedId.equals(state.base().selfId()) || protectedId.equals(state.targetId())) {
+                continue;
+            }
+            if (!state.base().combatants().containsKey(protectedId)
+                || !state.base().spatial().containsKey(protectedId)) {
+                continue;
+            }
+            CombatState protectedState = CombatState.fromSnapshot(state.base(), protectedId);
+            damage.put(
+                protectedId,
+                damageEngine.estimate(
+                    explosion,
+                    protectedState,
+                    scenarios.targetScenarios(protectedState),
+                    geometryRevision,
+                    state.base().worldRevision()
+                )
+            );
+        }
+        return Map.copyOf(damage);
     }
 
     private SequenceTiming preparationTiming(PreparationSequence sequence, long nowNanos) {
