@@ -78,7 +78,8 @@ public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
                         List.of()
                     );
                 }
-            } else if (!pendingItems.hasReservation(groupReservationId)) {
+            } else if (!pendingItems.hasReservation(groupReservationId)
+                && continuationNeedsReservation(decision.actions(), startIndex)) {
                 return new BurstReceipt(
                     List.of(DispatchReceipt.failed("resource chain reservation missing")),
                     List.of()
@@ -130,6 +131,19 @@ public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
 
     static long groupReservationId(long actionId) {
         return reservationId(actionId, GROUP_RESERVATION_INDEX);
+    }
+
+    static boolean continuationNeedsReservation(List<CombatAction> actions, int startIndex) {
+        Objects.requireNonNull(actions, "actions");
+        if (startIndex < 0 || startIndex > actions.size()) {
+            throw new IllegalArgumentException("startIndex outside reactive decision");
+        }
+        for (int index = startIndex; index < actions.size(); index++) {
+            if (consumedItem(actions.get(index)) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private long reserveIfNeeded(long actionId, int index, CombatAction action) {
