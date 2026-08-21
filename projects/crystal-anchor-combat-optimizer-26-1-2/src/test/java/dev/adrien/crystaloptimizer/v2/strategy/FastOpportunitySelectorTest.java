@@ -8,8 +8,10 @@ import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
 import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import dev.adrien.crystaloptimizer.v2.timing.SequenceTiming;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.Test;
 
 final class FastOpportunitySelectorTest {
@@ -86,6 +88,30 @@ final class FastOpportunitySelectorTest {
         );
     }
 
+    @Test
+    void equalDamageAndTimingPrefersCheaperResourceSpend() {
+        SelectionContext context = new SelectionContext(
+            HurtThresholdEstimate.exact(0.0f),
+            20.0f,
+            OptimizerStrategy.LETHAL_SPEED
+        );
+        DamageOpportunity existingBase = opportunity(
+            "existing-base",
+            16.0f,
+            ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0)
+        );
+        DamageOpportunity newSupport = opportunity(
+            "new-support",
+            16.0f,
+            ResourceChain.of(Map.of(Items.OBSIDIAN, 1, Items.END_CRYSTAL, 1), 2.0)
+        );
+
+        assertEquals(
+            "existing-base",
+            selector.select(List.of(newSupport, existingBase), context).orElseThrow().id()
+        );
+    }
+
     private static DamageOpportunity opportunity(
         String id,
         float damage,
@@ -101,6 +127,26 @@ final class FastOpportunitySelectorTest {
             timing,
             lethal,
             popsTotem,
+            false,
+            Set.of()
+        );
+    }
+
+    private static DamageOpportunity opportunity(
+        String id,
+        float damage,
+        ResourceChain resources
+    ) {
+        return new DamageOpportunity(
+            id,
+            new FixedActionSequence(List.of(new DetonateAnchor(BlockPos.ZERO))),
+            DamageEstimate.exact(damage, 1L, 1L),
+            OpportunityIntent.PRESSURE,
+            new SelfDamageEstimate(2.0f, 18.0f, false),
+            resources,
+            SequenceTiming.immediate(),
+            false,
+            false,
             false,
             Set.of()
         );
