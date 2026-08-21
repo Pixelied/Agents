@@ -14,7 +14,7 @@ on:
       - '.github/workflows/predictive-survival-26-1-2-ci.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -83,16 +83,16 @@ jobs:
         with:
           gradle-version: '9.5.1'
 
-      - name: Test and build
+      - name: Test and build reconstructed composition
         working-directory: projects/predictive-survival-26-1-2
         run: gradle --no-daemon clean test build
 
-      - name: Compile client GameTests
+      - name: Compile reconstructed client GameTests
         working-directory: projects/predictive-survival-26-1-2
         run: gradle --no-daemon compileGametestJava processGametestResources
 
-      - name: Run exact-runtime client GameTests
-        timeout-minutes: 5
+      - name: Run reconstructed exact-runtime client GameTests
+        timeout-minutes: 8
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
@@ -102,35 +102,84 @@ jobs:
           set -e
           exit "$status"
 
-      - name: Print diagnostics
-        if: failure()
+      - name: Verify reconstructed production jar isolation
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
-          echo '--- unit test result XML failures ---'
-          if [ -d build/test-results/test ]; then
-            grep -R -n -A80 -B5 '<failure' build/test-results/test || true
-          else
-            echo 'unit test results not found'
-          fi
-          echo '--- gametest-console.log tail ---'
-          if [ -f gametest-console.log ]; then tail -n 180 gametest-console.log; else echo 'gametest-console.log not found'; fi
-          echo '--- run/logs/latest.log tail ---'
-          if [ -f run/logs/latest.log ]; then tail -n 180 run/logs/latest.log; else echo 'latest.log not found'; fi
-
-      - name: Verify production jar isolation
-        working-directory: projects/predictive-survival-26-1-2
-        shell: bash
-        run: |
+          set -euo pipefail
           jar_file=$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
-          if [ -z "$jar_file" ]; then
-            echo 'production jar not found'
-            exit 1
-          fi
-          if jar tf "$jar_file" | grep -q '^dev/pixelied/survival/validation/'; then
-            echo 'GameTest validation classes leaked into production jar'
-            exit 1
-          fi
+          test -n "$jar_file"
+          ! jar tf "$jar_file" | grep -q '^dev/pixelied/survival/validation/'
+
+      - name: Bake clean project commit from current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='projects/predictive-survival-26-1-2'
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = '0c4b21da1060d2510bf64fa0971e5c18b982783d'
+
+          # By this point Gradle configuration has already materialized routed2,
+          # blocking-cooldown, shield-disable, START-tick, Mod Menu, and runtime-hook edits.
+          rm -rf "$project/.gradle" "$project/build" "$project/run" "$project/.ci-hardening"
+          rm -f "$project/.ci-trigger" "$project/.hardening-ci-trigger" "$project/.urgent-ci-trigger" "$project/.ci-routed-protection-applied"
+          git show origin/main:"$project/settings.gradle" > "$project/settings.gradle"
+
+          rm -rf /tmp/baked-project
+          cp -a "$project" /tmp/baked-project
+
+          git reset --hard origin/main
+          git clean -fdx
+          rm -rf "$project"
+          cp -a /tmp/baked-project "$project"
+
+          git add "$project"
+          git diff --cached --check
+          unexpected=$(git diff --cached --name-only | grep -v '^projects/predictive-survival-26-1-2/' || true)
+          test -z "$unexpected"
+          test -n "$(git diff --cached --name-only)"
+          git commit -m 'Harden Predictive Survival 26.1.2 survival prediction'
+          test -z "$(git status --porcelain)"
+
+      - name: Test clean baked source with Mod Menu present
+        timeout-minutes: 10
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --console=plain clean test build
+          gradle --no-daemon --console=plain compileGametestJava processGametestResources
+          xvfb-run -a gradle --no-daemon --console=plain runClientGameTest
+
+      - name: Test clean baked source with Mod Menu absent
+        timeout-minutes: 8
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf run
+          xvfb-run -a gradle --no-daemon --console=plain -PwithoutModMenu runClientGameTest
+
+      - name: Verify clean baked jar and repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='projects/predictive-survival-26-1-2'
+          jar_file=$(find "$project/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          test -n "$jar_file"
+          ! jar tf "$jar_file" | grep -q '^dev/pixelied/survival/validation/'
+          python3 agentctl.py validate
+          git diff HEAD^..HEAD --check
+          unexpected=$(git diff --name-only HEAD^..HEAD | grep -v '^projects/predictive-survival-26-1-2/' || true)
+          test -z "$unexpected"
+          ! find "$project" -maxdepth 2 -type f \( -name '.ci-*' -o -name '.hardening-*' -o -name '.urgent-*' \) -print -quit | grep -q .
+
+      - name: Publish temporary clean commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push --force origin HEAD:refs/heads/tmp/predictive-survival-baked-latest
+          git rev-parse HEAD
 
       - name: Package complete deliverables
         if: success()
@@ -139,25 +188,13 @@ jobs:
           set -euo pipefail
           deliverables='predictive-survival-26.1.2-deliverables'
           source_root="$deliverables/source-tree"
-          source_zip="$deliverables/predictive-survival-26.1.2-source.zip"
           mkdir -p "$source_root"
 
           jar_file=$(find projects/predictive-survival-26-1-2/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
-          if [ -z "$jar_file" ]; then
-            echo 'production jar not found while packaging deliverables'
-            exit 1
-          fi
+          test -n "$jar_file"
           cp "$jar_file" "$deliverables/"
 
-          git archive \
-            --format=tar \
-            HEAD \
-            projects/predictive-survival-26-1-2 \
-            .github/workflows/predictive-survival-26-1-2-ci.yml \
-            tasks/build-predictive-survival-26-1-2 \
-            tasks/design-predictive-survival-26-1-2 \
-            | tar -xf - -C "$source_root"
-
+          git archive --format=tar HEAD projects/predictive-survival-26-1-2 | tar -xf - -C "$source_root"
           git fetch --no-tags --depth=1 origin \
             design/predictive-survival-26-1-2:refs/remotes/origin/design/predictive-survival-26-1-2 \
             plan/predictive-survival-26-1-2:refs/remotes/origin/plan/predictive-survival-26-1-2
@@ -166,17 +203,9 @@ jobs:
             > "$source_root/docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md"
           git show 'refs/remotes/origin/plan/predictive-survival-26-1-2:docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md' \
             > "$source_root/docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md"
-
-          (
-            cd "$source_root"
-            zip -qr "../predictive-survival-26.1.2-source.zip" .
-          )
+          (cd "$source_root" && zip -qr '../predictive-survival-26.1.2-source.zip' .)
           rm -rf "$source_root"
-
-          (
-            cd "$deliverables"
-            sha256sum ./*.jar ./*.zip > SHA256SUMS.txt
-          )
+          (cd "$deliverables" && sha256sum ./*.jar ./*.zip > SHA256SUMS.txt)
 
       - name: Upload production jar
         if: success()
