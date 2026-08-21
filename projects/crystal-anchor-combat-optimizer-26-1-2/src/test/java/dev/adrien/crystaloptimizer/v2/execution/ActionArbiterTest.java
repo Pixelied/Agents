@@ -170,12 +170,14 @@ final class ActionArbiterTest {
             5_000L
         );
         PendingItemLedger ledger = new PendingItemLedger();
-        ledger.reserveChain(12345L, resources, view::observedCount);
+        long ownedReservationId = 12345L;
+        ledger.reserveChain(ownedReservationId, resources, view::observedCount);
 
-        ArbitrationResult result = arbiter.evaluateFrom(
+        ArbitrationResult result = arbiter.evaluateContinuation(
             approval,
             actions,
             1,
+            ownedReservationId,
             view,
             ledger,
             OptimizerConfig.defaults(),
