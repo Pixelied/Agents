@@ -53,8 +53,6 @@ jobs:
           git am ci/predictive-survival-hardening/runtime-test-fixes.patch
           git apply --3way ci/predictive-survival-hardening/death-protection-parser.patch
 
-          # Minecraft 26.1.2 binds item default components during resource reload, not Bootstrap.bootStrap().
-          # Keep custom DEATH_PROTECTION adapter coverage at the exact-runtime boundary where those holders are valid.
           rm -f projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/damage/MinecraftDeathProtectionComponentTest.java
           cp ci/predictive-survival-hardening/CustomDeathProtectionValidationScenarios.java \
             projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/CustomDeathProtectionValidationScenarios.java
@@ -67,8 +65,7 @@ jobs:
           if 'CustomDeathProtectionValidationScenarios.validateCustomDeathProtectionComponents' not in text:
               if needle not in text:
                   raise SystemExit('Wither Skeleton runtime validation hook not found')
-              text = text.replace(needle, insert, 1)
-              path.write_text(text)
+              path.write_text(text.replace(needle, insert, 1))
           PY
           git status --short
 
@@ -119,10 +116,8 @@ jobs:
           git fetch --no-tags origin main
           test "$(git rev-parse origin/main)" = '0c4b21da1060d2510bf64fa0971e5c18b982783d'
 
-          # By this point Gradle configuration has already materialized routed2,
-          # blocking-cooldown, shield-disable, START-tick, Mod Menu, and runtime-hook edits.
-          rm -rf "$project/.gradle" "$project/build" "$project/run" "$project/.ci-hardening"
-          rm -f "$project/.ci-trigger" "$project/.hardening-ci-trigger" "$project/.urgent-ci-trigger" "$project/.ci-routed-protection-applied"
+          rm -rf "$project/.gradle" "$project/build" "$project/run" "$project/.ci-hardening" "$project/.fabric" "$project/mods"
+          rm -f "$project/.ci-trigger" "$project/.hardening-ci-trigger" "$project/.urgent-ci-trigger" "$project/.ci-routed-protection-applied" "$project/gametest-console.log"
           git show origin/main:"$project/settings.gradle" > "$project/settings.gradle"
 
           rm -rf /tmp/baked-project
