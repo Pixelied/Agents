@@ -1,6 +1,8 @@
 package dev.pixelied.survival.damage;
 
+import net.minecraft.SharedConstants;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.ItemStack;
@@ -8,6 +10,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DeathProtection;
 import net.minecraft.world.item.consume_effects.ApplyStatusEffectsConsumeEffect;
 import net.minecraft.world.item.consume_effects.ClearAllStatusEffectsConsumeEffect;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -19,6 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MinecraftDeathProtectionComponentTest {
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+    }
+
     @Test
     void deterministicCustomDeathProtectionEffectsAreCapturedInsteadOfDiscarded() throws Exception {
         ItemStack stack = new ItemStack(Items.STICK);
