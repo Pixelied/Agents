@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat ci/predictive-survival-hardening/recovery/latest-*.b64 | tr -d '\n' | base64 -d > /tmp/predictive-survival-hardening.patch.gz
+          cat ci/predictive-survival-hardening/recovery/p2-*.b64 | tr -d '\n' | base64 -d > /tmp/predictive-survival-hardening.patch.gz
           echo '41b985bc1729b0fde4498f93e117b8ba7ac89f68ee56085de22cce3372ca2d92  /tmp/predictive-survival-hardening.patch.gz' | sha256sum -c -
           gzip -t /tmp/predictive-survival-hardening.patch.gz
           git config user.name 'Predictive Survival CI'
