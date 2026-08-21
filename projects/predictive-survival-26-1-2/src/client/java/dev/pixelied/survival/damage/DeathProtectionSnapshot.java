@@ -62,13 +62,27 @@ public record DeathProtectionSnapshot(
         return Optional.empty();
     }
 
-    public record ProtectionItem(boolean clearExistingEffects, List<EffectInstanceSnapshot> effects) {
+    public record ProtectionItem(
+        boolean clearExistingEffects,
+        List<EffectInstanceSnapshot> effects,
+        boolean outcomeUncertain
+    ) {
         public ProtectionItem {
             effects = List.copyOf(Objects.requireNonNull(effects, "effects"));
         }
 
+        /** Compatibility constructor for source-confirmed deterministic fixtures. */
+        public ProtectionItem(boolean clearExistingEffects, List<EffectInstanceSnapshot> effects) {
+            this(clearExistingEffects, effects, false);
+        }
+
+        /**
+         * Generic DEATH_PROTECTION always guarantees the base one-health rescue, but its ordered
+         * consume effects are not represented by this legacy snapshot shape. Treat the post-state
+         * as uncertain instead of silently assuming the favorable no-effect case.
+         */
         public static ProtectionItem generic() {
-            return new ProtectionItem(false, List.of());
+            return new ProtectionItem(false, List.of(), true);
         }
 
         public static ProtectionItem vanillaTotem() {
@@ -78,7 +92,8 @@ public record DeathProtectionSnapshot(
                     new EffectInstanceSnapshot("minecraft:regeneration", 900, 1),
                     new EffectInstanceSnapshot("minecraft:absorption", 100, 1),
                     new EffectInstanceSnapshot("minecraft:fire_resistance", 800, 0)
-                )
+                ),
+                false
             );
         }
     }
