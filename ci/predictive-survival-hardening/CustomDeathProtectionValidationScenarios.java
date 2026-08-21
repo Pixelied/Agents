@@ -7,7 +7,6 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.ItemStack;
@@ -33,7 +32,7 @@ final class CustomDeathProtectionValidationScenarios {
                 new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 120, 0)
             ))
         ));
-        setServerMainHand(singleplayer, deterministic);
+        setServerSelectedStack(singleplayer, deterministic);
         context.waitFor(minecraft -> minecraft.player != null
             && deterministic.equals(minecraft.player.getMainHandItem().get(DataComponents.DEATH_PROTECTION)));
 
@@ -59,7 +58,7 @@ final class CustomDeathProtectionValidationScenarios {
         DeathProtection probabilistic = new DeathProtection(List.of(
             new ApplyStatusEffectsConsumeEffect(new MobEffectInstance(MobEffects.REGENERATION, 200, 1), 0.5f)
         ));
-        setServerMainHand(singleplayer, probabilistic);
+        setServerSelectedStack(singleplayer, probabilistic);
         context.waitFor(minecraft -> minecraft.player != null
             && probabilistic.equals(minecraft.player.getMainHandItem().get(DataComponents.DEATH_PROTECTION)));
 
@@ -76,18 +75,20 @@ final class CustomDeathProtectionValidationScenarios {
 
         singleplayer.getServer().runOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
-            player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            player.getInventory().setItem(0, ItemStack.EMPTY);
             player.containerMenu.broadcastChanges();
         });
-        context.waitTick();
+        context.waitFor(minecraft -> minecraft.player != null && minecraft.player.getMainHandItem().isEmpty());
     }
 
-    private static void setServerMainHand(TestSingleplayerContext singleplayer, DeathProtection protection) {
+    private static void setServerSelectedStack(TestSingleplayerContext singleplayer, DeathProtection protection) {
         singleplayer.getServer().runOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+            SurvivalValidationClientGameTest.reset(player, 20f);
+            player.getInventory().setSelectedSlot(0);
             ItemStack stack = new ItemStack(Items.STICK);
             stack.set(DataComponents.DEATH_PROTECTION, protection);
-            player.setItemInHand(InteractionHand.MAIN_HAND, stack);
+            player.getInventory().setItem(0, stack);
             player.containerMenu.broadcastChanges();
         });
     }
