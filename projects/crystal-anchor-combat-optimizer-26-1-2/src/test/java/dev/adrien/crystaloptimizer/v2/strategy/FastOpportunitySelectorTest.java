@@ -46,16 +46,18 @@ final class FastOpportunitySelectorTest {
     }
 
     @Test
-    void weakerProtectedHitHasZeroUsefulLowerBound() {
-        HurtThresholdEstimate threshold = new HurtThresholdEstimate(
-            18.0f,
-            18.0f,
-            18.0f,
-            1.0
+    void alreadyProcessedProtectedDamageStaysUseful() {
+        SelectionContext context = new SelectionContext(
+            HurtThresholdEstimate.exact(18.0f),
+            20.0f,
+            OptimizerStrategy.LETHAL_SPEED
         );
         assertEquals(
-            0.0f,
-            FastOpportunitySelector.usefulLowerBound(17.0f, threshold),
+            2.0f,
+            FastOpportunitySelector.effectiveLowerBound(
+                DamageEstimate.exact(2.0f, 1L, 1L),
+                context
+            ),
             1.0e-5f
         );
     }
@@ -122,7 +124,7 @@ final class FastOpportunitySelectorTest {
         return new DamageOpportunity(
             id,
             new FixedActionSequence(List.of(new DetonateAnchor(BlockPos.ZERO))),
-            DamageEstimate.exact(damage, 1L, 1L),
+            estimate(damage, lethal, popsTotem),
             4.0f,
             timing,
             lethal,
@@ -140,7 +142,7 @@ final class FastOpportunitySelectorTest {
         return new DamageOpportunity(
             id,
             new FixedActionSequence(List.of(new DetonateAnchor(BlockPos.ZERO))),
-            DamageEstimate.exact(damage, 1L, 1L),
+            estimate(damage, false, false),
             OpportunityIntent.PRESSURE,
             new SelfDamageEstimate(2.0f, 18.0f, false),
             resources,
@@ -149,6 +151,20 @@ final class FastOpportunitySelectorTest {
             false,
             false,
             Set.of()
+        );
+    }
+
+    private static DamageEstimate estimate(float damage, boolean lethal, boolean popsTotem) {
+        return new DamageEstimate(
+            damage, damage, damage,
+            damage, damage, damage,
+            damage, damage, damage,
+            popsTotem ? 1.0 : 0.0,
+            lethal ? 1.0 : 0.0,
+            1.0,
+            Set.of(),
+            1L,
+            1L
         );
     }
 }
