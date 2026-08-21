@@ -10,10 +10,10 @@
 - Fabric API: 0.155.2+26.1.2
 - Loom: 1.17-SNAPSHOT
 - Mod Menu: 18.0.0-beta.1
-- Existing project gate: PENDING PR CI
-- Workspace unit tests: NOT RUN IN CONNECTOR-ONLY SANDBOX
-- Workspace validation: NOT RUN IN CONNECTOR-ONLY SANDBOX
-- Verification note: this execution environment cannot clone github.com directly, so the authoritative project baseline is verified through the repository pull-request CI before production edits begin.
+- Existing project gate: PASS (PR #24, Crystal Anchor Optimizer 26.1.2 CI run 474)
+- Workspace unit tests: PASS via pull-request validation workflow
+- Workspace validation: PASS via pull-request validation workflow run 1322
+- Verification note: this execution environment cannot clone github.com directly, so GitHub Actions is the authoritative Java 25/Gradle verification surface for this implementation branch.
 - Known V3 audit gaps: candidate starvation, 3-target cutoff, duplicate map build,
   unwired target/inventory events, unused live prediction, zero local absorption,
   hurt-window double application, continuation reconciliation gap.
