@@ -23,6 +23,18 @@ if (!routedMarker.exists()) {
     if (status != 0) {
         throw new GradleException("Could not apply routed-protection verification patch (${status}):\n${output}")
     }
+
+    def clientFile = new File(repoRoot, 'projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/PredictiveSurvivalClient.java')
+    def clientSource = clientFile.getText('UTF-8')
+    def oldHook = 'ClientTickEvents.END_CLIENT_TICK.register'
+    def newHook = 'ClientTickEvents.START_CLIENT_TICK.register'
+    if (!clientSource.contains(newHook)) {
+        if (!clientSource.contains(oldHook)) {
+            throw new GradleException('Expected Predictive Survival client tick hook was not found')
+        }
+        clientFile.setText(clientSource.replace(oldHook, newHook), 'UTF-8')
+    }
+
     routedMarker.text = 'applied\n'
 }
 
