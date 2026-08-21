@@ -29,7 +29,7 @@ Future 2.9 AutoCrystal is used only as a behavioral reference. Its useful ideas 
 3. **Do not make losing trades for ordinary pressure.**
    - For nonlethal/non-pop/non-required-staircase hits, useful target damage must be meaningfully greater than worst-case self damage.
    - A default trade ratio of target useful damage / self damage >= 1.25 is used when self damage is nonzero.
-   - Certified lethal, certified totem-pop, and required hurt-window staircase actions may bypass the ratio, but never the local-survival/no-self-pop rules.
+   - Certified lethal, certified totem-pop, and required hurt-window staircase actions may bypass the ratio and the ordinary `maxSelfDamage` comfort cap in Lethal Speed, but never the local-survival/no-self-pop rules.
 
 4. **Never spend a setup resource without a viable complete chain.**
    - `PlaceAnchor` requires a known path to `ChargeAnchor` and `DetonateAnchor` using currently available/reservable glowstone and a detonating hand/item state.
@@ -60,7 +60,8 @@ Inputs:
 - current local combatant state from the snapshot/live view;
 - modeled local damage result/range;
 - configured max self damage;
-- whether the action would consume a local totem.
+- whether the action would consume a local totem;
+- whether the opportunity is ordinary pressure, staircase, pop, or lethal.
 
 Output:
 - admitted/rejected;
@@ -70,7 +71,8 @@ Output:
 Rules:
 - reject if worst-case post-hit health <= 0.5 HP;
 - reject if the simulator predicts local totem activation;
-- reject if worst-case self damage exceeds `maxSelfDamage`;
+- ordinary pressure rejects worst-case self damage above `maxSelfDamage`;
+- in `LETHAL_SPEED`, certified lethal, certified pop, and required staircase actions may exceed `maxSelfDamage` only when the pessimistic survival/no-self-pop checks pass;
 - ordinary pressure additionally uses the target/self trade ratio.
 
 This policy is evaluated first while building opportunities and again from live state in the arbiter. The second check prevents a previously safe approval from becoming suicidal after the player takes damage between scan and dispatch.
@@ -242,7 +244,7 @@ This makes real-game reports actionable instead of “it did nothing” or “it
 - self damage below maxSelfDamage but above current health is rejected;
 - any predicted local totem activation is rejected;
 - ordinary 5 target / 8 self trade is rejected;
-- certified enemy lethal can bypass trade ratio but not local survival;
+- certified enemy lethal can bypass trade ratio/comfort cap but not local survival;
 - anchor setup without glowstone is absent;
 - obsidian setup without a crystal is absent;
 - resource chain reservations are atomic;
