@@ -6,6 +6,8 @@ import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.core.SurvivalEngine;
 import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.debug.DecisionHistory;
+import dev.pixelied.survival.execution.ExecutionCommand;
+import dev.pixelied.survival.execution.MinecraftCommandDispatcher;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -190,6 +192,16 @@ final class WitherSkeletonValidationScenarios {
                 player.getInventory().setItem(1, ItemStack.EMPTY);
                 player.containerMenu.broadcastChanges();
             });
+            context.runOnClient(minecraft -> {
+                if (minecraft.player == null) throw new AssertionError("client player unavailable during Wither cleanup");
+                boolean dispatched = new MinecraftCommandDispatcher().dispatch(
+                    minecraft,
+                    new ExecutionCommand.SelectHotbar(0)
+                );
+                if (!dispatched) throw new AssertionError("could not restore client hotbar selection after Wither regression");
+            });
+            context.waitFor(minecraft -> minecraft.player != null
+                && minecraft.player.getInventory().getSelectedSlot() == 0);
             context.waitTick();
         }
     }
