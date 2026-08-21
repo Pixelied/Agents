@@ -21,6 +21,9 @@ class ClientRuntimeArchitectureTest {
         String dispatcher = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/execution/VanillaInteractionDispatcher.java"
         ));
+        String snapshotBuilder = Files.readString(Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/world/ClientCombatSnapshotBuilder.java"
+        ));
 
         assertTrue(initializer.contains("KeyMappingHelper.registerKeyMapping"));
         assertTrue(initializer.contains("ClientTickEvents.END_CLIENT_TICK.register"));
@@ -30,6 +33,8 @@ class ClientRuntimeArchitectureTest {
         assertFalse(initializer.contains("ClientCombatRuntime"));
         assertFalse(initializer.contains("KeyBindingHelper"),
             "26.1 runtime must not use the legacy helper name");
+        assertTrue(snapshotBuilder.contains("self.getAbsorptionAmount()"),
+            "local absorption is directly observable and must be preserved in self state");
 
         for (String required : List.of(
             "ClientDamageMapBuilder",
