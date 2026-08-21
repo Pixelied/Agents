@@ -3,7 +3,7 @@ Daemon will be stopped at the end of the build
 
 > Configure project :
 Fabric Loom: 1.17.19
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1787310897122.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1787311033390.json
 
 FAILURE: Build failed with an exception.
 
@@ -20,4 +20,4 @@ A problem occurred evaluating root project 'predictive-survival-26-1-2'.
 > Run with --scan to get full insights from a Build Scan (powered by Develocity).
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 10s
+BUILD FAILED in 11s
