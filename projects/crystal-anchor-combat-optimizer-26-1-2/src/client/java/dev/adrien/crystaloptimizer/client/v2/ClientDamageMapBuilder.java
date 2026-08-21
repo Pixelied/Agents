@@ -26,12 +26,14 @@ import dev.adrien.crystaloptimizer.v2.strategy.DamageMap;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
 import dev.adrien.crystaloptimizer.v2.strategy.LethalEfficiencyPolicy;
 import dev.adrien.crystaloptimizer.v2.strategy.OpportunityIntent;
+import dev.adrien.crystaloptimizer.v2.strategy.PreparationSequence;
 import dev.adrien.crystaloptimizer.v2.strategy.ResourceChain;
 import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
 import dev.adrien.crystaloptimizer.v2.strategy.StrategicPreparationPlanner;
 import dev.adrien.crystaloptimizer.v2.timing.SequenceTiming;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
 import dev.adrien.crystaloptimizer.v2.timing.TimingTransition;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -161,22 +163,24 @@ public final class ClientDamageMapBuilder {
             );
         }
 
-        preparation.plan(state, config).ifPresent(actions -> {
+        for (PreparationSequence sequence : preparation.planSequences(state, config)) {
+            List<CombatAction> actions = sequence.actions();
             String id = "prepare:" + Integer.toHexString(actions.hashCode());
-            result.put(id, new DamageOpportunity(
+            addOpportunity(
+                result,
+                state,
                 id,
+                actions.getFirst(),
                 new FixedActionSequence(actions),
-                DamageEstimate.exact(0.0f, snapshot.worldRevision(), snapshot.worldRevision()),
-                OpportunityIntent.PREPARE,
-                new SelfDamageEstimate(0.0f, effectiveHealth(state.self()), false),
-                ResourceChain.none(),
-                SequenceTiming.immediate(),
-                false,
-                false,
-                !preparationDependencies(actions).isEmpty(),
-                preparationDependencies(actions)
-            ));
-        });
+                sequence.terminalExplosion(),
+                preparationTiming(sequence, nowNanos),
+                !sequence.geometryDependencies().isEmpty(),
+                withTargetDependency(sequence.geometryDependencies(), state),
+                config,
+                snapshot.worldRevision(),
+                sequence.resources()
+            );
+        }
 
         return new DamageMap(target.getUUID(), targetRevision, worldRevision, result);
     }
@@ -244,21 +248,28 @@ public final class ClientDamageMapBuilder {
         ));
     }
 
-    private static Set<BlockPos> preparationDependencies(List<CombatAction> actions) {
-        LinkedHashSet<BlockPos> dependencies = new LinkedHashSet<>();
-        for (CombatAction action : actions) {
-            if (action instanceof PlaceCrystal place) {
-                dependencies.add(place.basePos());
-            } else if (action instanceof PlaceObsidian place) {
-                dependencies.add(place.pos());
-            } else if (action instanceof PlaceAnchor place) {
-                dependencies.add(place.pos());
-            } else if (action instanceof ChargeAnchor charge) {
-                dependencies.add(charge.pos());
-            } else if (action instanceof DetonateAnchor detonate) {
-                dependencies.add(detonate.pos());
+    private SequenceTiming preparationTiming(PreparationSequence sequence, long nowNanos) {
+        ArrayList<TimingTransition> transitions = new ArrayList<>();
+        for (CombatAction action : sequence.actions()) {
+            if (action instanceof PlaceObsidian
+                || action instanceof PlaceAnchor
+                || action instanceof ChargeAnchor) {
+                transitions.add(TimingTransition.BLOCK_INTERACTION_TO_ACK);
+            } else if (action instanceof PlaceCrystal) {
+                transitions.add(TimingTransition.CRYSTAL_PLACE_TO_SPAWN);
             }
         }
+        return transitions.isEmpty()
+            ? SequenceTiming.immediate()
+            : timingEngine.estimateSequence(transitions, nowNanos);
+    }
+
+    private static Set<BlockPos> withTargetDependency(
+        Set<BlockPos> sequenceDependencies,
+        CombatState state
+    ) {
+        LinkedHashSet<BlockPos> dependencies = new LinkedHashSet<>(sequenceDependencies);
+        dependencies.add(BlockPos.containing(state.targetSpatial().position()));
         return Set.copyOf(dependencies);
     }
 
