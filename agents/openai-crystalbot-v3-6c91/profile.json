@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-crystalbot-v3-6c91",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Implements the approved CrystalBot V3 Combat Core plan on an isolated GitHub branch using TDD and CI verification.",
+  "capabilities": ["java", "fabric", "minecraft-26.1.2", "testing", "github"],
+  "registered_at": "2026-08-21T23:18:37+00:00",
+  "state": "available"
+}
