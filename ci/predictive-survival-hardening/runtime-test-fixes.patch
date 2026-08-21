@@ -5,7 +5,8 @@ Subject: [PATCH] test: assert source-faithful instant explosion postconditions
 
 ---
  .../validation/InstantExplosionGuardValidationScenarios.java | 5 +++--
- 1 file changed, 3 insertions(+), 2 deletions(-)
+ .../validation/SurvivalValidationClientGameTest.java          | 1 +
+ 2 files changed, 4 insertions(+), 2 deletions(-)
 
 diff --git a/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/InstantExplosionGuardValidationScenarios.java b/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/InstantExplosionGuardValidationScenarios.java
 --- a/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/InstantExplosionGuardValidationScenarios.java
@@ -29,5 +30,16 @@ diff --git a/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/
                  );
              });
              assertProtectedExplosion("explosive_bed", bed);
+diff --git a/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java b/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java
+--- a/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java
++++ b/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java
+@@ -84,6 +84,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameTest {
+             results.addAll(LiveExplosionScalingValidationScenarios.runtimeSlice(context, singleplayer));
+             MinecartTntValidationScenarios.validatePrimedMinecartProducesBoundedExplosionThreat(context, singleplayer);
+             InstantExplosionGuardValidationScenarios.validateVisibleInstantSourcesArmBeforeDetonation(context, singleplayer);
++            waitForServerClientLoaded(context, singleplayer);
+             validateHurtCooldown(singleplayer);
+             validateDeathProtection(singleplayer, InteractionHand.MAIN_HAND);
+             validateDeathProtection(singleplayer, InteractionHand.OFF_HAND);
 -- 
 2.47.3
