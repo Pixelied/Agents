@@ -1,0 +1,52 @@
+name: Predictive Survival Hardening Diagnostic
+
+on:
+  push:
+    branches:
+      - ci/predictive-survival-hardening-recovery-check
+    paths-ignore:
+      - '.ci/predictive-survival-hardening/latest-diagnostic.log'
+
+permissions:
+  contents: write
+
+jobs:
+  compile-gametest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+      - name: Compile client GameTests and capture exact diagnostics
+        id: compile
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          set +e
+          gradle --no-daemon --console=plain compileGametestJava > /tmp/ps-gametest-compile.log 2>&1
+          status=$?
+          cat /tmp/ps-gametest-compile.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Commit compiler diagnostics on failure
+        if: steps.compile.outputs.status != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci/predictive-survival-hardening
+          cp /tmp/ps-gametest-compile.log .ci/predictive-survival-hardening/latest-diagnostic.log
+          git config user.name 'Predictive Survival Diagnostic CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .ci/predictive-survival-hardening/latest-diagnostic.log
+          git commit -m 'ci: capture Predictive Survival GameTest compiler diagnostics [skip ci]' || exit 0
+          git push origin HEAD:ci/predictive-survival-hardening-recovery-check
+      - name: Fail after diagnostics are persisted
+        if: steps.compile.outputs.status != '0'
+        run: exit 1
