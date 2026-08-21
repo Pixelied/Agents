@@ -22,36 +22,35 @@ import net.minecraft.client.player.AbstractClientPlayer;
 public final class ClientStrategicScanner {
     private static final long APPROVAL_LIFETIME_NANOS = 250_000_000L;
 
-    private final ClientDamageMapBuilder damageMaps;
     private final CombatBlackboard blackboard;
     private final FastOpportunitySelector selector;
     private final HurtWindowTracker hurtWindows;
     private final AtomicLong nextApprovalId = new AtomicLong();
 
     public ClientStrategicScanner(
-        ClientDamageMapBuilder damageMaps,
         CombatBlackboard blackboard,
         FastOpportunitySelector selector,
         HurtWindowTracker hurtWindows
     ) {
-        this.damageMaps = Objects.requireNonNull(damageMaps, "damageMaps");
         this.blackboard = Objects.requireNonNull(blackboard, "blackboard");
         this.selector = Objects.requireNonNull(selector, "selector");
         this.hurtWindows = Objects.requireNonNull(hurtWindows, "hurtWindows");
     }
 
-    public DamageMap scan(
+    public void publish(
         AbstractClientPlayer target,
-        long worldRevision,
-        long targetRevision,
+        DamageMap map,
         long inventoryRevision,
         long configRevision,
         OptimizerConfig config,
         long nowNanos
     ) {
         Objects.requireNonNull(target, "target");
+        Objects.requireNonNull(map, "map");
         Objects.requireNonNull(config, "config");
-        DamageMap map = damageMaps.update(target, worldRevision, targetRevision, config);
+        if (!map.targetId().equals(target.getUUID())) {
+            throw new IllegalArgumentException("damage map target does not match selected player");
+        }
         HurtThresholdEstimate threshold = hurtWindows.estimate(
             target.getUUID(),
             target.invulnerableTime,
@@ -92,13 +91,12 @@ public final class ClientStrategicScanner {
 
         blackboard.publish(new CombatBlackboardSnapshot(
             target.getUUID(),
-            targetRevision,
-            worldRevision,
+            map.targetRevision(),
+            map.worldRevision(),
             inventoryRevision,
             configRevision,
             approvals
         ));
-        return map;
     }
 
     private void putSelected(
