@@ -114,7 +114,7 @@ jobs:
           set -euo pipefail
           project='projects/predictive-survival-26-1-2'
           git fetch --no-tags origin main
-          test "$(git rev-parse origin/main)" = '0c4b21da1060d2510bf64fa0971e5c18b982783d'
+          test "$(git rev-parse origin/main)" = '4ee12ba909315030cb243bf1466a4d5684b60d0d'
 
           rm -rf "$project/.gradle" "$project/build" "$project/run" "$project/.ci-hardening" "$project/.fabric" "$project/mods"
           rm -f "$project/.ci-trigger" "$project/.hardening-ci-trigger" "$project/.urgent-ci-trigger" "$project/.ci-routed-protection-applied" "$project/gametest-console.log"
