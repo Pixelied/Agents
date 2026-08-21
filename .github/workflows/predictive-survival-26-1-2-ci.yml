@@ -83,15 +83,21 @@ jobs:
           set -e
           exit "$status"
 
-      - name: Print client GameTest diagnostics
+      - name: Print diagnostics
         if: failure()
         working-directory: projects/predictive-survival-26-1-2
         shell: bash
         run: |
+          echo '--- unit test result XML failures ---'
+          if [ -d build/test-results/test ]; then
+            grep -R -n -A80 -B5 '<failure' build/test-results/test || true
+          else
+            echo 'unit test results not found'
+          fi
           echo '--- gametest-console.log tail ---'
-          if [ -f gametest-console.log ]; then tail -n 120 gametest-console.log; else echo 'gametest-console.log not found'; fi
+          if [ -f gametest-console.log ]; then tail -n 160 gametest-console.log; else echo 'gametest-console.log not found'; fi
           echo '--- run/logs/latest.log tail ---'
-          if [ -f run/logs/latest.log ]; then tail -n 120 run/logs/latest.log; else echo 'latest.log not found'; fi
+          if [ -f run/logs/latest.log ]; then tail -n 160 run/logs/latest.log; else echo 'latest.log not found'; fi
 
       - name: Verify production jar isolation
         working-directory: projects/predictive-survival-26-1-2
