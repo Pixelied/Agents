@@ -12,6 +12,8 @@ import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.action.Wait;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.v2.state.ActionApproval;
+import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
+import dev.adrien.crystaloptimizer.v2.strategy.SelfSurvivalPolicy;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +74,31 @@ public final class ActionArbiter {
         if (!view.targetValid(approval.targetId())) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.INVALID_TARGET);
         }
-        if (approval.worstCaseSelfDamage() > config.maxSelfDamage()) {
-            return ArbitrationResult.rejected(ArbitrationResult.Reason.SELF_DAMAGE_LIMIT);
+
+        float liveEffectiveHealth = view.selfEffectiveHealth();
+        float liveRemaining = Math.max(
+            0.0f,
+            liveEffectiveHealth - approval.selfDamage().worstCaseDamage()
+        );
+        SelfDamageEstimate liveSelf = new SelfDamageEstimate(
+            approval.selfDamage().worstCaseDamage(),
+            liveRemaining,
+            approval.selfDamage().totemTriggered()
+        );
+        SelfSurvivalPolicy.Decision survival = SelfSurvivalPolicy.evaluate(
+            liveSelf,
+            approval.intent(),
+            approval.targetDamage().expected(),
+            config
+        );
+        if (!survival.allowed()) {
+            return ArbitrationResult.rejected(mapSurvivalReason(survival.reason()));
+        }
+
+        for (Map.Entry<Item, Integer> demand : approval.resources().demand().entrySet()) {
+            if (pendingItems.available(demand.getKey(), view.observedCount(demand.getKey())) < demand.getValue()) {
+                return ArbitrationResult.rejected(ArbitrationResult.Reason.ITEM_UNAVAILABLE);
+            }
         }
 
         Map<Item, Integer> burstDemand = new HashMap<>();
@@ -201,6 +226,16 @@ public final class ActionArbiter {
         }
 
         return ArbitrationResult.approved(actions.subList(startIndex, actions.size()));
+    }
+
+    private static ArbitrationResult.Reason mapSurvivalReason(SelfSurvivalPolicy.Reason reason) {
+        return switch (reason) {
+            case SELF_LETHAL -> ArbitrationResult.Reason.SELF_LETHAL;
+            case SELF_TOTEM_POP -> ArbitrationResult.Reason.SELF_TOTEM_POP;
+            case SELF_DAMAGE_LIMIT -> ArbitrationResult.Reason.SELF_DAMAGE_LIMIT;
+            case BAD_TRADE -> ArbitrationResult.Reason.BAD_TRADE;
+            case ALLOWED -> throw new IllegalArgumentException("ALLOWED cannot be mapped to rejection");
+        };
     }
 
     private static ArbitrationResult requireItem(
