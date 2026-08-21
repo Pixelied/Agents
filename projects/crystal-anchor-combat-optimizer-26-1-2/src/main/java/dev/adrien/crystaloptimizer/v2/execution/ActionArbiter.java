@@ -12,6 +12,8 @@ import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.action.Wait;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.v2.state.ActionApproval;
+import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
+import dev.adrien.crystaloptimizer.v2.strategy.SelfSurvivalPolicy;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,10 +30,11 @@ public final class ActionArbiter {
         OptimizerConfig config,
         long nowNanos
     ) {
-        return evaluateFrom(
+        return evaluateInternal(
             approval,
             actions,
             0,
+            null,
             view,
             pendingItems,
             config,
@@ -43,6 +46,53 @@ public final class ActionArbiter {
         ActionApproval approval,
         List<CombatAction> actions,
         int startIndex,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
+        return evaluateInternal(
+            approval,
+            actions,
+            startIndex,
+            null,
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    public ArbitrationResult evaluateContinuation(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        long ownedReservationId,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
+        if (ownedReservationId < 0L) {
+            return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
+        }
+        return evaluateInternal(
+            approval,
+            actions,
+            startIndex,
+            ownedReservationId,
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    private ArbitrationResult evaluateInternal(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        Long ownedReservationId,
         LiveCombatView view,
         PendingItemLedger pendingItems,
         OptimizerConfig config,
@@ -72,8 +122,33 @@ public final class ActionArbiter {
         if (!view.targetValid(approval.targetId())) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.INVALID_TARGET);
         }
-        if (approval.worstCaseSelfDamage() > config.maxSelfDamage()) {
-            return ArbitrationResult.rejected(ArbitrationResult.Reason.SELF_DAMAGE_LIMIT);
+
+        float liveEffectiveHealth = view.selfEffectiveHealth();
+        float liveRemaining = Math.max(
+            0.0f,
+            liveEffectiveHealth - approval.selfDamage().worstCaseDamage()
+        );
+        SelfDamageEstimate liveSelf = new SelfDamageEstimate(
+            approval.selfDamage().worstCaseDamage(),
+            liveRemaining,
+            approval.selfDamage().totemTriggered()
+        );
+        SelfSurvivalPolicy.Decision survival = SelfSurvivalPolicy.evaluate(
+            liveSelf,
+            approval.intent(),
+            approval.targetDamage().expected(),
+            config
+        );
+        if (!survival.allowed()) {
+            return ArbitrationResult.rejected(mapSurvivalReason(survival.reason()));
+        }
+
+        if (ownedReservationId == null) {
+            for (Map.Entry<Item, Integer> demand : approval.resources().demand().entrySet()) {
+                if (pendingItems.available(demand.getKey(), view.observedCount(demand.getKey())) < demand.getValue()) {
+                    return ArbitrationResult.rejected(ArbitrationResult.Reason.ITEM_UNAVAILABLE);
+                }
+            }
         }
 
         Map<Item, Integer> burstDemand = new HashMap<>();
@@ -113,7 +188,8 @@ public final class ActionArbiter {
                     Items.END_CRYSTAL,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -130,7 +206,8 @@ public final class ActionArbiter {
                     Items.OBSIDIAN,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -150,7 +227,8 @@ public final class ActionArbiter {
                     Items.RESPAWN_ANCHOR,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -170,7 +248,8 @@ public final class ActionArbiter {
                     Items.GLOWSTONE,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -203,14 +282,28 @@ public final class ActionArbiter {
         return ArbitrationResult.approved(actions.subList(startIndex, actions.size()));
     }
 
+    private static ArbitrationResult.Reason mapSurvivalReason(SelfSurvivalPolicy.Reason reason) {
+        return switch (reason) {
+            case SELF_LETHAL -> ArbitrationResult.Reason.SELF_LETHAL;
+            case SELF_TOTEM_POP -> ArbitrationResult.Reason.SELF_TOTEM_POP;
+            case SELF_DAMAGE_LIMIT -> ArbitrationResult.Reason.SELF_DAMAGE_LIMIT;
+            case BAD_TRADE -> ArbitrationResult.Reason.BAD_TRADE;
+            case ALLOWED -> throw new IllegalArgumentException("ALLOWED cannot be mapped to rejection");
+        };
+    }
+
     private static ArbitrationResult requireItem(
         Item item,
         LiveCombatView view,
         PendingItemLedger pendingItems,
-        Map<Item, Integer> burstDemand
+        Map<Item, Integer> burstDemand,
+        Long ownedReservationId
     ) {
         int alreadyNeeded = burstDemand.getOrDefault(item, 0);
-        int available = pendingItems.available(item, view.observedCount(item));
+        int observed = view.observedCount(item);
+        int available = ownedReservationId == null
+            ? pendingItems.available(item, observed)
+            : pendingItems.availableExcluding(ownedReservationId, item, observed);
         if (available <= alreadyNeeded) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.ITEM_UNAVAILABLE);
         }

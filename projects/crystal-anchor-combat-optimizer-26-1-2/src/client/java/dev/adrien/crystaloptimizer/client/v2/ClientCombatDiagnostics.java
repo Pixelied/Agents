@@ -7,6 +7,7 @@ import dev.adrien.crystaloptimizer.v2.damage.DamageMismatch;
 import dev.adrien.crystaloptimizer.v2.execution.ArbitrationResult;
 import dev.adrien.crystaloptimizer.v2.reactive.ReactiveDecision;
 import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
+import dev.adrien.crystaloptimizer.v2.strategy.OpportunityIntent;
 import java.util.Optional;
 
 public final class ClientCombatDiagnostics {
@@ -21,6 +22,9 @@ public final class ClientCombatDiagnostics {
     private volatile boolean hudEnabled = true;
     private volatile OptimizerStrategy strategy = OptimizerStrategy.LETHAL_SPEED;
     private volatile ApprovalSlot selectedApproval;
+    private volatile OpportunityIntent selectedIntent;
+    private volatile String resourceDemand = "{}";
+    private volatile double selectedP90Millis;
     private volatile String targetName = "";
     private volatile double placeSpawnP50Millis;
     private volatile double placeSpawnP90Millis;
@@ -41,8 +45,11 @@ public final class ClientCombatDiagnostics {
         lastEventToDecisionNanos = Math.max(0L, decisionComplete - decision.eventObservedNanos());
         lastDecisionToDispatchNanos = Math.max(0L, dispatchCompleteNanos - decisionComplete);
         selectedApproval = decision.slot();
+        selectedIntent = decision.approval().intent();
         targetDamage = decision.approval().targetDamage();
         worstSelfDamage = decision.approval().worstCaseSelfDamage();
+        resourceDemand = decision.approval().resources().demand().toString();
+        selectedP90Millis = decision.approval().timing().p90Millis();
     }
 
     public void recordMismatch(DamageMismatch mismatch) {
@@ -75,6 +82,9 @@ public final class ClientCombatDiagnostics {
     public boolean hudEnabled() { return hudEnabled; }
     public OptimizerStrategy strategy() { return strategy; }
     public Optional<ApprovalSlot> selectedApproval() { return Optional.ofNullable(selectedApproval); }
+    public Optional<OpportunityIntent> selectedIntent() { return Optional.ofNullable(selectedIntent); }
+    public String resourceDemand() { return resourceDemand; }
+    public double selectedP90Millis() { return selectedP90Millis; }
     public String targetName() { return targetName; }
     public double placeSpawnP50Millis() { return placeSpawnP50Millis; }
     public double placeSpawnP90Millis() { return placeSpawnP90Millis; }

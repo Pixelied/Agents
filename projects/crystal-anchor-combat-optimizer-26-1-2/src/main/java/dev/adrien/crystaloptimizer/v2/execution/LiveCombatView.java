@@ -26,4 +26,17 @@ public interface LiveCombatView {
     int observedCount(Item item);
 
     int selectedHotbarSlot();
+
+    /**
+     * Current local health plus absorption. Implementations used only in old unit fixtures may
+     * inherit the conservative compatibility default; the real client view overrides this.
+     */
+    default float selfEffectiveHealth() {
+        return Float.MAX_VALUE;
+    }
+
+    /** True only when a totem is currently in a hand where vanilla can activate it. */
+    default boolean selfTotemAvailable() {
+        return false;
+    }
 }

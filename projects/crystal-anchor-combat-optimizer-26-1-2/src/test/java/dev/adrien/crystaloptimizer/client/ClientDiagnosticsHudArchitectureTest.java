@@ -24,8 +24,10 @@ class ClientDiagnosticsHudArchitectureTest {
         assertTrue(hud.contains("GuiGraphicsExtractor"));
         assertTrue(hud.contains("graphics.fill("));
         assertTrue(hud.contains("graphics.text("));
-        assertTrue(hud.contains("if (!diagnostics.enabled())"),
+        assertTrue(hud.contains("!diagnostics.enabled()"),
             "HUD must disappear when the combat optimizer is disabled");
+        assertTrue(hud.contains("!diagnostics.hudEnabled()"),
+            "HUD must respect the HUD setting");
         assertFalse(hud.contains("HudRenderCallback"),
             "26.1.2 HUD must use HudElementRegistry instead of the deprecated callback");
     }
@@ -51,7 +53,7 @@ class ClientDiagnosticsHudArchitectureTest {
     }
 
     @Test
-    void v2DiagnosticsCachesLatencyDamageAndMismatchFields() throws IOException {
+    void v2DiagnosticsCachesLatencyDamageMismatchAndEfficiencyFields() throws IOException {
         String source = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatDiagnostics.java"
         ));
@@ -60,5 +62,8 @@ class ClientDiagnosticsHudArchitectureTest {
         assertTrue(source.contains("lastMismatch"));
         assertTrue(source.contains("targetDamage"));
         assertTrue(source.contains("worstSelfDamage"));
+        assertTrue(source.contains("selectedIntent"));
+        assertTrue(source.contains("resourceDemand"));
+        assertTrue(source.contains("selectedP90Millis"));
     }
 }

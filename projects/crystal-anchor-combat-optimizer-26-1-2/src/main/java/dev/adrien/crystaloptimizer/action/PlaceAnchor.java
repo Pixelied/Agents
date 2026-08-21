@@ -24,8 +24,9 @@ public record PlaceAnchor(BlockPos pos) implements CombatAction {
         if (state.inventory().selectedItem().filter(Items.RESPAWN_ANCHOR::equals).isEmpty()) {
             return ActionLegality.denied("respawn anchor is not selected in the real main hand");
         }
-        if (!state.geometry().getBlockState(pos).isAir() || state.anchors().containsKey(pos)) {
-            return ActionLegality.denied("anchor position is not conservatively empty");
+        ActionLegality replaceable = ActionChecks.requireReplaceablePlacementTarget(state, pos);
+        if (!replaceable.legal() || state.anchors().containsKey(pos)) {
+            return ActionLegality.denied("anchor position is not replaceable");
         }
         ActionLegality freeSpace = ActionChecks.requireFreeBlockSpace(state, pos);
         if (!freeSpace.legal()) {

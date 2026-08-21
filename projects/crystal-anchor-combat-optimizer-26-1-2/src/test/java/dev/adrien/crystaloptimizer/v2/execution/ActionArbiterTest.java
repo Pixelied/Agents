@@ -7,11 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.adrien.crystaloptimizer.action.AttackKnownCrystal;
 import dev.adrien.crystaloptimizer.action.CombatAction;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
+import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
 import dev.adrien.crystaloptimizer.v2.state.ActionApproval;
 import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
+import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import dev.adrien.crystaloptimizer.v2.state.SpawnCrystalCycle;
+import dev.adrien.crystaloptimizer.v2.strategy.OpportunityIntent;
+import dev.adrien.crystaloptimizer.v2.strategy.ResourceChain;
+import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
 import dev.adrien.crystaloptimizer.v2.timing.SequenceTiming;
 import java.util.HashMap;
 import java.util.List;
@@ -73,6 +78,115 @@ final class ActionArbiterTest {
         assertReason(approval, view, reserved, ArbitrationResult.Reason.ITEM_UNAVAILABLE);
     }
 
+    @Test
+    void healthDropAfterScanRejectsPreviouslyComfortableExplosionAsSelfLethal() {
+        FakeView view = matchingView();
+        view.selfEffectiveHealth = 8.0f;
+        view.counts.put(Items.END_CRYSTAL, 1);
+        ActionApproval approval = new ActionApproval(
+            88L,
+            targetId,
+            ApprovalSlot.PLACE,
+            new FixedActionSequence(List.of(new PlaceCrystal(base))),
+            DamageEstimate.exact(16.0f, 3L, 5L),
+            OpportunityIntent.PRESSURE,
+            new SelfDamageEstimate(10.0f, 10.0f, false),
+            ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0),
+            SequenceTiming.immediate(),
+            3L,
+            9L,
+            11L,
+            13L,
+            5_000L
+        );
+
+        ArbitrationResult result = arbiter.evaluate(
+            approval,
+            List.of(new PlaceCrystal(base)),
+            view,
+            new PendingItemLedger(),
+            OptimizerConfig.defaults(),
+            500L
+        );
+
+        assertFalse(result.allowed());
+        assertEquals(ArbitrationResult.Reason.SELF_LETHAL, result.reason());
+    }
+
+    @Test
+    void modeledLocalTotemPopIsRejectedEvenForLethalSpeedKill() {
+        FakeView view = matchingView();
+        view.selfEffectiveHealth = 20.0f;
+        ActionApproval approval = new ActionApproval(
+            89L,
+            targetId,
+            ApprovalSlot.LETHAL,
+            new FixedActionSequence(List.of(new AttackKnownCrystal(crystalId))),
+            DamageEstimate.exact(40.0f, 3L, 5L),
+            OpportunityIntent.LETHAL,
+            new SelfDamageEstimate(19.0f, 1.0f, true),
+            ResourceChain.none(),
+            SequenceTiming.immediate(),
+            3L,
+            9L,
+            11L,
+            13L,
+            5_000L
+        );
+
+        ArbitrationResult result = arbiter.evaluate(
+            approval,
+            List.of(new AttackKnownCrystal(crystalId)),
+            view,
+            new PendingItemLedger(),
+            OptimizerConfig.defaults(),
+            500L
+        );
+
+        assertFalse(result.allowed());
+        assertEquals(ArbitrationResult.Reason.SELF_TOTEM_POP, result.reason());
+    }
+
+    @Test
+    void continuationCanUseItemsAlreadyReservedByItsOwnCompleteChain() {
+        FakeView view = matchingView();
+        view.counts.put(Items.END_CRYSTAL, 1);
+        ResourceChain resources = ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0);
+        List<CombatAction> actions = List.of(new SelectHotbarSlot(0), new PlaceCrystal(base));
+        ActionApproval approval = new ActionApproval(
+            90L,
+            targetId,
+            ApprovalSlot.PREPARE,
+            new FixedActionSequence(actions),
+            DamageEstimate.exact(12.0f, 3L, 5L),
+            OpportunityIntent.PRESSURE,
+            new SelfDamageEstimate(2.0f, 18.0f, false),
+            resources,
+            SequenceTiming.immediate(),
+            3L,
+            9L,
+            11L,
+            13L,
+            5_000L
+        );
+        PendingItemLedger ledger = new PendingItemLedger();
+        long ownedReservationId = 12345L;
+        ledger.reserveChain(ownedReservationId, resources, view::observedCount);
+
+        ArbitrationResult result = arbiter.evaluateContinuation(
+            approval,
+            actions,
+            1,
+            ownedReservationId,
+            view,
+            ledger,
+            OptimizerConfig.defaults(),
+            500L
+        );
+
+        assertTrue(result.allowed(), "continuation must not count its own group reservation against itself");
+    }
+
     private void assertReason(
         ActionApproval approval,
         FakeView view,
@@ -127,6 +241,8 @@ final class ActionArbiterTest {
         boolean entityReach = true;
         boolean blockReach = true;
         boolean followBreak = true;
+        float selfEffectiveHealth = 20.0f;
+        boolean selfTotemAvailable;
         final Map<Item, Integer> counts = new HashMap<>();
 
         @Override public long worldRevision() { return worldRevision; }
@@ -142,5 +258,7 @@ final class ActionArbiterTest {
         }
         @Override public int observedCount(Item item) { return counts.getOrDefault(item, 0); }
         @Override public int selectedHotbarSlot() { return 0; }
+        @Override public float selfEffectiveHealth() { return selfEffectiveHealth; }
+        @Override public boolean selfTotemAvailable() { return selfTotemAvailable; }
     }
 }

@@ -22,8 +22,9 @@ public record PlaceObsidian(BlockPos pos) implements CombatAction {
         if (state.inventory().selectedItem().filter(Items.OBSIDIAN::equals).isEmpty()) {
             return ActionLegality.denied("obsidian is not selected in the real main hand");
         }
-        if (!state.geometry().getBlockState(pos).isAir()) {
-            return ActionLegality.denied("support position is not conservatively empty");
+        ActionLegality replaceable = ActionChecks.requireReplaceablePlacementTarget(state, pos);
+        if (!replaceable.legal()) {
+            return replaceable;
         }
         ActionLegality freeSpace = ActionChecks.requireFreeBlockSpace(state, pos);
         if (!freeSpace.legal()) {

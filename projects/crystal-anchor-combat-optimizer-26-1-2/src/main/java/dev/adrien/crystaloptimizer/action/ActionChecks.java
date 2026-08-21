@@ -13,6 +13,13 @@ final class ActionChecks {
             : ActionLegality.denied("block is outside interaction reach");
     }
 
+    static ActionLegality requireReplaceablePlacementTarget(CombatState state, BlockPos pos) {
+        var blockState = state.geometry().getBlockState(pos);
+        return blockState.isAir() || blockState.canBeReplaced()
+            ? ActionLegality.allowed()
+            : ActionLegality.denied("placement target is not replaceable");
+    }
+
     static ActionLegality requireFreeBlockSpace(CombatState state, BlockPos pos) {
         return hasEntityCollision(state.base().legality(), blockBox(pos))
             ? ActionLegality.denied("entity collision blocks placement")

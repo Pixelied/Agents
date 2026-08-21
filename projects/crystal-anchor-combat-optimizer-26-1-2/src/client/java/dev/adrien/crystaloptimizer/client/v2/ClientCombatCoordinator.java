@@ -287,16 +287,18 @@ public final class ClientCombatCoordinator {
         OptimizerConfig config
     ) {
         long nowNanos = System.nanoTime();
-        ArbitrationResult allowed = startIndex == 0
-            ? arbiter.evaluate(
+        ArbitrationResult allowed;
+        if (startIndex == 0) {
+            allowed = arbiter.evaluate(
                 decision.approval(),
                 decision.actions(),
                 liveView,
                 pendingItems,
                 config,
                 nowNanos
-            )
-            : arbiter.evaluateFrom(
+            );
+        } else if (decision.approval().resources().isEmpty()) {
+            allowed = arbiter.evaluateFrom(
                 decision.approval(),
                 decision.actions(),
                 startIndex,
@@ -305,6 +307,18 @@ public final class ClientCombatCoordinator {
                 config,
                 nowNanos
             );
+        } else {
+            allowed = arbiter.evaluateContinuation(
+                decision.approval(),
+                decision.actions(),
+                startIndex,
+                ReactiveBurstDispatcher.groupReservationId(decision.actionId()),
+                liveView,
+                pendingItems,
+                config,
+                nowNanos
+            );
+        }
         if (!allowed.allowed()) {
             diagnostics.recordRejection(allowed.reason());
             continuation = null;

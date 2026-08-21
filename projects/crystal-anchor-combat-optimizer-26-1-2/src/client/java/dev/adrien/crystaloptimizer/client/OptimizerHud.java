@@ -46,10 +46,7 @@ public final class OptimizerHud {
 
     private void extract(GuiGraphicsExtractor graphics, DeltaTracker ignored) {
         ClientCombatDiagnostics diagnostics = diagnosticsSupplier.get();
-        if (!diagnostics.enabled()) {
-            return;
-        }
-        if (!diagnostics.hudEnabled()) {
+        if (!diagnostics.enabled() || !diagnostics.hudEnabled()) {
             return;
         }
 
@@ -60,13 +57,23 @@ public final class OptimizerHud {
             TEXT_COLOR
         ));
         String approval = diagnostics.selectedApproval().map(Enum::name).orElse("IDLE");
-        lines.add(new Line("Reactive  " + approval, TEXT_COLOR));
+        String intent = diagnostics.selectedIntent().map(Enum::name).orElse("-");
+        lines.add(new Line("Reactive  " + approval + " / " + intent, TEXT_COLOR));
         var damage = diagnostics.targetDamage();
         lines.add(new Line(String.format(
             Locale.ROOT,
             "Damage  %.1f / %.1f / %.1f   self<=%.1f",
             damage.lowerBound(), damage.expected(), damage.upperBound(), diagnostics.worstSelfDamage()
         ), TEXT_COLOR));
+        if (diagnostics.selectedP90Millis() > 0.0 && Double.isFinite(diagnostics.selectedP90Millis())) {
+            lines.add(new Line(String.format(
+                Locale.ROOT,
+                "Terminal p90  %.0f ms   spend %s",
+                diagnostics.selectedP90Millis(), diagnostics.resourceDemand()
+            ), MUTED_COLOR));
+        } else if (!"{}".equals(diagnostics.resourceDemand())) {
+            lines.add(new Line("Spend  " + diagnostics.resourceDemand(), MUTED_COLOR));
+        }
         if (diagnostics.placeSpawnP90Millis() > 0.0) {
             lines.add(new Line(String.format(
                 Locale.ROOT,
