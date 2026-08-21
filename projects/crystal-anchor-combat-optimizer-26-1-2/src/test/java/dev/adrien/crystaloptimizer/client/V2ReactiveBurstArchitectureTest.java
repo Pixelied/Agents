@@ -17,6 +17,9 @@ final class V2ReactiveBurstArchitectureTest {
         String burst = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/v2/ReactiveBurstDispatcher.java"
         ));
+        String coordinator = Files.readString(Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatCoordinator.java"
+        ));
         String outgoing = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/mixin/ClientCommonPacketListenerImplMixin.java"
         ));
@@ -28,6 +31,9 @@ final class V2ReactiveBurstArchitectureTest {
         assertTrue(burst.contains("for (int index = startIndex; index < decision.actions().size(); index++)"));
         assertTrue(burst.contains("receipt.status() == DispatchReceipt.Status.SENT"));
         assertTrue(burst.contains("break;"));
+        assertTrue(burst.contains("static long groupReservationId(long actionId)"));
+        assertTrue(coordinator.contains("arbiter.evaluateContinuation("));
+        assertTrue(coordinator.contains("ReactiveBurstDispatcher.groupReservationId(decision.actionId())"));
         assertTrue(outgoing.contains("ServerboundAttackPacket"));
         assertFalse(vanilla.contains("new EndCrystal"));
         assertFalse(burst.contains("new EndCrystal"));
