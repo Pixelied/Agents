@@ -30,10 +30,11 @@ public final class ActionArbiter {
         OptimizerConfig config,
         long nowNanos
     ) {
-        return evaluateFrom(
+        return evaluateInternal(
             approval,
             actions,
             0,
+            null,
             view,
             pendingItems,
             config,
@@ -45,6 +46,53 @@ public final class ActionArbiter {
         ActionApproval approval,
         List<CombatAction> actions,
         int startIndex,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
+        return evaluateInternal(
+            approval,
+            actions,
+            startIndex,
+            null,
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    public ArbitrationResult evaluateContinuation(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        long ownedReservationId,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
+        if (ownedReservationId < 0L) {
+            return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
+        }
+        return evaluateInternal(
+            approval,
+            actions,
+            startIndex,
+            ownedReservationId,
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    private ArbitrationResult evaluateInternal(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        Long ownedReservationId,
         LiveCombatView view,
         PendingItemLedger pendingItems,
         OptimizerConfig config,
@@ -95,9 +143,11 @@ public final class ActionArbiter {
             return ArbitrationResult.rejected(mapSurvivalReason(survival.reason()));
         }
 
-        for (Map.Entry<Item, Integer> demand : approval.resources().demand().entrySet()) {
-            if (pendingItems.available(demand.getKey(), view.observedCount(demand.getKey())) < demand.getValue()) {
-                return ArbitrationResult.rejected(ArbitrationResult.Reason.ITEM_UNAVAILABLE);
+        if (ownedReservationId == null) {
+            for (Map.Entry<Item, Integer> demand : approval.resources().demand().entrySet()) {
+                if (pendingItems.available(demand.getKey(), view.observedCount(demand.getKey())) < demand.getValue()) {
+                    return ArbitrationResult.rejected(ArbitrationResult.Reason.ITEM_UNAVAILABLE);
+                }
             }
         }
 
@@ -138,7 +188,8 @@ public final class ActionArbiter {
                     Items.END_CRYSTAL,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -155,7 +206,8 @@ public final class ActionArbiter {
                     Items.OBSIDIAN,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -175,7 +227,8 @@ public final class ActionArbiter {
                     Items.RESPAWN_ANCHOR,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -195,7 +248,8 @@ public final class ActionArbiter {
                     Items.GLOWSTONE,
                     view,
                     pendingItems,
-                    burstDemand
+                    burstDemand,
+                    ownedReservationId
                 );
                 if (itemCheck != null) {
                     return itemCheck;
@@ -242,10 +296,14 @@ public final class ActionArbiter {
         Item item,
         LiveCombatView view,
         PendingItemLedger pendingItems,
-        Map<Item, Integer> burstDemand
+        Map<Item, Integer> burstDemand,
+        Long ownedReservationId
     ) {
         int alreadyNeeded = burstDemand.getOrDefault(item, 0);
-        int available = pendingItems.available(item, view.observedCount(item));
+        int observed = view.observedCount(item);
+        int available = ownedReservationId == null
+            ? pendingItems.available(item, observed)
+            : pendingItems.availableExcluding(ownedReservationId, item, observed);
         if (available <= alreadyNeeded) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.ITEM_UNAVAILABLE);
         }
