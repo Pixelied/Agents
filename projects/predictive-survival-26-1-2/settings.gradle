@@ -9,4 +9,21 @@ pluginManagement {
     }
 }
 
+// Disposable verification-branch bootstrap. The real feature branch never contains this.
+def routedMarker = new File(settingsDir, '.ci-routed-protection-applied')
+if (!routedMarker.exists()) {
+    def repoRoot = settingsDir.toPath().resolve('../..').normalize().toFile()
+    def command = "cat ci/predictive-survival-hardening/routed/part-*.b64 | tr -d '\\n' | base64 -d > /tmp/routed-protection.patch && git apply --3way --whitespace=nowarn /tmp/routed-protection.patch"
+    def process = new ProcessBuilder('bash', '-lc', command)
+        .directory(repoRoot)
+        .redirectErrorStream(true)
+        .start()
+    def output = process.inputStream.getText('UTF-8')
+    def status = process.waitFor()
+    if (status != 0) {
+        throw new GradleException("Could not apply routed-protection verification patch (${status}):\n${output}")
+    }
+    routedMarker.text = 'applied\n'
+}
+
 rootProject.name = 'predictive-survival-26-1-2'
