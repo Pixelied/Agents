@@ -35,6 +35,38 @@ if (!routedMarker.exists()) {
         clientFile.setText(clientSource.replace(oldHook, newHook), 'UTF-8')
     }
 
+    def buildFile = new File(repoRoot, 'projects/predictive-survival-26-1-2/build.gradle')
+    def buildSource = buildFile.getText('UTF-8')
+    def oldDependency = '    implementation "com.terraformersmc:modmenu:${modmenu_version}"'
+    if (buildSource.contains(oldDependency)) {
+        buildSource = buildSource.replace(oldDependency,
+            '    modCompileOnly "com.terraformersmc:modmenu:${modmenu_version}"\n' +
+            '    if (!project.hasProperty("withoutModMenu")) {\n' +
+            '        modLocalRuntime "com.terraformersmc:modmenu:${modmenu_version}"\n' +
+            '    }')
+        buildFile.setText(buildSource, 'UTF-8')
+    }
+
+    def gameTestFile = new File(repoRoot, 'projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java')
+    def gameTestSource = gameTestFile.getText('UTF-8')
+    def deathProtectionHook = '            DeathProtectionComponentValidationScenarios.validateClientObservableCustomEffects(context, singleplayer);\n'
+    if (!gameTestSource.contains('ModMenuRuntimeValidationScenarios.validateOptionalIntegrationAndNativeScreen')) {
+        if (!gameTestSource.contains(deathProtectionHook)) {
+            throw new GradleException('Death protection runtime validation hook was not found')
+        }
+        gameTestSource = gameTestSource.replace(deathProtectionHook,
+            deathProtectionHook + '            ModMenuRuntimeValidationScenarios.validateOptionalIntegrationAndNativeScreen(context);\n')
+    }
+    def instantHook = '            InstantExplosionGuardValidationScenarios.validateVisibleInstantSourcesArmBeforeDetonation(context, singleplayer);\n'
+    if (!gameTestSource.contains('HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger')) {
+        if (!gameTestSource.contains(instantHook)) {
+            throw new GradleException('Instant explosion runtime validation hook was not found')
+        }
+        gameTestSource = gameTestSource.replace(instantHook,
+            instantHook + '            HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger(context, singleplayer);\n')
+    }
+    gameTestFile.setText(gameTestSource, 'UTF-8')
+
     routedMarker.text = 'applied\n'
 }
 
