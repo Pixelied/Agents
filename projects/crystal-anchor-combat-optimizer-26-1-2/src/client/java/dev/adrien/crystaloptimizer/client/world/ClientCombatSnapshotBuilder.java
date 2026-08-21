@@ -123,6 +123,7 @@ public final class ClientCombatSnapshotBuilder {
         EffectState targetEffects = effects(target);
         SimCombatant selfState = ObservedCombatantAssembler.self(
             self.getHealth(),
+            self.getAbsorptionAmount(),
             equipment(self),
             selfEffects,
             blocking(self),
