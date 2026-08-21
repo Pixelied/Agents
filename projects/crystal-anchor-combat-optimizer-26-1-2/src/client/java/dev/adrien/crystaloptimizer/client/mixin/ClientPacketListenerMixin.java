@@ -2,12 +2,14 @@ package dev.adrien.crystaloptimizer.client.mixin;
 
 import dev.adrien.crystaloptimizer.client.execution.InteractionTimingRecorder;
 import dev.adrien.crystaloptimizer.client.intel.ClientObservationBus;
+import dev.adrien.crystaloptimizer.client.intel.RemoteDamageWindowObserver;
 import dev.adrien.crystaloptimizer.client.v2.ClientCombatEventBus;
 import dev.adrien.crystaloptimizer.client.v2.ClientTimingObserver;
 import dev.adrien.crystaloptimizer.v2.reactive.CombatEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundBlockChangedAckPacket;
@@ -15,6 +17,7 @@ import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
 import net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket;
 import net.minecraft.world.entity.Entity;
@@ -43,6 +46,27 @@ public abstract class ClientPacketListenerMixin {
     @Inject(method = "handleEntityEvent", at = @At("TAIL"))
     private void crystaloptimizer$entityEvent(ClientboundEntityEventPacket packet, CallbackInfo ci) {
         ClientObservationBus.instance().onEntityEventPacket(packet, System.nanoTime());
+    }
+
+    @Inject(method = "handleSetEntityData", at = @At("TAIL"))
+    private void crystaloptimizer$remoteDamageWindow(
+        ClientboundSetEntityDataPacket packet,
+        CallbackInfo ci
+    ) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) {
+            return;
+        }
+        Entity entity = level.getEntity(packet.id());
+        if (!(entity instanceof AbstractClientPlayer player)) {
+            return;
+        }
+        RemoteDamageWindowObserver.instance().onObservedTargetState(
+            player.getUUID(),
+            player.getHealth(),
+            player.invulnerableTime,
+            System.nanoTime()
+        );
     }
 
     @Inject(method = "handleAddEntity", at = @At("TAIL"))
