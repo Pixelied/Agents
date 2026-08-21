@@ -40,9 +40,9 @@ if (!routedMarker.exists()) {
     def oldDependency = '    implementation "com.terraformersmc:modmenu:${modmenu_version}"'
     if (buildSource.contains(oldDependency)) {
         buildSource = buildSource.replace(oldDependency,
-            '    modCompileOnly "com.terraformersmc:modmenu:${modmenu_version}"\n' +
+            '    compileOnly "com.terraformersmc:modmenu:${modmenu_version}"\n' +
             '    if (!project.hasProperty("withoutModMenu")) {\n' +
-            '        modLocalRuntime "com.terraformersmc:modmenu:${modmenu_version}"\n' +
+            '        localRuntime "com.terraformersmc:modmenu:${modmenu_version}"\n' +
             '    }')
         buildFile.setText(buildSource, 'UTF-8')
     }
