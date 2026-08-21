@@ -1,0 +1,136 @@
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/PredictiveSurvivalClient.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/PredictiveSurvivalClient.java
+index f5a080b..655dbe3 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/PredictiveSurvivalClient.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/PredictiveSurvivalClient.java
+@@ -6,10 +6,12 @@ import dev.pixelied.survival.config.LiveConfigController;
+ import dev.pixelied.survival.config.PredictiveSurvivalConfigScreen;
+ import dev.pixelied.survival.core.EngineLimits;
+ import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
++import dev.pixelied.survival.core.MinecraftWorldSnapshotFactory;
+ import dev.pixelied.survival.core.SurvivalEngine;
+ import dev.pixelied.survival.debug.DecisionHistory;
+ import dev.pixelied.survival.debug.SurvivalDebugHud;
+ import net.fabricmc.api.ClientModInitializer;
++import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
+ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+ import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+@@ -51,10 +53,17 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
+             new DecisionHistory(EngineLimits.defaults().maxDecisionHistory())
+         );
+         liveConfigController = new LiveConfigController(configStore, engine::replaceConfig);
++        UrgentReevaluationGate reevaluationGate = new UrgentReevaluationGate();
+ 
++        ClientTickEvents.START_CLIENT_TICK.register(client -> reevaluationGate.startClientTick());
++        ClientEntityEvents.ENTITY_LOAD.register((entity, level) -> {
++            if (minecraft.player == null || minecraft.level != level) return;
++            if (!MinecraftWorldSnapshotFactory.isThreatRelevant(entity)) return;
++            reevaluationGate.tryUrgent(engine::tick);
++        });
+         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+             if (client.player != null && client.level != null) {
+-                engine.tick();
++                reevaluationGate.runRegularEnd(engine::tick);
+             }
+         });
+ 
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/UrgentReevaluationGate.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/UrgentReevaluationGate.java
+new file mode 100644
+index 0000000..9c4a808
+--- /dev/null
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/UrgentReevaluationGate.java
+@@ -0,0 +1,32 @@
++package dev.pixelied.survival;
++
++import java.util.Objects;
++
++/**
++ * Ensures Predictive Survival evaluates at most once during a Minecraft client tick.
++ * An urgent zero-warning trigger may consume the tick's evaluation before the normal
++ * END_CLIENT_TICK pass; otherwise END performs the normal evaluation.
++ */
++final class UrgentReevaluationGate {
++    private boolean evaluatedThisTick;
++
++    void startClientTick() {
++        evaluatedThisTick = false;
++    }
++
++    boolean tryUrgent(Runnable evaluation) {
++        return runOnce(evaluation);
++    }
++
++    boolean runRegularEnd(Runnable evaluation) {
++        return runOnce(evaluation);
++    }
++
++    private boolean runOnce(Runnable evaluation) {
++        Objects.requireNonNull(evaluation, "evaluation");
++        if (evaluatedThisTick) return false;
++        evaluatedThisTick = true;
++        evaluation.run();
++        return true;
++    }
++}
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java
+index 4ab2f23..b99f1bc 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java
+@@ -100,7 +100,7 @@ public final class MinecraftWorldSnapshotFactory {
+         return isThreatRelevant(entity) ? 0 : 1;
+     }
+ 
+-    private static boolean isThreatRelevant(Entity entity) {
++    public static boolean isThreatRelevant(Entity entity) {
+         if (entity instanceof AreaEffectCloud
+             || entity instanceof EvokerFangs
+             || entity instanceof LightningBolt
+diff --git a/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/UrgentReevaluationGateTest.java b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/UrgentReevaluationGateTest.java
+new file mode 100644
+index 0000000..4a06b97
+--- /dev/null
++++ b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/UrgentReevaluationGateTest.java
+@@ -0,0 +1,43 @@
++package dev.pixelied.survival;
++
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++class UrgentReevaluationGateTest {
++    @Test
++    void urgentEvaluationConsumesExactlyOneEngineRunForTheClientTick() {
++        UrgentReevaluationGate gate = new UrgentReevaluationGate();
++        int[] runs = {0};
++
++        gate.startClientTick();
++        assertTrue(gate.tryUrgent(() -> runs[0]++));
++        assertFalse(gate.tryUrgent(() -> runs[0]++));
++        assertFalse(gate.runRegularEnd(() -> runs[0]++));
++        assertEquals(1, runs[0]);
++    }
++
++    @Test
++    void normalEndEvaluationStillRunsWhenNoUrgentTriggerOccurred() {
++        UrgentReevaluationGate gate = new UrgentReevaluationGate();
++        int[] runs = {0};
++
++        gate.startClientTick();
++        assertTrue(gate.runRegularEnd(() -> runs[0]++));
++        assertEquals(1, runs[0]);
++    }
++
++    @Test
++    void nextClientTickResetsTheDeduplicationGate() {
++        UrgentReevaluationGate gate = new UrgentReevaluationGate();
++        int[] runs = {0};
++
++        gate.startClientTick();
++        gate.tryUrgent(() -> runs[0]++);
++        gate.startClientTick();
++        assertTrue(gate.tryUrgent(() -> runs[0]++));
++        assertEquals(2, runs[0]);
++    }
++}
