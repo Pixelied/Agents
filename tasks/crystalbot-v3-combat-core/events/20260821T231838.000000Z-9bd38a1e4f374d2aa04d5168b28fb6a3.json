@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "9bd38a1e4f374d2aa04d5168b28fb6a3",
+  "task_id": "crystalbot-v3-combat-core",
+  "agent_id": "openai-crystalbot-v3-6c91",
+  "type": "scope_claimed",
+  "message": "Claimed projects/crystal-anchor-combat-optimizer-26-1-2",
+  "data": {
+    "scope": "projects/crystal-anchor-combat-optimizer-26-1-2"
+  },
+  "created_at": "2026-08-21T23:18:38+00:00"
+}
