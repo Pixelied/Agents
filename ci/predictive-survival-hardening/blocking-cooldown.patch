@@ -1,0 +1,157 @@
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/InventorySlotSnapshot.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/InventorySlotSnapshot.java
+index eecf79a..58917ef 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/InventorySlotSnapshot.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/InventorySlotSnapshot.java
+@@ -15,7 +15,8 @@ public record InventorySlotSnapshot(
+     Optional<ConsumableSurvivalSnapshot> consumable,
+     Optional<EquippableSurvivalSnapshot> equippable,
+     Optional<BlockingProfileSnapshot> blockingProfile,
+-    Optional<DeathProtectionSnapshot.ProtectionItem> deathProtectionItem
++    Optional<DeathProtectionSnapshot.ProtectionItem> deathProtectionItem,
++    boolean blockingOnCooldown
+ ) {
+     public InventorySlotSnapshot {
+         if (inventoryIndex < 0 || inventoryIndex > 40) {
+@@ -31,8 +32,11 @@ public record InventorySlotSnapshot(
+         if (deathProtectionItem.isPresent() && !deathProtection) {
+             throw new IllegalArgumentException("deathProtectionItem requires deathProtection capability");
+         }
++        if (blockingOnCooldown && blockingProfile.isEmpty()) {
++            throw new IllegalArgumentException("blockingOnCooldown requires a blocking profile");
++        }
+         if (count == 0 && (deathProtection || consumable.isPresent() || equippable.isPresent()
+-            || blockingProfile.isPresent() || deathProtectionItem.isPresent())) {
++            || blockingProfile.isPresent() || deathProtectionItem.isPresent() || blockingOnCooldown)) {
+             throw new IllegalArgumentException("empty slot cannot provide survival capabilities");
+         }
+     }
+@@ -48,7 +52,7 @@ public record InventorySlotSnapshot(
+         Optional<BlockingProfileSnapshot> blockingProfile
+     ) {
+         this(inventoryIndex, stackKey, componentFingerprint, count, deathProtection, consumable, equippable,
+-            blockingProfile, Optional.empty());
++            blockingProfile, Optional.empty(), false);
+     }
+ 
+     public InventorySlotSnapshot(
+@@ -60,12 +64,12 @@ public record InventorySlotSnapshot(
+         Optional<EquippableSurvivalSnapshot> equippable
+     ) {
+         this(inventoryIndex, stackKey, stackKey.hashCode(), count, deathProtection, consumable, equippable,
+-            Optional.empty(), Optional.empty());
++            Optional.empty(), Optional.empty(), false);
+     }
+ 
+     public InventorySlotSnapshot(int inventoryIndex, String stackKey, int count, boolean deathProtection) {
+         this(inventoryIndex, stackKey, stackKey.hashCode(), count, deathProtection,
+-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
++            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), false);
+     }
+ 
+     public boolean empty() {
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/MinecraftInventorySnapshotFactory.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/MinecraftInventorySnapshotFactory.java
+index b009226..4d7515c 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/MinecraftInventorySnapshotFactory.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/inventory/MinecraftInventorySnapshotFactory.java
+@@ -69,6 +69,8 @@ public final class MinecraftInventorySnapshotFactory {
+         var protectionItem = stack.isEmpty()
+             ? java.util.Optional.<dev.pixelied.survival.damage.DeathProtectionSnapshot.ProtectionItem>empty()
+             : MinecraftDeathProtectionAdapter.snapshot(stack);
++        var blockingProfile = MinecraftBlockingAdapter.profile(stack);
++        boolean blockingOnCooldown = blockingProfile.isPresent() && player.getCooldowns().isOnCooldown(stack);
+         return new InventorySlotSnapshot(
+             index,
+             key,
+@@ -77,8 +79,9 @@ public final class MinecraftInventorySnapshotFactory {
+             protectionItem.isPresent(),
+             consumableCapability(stack, player),
+             equippableCapability(stack, player),
+-            MinecraftBlockingAdapter.profile(stack),
+-            protectionItem
++            blockingProfile,
++            protectionItem,
++            blockingOnCooldown
+         );
+     }
+ 
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java
+index c04c5a0..ed89e92 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java
+@@ -123,9 +123,12 @@ public final class SurvivalCandidateGenerator {
+         boolean guaranteedBlock = timeline.events().stream().allMatch(event -> event.blockable() && !event.canDisableBlocking());
+         if (!guaranteedBlock) return;
+ 
+-        boolean activeOffhand = inventory.activeOffhandShield();
++        boolean activeOffhand = inventory.activeOffhandShield()
++            && inventory.slot(40).map(slot -> !slot.blockingOnCooldown()).orElse(false);
+         boolean selectedMainhandShield = inventory.slot(inventory.selectedHotbarIndex())
+-            .map(slot -> slot.count() > 0 && "minecraft:shield".equals(slot.stackKey()))
++            .map(slot -> slot.count() > 0
++                && "minecraft:shield".equals(slot.stackKey())
++                && !slot.blockingOnCooldown())
+             .orElse(false);
+         if (!activeOffhand && !selectedMainhandShield) return;
+ 
+diff --git a/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java
+index faffb19..de94f25 100644
+--- a/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java
++++ b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java
+@@ -11,6 +11,7 @@ import dev.pixelied.survival.core.TickWindow;
+ import dev.pixelied.survival.core.Vec3Snapshot;
+ import dev.pixelied.survival.core.WorldSnapshot;
+ import dev.pixelied.survival.damage.ArmorPieceSnapshot;
++import dev.pixelied.survival.damage.BlockingProfileSnapshot;
+ import dev.pixelied.survival.damage.BlockingSnapshot;
+ import dev.pixelied.survival.damage.DamageSourceSnapshot;
+ import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+@@ -134,6 +135,23 @@ class SurvivalCandidateGeneratorTest {
+         assertTrue(candidates.stream().noneMatch(SurvivalAction.EquipDeathProtection.class::isInstance));
+     }
+ 
++    @Test
++    void selectedBlockingItemOnServerCooldownCannotCreateRaiseShieldCandidate() {
++        InventorySlotSnapshot coolingShield = blockingSlotOnCooldown(0, "minecraft:shield");
++        InventorySnapshot inventory = new InventorySnapshot(0, Map.of(0, coolingShield), false);
++        MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36));
++
++        List<SurvivalAction> candidates = generator.generate(
++            context(DeathProtectionSnapshot.none(), BlockingSnapshot.none()),
++            timeline(true),
++            inventory,
++            menu
++        );
++
++        assertTrue(candidates.stream().noneMatch(SurvivalAction.RaiseShield.class::isInstance),
++            "server-synchronized item cooldown must make the blocking item unavailable");
++    }
++
+     @Test
+     void shieldCandidateIsRejectedWhenAnyThreatIsNotBlockable() {
+         InventorySnapshot inventory = new InventorySnapshot(
+@@ -248,6 +266,25 @@ class SurvivalCandidateGeneratorTest {
+         )));
+     }
+ 
++    private static InventorySlotSnapshot blockingSlotOnCooldown(int index, String key) {
++        try {
++            var constructor = InventorySlotSnapshot.class.getDeclaredConstructor(
++                int.class, String.class, int.class, int.class, boolean.class,
++                Optional.class, Optional.class, Optional.class, Optional.class, boolean.class
++            );
++            return constructor.newInstance(
++                index, key, key.hashCode(), 1, false,
++                Optional.empty(), Optional.empty(), Optional.of(BlockingProfileSnapshot.fullBlock(336)),
++                Optional.empty(), true
++            );
++        } catch (ReflectiveOperationException missingCooldownState) {
++            throw new AssertionError(
++                "inventory slot snapshot cannot represent a client-observable blocking-item cooldown",
++                missingCooldownState
++            );
++        }
++    }
++
+     private static InventorySlotSnapshot slot(int index, String key, boolean protection) {
+         return new InventorySlotSnapshot(index, key, 1, protection);
+     }
