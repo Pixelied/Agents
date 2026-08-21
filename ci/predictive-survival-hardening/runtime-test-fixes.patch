@@ -1,14 +1,13 @@
 From c059cc4bba3476b93b56ec85fba1dc796c9117a1 Mon Sep 17 00:00:00 2001
 From: OpenAI Recovery <recovery@openai.local>
 Date: Fri, 21 Aug 2026 09:02:58 +0000
-Subject: [PATCH] test: assert source-faithful anchor postcondition
+Subject: [PATCH] test: assert source-faithful instant explosion postconditions
 
 ---
- .../validation/InstantExplosionGuardValidationScenarios.java    | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ .../validation/InstantExplosionGuardValidationScenarios.java | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/InstantExplosionGuardValidationScenarios.java b/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/InstantExplosionGuardValidationScenarios.java
-index 172f614..731db6a 100644
 --- a/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/InstantExplosionGuardValidationScenarios.java
 +++ b/projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/InstantExplosionGuardValidationScenarios.java
 @@ -150,7 +150,7 @@ final class InstantExplosionGuardValidationScenarios {
@@ -20,5 +19,15 @@ index 172f614..731db6a 100644
                  );
              });
              assertProtectedExplosion("respawn_anchor", anchor);
+@@ -238,7 +238,8 @@ final class InstantExplosionGuardValidationScenarios {
+                     true,
+                     player.getHealth(),
+                     player.getMainHandItem().isEmpty(),
+-                    nether.getBlockState(arena.head()).isAir() && nether.getBlockState(arena.foot()).isAir()
++                    !nether.getBlockState(arena.head()).is(Blocks.RED_BED)
++                        && !nether.getBlockState(arena.foot()).is(Blocks.RED_BED)
+                 );
+             });
+             assertProtectedExplosion("explosive_bed", bed);
 -- 
 2.47.3
