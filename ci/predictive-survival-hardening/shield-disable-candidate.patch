@@ -1,0 +1,59 @@
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java
+index ed89e92..77220e5 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/planner/SurvivalCandidateGenerator.java
+@@ -14,6 +14,7 @@ import dev.pixelied.survival.inventory.EquippableSurvivalSnapshot;
+ import dev.pixelied.survival.inventory.InventorySlotSnapshot;
+ import dev.pixelied.survival.inventory.InventorySnapshot;
+ import dev.pixelied.survival.inventory.MenuSlotMap;
++import dev.pixelied.survival.timeline.ThreatEvent;
+ import dev.pixelied.survival.timeline.ThreatTimeline;
+ 
+ import java.util.ArrayList;
+@@ -120,7 +121,7 @@ public final class SurvivalCandidateGenerator {
+         ThreatTimeline timeline,
+         InventorySnapshot inventory
+     ) {
+-        boolean guaranteedBlock = timeline.events().stream().allMatch(event -> event.blockable() && !event.canDisableBlocking());
++        boolean guaranteedBlock = timeline.events().stream().allMatch(ThreatEvent::blockable);
+         if (!guaranteedBlock) return;
+ 
+         boolean activeOffhand = inventory.activeOffhandShield()
+diff --git a/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java
+index de94f25..00f18d7 100644
+--- a/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java
++++ b/projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/planner/SurvivalCandidateGeneratorTest.java
+@@ -135,6 +135,33 @@ class SurvivalCandidateGeneratorTest {
+         assertTrue(candidates.stream().noneMatch(SurvivalAction.EquipDeathProtection.class::isInstance));
+     }
+ 
++    @Test
++    void shieldCanBlockTheCurrentMeleeHitBeforeThatHitDisablesBlocking() {
++        InventorySnapshot inventory = new InventorySnapshot(
++            0,
++            Map.of(0, slot(0, "minecraft:shield", false)),
++            false
++        );
++        MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36));
++        DamageSourceSnapshot damage = new DamageSourceSnapshot(
++            DamageRange.exact(10f), Set.of(), false, 1f, false, Optional.empty(), "test:disabling_melee"
++        );
++        ThreatTimeline disablingMelee = new ThreatTimeline(List.of(new ThreatEvent(
++            "disabling-melee", ThreatKind.MELEE, new TickWindow(6, 6), damage, Confidence.EXACT,
++            Optional.empty(), Optional.empty(), true, true, true, true
++        )));
++
++        List<SurvivalAction> candidates = generator.generate(
++            context(DeathProtectionSnapshot.none(), BlockingSnapshot.none()),
++            disablingMelee,
++            inventory,
++            menu
++        );
++
++        assertTrue(candidates.stream().anyMatch(SurvivalAction.RaiseShield.class::isInstance),
++            "vanilla blocks the current melee hit before applying the blocking-item disable");
++    }
++
+     @Test
+     void selectedBlockingItemOnServerCooldownCannotCreateRaiseShieldCandidate() {
+         InventorySlotSnapshot coolingShield = blockingSlotOnCooldown(0, "minecraft:shield");
