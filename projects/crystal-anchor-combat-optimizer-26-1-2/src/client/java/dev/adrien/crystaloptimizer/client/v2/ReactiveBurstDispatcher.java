@@ -12,6 +12,7 @@ import dev.adrien.crystaloptimizer.v2.execution.LiveCombatView;
 import dev.adrien.crystaloptimizer.v2.execution.PendingItemLedger;
 import dev.adrien.crystaloptimizer.v2.reactive.ReactiveDecision;
 import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
+import dev.adrien.crystaloptimizer.v2.strategy.ResourceChain;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -19,6 +20,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
 public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
+    private static final int GROUP_RESERVATION_INDEX = 255;
+
     private final VanillaInteractionDispatcher dispatcher;
     private final LiveCombatView view;
     private final PendingItemLedger pendingItems;
@@ -56,12 +59,41 @@ public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
         List<DispatchReceipt> receipts = new ArrayList<>();
         List<Long> reservationIds = new ArrayList<>();
         boolean critical = decision.slot() != ApprovalSlot.PREPARE;
+        ResourceChain resourceChain = decision.approval().resources();
+        long groupReservationId = reservationId(decision.actionId(), GROUP_RESERVATION_INDEX);
+        boolean groupedReservation = !resourceChain.isEmpty();
 
+        if (groupedReservation) {
+            if (startIndex == 0) {
+                try {
+                    pendingItems.reserveChain(
+                        groupReservationId,
+                        resourceChain,
+                        view::observedCount
+                    );
+                    reservationIds.add(groupReservationId);
+                } catch (IllegalStateException unavailable) {
+                    return new BurstReceipt(
+                        List.of(DispatchReceipt.failed("resource chain unavailable")),
+                        List.of()
+                    );
+                }
+            } else if (!pendingItems.hasReservation(groupReservationId)) {
+                return new BurstReceipt(
+                    List.of(DispatchReceipt.failed("resource chain reservation missing")),
+                    List.of()
+                );
+            }
+        }
+
+        boolean sentAny = false;
         for (int index = startIndex; index < decision.actions().size(); index++) {
             CombatAction action = decision.actions().get(index);
-            long reservationId = reserveIfNeeded(decision.actionId(), index, action);
-            if (reservationId >= 0L) {
-                reservationIds.add(reservationId);
+            long perActionReservationId = groupedReservation
+                ? -1L
+                : reserveIfNeeded(decision.actionId(), index, action);
+            if (perActionReservationId >= 0L) {
+                reservationIds.add(perActionReservationId);
             }
 
             DispatchReceipt receipt = dispatcher.dispatch(
@@ -70,13 +102,20 @@ public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
                 critical
             );
             receipts.add(receipt);
-            if (receipt.status() != DispatchReceipt.Status.SENT) {
-                if (reservationId >= 0L) {
-                    pendingItems.release(reservationId);
-                    reservationIds.remove(reservationId);
-                }
-                break;
+            if (receipt.status() == DispatchReceipt.Status.SENT) {
+                sentAny = true;
+                continue;
             }
+
+            if (perActionReservationId >= 0L) {
+                pendingItems.release(perActionReservationId);
+                reservationIds.remove(perActionReservationId);
+            }
+            if (groupedReservation && startIndex == 0 && !sentAny) {
+                pendingItems.release(groupReservationId);
+                reservationIds.remove(groupReservationId);
+            }
+            break;
         }
 
         return new BurstReceipt(receipts, reservationIds);
