@@ -36,7 +36,7 @@ final class TargetEligibilityPolicyTest {
 
     private static CombatSnapshot snapshot(boolean deadTarget) {
         SimCombatant target = deadTarget
-            ? SimCombatant.testPlayer(0.0f).withDead(true)
+            ? SimCombatant.testPlayer(0.0f)
             : SimCombatant.testPlayer(20.0f);
         return new CombatSnapshot(
             1L,
