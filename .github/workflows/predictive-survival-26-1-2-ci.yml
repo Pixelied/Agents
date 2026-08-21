@@ -51,6 +51,24 @@ jobs:
           fi
           git am ci/predictive-survival-hardening/post-recovery.patch
           git am ci/predictive-survival-hardening/runtime-test-fixes.patch
+
+          # Minecraft 26.1.2 binds item default components during resource reload, not Bootstrap.bootStrap().
+          # Keep custom DEATH_PROTECTION adapter coverage at the exact-runtime boundary where those holders are valid.
+          rm -f projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/damage/MinecraftDeathProtectionComponentTest.java
+          cp ci/predictive-survival-hardening/CustomDeathProtectionValidationScenarios.java \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/CustomDeathProtectionValidationScenarios.java
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java')
+          text = path.read_text()
+          needle = '            WitherSkeletonValidationScenarios.validateSourceFaithfulMeleeAndPreemptiveProtection(context, singleplayer);\n'
+          insert = needle + '            CustomDeathProtectionValidationScenarios.validateCustomDeathProtectionComponents(context, singleplayer);\n'
+          if 'CustomDeathProtectionValidationScenarios.validateCustomDeathProtectionComponents' not in text:
+              if needle not in text:
+                  raise SystemExit('Wither Skeleton runtime validation hook not found')
+              text = text.replace(needle, insert, 1)
+              path.write_text(text)
+          PY
           git status --short
 
       - name: Set up Java 25
@@ -95,9 +113,9 @@ jobs:
             echo 'unit test results not found'
           fi
           echo '--- gametest-console.log tail ---'
-          if [ -f gametest-console.log ]; then tail -n 160 gametest-console.log; else echo 'gametest-console.log not found'; fi
+          if [ -f gametest-console.log ]; then tail -n 180 gametest-console.log; else echo 'gametest-console.log not found'; fi
           echo '--- run/logs/latest.log tail ---'
-          if [ -f run/logs/latest.log ]; then tail -n 160 run/logs/latest.log; else echo 'latest.log not found'; fi
+          if [ -f run/logs/latest.log ]; then tail -n 180 run/logs/latest.log; else echo 'latest.log not found'; fi
 
       - name: Verify production jar isolation
         working-directory: projects/predictive-survival-26-1-2
