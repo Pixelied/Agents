@@ -1,0 +1,107 @@
+name: Predictive Survival Hardening Diagnostic 5
+
+on:
+  push:
+    branches:
+      - ci/predictive-survival-hardening-recovery-check
+    paths-ignore:
+      - '.ci/predictive-survival-hardening/anchor-restore-compile-GREEN.txt'
+      - '.ci/predictive-survival-hardening/anchor-restore-compile-RED.txt'
+      - '.ci/predictive-survival-hardening/anchor-restore-runtime-GREEN.txt'
+      - '.ci/predictive-survival-hardening/anchor-restore-runtime-RED.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  anchor-restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply current runtime-test harness corrections and registrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/WitherSkeletonMeleeValidationScenarios.java \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/TriggerableExplosionProtectionValidationScenarios.java
+          do
+            sed -i 's/ClientGameTestContext\.DEFAULT_TIMEOUT/200/g' "$file"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java')
+          s = p.read_text()
+          wither = '            WitherSkeletonMeleeValidationScenarios.validateRealMeleeDamageFollowupAndProactiveProtection(context, singleplayer);\n'
+          restore = '            HandRestorationValidationScenarios.validateSafeHandRestorationAfterThreatDisappears(context, singleplayer);\n'
+          crystal = '            TriggerableExplosionProtectionValidationScenarios.validateVisibleLethalCrystalArmsProtectionBeforeDetonation(context, singleplayer);\n'
+          anchor = '            RespawnAnchorProtectionValidationScenarios.validateChargedAnchorArmsProtectionBeforeInteraction(context, singleplayer);\n'
+          if restore not in s:
+              if wither not in s:
+                  raise SystemExit('Wither validation registration marker missing')
+              s = s.replace(wither, wither + restore)
+          if anchor not in s:
+              if crystal not in s:
+                  raise SystemExit('Crystal validation registration marker missing')
+              s = s.replace(crystal, anchor + crystal)
+          p.write_text(s)
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+      - name: Compile exact client GameTests
+        id: compile
+        shell: bash
+        run: |
+          set +e
+          (cd projects/predictive-survival-26-1-2 && gradle --no-daemon --console=plain compileGametestJava) > /tmp/anchor-restore-compile.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          mkdir -p .ci/predictive-survival-hardening
+          rm -f .ci/predictive-survival-hardening/anchor-restore-compile-GREEN.txt .ci/predictive-survival-hardening/anchor-restore-compile-RED.txt
+          if [ "$status" -eq 0 ]; then
+            printf 'GREEN\n' > .ci/predictive-survival-hardening/anchor-restore-compile-GREEN.txt
+          else
+            { grep -n -E 'error:|cannot find symbol|incompatible types|does not exist|symbol:|location:|FAILURE:' /tmp/anchor-restore-compile.log || true; printf '\n--- tail ---\n'; tail -n 120 /tmp/anchor-restore-compile.log; } > .ci/predictive-survival-hardening/anchor-restore-compile-RED.txt
+          fi
+          exit 0
+      - name: Run exact client GameTests
+        id: runtime
+        if: steps.compile.outputs.status == '0'
+        shell: bash
+        run: |
+          set +e
+          (cd projects/predictive-survival-26-1-2 && xvfb-run -a gradle --no-daemon --console=plain runClientGameTest) > /tmp/anchor-restore-runtime.log 2>&1
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          mkdir -p .ci/predictive-survival-hardening
+          rm -f .ci/predictive-survival-hardening/anchor-restore-runtime-GREEN.txt .ci/predictive-survival-hardening/anchor-restore-runtime-RED.txt
+          if [ "$status" -eq 0 ]; then
+            printf 'GREEN\n' > .ci/predictive-survival-hardening/anchor-restore-runtime-GREEN.txt
+          else
+            { grep -n -E 'AssertionError|failed|FAILED|Exception|ERROR|Respawn Anchor|restor|Totem|Predictive Survival' /tmp/anchor-restore-runtime.log || true; printf '\n--- tail ---\n'; tail -n 180 /tmp/anchor-restore-runtime.log; } > .ci/predictive-survival-hardening/anchor-restore-runtime-RED.txt
+          fi
+          exit 0
+      - name: Persist concise results
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -- projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/SurvivalValidationClientGameTest.java projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/WitherSkeletonMeleeValidationScenarios.java projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/TriggerableExplosionProtectionValidationScenarios.java || true
+          git config user.name 'Predictive Survival Diagnostic CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .ci/predictive-survival-hardening/anchor-restore-*.txt 2>/dev/null || true
+          git commit -m 'ci: persist anchor/restoration validation result [skip ci]' || exit 0
+          git push origin HEAD:ci/predictive-survival-hardening-recovery-check
+      - name: Enforce result
+        shell: bash
+        run: |
+          test "${{ steps.compile.outputs.status }}" = '0'
+          test "${{ steps.runtime.outputs.status }}" = '0'
