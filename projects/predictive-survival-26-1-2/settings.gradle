@@ -13,7 +13,7 @@ pluginManagement {
 def routedMarker = new File(settingsDir, '.ci-routed-protection-applied')
 if (!routedMarker.exists()) {
     def repoRoot = settingsDir.toPath().resolve('../..').normalize().toFile()
-    def command = "cat ci/predictive-survival-hardening/routed2/part-*.b64 | base64 --decode > /tmp/routed-protection.patch && echo '6b87e02bfc6b17b55d0e8923eadc21d1060f5b9e92d165f984958d98e0e0a80a  /tmp/routed-protection.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn /tmp/routed-protection.patch && echo '45d2be485fc243dfbbd8b7d2876af5f03548e92a60f4bde3492fc4bb72e83d57  ci/predictive-survival-hardening/blocking-cooldown.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn ci/predictive-survival-hardening/blocking-cooldown.patch"
+    def command = "cat ci/predictive-survival-hardening/routed2/part-*.b64 | base64 --decode > /tmp/routed-protection.patch && echo '6b87e02bfc6b17b55d0e8923eadc21d1060f5b9e92d165f984958d98e0e0a80a  /tmp/routed-protection.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn /tmp/routed-protection.patch && echo '45d2be485fc243dfbbd8b7d2876af5f03548e92a60f4bde3492fc4bb72e83d57  ci/predictive-survival-hardening/blocking-cooldown.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn ci/predictive-survival-hardening/blocking-cooldown.patch && echo '5650fb340017cb1e3723deea4e2f40ae2b43b25017972b9bb68f58d6692b2a4b  ci/predictive-survival-hardening/shield-disable-candidate.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn ci/predictive-survival-hardening/shield-disable-candidate.patch"
     def process = new ProcessBuilder('bash', '-lc', command)
         .directory(repoRoot)
         .redirectErrorStream(true)
