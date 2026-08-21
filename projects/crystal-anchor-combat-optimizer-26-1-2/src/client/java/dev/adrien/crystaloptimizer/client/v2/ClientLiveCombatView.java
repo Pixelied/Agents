@@ -13,6 +13,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
@@ -164,5 +165,21 @@ public final class ClientLiveCombatView implements LiveCombatView {
     public int selectedHotbarSlot() {
         LocalPlayer self = minecraft.player;
         return self == null ? -1 : self.getInventory().getSelectedSlot();
+    }
+
+    @Override
+    public float selfEffectiveHealth() {
+        LocalPlayer self = minecraft.player;
+        return self == null ? 0.0f : self.getHealth() + self.getAbsorptionAmount();
+    }
+
+    @Override
+    public boolean selfTotemAvailable() {
+        LocalPlayer self = minecraft.player;
+        if (self == null) {
+            return false;
+        }
+        return self.getMainHandItem().is(Items.TOTEM_OF_UNDYING)
+            || self.getOffhandItem().is(Items.TOTEM_OF_UNDYING);
     }
 }
