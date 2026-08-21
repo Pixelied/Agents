@@ -1,20 +1,57 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
+import dev.adrien.crystaloptimizer.v2.strategy.HurtThresholdEstimate;
+import dev.adrien.crystaloptimizer.v2.strategy.StrategicTargetSelector;
+import dev.adrien.crystaloptimizer.v2.strategy.TargetPreScore;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 
 public final class TargetManager {
-    private static final int SHORTLIST_LIMIT = 3;
-
     private UUID stickyTarget;
+
+    public List<TargetPreScore> preScores(
+        LocalPlayer self,
+        ClientLevel level,
+        OptimizerConfig config,
+        Set<UUID> protectedIds
+    ) {
+        Objects.requireNonNull(self, "self");
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(config, "config");
+        Objects.requireNonNull(protectedIds, "protectedIds");
+        double rangeSquared = config.targetRange() * config.targetRange();
+        return level.players().stream()
+            .filter(target -> valid(self, target, rangeSquared, protectedIds))
+            .map(target -> new TargetPreScore(
+                target.getUUID(),
+                self.distanceToSqr(target),
+                effectiveHealthUpperBound(target),
+                HurtThresholdEstimate.MAX_CRYSTAL_HARD_INCOMING,
+                recentAttacker(self, target),
+                target.getUUID().equals(stickyTarget)
+            ))
+            .sorted(Comparator
+                .comparing(TargetPreScore::sticky).reversed()
+                .thenComparing(TargetPreScore::recentAttacker, Comparator.reverseOrder())
+                .thenComparing(TargetPreScore::cheapCouldFinish, Comparator.reverseOrder())
+                .thenComparingDouble(TargetPreScore::effectiveHealthUpperBound)
+                .thenComparingDouble(TargetPreScore::distanceSquared))
+            .limit(StrategicTargetSelector.MAX_EXACT_TARGETS)
+            .toList();
+    }
 
     public Optional<AbstractClientPlayer> select(
         LocalPlayer self,
@@ -22,33 +59,25 @@ public final class TargetManager {
         OptimizerConfig config,
         ToDoubleFunction<AbstractClientPlayer> immediateLethalMillis
     ) {
-        Objects.requireNonNull(self, "self");
-        Objects.requireNonNull(level, "level");
-        Objects.requireNonNull(config, "config");
         Objects.requireNonNull(immediateLethalMillis, "immediateLethalMillis");
-
-        double rangeSquared = config.targetRange() * config.targetRange();
-        List<AbstractClientPlayer> shortlist = level.players().stream()
-            .filter(target -> valid(self, target, rangeSquared))
-            .sorted(Comparator
-                .comparingInt((AbstractClientPlayer target) -> shortlistPriority(self, target)).reversed()
-                .thenComparingDouble(self::distanceToSqr))
-            .limit(SHORTLIST_LIMIT)
+        Map<UUID, AbstractClientPlayer> byId = level.players().stream()
+            .collect(Collectors.toMap(AbstractClientPlayer::getUUID, player -> player));
+        List<AbstractClientPlayer> candidates = preScores(self, level, config, Set.of()).stream()
+            .map(score -> byId.get(score.targetId()))
+            .filter(Objects::nonNull)
             .toList();
-
-        if (shortlist.isEmpty()) {
-            stickyTarget = null;
+        if (candidates.isEmpty()) {
+            clear();
             return Optional.empty();
         }
-
-        AbstractClientPlayer selected = shortlist.stream()
+        AbstractClientPlayer selected = candidates.stream()
             .min(Comparator
                 .comparingDouble((AbstractClientPlayer target) -> safeScore(immediateLethalMillis, target))
                 .thenComparingInt(target -> target.getUUID().equals(stickyTarget) ? 0 : 1)
                 .thenComparingInt(target -> recentAttacker(self, target) ? 0 : 1)
                 .thenComparingDouble(self::distanceToSqr))
             .orElseThrow();
-        stickyTarget = selected.getUUID();
+        markSelected(selected.getUUID());
         return Optional.of(selected);
     }
 
@@ -56,26 +85,24 @@ public final class TargetManager {
         return Optional.ofNullable(stickyTarget);
     }
 
+    public void markSelected(UUID targetId) {
+        stickyTarget = Objects.requireNonNull(targetId, "targetId");
+    }
+
     public void clear() {
         stickyTarget = null;
     }
 
-    private int shortlistPriority(LocalPlayer self, AbstractClientPlayer target) {
-        int priority = 0;
-        if (target.getUUID().equals(stickyTarget)) {
-            priority += 2;
-        }
-        if (recentAttacker(self, target)) {
-            priority += 1;
-        }
-        return priority;
-    }
-
-    private static boolean valid(LocalPlayer self, AbstractClientPlayer target, double rangeSquared) {
+    private static boolean valid(
+        LocalPlayer self,
+        AbstractClientPlayer target,
+        double rangeSquared,
+        Set<UUID> protectedIds
+    ) {
         if (target == self || target.isRemoved() || target.isDeadOrDying() || target.isSpectator()) {
             return false;
         }
-        if (self.isAlliedTo(target)) {
+        if (protectedIds.contains(target.getUUID()) || self.isAlliedTo(target)) {
             return false;
         }
         return self.distanceToSqr(target) <= rangeSquared;
@@ -84,6 +111,14 @@ public final class TargetManager {
     private static boolean recentAttacker(LocalPlayer self, AbstractClientPlayer target) {
         return self.getLastHurtByMob() == target
             && self.tickCount - self.getLastHurtByMobTimestamp() <= 40;
+    }
+
+    private static float effectiveHealthUpperBound(AbstractClientPlayer target) {
+        MobEffectInstance absorption = target.getEffect(MobEffects.ABSORPTION);
+        float absorptionUpper = absorption == null
+            ? 0.0f
+            : 4.0f * Math.max(0, absorption.getAmplifier() + 1);
+        return Math.max(0.0f, target.getHealth()) + absorptionUpper;
     }
 
     private static double safeScore(
