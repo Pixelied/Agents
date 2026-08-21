@@ -1,0 +1,63 @@
+name: Predictive Survival Hardening Diagnostic 4
+
+on:
+  push:
+    branches:
+      - ci/predictive-survival-hardening-recovery-check
+    paths-ignore:
+      - '.ci/predictive-survival-hardening/runtime-result-GREEN.txt'
+      - '.ci/predictive-survival-hardening/runtime-result-RED.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  run-gametest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply current local runtime-test timeout fix in diagnostic workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/WitherSkeletonMeleeValidationScenarios.java \
+            projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/TriggerableExplosionProtectionValidationScenarios.java
+          do
+            sed -i 's/ClientGameTestContext\.DEFAULT_TIMEOUT/200/g' "$file"
+          done
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+      - name: Run exact client GameTests and persist concise result
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          (cd projects/predictive-survival-26-1-2 && xvfb-run -a gradle --no-daemon --console=plain runClientGameTest) > /tmp/runtime.log 2>&1
+          status=$?
+          set -e
+          mkdir -p .ci/predictive-survival-hardening
+          rm -f .ci/predictive-survival-hardening/runtime-result-GREEN.txt .ci/predictive-survival-hardening/runtime-result-RED.txt
+          if [ "$status" -eq 0 ]; then
+            printf 'GREEN\n' > .ci/predictive-survival-hardening/runtime-result-GREEN.txt
+          else
+            {
+              grep -n -E 'AssertionError|GameTest|failed|FAILED|Exception|ERROR|Predictive Survival|Wither|Crystal|Totem' /tmp/runtime.log || true
+              printf '\n--- tail ---\n'
+              tail -n 180 /tmp/runtime.log
+            } > .ci/predictive-survival-hardening/runtime-result-RED.txt
+          fi
+          git checkout -- projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/WitherSkeletonMeleeValidationScenarios.java projects/predictive-survival-26-1-2/src/gametest/java/dev/pixelied/survival/validation/TriggerableExplosionProtectionValidationScenarios.java || true
+          git config user.name 'Predictive Survival Diagnostic CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .ci/predictive-survival-hardening/runtime-result-GREEN.txt .ci/predictive-survival-hardening/runtime-result-RED.txt 2>/dev/null || true
+          git commit -m 'ci: persist Predictive Survival runtime result [skip ci]' || exit 0
+          git push origin HEAD:ci/predictive-survival-hardening-recovery-check
+          exit "$status"
