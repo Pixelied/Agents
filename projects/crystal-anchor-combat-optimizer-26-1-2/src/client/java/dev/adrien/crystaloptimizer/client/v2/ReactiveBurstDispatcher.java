@@ -60,7 +60,7 @@ public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
         List<Long> reservationIds = new ArrayList<>();
         boolean critical = decision.slot() != ApprovalSlot.PREPARE;
         ResourceChain resourceChain = decision.approval().resources();
-        long groupReservationId = reservationId(decision.actionId(), GROUP_RESERVATION_INDEX);
+        long groupReservationId = groupReservationId(decision.actionId());
         boolean groupedReservation = !resourceChain.isEmpty();
 
         if (groupedReservation) {
@@ -126,6 +126,10 @@ public final class ReactiveBurstDispatcher implements ReactiveBurstSink {
         for (long reservationId : receipt.pendingReservationIds()) {
             pendingItems.release(reservationId);
         }
+    }
+
+    static long groupReservationId(long actionId) {
+        return reservationId(actionId, GROUP_RESERVATION_INDEX);
     }
 
     private long reserveIfNeeded(long actionId, int index, CombatAction action) {
