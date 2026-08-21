@@ -33,8 +33,14 @@ final class CustomDeathProtectionValidationScenarios {
             ))
         ));
         setServerSelectedStack(singleplayer, deterministic);
-        context.waitFor(minecraft -> minecraft.player != null
-            && deterministic.equals(minecraft.player.getMainHandItem().get(DataComponents.DEATH_PROTECTION)));
+        context.waitFor(minecraft -> {
+            if (minecraft.player == null) return false;
+            return new MinecraftEquipmentAdapter()
+                .deathProtection(minecraft.player)
+                .mainHand()
+                .map(item -> item.clearExistingEffects() && !item.outcomeUncertain())
+                .orElse(false);
+        });
 
         context.runOnClient(minecraft -> {
             if (minecraft.player == null) throw new AssertionError("client player unavailable");
@@ -59,8 +65,14 @@ final class CustomDeathProtectionValidationScenarios {
             new ApplyStatusEffectsConsumeEffect(new MobEffectInstance(MobEffects.REGENERATION, 200, 1), 0.5f)
         ));
         setServerSelectedStack(singleplayer, probabilistic);
-        context.waitFor(minecraft -> minecraft.player != null
-            && probabilistic.equals(minecraft.player.getMainHandItem().get(DataComponents.DEATH_PROTECTION)));
+        context.waitFor(minecraft -> {
+            if (minecraft.player == null) return false;
+            return new MinecraftEquipmentAdapter()
+                .deathProtection(minecraft.player)
+                .mainHand()
+                .map(DeathProtectionSnapshot.ProtectionItem::outcomeUncertain)
+                .orElse(false);
+        });
 
         context.runOnClient(minecraft -> {
             if (minecraft.player == null) throw new AssertionError("client player unavailable");
