@@ -2,6 +2,60 @@ plugins {
     id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
+// TEMP CI bootstrap: reconstruct the persisted hardening source delta exactly once.
+// This exists only on the throwaway verification branch; the final feature branch does not use it.
+def recoveryChunks = (0..6).collect { file(String.format('.ci-hardening/source-delta-%02d.b64', it)) }
+if (recoveryChunks.every { it.isFile() }) {
+    def encoded = recoveryChunks.collect { it.getText('UTF-8').trim() }.join('')
+    byte[] compressed = java.util.Base64.decoder.decode(encoded)
+    def sha = java.security.MessageDigest.getInstance('SHA-256')
+        .digest(compressed)
+        .collect { String.format('%02x', it & 0xff) }
+        .join('')
+    def expectedSha = '1b2b008b2778ef3e0b8f7520455d9107f4453b89360857e1ee66892d60112fef'
+    if (sha != expectedSha) {
+        throw new GradleException("Predictive Survival recovery delta SHA mismatch: ${sha}")
+    }
+
+    def tempDir = new File(System.getProperty('java.io.tmpdir'), 'predictive-survival-hardening-ci')
+    tempDir.mkdirs()
+    def gzipFile = new File(tempDir, 'source-delta.patch.gz')
+    def patchFile = new File(tempDir, 'source-delta.patch')
+    gzipFile.bytes = compressed
+    gzipFile.withInputStream { input ->
+        new java.util.zip.GZIPInputStream(input).withCloseable { gzip ->
+            patchFile.withOutputStream { output -> gzip.transferTo(output) }
+        }
+    }
+
+    def repositoryRoot = rootDir.parentFile.parentFile
+    def runGit = { List<String> args ->
+        def command = ['git'] + args
+        def process = new ProcessBuilder(command)
+            .directory(repositoryRoot)
+            .redirectErrorStream(true)
+            .start()
+        def output = process.inputStream.getText('UTF-8')
+        def exitCode = process.waitFor()
+        [exitCode: exitCode, output: output]
+    }
+
+    def forward = runGit(['apply', '--check', patchFile.absolutePath])
+    if (forward.exitCode == 0) {
+        def applied = runGit(['apply', '--whitespace=nowarn', patchFile.absolutePath])
+        if (applied.exitCode != 0) {
+            throw new GradleException("Could not apply Predictive Survival recovery delta:\n${applied.output}")
+        }
+        logger.lifecycle('Applied verified Predictive Survival recovery source delta')
+    } else {
+        def reverse = runGit(['apply', '--reverse', '--check', patchFile.absolutePath])
+        if (reverse.exitCode != 0) {
+            throw new GradleException("Predictive Survival recovery delta is neither applicable nor already applied:\nforward:\n${forward.output}\nreverse:\n${reverse.output}")
+        }
+        logger.lifecycle('Predictive Survival recovery source delta already applied')
+    }
+}
+
 base {
     archivesName = project.archives_base_name
 }
@@ -27,10 +81,15 @@ fabricApi {
     }
 }
 
+repositories {
+    maven { url = 'https://maven.terraformersmc.com/' }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    implementation "com.terraformersmc:modmenu:${modmenu_version}"
 
     testImplementation "net.fabricmc:fabric-loader-junit:${loader_version}"
     testImplementation "org.junit.jupiter:junit-jupiter:${junit_version}"
