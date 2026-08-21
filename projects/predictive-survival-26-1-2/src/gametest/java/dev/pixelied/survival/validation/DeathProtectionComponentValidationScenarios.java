@@ -72,5 +72,10 @@ final class DeathProtectionComponentValidationScenarios {
             player.containerMenu.broadcastChanges();
         });
         context.waitFor(minecraft -> minecraft.player != null && minecraft.player.getMainHandItem().isEmpty());
+
+        RoutedDeathProtectionValidationScenarios.validateRoutedCustomProtectionPreservesObservableSemantics(
+            context,
+            singleplayer
+        );
     }
 }
