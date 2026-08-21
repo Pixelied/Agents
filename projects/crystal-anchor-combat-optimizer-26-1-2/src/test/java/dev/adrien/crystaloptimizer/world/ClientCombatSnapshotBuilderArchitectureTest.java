@@ -24,9 +24,12 @@ class ClientCombatSnapshotBuilderArchitectureTest {
         assertTrue(source.contains("EnvironmentAttributes.RESPAWN_ANCHOR_WORKS"));
         assertTrue(source.contains("CombatRegion.of"));
         assertTrue(source.contains("InteractionTimingRecorder.instance().estimateBurst"));
+        assertTrue(source.contains("self.getAbsorptionAmount()"),
+            "local absorption is directly observable and must be captured exactly");
 
         assertFalse(source.contains("target.getInventory()"));
-        assertFalse(source.contains("getAbsorptionAmount()"));
+        assertFalse(source.contains("target.getAbsorptionAmount()"),
+            "remote absorption must stay inferred from client-visible effects rather than hidden target state");
         assertFalse(source.contains("new Serverbound"));
         assertFalse(source.contains("setDeltaMovement("));
         assertFalse(source.contains("input."));
