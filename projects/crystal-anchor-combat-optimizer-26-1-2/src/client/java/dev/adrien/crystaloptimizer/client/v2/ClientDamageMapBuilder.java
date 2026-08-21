@@ -48,6 +48,7 @@ import net.minecraft.world.phys.Vec3;
 
 public final class ClientDamageMapBuilder {
     private static final int MAX_CANDIDATES = 96;
+    private static final double CERTIFIED_OUTCOME_CONFIDENCE = 0.80;
 
     private final ClientCombatSnapshotBuilder snapshots;
     private final CandidateGenerator candidates;
@@ -208,9 +209,10 @@ public final class ClientDamageMapBuilder {
         );
         SelfDamageEstimate selfDamage = selfDamageEstimate(state, explosion);
 
-        boolean wouldKillHealth = targetDamage.lowerBound() >= state.target().health();
-        boolean popsTotem = wouldKillHealth && state.target().totem().available();
-        boolean lethal = wouldKillHealth && !state.target().totem().available();
+        boolean popsTotem = targetDamage.popProbability() == 1.0
+            && targetDamage.confidence() >= CERTIFIED_OUTCOME_CONFIDENCE;
+        boolean lethal = targetDamage.killProbability() == 1.0
+            && targetDamage.confidence() >= CERTIFIED_OUTCOME_CONFIDENCE;
         OpportunityIntent intent = lethal
             ? OpportunityIntent.LETHAL
             : popsTotem
