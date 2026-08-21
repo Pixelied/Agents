@@ -74,29 +74,29 @@ index 0000000..6f6a8f0
 +        ));
 +    }
 +}
-+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java
-+index 25d3ba6..8cc9fc6 100644
-+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java
-++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java
-+@@ -13,7 +13,6 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
-+ import net.minecraft.world.damagesource.DamageType;
-+ import net.minecraft.world.item.ItemStack;
-+ import net.minecraft.world.item.component.DamageResistant;
-+-import net.minecraft.world.item.component.DeathProtection;
-+ import net.minecraft.world.item.enchantment.Enchantment;
-+ import net.minecraft.world.item.enchantment.Enchantments;
-+ import net.minecraft.world.item.enchantment.ItemEnchantments;
-+@@ -110,12 +109,7 @@ public final class MinecraftEquipmentAdapter {
-+     }
-+ 
-+     private static java.util.Optional<DeathProtectionSnapshot.ProtectionItem> protectionItem(ItemStack stack) {
-+-        DeathProtection component = stack.get(DataComponents.DEATH_PROTECTION);
-+-        if (component == null) return java.util.Optional.empty();
-+-        DeathProtectionSnapshot.ProtectionItem item = component.equals(DeathProtection.TOTEM_OF_UNDYING)
-+-            ? DeathProtectionSnapshot.ProtectionItem.vanillaTotem()
-+-            : DeathProtectionSnapshot.ProtectionItem.generic();
-+-        return java.util.Optional.of(item);
-++        return MinecraftDeathProtectionAdapter.snapshot(stack);
-+     }
-+ 
-+     private static ProtectionEnchantmentsSnapshot protectionEnchantments(ItemStack stack, EquipmentSlot slot) {
+diff --git a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java
+index 25d3ba6..8cc9fc6 100644
+--- a/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java
++++ b/projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/damage/MinecraftEquipmentAdapter.java
+@@ -13,7 +13,6 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
+ import net.minecraft.world.damagesource.DamageType;
+ import net.minecraft.world.item.ItemStack;
+ import net.minecraft.world.item.component.DamageResistant;
+-import net.minecraft.world.item.component.DeathProtection;
+ import net.minecraft.world.item.enchantment.Enchantment;
+ import net.minecraft.world.item.enchantment.Enchantments;
+ import net.minecraft.world.item.enchantment.ItemEnchantments;
+@@ -110,12 +109,7 @@ public final class MinecraftEquipmentAdapter {
+     }
+ 
+     private static java.util.Optional<DeathProtectionSnapshot.ProtectionItem> protectionItem(ItemStack stack) {
+-        DeathProtection component = stack.get(DataComponents.DEATH_PROTECTION);
+-        if (component == null) return java.util.Optional.empty();
+-        DeathProtectionSnapshot.ProtectionItem item = component.equals(DeathProtection.TOTEM_OF_UNDYING)
+-            ? DeathProtectionSnapshot.ProtectionItem.vanillaTotem()
+-            : DeathProtectionSnapshot.ProtectionItem.generic();
+-        return java.util.Optional.of(item);
++        return MinecraftDeathProtectionAdapter.snapshot(stack);
+     }
+ 
+     private static ProtectionEnchantmentsSnapshot protectionEnchantments(ItemStack stack, EquipmentSlot slot) {
