@@ -10,6 +10,7 @@ import dev.adrien.crystaloptimizer.action.PlaceObsidian;
 import dev.adrien.crystaloptimizer.action.SimulationServices;
 import dev.adrien.crystaloptimizer.candidate.CandidateFeatureEstimator;
 import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
+import dev.adrien.crystaloptimizer.candidate.CandidateSelectionPolicy;
 import dev.adrien.crystaloptimizer.client.world.ClientCombatSnapshotBuilder;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.sim.damage.DamageRequest;
@@ -47,11 +48,11 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 public final class ClientDamageMapBuilder {
-    private static final int MAX_CANDIDATES = 96;
     private static final double CERTIFIED_OUTCOME_CONFIDENCE = 0.80;
 
     private final ClientCombatSnapshotBuilder snapshots;
     private final CandidateGenerator candidates;
+    private final CandidateSelectionPolicy selectionPolicy;
     private final StrategicPreparationPlanner preparation;
     private final DamageEngine damageEngine;
     private final ClientDamageScenarioFactory scenarios;
@@ -60,6 +61,7 @@ public final class ClientDamageMapBuilder {
     public ClientDamageMapBuilder(Minecraft minecraft, TimingEngine timingEngine) {
         this.snapshots = new ClientCombatSnapshotBuilder(Objects.requireNonNull(minecraft, "minecraft"));
         this.candidates = new CandidateGenerator(CandidateFeatureEstimator.conservative());
+        this.selectionPolicy = CandidateSelectionPolicy.v3Defaults();
         this.preparation = new StrategicPreparationPlanner(candidates);
         this.damageEngine = new DamageEngine();
         this.scenarios = new ClientDamageScenarioFactory();
@@ -84,11 +86,13 @@ public final class ClientDamageMapBuilder {
         long nowNanos = System.nanoTime();
         LinkedHashMap<String, DamageOpportunity> result = new LinkedHashMap<>();
 
-        int considered = 0;
-        for (var candidate : candidates.generate(state)) {
-            if (considered++ >= MAX_CANDIDATES) {
-                break;
-            }
+        var selectedCandidates = selectionPolicy.select(
+            state,
+            candidates.generate(state),
+            config.crystals(),
+            config.anchors()
+        );
+        for (var candidate : selectedCandidates) {
             CombatAction action = candidate.action();
             if (!enabled(action, config)) {
                 continue;
