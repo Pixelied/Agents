@@ -27,10 +27,10 @@ class ClientHotbarRestockingArchitectureTest {
             "inventory mutation must not race an outstanding reactive item reservation");
         assertTrue(coordinator.contains("restocker.restockOne(self)"));
         int restock = coordinator.indexOf("restocker.restockOne(self)");
-        int scanner = coordinator.indexOf("scanner.scan(", restock);
+        int strategic = coordinator.indexOf("new StrategicEpoch", restock);
         int stop = coordinator.indexOf("return;", restock);
-        assertTrue(restock >= 0 && stop > restock && scanner > stop,
-            "a restock tick must stop before strategic scanning to avoid racing inventory state");
+        assertTrue(restock >= 0 && stop > restock && strategic > stop,
+            "a restock tick must stop before target scoring/exact strategic work to avoid racing inventory state");
 
         assertTrue(restocker.contains("player.containerMenu != player.inventoryMenu"),
             "restocking must reject menus whose slot mapping is not the normal player inventory");
