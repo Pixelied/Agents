@@ -1,0 +1,23 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.5.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :
+Fabric Loom: 1.17.19
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1787308627000.json
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file '/home/runner/work/Agents/Agents/projects/predictive-survival-26-1-2/build.gradle' line: 17
+
+* What went wrong:
+A problem occurred evaluating root project 'predictive-survival-26-1-2'.
+> Predictive Survival recovery delta SHA mismatch: 4f7df1734103baf6b1015e7dd4677994591112a8f6e978f2fdc38d68a43e422f
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 10s
