@@ -13,7 +13,7 @@ pluginManagement {
 def routedMarker = new File(settingsDir, '.ci-routed-protection-applied')
 if (!routedMarker.exists()) {
     def repoRoot = settingsDir.toPath().resolve('../..').normalize().toFile()
-    def command = "cat ci/predictive-survival-hardening/routed2/part-*.b64 | base64 --decode > /tmp/routed-protection.patch && echo '6b87e02bfc6b17b55d0e8923eadc21d1060f5b9e92d165f984958d98e0e0a80a  /tmp/routed-protection.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn /tmp/routed-protection.patch"
+    def command = "cat ci/predictive-survival-hardening/routed2/part-*.b64 | base64 --decode > /tmp/routed-protection.patch && echo '6b87e02bfc6b17b55d0e8923eadc21d1060f5b9e92d165f984958d98e0e0a80a  /tmp/routed-protection.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn /tmp/routed-protection.patch && echo '45d2be485fc243dfbbd8b7d2876af5f03548e92a60f4bde3492fc4bb72e83d57  ci/predictive-survival-hardening/blocking-cooldown.patch' | sha256sum -c - && git apply --3way --whitespace=nowarn ci/predictive-survival-hardening/blocking-cooldown.patch"
     def process = new ProcessBuilder('bash', '-lc', command)
         .directory(repoRoot)
         .redirectErrorStream(true)
@@ -21,7 +21,7 @@ if (!routedMarker.exists()) {
     def output = process.inputStream.getText('UTF-8')
     def status = process.waitFor()
     if (status != 0) {
-        throw new GradleException("Could not apply routed-protection verification patch (${status}):\n${output}")
+        throw new GradleException("Could not apply verification patches (${status}):\n${output}")
     }
 
     def clientFile = new File(repoRoot, 'projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/PredictiveSurvivalClient.java')
@@ -64,6 +64,14 @@ if (!routedMarker.exists()) {
         }
         gameTestSource = gameTestSource.replace(instantHook,
             instantHook + '            HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger(context, singleplayer);\n')
+    }
+    def handHook = '            HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger(context, singleplayer);\n'
+    if (!gameTestSource.contains('BlockingCooldownValidationScenarios.validateServerCooldownMakesShieldUnavailable')) {
+        if (!gameTestSource.contains(handHook)) {
+            throw new GradleException('Hand restoration runtime validation hook was not found')
+        }
+        gameTestSource = gameTestSource.replace(handHook,
+            handHook + '            BlockingCooldownValidationScenarios.validateServerCooldownMakesShieldUnavailable(context, singleplayer);\n')
     }
     gameTestFile.setText(gameTestSource, 'UTF-8')
 
