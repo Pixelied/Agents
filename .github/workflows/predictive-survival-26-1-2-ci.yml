@@ -51,6 +51,7 @@ jobs:
           fi
           git am ci/predictive-survival-hardening/post-recovery.patch
           git am ci/predictive-survival-hardening/runtime-test-fixes.patch
+          git apply --3way ci/predictive-survival-hardening/death-protection-parser.patch
 
           # Minecraft 26.1.2 binds item default components during resource reload, not Bootstrap.bootStrap().
           # Keep custom DEATH_PROTECTION adapter coverage at the exact-runtime boundary where those holders are valid.
