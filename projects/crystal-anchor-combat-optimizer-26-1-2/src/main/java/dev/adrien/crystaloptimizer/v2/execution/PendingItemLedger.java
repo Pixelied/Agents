@@ -124,11 +124,36 @@ public final class PendingItemLedger {
         return Math.max(0, observedCount - reserved(item));
     }
 
+    public synchronized int availableExcluding(
+        long reservationId,
+        Item item,
+        int observedCount
+    ) {
+        Objects.requireNonNull(item, "item");
+        if (reservationId < 0L) {
+            throw new IllegalArgumentException("reservationId must be non-negative");
+        }
+        if (observedCount < 0) {
+            throw new IllegalArgumentException("observedCount must be non-negative");
+        }
+        int otherReserved = Math.max(0, reserved(item) - reservedBy(reservationId, item));
+        return Math.max(0, observedCount - otherReserved);
+    }
+
     public synchronized int reserved(Item item) {
         Objects.requireNonNull(item, "item");
         return reservations.values().stream()
             .mapToInt(reservation -> reservation.remaining().getOrDefault(item, 0))
             .sum();
+    }
+
+    public synchronized int reservedBy(long reservationId, Item item) {
+        Objects.requireNonNull(item, "item");
+        if (reservationId < 0L) {
+            throw new IllegalArgumentException("reservationId must be non-negative");
+        }
+        Reservation reservation = reservations.get(reservationId);
+        return reservation == null ? 0 : reservation.remaining().getOrDefault(item, 0);
     }
 
     public synchronized boolean hasReservation(long actionId) {
