@@ -6,19 +6,21 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 
 import java.util.List;
 import java.util.Optional;
 
 public final class FallLandingSolver {
     private static final double EPSILON = 1.0E-9d;
+    private static final double VANILLA_DEFAULT_GRAVITY = 0.08d;
+    private static final double SLOW_FALLING_GRAVITY_CAP = 0.01d;
 
     public Optional<LandingPrediction> solve(PredictionContext context) {
         if (context == null) throw new NullPointerException("context");
         PlayerSnapshot player = context.player();
         if (Boolean.parseBoolean(value(player, "fall_flying", "false"))) return Optional.empty();
 
-        double gravity = finiteNonNegative(value(player, "effective_gravity", "0.08"), 0.08d);
         double verticalFriction = finitePositive(value(player, "vertical_friction", "0.98"), 0.98d);
         double horizontalFriction = finitePositive(value(player, "horizontal_friction", "0.91"), 0.91d);
         double safeFallDistance = finiteNonNegative(value(player, "safe_fall_distance", "3"), 3d);
@@ -53,6 +55,7 @@ public final class FallLandingSolver {
 
             accumulatedFall += Math.max(0d, position.y() - nextPosition.y());
             position = nextPosition;
+            double gravity = effectiveGravityForFutureMovementTick(player, velocity, tick);
             velocity = new Vec3Snapshot(
                 velocity.x() * horizontalFriction,
                 (velocity.y() - gravity) * verticalFriction,
@@ -60,6 +63,28 @@ public final class FallLandingSolver {
             );
         }
         return Optional.empty();
+    }
+
+    /**
+     * Reconstructs LivingEntity#getEffectiveGravity for a future movement tick from a START_CLIENT_TICK
+     * snapshot. Mob effects tick before travel, so a finite Slow Falling effect with duration D is
+     * still present for future movement tick t only when D > t.
+     */
+    static double effectiveGravityForFutureMovementTick(
+        PlayerSnapshot player,
+        Vec3Snapshot velocity,
+        long futureTick
+    ) {
+        if (player == null) throw new NullPointerException("player");
+        if (velocity == null) throw new NullPointerException("velocity");
+        if (futureTick < 1L) throw new IllegalArgumentException("futureTick must be positive");
+
+        double baseGravity = capturedBaseGravity(player);
+        EffectInstanceSnapshot slowFalling = player.statusEffects().effects().get("minecraft:slow_falling");
+        if (velocity.y() > 0d || !activeForFutureMovementTick(slowFalling, futureTick)) {
+            return baseGravity;
+        }
+        return Math.min(baseGravity, SLOW_FALLING_GRAVITY_CAP);
     }
 
     public static float rawFallDamage(
@@ -135,27 +160,49 @@ public final class FallLandingSolver {
         return new FallSurface(1f, 0d);
     }
 
+    private static boolean activeForFutureMovementTick(EffectInstanceSnapshot effect, long futureTick) {
+        return effect != null
+            && (effect.infiniteDuration() || (long) effect.durationTicks() > futureTick);
+    }
+
+    private static double capturedBaseGravity(PlayerSnapshot player) {
+        Double captured = finiteDouble(player.state("base_gravity"));
+        if (captured != null) return captured;
+
+        // Older synthetic snapshots only carried effective_gravity. If Slow Falling was active
+        // while descending, that value may already be capped to 0.01 and cannot safely be projected
+        // beyond expiry. Production 26.1.2 snapshots always carry base_gravity; for old fixtures,
+        // fall back to vanilla's base 0.08 rather than incorrectly extending the favorable cap.
+        EffectInstanceSnapshot slowFalling = player.statusEffects().effects().get("minecraft:slow_falling");
+        if (slowFalling != null && player.velocity().y() <= 0d) return VANILLA_DEFAULT_GRAVITY;
+
+        Double effective = finiteDouble(player.state("effective_gravity"));
+        return effective == null ? VANILLA_DEFAULT_GRAVITY : effective;
+    }
+
     private static String value(PlayerSnapshot player, String key, String fallback) {
         String value = player.state(key);
         return value == null ? fallback : value;
     }
 
-    private static double finiteNonNegative(String value, double fallback) {
+    private static Double finiteDouble(String value) {
+        if (value == null) return null;
         try {
             double parsed = Double.parseDouble(value);
-            return Double.isFinite(parsed) && parsed >= 0d ? parsed : fallback;
+            return Double.isFinite(parsed) ? parsed : null;
         } catch (NumberFormatException ignored) {
-            return fallback;
+            return null;
         }
     }
 
+    private static double finiteNonNegative(String value, double fallback) {
+        Double parsed = finiteDouble(value);
+        return parsed != null && parsed >= 0d ? parsed : fallback;
+    }
+
     private static double finitePositive(String value, double fallback) {
-        try {
-            double parsed = Double.parseDouble(value);
-            return Double.isFinite(parsed) && parsed > 0d ? parsed : fallback;
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
+        Double parsed = finiteDouble(value);
+        return parsed != null && parsed > 0d ? parsed : fallback;
     }
 
     private static Vec3Snapshot add(Vec3Snapshot a, Vec3Snapshot b) {
