@@ -26,8 +26,10 @@ class MazeInstanceContract(unittest.TestCase):
         register = (FN / "instance/register.mcfunction").read_text()
         self.assertIn("scoreboard players set @s md_mphase 0", register)
         self.assertIn("function medusa:maze/setup/start", register)
-        tick = (FN / "instance/tick_one.mcfunction").read_text()
-        self.assertIn("function medusa:maze/generate/tick", tick)
+        instance_tick = (FN / "instance/tick_one.mcfunction").read_text()
+        maze_tick = (FN / "maze/tick.mcfunction").read_text()
+        self.assertIn("function medusa:maze/tick", instance_tick)
+        self.assertIn("function medusa:maze/generate/tick", maze_tick)
 
     def test_initial_generator_uses_runtime_random_and_mirrored_edges(self):
         choose = (FN / "maze/generate/try_direction.mcfunction").read_text()
