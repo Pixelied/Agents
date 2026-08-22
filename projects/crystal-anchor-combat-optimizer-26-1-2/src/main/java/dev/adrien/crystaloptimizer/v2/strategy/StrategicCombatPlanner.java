@@ -43,6 +43,32 @@ public final class StrategicCombatPlanner implements StrategicComputation {
 
     @Override
     public StrategicResult compute(StrategicSnapshot snapshot, OptimizerConfig config) {
+        long nowNanos = System.nanoTime();
+        return computeWithPlanningDeadline(
+            snapshot,
+            config,
+            saturatingAdd(nowNanos, SEQUENCE_SEARCH_BUDGET_NANOS)
+        );
+    }
+
+    /**
+     * Deterministic replay entry point. Search still uses the production algorithms and bounds,
+     * but the wall clock cannot terminate the search early on a slower machine.
+     */
+    public StrategicResult computeDeterministic(StrategicSnapshot snapshot, OptimizerConfig config) {
+        return computeWithPlanningDeadline(snapshot, config, Long.MAX_VALUE);
+    }
+
+    private StrategicResult computeWithPlanningDeadline(
+        StrategicSnapshot snapshot,
+        OptimizerConfig config,
+        long planningDeadlineNanos
+    ) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(config, "config");
+        if (planningDeadlineNanos < 0L) {
+            throw new IllegalArgumentException("planningDeadlineNanos must be non-negative");
+        }
         predictionModel.observeSnapshot(snapshot);
 
         List<TargetPreScore> preScores = preScores(snapshot);
@@ -67,13 +93,12 @@ public final class StrategicCombatPlanner implements StrategicComputation {
 
         StrategicTargetSelector.Selection choice = selected.orElseThrow();
         stickyTarget = choice.targetId();
-        long nowNanos = System.nanoTime();
         Optional<PlannedOpportunity> planned = sequencePlanner.tryPlan(
             snapshot,
             choice.targetId(),
             choice.damageMap(),
             config,
-            PlanningBudget.defaults(saturatingAdd(nowNanos, SEQUENCE_SEARCH_BUDGET_NANOS))
+            PlanningBudget.defaults(planningDeadlineNanos)
         );
         return new StrategicResult(
             snapshot.snapshotId(),
