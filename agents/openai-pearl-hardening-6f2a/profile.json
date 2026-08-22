@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-pearl-hardening-6f2a",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Hardens Pearl Catcher 26.1.2 from the reviewed 2.5.1 source with fail-closed reliability gates, exact projectile attribution, bounded input ownership, vanilla-faithful obstruction/environment checks, latency-aware execution, rotation restoration, cancellation safety, focused executor decomposition, and behavioral regression coverage.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "projectile-physics",
+    "client-networking",
+    "testing",
+    "code-review",
+    "performance",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-22T16:28:00+00:00",
+  "state": "available",
+  "state_reason": "Preparing the approved Pearl Catcher reliability hardening and simplification pass."
+}
