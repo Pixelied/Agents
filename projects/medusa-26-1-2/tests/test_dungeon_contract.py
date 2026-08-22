@@ -8,7 +8,7 @@ OUT = FN / "build_generated.mcfunction"
 
 
 class DungeonContract(unittest.TestCase):
-    def test_generated_temple_is_current_cinematic_v2(self):
+    def test_generated_temple_is_current_shifting_labyrinth(self):
         result = subprocess.run(
             ["python3", "scripts/generate_temple.py", "--check"],
             cwd=ROOT,
@@ -18,30 +18,66 @@ class DungeonContract(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertTrue(OUT.is_file(), "generated temple function is missing")
         text = OUT.read_text()
-        self.assertIn("# generated from CINEMATIC_MAZE_V2", text)
-        self.assertNotIn("FIXED_MAZE_V1", text)
+        self.assertIn("# generated from SHIFTING_LABYRINTH_V3", text)
+        self.assertNotIn("CINEMATIC_MAZE_V2", text)
         for function in [
             "build_surface",
+            "maze/build_shell",
+            "maze/build_roofs",
+            "maze/build_landmarks",
+            "maze/build_containment",
             "build_descent",
-            "build_puzzle_averted_room",
-            "build_puzzle_borrowed_room",
-            "build_puzzle_blind_room",
             "build_sanctum",
-            "build_arena_approach",
             "build_arena",
+            "build_arena_approach",
         ]:
             self.assertIn(f"function medusa:dungeon/{function}", text)
-        self.assertGreater(text.count("fill "), 80, "cinematic labyrinth is too sparse/simple")
+        self.assertNotIn("build_puzzle_averted_room", text)
+        self.assertNotIn("build_puzzle_borrowed_room", text)
+        self.assertNotIn("build_puzzle_blind_room", text)
+
+    def test_shifting_labyrinth_geometry_contract(self):
+        generator = (ROOT / "scripts/generate_temple.py").read_text()
+        self.assertIn("MAZE_ROWS = 13", generator)
+        self.assertIn("MAZE_COLS = 13", generator)
+        self.assertIn("CELL_PITCH = 7", generator)
+        self.assertIn("MAZE_BASE_X = -44", generator)
+        self.assertIn("MAZE_BASE_Z = 30", generator)
+
+        shell = FN / "maze/build_shell.mcfunction"
+        roofs = FN / "maze/build_roofs.mcfunction"
+        landmarks = FN / "maze/build_landmarks.mcfunction"
+        containment = FN / "maze/build_containment.mcfunction"
+        for path in [shell, roofs, landmarks, containment]:
+            self.assertTrue(path.is_file(), f"missing maze architecture module: {path.name}")
+
+        shell_text = shell.read_text()
+        roof_text = roofs.read_text() + (FN / "maze/roof_column.mcfunction").read_text()
+        landmark_text = landmarks.read_text()
+        self.assertGreaterEqual(shell_text.count("fill "), 35, "13x13 maze shell is unexpectedly sparse")
+        for token in ["stone_brick_stairs", "stone_brick_slab", "iron_chain", "soul_lantern"]:
+            self.assertIn(token, roof_text, f"roof architecture is missing {token}")
+        for district in [
+            "serpent-column gallery",
+            "moss/root crypt",
+            "lava-cracked district",
+            "petrified expedition",
+            "tall central junction",
+            "gorgon-relief corridor",
+        ]:
+            self.assertIn(district, landmark_text.lower())
+
+    def test_26_1_2_uses_iron_chain_block_id(self):
+        architecture = "\n".join(path.read_text() for path in FN.rglob("*.mcfunction"))
+        self.assertNotIn("minecraft:chain", architecture)
+        self.assertIn("minecraft:iron_chain", architecture)
 
     def test_route_modules_declare_every_physical_connector(self):
         connectors = {
             "build_surface.mcfunction": "surface->descent",
-            "build_descent.mcfunction": "descent->averted",
-            "build_puzzle_averted_room.mcfunction": "averted->labyrinth",
-            "build_puzzle_borrowed_room.mcfunction": "borrowed->blind",
-            "build_puzzle_blind_room.mcfunction": "blind->sanctum",
-            "build_sanctum.mcfunction": "sanctum->arena_approach",
-            "build_arena_approach.mcfunction": "arena_approach->arena",
+            "build_descent.mcfunction": "descent->maze",
+            "build_sanctum.mcfunction": "maze->sanctum",
+            "build_arena_approach.mcfunction": "sanctum->arena",
         }
         for name, connector in connectors.items():
             path = FN / name
@@ -72,33 +108,17 @@ class DungeonContract(unittest.TestCase):
         self.assertIn("function medusa:instance/register", path.read_text())
 
 
-class PuzzleContract(unittest.TestCase):
-    def test_required_puzzles_exist(self):
-        fn = ROOT / "datapacks/medusa/data/medusa/function/puzzle"
-        for rel in [
-            "averted_eyes/tick.mcfunction",
-            "borrowed_gaze/tick.mcfunction",
-            "blind_passage/tick.mcfunction",
+class RemovedPuzzleContract(unittest.TestCase):
+    def test_old_puzzle_runtime_and_rooms_are_gone(self):
+        puzzle = ROOT / "datapacks/medusa/data/medusa/function/puzzle"
+        self.assertFalse(puzzle.exists(), "obsolete puzzle runtime must be removed")
+        for name in [
+            "build_puzzle_averted_room.mcfunction",
+            "build_puzzle_borrowed_room.mcfunction",
+            "build_puzzle_blind_room.mcfunction",
         ]:
-            self.assertTrue((fn / rel).is_file(), f"missing required puzzle function: {rel}")
+            self.assertFalse((FN / name).exists(), f"obsolete puzzle room still exists: {name}")
 
-    def test_each_puzzle_has_a_dedicated_visible_room(self):
-        rooms = {
-            "build_puzzle_averted_room.mcfunction": ["Averted Eyes", "stone_button", "chiseled_stone_bricks"],
-            "build_puzzle_borrowed_room.mcfunction": ["Borrowed Gaze", "stone_button", "lightning_rod"],
-            "build_puzzle_blind_room.mcfunction": ["Blind Passage", "observer", "redstone_lamp"],
-        }
-        for name, tokens in rooms.items():
-            path = FN / name
-            self.assertTrue(path.is_file(), f"missing dedicated puzzle room: {name}")
-            text = path.read_text()
-            for token in tokens:
-                self.assertIn(token, text, f"{name} does not visibly communicate {token}")
-            commands = [line for line in text.splitlines() if line and not line.startswith("#")]
-            self.assertGreaterEqual(len(commands), 18, f"{name} is too visually sparse to read as a puzzle chamber")
 
-    def test_generated_temple_contains_puzzle_controls(self):
-        text = OUT.read_text()
-        self.assertIn("function medusa:dungeon/build_puzzle_averted_room", text)
-        self.assertIn("function medusa:dungeon/build_puzzle_borrowed_room", text)
-        self.assertIn("function medusa:dungeon/build_puzzle_blind_room", text)
+if __name__ == "__main__":
+    unittest.main()

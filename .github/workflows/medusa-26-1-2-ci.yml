@@ -70,7 +70,7 @@ jobs:
           )
           unzip -p run/world/datapacks/medusa.zip pack.mcmeta >/dev/null
           printf 'eula=true\n' > run/eula.txt
-          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\n' > run/server.properties
+          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\npause-when-empty-seconds=-1\n' > run/server.properties
       - name: Boot server and exercise Medusa runtime
         shell: bash
         run: |
@@ -79,18 +79,23 @@ jobs:
           {
             sleep 40
             echo 'function medusa:debug/create_test_temple'
-            sleep 30
+            sleep 70
             echo 'forceload remove all'
             echo 'stop'
-          } | timeout 110s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
+          } | timeout 160s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
           grep -q 'Done (' server.log
           grep -q 'MEDUSA_RAW_MARKER_OK' server.log
           grep -q 'MEDUSA_INSTANCE_IMMEDIATE_OK' server.log
-          grep -q 'MEDUSA_P1_GATE_OK' server.log
-          grep -q 'MEDUSA_P2_GATE_OK' server.log
-          grep -q 'MEDUSA_P3_GATE_OK' server.log
-          grep -q 'MEDUSA_FINAL_GATE_OK' server.log
-          grep -q 'MEDUSA_EYE_PRESENT_OK' server.log
+          grep -q 'MEDUSA_MAZE_CELLS_OK' server.log
+          grep -q 'MEDUSA_MAZE_INITIAL_SOLVABLE_OK' server.log
+          grep -q 'MEDUSA_MAZE_DELTA_OK' server.log
+          grep -q 'MEDUSA_MAZE_OPEN_FIRST_OK' server.log
+          grep -q 'MEDUSA_MAZE_WALL_DISPLAY_OK' server.log
+          grep -q 'MEDUSA_MAZE_COLLISION_OK' server.log
+          grep -q 'MEDUSA_MAZE_OCCUPIED_ABORT_OK' server.log
+          grep -q 'MEDUSA_MAZE_INSTANCE_ISOLATION_OK' server.log
+          grep -q 'MEDUSA_MAZE_RECOVERY_OK' server.log
+          grep -q 'MEDUSA_MAZE_COMPLETE_OK' server.log
           grep -q 'MEDUSA_BOSS_OK' server.log
           grep -q 'MEDUSA_PETRIFICATION_DAMAGE_OK' server.log
           grep -q 'MEDUSA_RESISTANCE_BYPASS_OK' server.log

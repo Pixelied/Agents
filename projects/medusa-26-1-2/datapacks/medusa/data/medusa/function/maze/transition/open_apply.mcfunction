@@ -1,0 +1,2 @@
+execute store result storage medusa:macro maze.eid int 1 run scoreboard players get @s md_eid
+function medusa:maze/transition/open_apply_ctx with storage medusa:macro maze

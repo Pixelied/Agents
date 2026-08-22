@@ -1,0 +1,2 @@
+$execute as @e[type=minecraft:block_display,tag=md.maze.wall_display,scores={md_eid=$(eid),md_mrow=$(row),md_mcol=$(col),md_morient=$(orient)}] run data modify entity @s transformation.translation set value [0.0f,8.0f,0.0f]
+$execute as @e[type=minecraft:block_display,tag=md.maze.wall_display,scores={md_eid=$(eid),md_mrow=$(row),md_mcol=$(col),md_morient=$(orient)}] run data merge entity @s {interpolation_duration:60,start_interpolation:0}

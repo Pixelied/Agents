@@ -28,16 +28,16 @@ class LifecycleRuntimeContract(unittest.TestCase):
         for marker in MARKERS:
             self.assertIn(marker, text)
 
-        loaded = (FN / "debug/create_test_temple_loaded.mcfunction").read_text()
-        self.assertIn("function medusa:debug/test_lifecycle", loaded)
+        continuation = (FN / "debug/continue_smoke.mcfunction").read_text()
+        self.assertIn("function medusa:debug/test_lifecycle", continuation)
         self.assertLess(
-            loaded.find("function medusa:debug/test_gaze_pipeline"),
-            loaded.find("function medusa:debug/test_lifecycle"),
+            continuation.find("function medusa:debug/test_gaze_pipeline"),
+            continuation.find("function medusa:debug/test_lifecycle"),
             "lifecycle smoke must run after gaze behavior is proven",
         )
         self.assertLess(
-            loaded.find("function medusa:debug/test_lifecycle"),
-            loaded.find("MEDUSA_SMOKE_DONE"),
+            continuation.find("function medusa:debug/test_lifecycle"),
+            continuation.find("MEDUSA_SMOKE_DONE"),
             "lifecycle smoke must finish before the overall smoke marker",
         )
 
