@@ -66,6 +66,7 @@ public final class MinecraftSnapshotFactory {
         state.put("fall_distance", Double.toString(player.fallDistance));
         state.put("safe_fall_distance", Double.toString(player.getAttributeValue(Attributes.SAFE_FALL_DISTANCE)));
         state.put("fall_damage_multiplier", Double.toString(player.getAttributeValue(Attributes.FALL_DAMAGE_MULTIPLIER)));
+        state.put("base_gravity", Double.toString(gravity));
         state.put("effective_gravity", Double.toString(effectiveGravity));
         state.put("vertical_friction", "0.98");
         state.put("horizontal_friction", "0.91");
