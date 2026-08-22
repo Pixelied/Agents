@@ -4,14 +4,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-public record PredictionSet(List<PositionHypothesis> hypotheses, double confidence) {
+public record PredictionSet(List<PredictedSpatialState> hypotheses, double confidence) {
     public PredictionSet {
         Objects.requireNonNull(hypotheses, "hypotheses");
         if (hypotheses.isEmpty()) {
             throw new IllegalArgumentException("hypotheses must not be empty");
         }
         hypotheses = List.copyOf(hypotheses);
-        double totalWeight = hypotheses.stream().mapToDouble(PositionHypothesis::weight).sum();
+        double totalWeight = hypotheses.stream().mapToDouble(PredictedSpatialState::weight).sum();
         if (Math.abs(totalWeight - 1.0) > 1.0e-9) {
             throw new IllegalArgumentException("hypothesis weights must sum to 1.0");
         }
@@ -20,12 +20,12 @@ public record PredictionSet(List<PositionHypothesis> hypotheses, double confiden
         }
     }
 
-    public PositionHypothesis likely() {
+    public PredictedSpatialState likely() {
         return hypotheses.stream()
-            .filter(hypothesis -> hypothesis.kind() == PositionHypothesis.Kind.LIKELY)
+            .filter(hypothesis -> hypothesis.kind() == PositionHypothesis.Kind.LIKELY_INERTIAL)
             .findFirst()
             .orElseGet(() -> hypotheses.stream()
-                .max(Comparator.comparingDouble(PositionHypothesis::weight))
+                .max(Comparator.comparingDouble(PredictedSpatialState::weight))
                 .orElseThrow());
     }
 }
