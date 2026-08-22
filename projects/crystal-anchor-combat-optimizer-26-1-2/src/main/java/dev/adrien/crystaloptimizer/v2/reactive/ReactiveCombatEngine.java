@@ -6,7 +6,6 @@ import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboardSnapshot;
 import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -23,6 +22,16 @@ public final class ReactiveCombatEngine {
         ApprovalSlot.FINISHER,
         ApprovalSlot.STAIRCASE,
         ApprovalSlot.RECYCLE,
+        ApprovalSlot.BREAK,
+        ApprovalSlot.PLACE,
+        ApprovalSlot.PRESSURE,
+        ApprovalSlot.PREPARE
+    );
+    private static final List<ApprovalSlot> CRYSTAL_SPAWN_PRIORITY = List.of(
+        ApprovalSlot.RECYCLE,
+        ApprovalSlot.LETHAL,
+        ApprovalSlot.FINISHER,
+        ApprovalSlot.STAIRCASE,
         ApprovalSlot.BREAK,
         ApprovalSlot.PLACE,
         ApprovalSlot.PRESSURE,
@@ -126,17 +135,9 @@ public final class ReactiveCombatEngine {
     }
 
     private static List<ApprovalSlot> priorityFor(CombatEvent event) {
-        if (!(event instanceof CombatEvent.CrystalSpawned)) {
-            return PRIORITY;
-        }
-        ArrayList<ApprovalSlot> priority = new ArrayList<>(PRIORITY.size());
-        priority.add(ApprovalSlot.RECYCLE);
-        for (ApprovalSlot slot : PRIORITY) {
-            if (slot != ApprovalSlot.RECYCLE) {
-                priority.add(slot);
-            }
-        }
-        return List.copyOf(priority);
+        return event instanceof CombatEvent.CrystalSpawned
+            ? CRYSTAL_SPAWN_PRIORITY
+            : PRIORITY;
     }
 
     private static boolean eventMatches(ApprovalSlot slot, CombatEvent event, UUID targetId) {
