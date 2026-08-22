@@ -120,6 +120,12 @@ jobs:
           git fetch --no-tags origin main
           test "$(git rev-parse origin/main)" = '4ee12ba909315030cb243bf1466a4d5684b60d0d'
 
+          cat ci/predictive-survival-hardening/final-fix/part-*.b64 | tr -d '\n' | base64 -d > /tmp/final-fix.patch.gz
+          echo 'ad6b1d6f013f01af8a04906a53d4eac283dbf3791e22e63a84bd1431cb9d7230  /tmp/final-fix.patch.gz' | sha256sum -c -
+          gzip -t /tmp/final-fix.patch.gz
+          gzip -dc /tmp/final-fix.patch.gz > /tmp/final-fix.patch
+          echo '99255fdd1ed40db77c3be7e47ad6fb3d337eb5c8b052447276b0be7d34fcd4bd  /tmp/final-fix.patch' | sha256sum -c -
+
           rm -rf "$project/.gradle" "$project/build" "$project/run" "$project/.ci-hardening" "$project/.fabric" "$project/mods"
           rm -f "$project/.ci-trigger" "$project/.hardening-ci-trigger" "$project/.urgent-ci-trigger" "$project/.ci-routed-protection-applied" "$project/gametest-console.log"
           git show origin/main:"$project/settings.gradle" > "$project/settings.gradle"
@@ -132,6 +138,8 @@ jobs:
           rm -rf "$project"
           cp -a /tmp/baked-project "$project"
 
+          git apply --check /tmp/final-fix.patch
+          git apply --whitespace=nowarn /tmp/final-fix.patch
           git add "$project"
           git diff --cached --check
           unexpected=$(git diff --cached --name-only | grep -v '^projects/predictive-survival-26-1-2/' || true)
