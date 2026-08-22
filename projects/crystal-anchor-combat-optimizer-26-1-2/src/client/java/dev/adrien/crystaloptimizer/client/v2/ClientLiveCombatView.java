@@ -1,7 +1,10 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
+import dev.adrien.crystaloptimizer.client.execution.ManualOverrideTracker;
+import dev.adrien.crystaloptimizer.reconcile.PendingCrystalMask;
 import dev.adrien.crystaloptimizer.v2.execution.LiveCombatView;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
@@ -23,6 +26,8 @@ public final class ClientLiveCombatView implements LiveCombatView {
     private final ToLongFunction<UUID> targetRevision;
     private final LongSupplier inventoryRevision;
     private final LongSupplier configRevision;
+    private final PendingCrystalMask crystalMask;
+    private final ManualOverrideTracker manualOverride;
 
     public ClientLiveCombatView(
         Minecraft minecraft,
@@ -31,11 +36,52 @@ public final class ClientLiveCombatView implements LiveCombatView {
         LongSupplier inventoryRevision,
         LongSupplier configRevision
     ) {
+        this(
+            minecraft,
+            worldRevision,
+            targetRevision,
+            inventoryRevision,
+            configRevision,
+            new PendingCrystalMask(),
+            ManualOverrideTracker.live(minecraft)
+        );
+    }
+
+    public ClientLiveCombatView(
+        Minecraft minecraft,
+        LongSupplier worldRevision,
+        ToLongFunction<UUID> targetRevision,
+        LongSupplier inventoryRevision,
+        LongSupplier configRevision,
+        PendingCrystalMask crystalMask
+    ) {
+        this(
+            minecraft,
+            worldRevision,
+            targetRevision,
+            inventoryRevision,
+            configRevision,
+            crystalMask,
+            ManualOverrideTracker.live(minecraft)
+        );
+    }
+
+    ClientLiveCombatView(
+        Minecraft minecraft,
+        LongSupplier worldRevision,
+        ToLongFunction<UUID> targetRevision,
+        LongSupplier inventoryRevision,
+        LongSupplier configRevision,
+        PendingCrystalMask crystalMask,
+        ManualOverrideTracker manualOverride
+    ) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
         this.worldRevision = Objects.requireNonNull(worldRevision, "worldRevision");
         this.targetRevision = Objects.requireNonNull(targetRevision, "targetRevision");
         this.inventoryRevision = Objects.requireNonNull(inventoryRevision, "inventoryRevision");
         this.configRevision = Objects.requireNonNull(configRevision, "configRevision");
+        this.crystalMask = Objects.requireNonNull(crystalMask, "crystalMask");
+        this.manualOverride = Objects.requireNonNull(manualOverride, "manualOverride");
     }
 
     @Override
@@ -78,11 +124,28 @@ public final class ClientLiveCombatView implements LiveCombatView {
     @Override
     public boolean liveCrystal(int entityId) {
         ClientLevel level = minecraft.level;
-        if (level == null) {
+        if (level == null || crystalMask.isPendingRemoval(entityId, System.nanoTime())) {
             return false;
         }
         Entity entity = level.getEntity(entityId);
         return entity instanceof EndCrystal && !entity.isRemoved();
+    }
+
+    @Override
+    public Optional<BlockPos> crystalBase(int entityId) {
+        ClientLevel level = minecraft.level;
+        if (level == null) {
+            return Optional.empty();
+        }
+        Entity entity = level.getEntity(entityId);
+        if (!(entity instanceof EndCrystal) || entity.isRemoved()) {
+            return Optional.empty();
+        }
+        return Optional.of(BlockPos.containing(
+            entity.getX(),
+            entity.getY() - 1.0,
+            entity.getZ()
+        ).immutable());
     }
 
     @Override
@@ -165,6 +228,11 @@ public final class ClientLiveCombatView implements LiveCombatView {
     public int selectedHotbarSlot() {
         LocalPlayer self = minecraft.player;
         return self == null ? -1 : self.getInventory().getSelectedSlot();
+    }
+
+    @Override
+    public boolean userControllingCombatInput() {
+        return manualOverride.isUserControllingCombatInput();
     }
 
     @Override

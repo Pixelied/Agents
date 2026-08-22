@@ -4,6 +4,7 @@ import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import dev.adrien.crystaloptimizer.world.LegalitySnapshot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.phys.AABB;
 
 final class ActionChecks {
@@ -11,6 +12,18 @@ final class ActionChecks {
         return state.base().legality().withinBlockReach(pos)
             ? ActionLegality.allowed()
             : ActionLegality.denied("block is outside interaction reach");
+    }
+
+    static ActionLegality requireItemInInteractionHand(
+        CombatState state,
+        Item item,
+        String itemName
+    ) {
+        boolean mainHand = state.inventory().selectedItem().filter(item::equals).isPresent();
+        boolean offhand = state.inventory().offhandItem().filter(item::equals).isPresent();
+        return mainHand || offhand
+            ? ActionLegality.allowed()
+            : ActionLegality.denied(itemName + " is not held in either interaction hand");
     }
 
     static ActionLegality requireReplaceablePlacementTarget(CombatState state, BlockPos pos) {

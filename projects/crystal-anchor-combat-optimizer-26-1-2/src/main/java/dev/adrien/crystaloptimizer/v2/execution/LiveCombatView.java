@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.v2.execution;
 
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
@@ -17,6 +18,10 @@ public interface LiveCombatView {
 
     boolean liveCrystal(int entityId);
 
+    default Optional<BlockPos> crystalBase(int entityId) {
+        return Optional.empty();
+    }
+
     boolean withinEntityReach(int entityId);
 
     boolean withinBlockReach(BlockPos pos);
@@ -26,6 +31,11 @@ public interface LiveCombatView {
     int observedCount(Item item);
 
     int selectedHotbarSlot();
+
+    /** True while the user is actively holding a combat interaction input. */
+    default boolean userControllingCombatInput() {
+        return false;
+    }
 
     /**
      * Current local health plus absorption. Implementations used only in old unit fixtures may

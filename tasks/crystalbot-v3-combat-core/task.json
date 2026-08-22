@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "crystalbot-v3-combat-core",
+  "title": "Build CrystalBot V3 combat core",
+  "objective": "Implement the approved 18-task CrystalBot V3 Combat Core plan on Minecraft 26.1.2 while preserving V2.1 behavior and passing the full Java 25 CI and GameTest gate.",
+  "created_by": "openai-crystalbot-v3-6c91",
+  "created_at": "2026-08-21T23:18:37+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": ["projects/crystal-anchor-combat-optimizer-26-1-2"],
+  "acceptance_criteria": [
+    "All 18 approved Combat Core tasks are implemented in order with TDD evidence",
+    "Existing V2.1 behavior remains regression-tested",
+    "Workspace validation passes",
+    "gradle --no-daemon clean test build runGameTest --stacktrace passes on Java 25",
+    "Tactical Mining and Autopilot remain outside this task"
+  ]
+}

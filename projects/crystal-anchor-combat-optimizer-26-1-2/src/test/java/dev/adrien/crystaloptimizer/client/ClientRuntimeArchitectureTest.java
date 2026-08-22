@@ -21,6 +21,9 @@ class ClientRuntimeArchitectureTest {
         String dispatcher = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/execution/VanillaInteractionDispatcher.java"
         ));
+        String snapshotBuilder = Files.readString(Path.of(
+            "src/client/java/dev/adrien/crystaloptimizer/client/world/ClientCombatSnapshotBuilder.java"
+        ));
 
         assertTrue(initializer.contains("KeyMappingHelper.registerKeyMapping"));
         assertTrue(initializer.contains("ClientTickEvents.END_CLIENT_TICK.register"));
@@ -30,16 +33,20 @@ class ClientRuntimeArchitectureTest {
         assertFalse(initializer.contains("ClientCombatRuntime"));
         assertFalse(initializer.contains("KeyBindingHelper"),
             "26.1 runtime must not use the legacy helper name");
+        assertTrue(snapshotBuilder.contains("self.getAbsorptionAmount()"),
+            "local absorption is directly observable and must be preserved in self state");
 
         for (String required : List.of(
-            "ClientDamageMapBuilder",
+            "ClientStrategicSnapshotCapture",
+            "ClientStrategicPlannerService",
+            "StrategicCombatPlanner",
             "TargetManager",
             "ClientStrategicScanner",
             "ReactiveCombatEngine",
             "ReactiveBurstDispatcher",
             "VanillaInteractionDispatcher"
         )) {
-            assertTrue(coordinator.contains(required), "V2 coordinator is missing integration: " + required);
+            assertTrue(coordinator.contains(required), "V3 coordinator is missing integration: " + required);
         }
 
         String productionExecution = initializer + coordinator + dispatcher;
@@ -54,7 +61,7 @@ class ClientRuntimeArchitectureTest {
             "new ServerboundInteractPacket"
         )) {
             assertFalse(productionExecution.contains(forbidden),
-                "V2 runtime contains forbidden primitive: " + forbidden);
+                "V3 runtime contains forbidden primitive: " + forbidden);
         }
     }
 }

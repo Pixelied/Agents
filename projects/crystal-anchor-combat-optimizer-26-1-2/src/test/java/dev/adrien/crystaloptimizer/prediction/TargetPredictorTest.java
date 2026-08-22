@@ -26,7 +26,7 @@ class TargetPredictorTest {
 
         assertTrue(stable.confidence() > reversing.confidence());
         assertTrue(reversing.hypotheses().size() >= 3);
-        assertEquals(1.0, reversing.hypotheses().stream().mapToDouble(PositionHypothesis::weight).sum(), 1.0e-9);
+        assertEquals(1.0, reversing.hypotheses().stream().mapToDouble(PredictedSpatialState::weight).sum(), 1.0e-9);
     }
 
     @Test

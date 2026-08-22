@@ -123,6 +123,7 @@ public final class ClientCombatSnapshotBuilder {
         EffectState targetEffects = effects(target);
         SimCombatant selfState = ObservedCombatantAssembler.self(
             self.getHealth(),
+            self.getAbsorptionAmount(),
             equipment(self),
             selfEffects,
             blocking(self),
@@ -131,26 +132,36 @@ public final class ClientCombatSnapshotBuilder {
             self.getOffhandItem().is(Items.TOTEM_OF_UNDYING),
             self.isDeadOrDying()
         );
-        SimCombatant targetState = ObservedCombatantAssembler.target(
-            target.getHealth(),
-            equipment(target),
-            targetEffects,
-            blocking(target),
-            target.invulnerableTime,
-            target.getMainHandItem().is(Items.TOTEM_OF_UNDYING),
-            target.getOffhandItem().is(Items.TOTEM_OF_UNDYING),
-            target.isDeadOrDying()
-        );
+        SimCombatant targetState = observedRemote(target, targetEffects);
 
         UUID selfId = self.getUUID();
         UUID targetId = target.getUUID();
-        Map<UUID, SimCombatant> combatants = Map.of(selfId, selfState, targetId, targetState);
-        Map<UUID, CombatantSpatialState> spatial = Map.of(
+        LinkedHashMap<UUID, SimCombatant> combatants = new LinkedHashMap<>();
+        LinkedHashMap<UUID, CombatantSpatialState> spatial = new LinkedHashMap<>();
+        combatants.put(selfId, selfState);
+        combatants.put(targetId, targetState);
+        spatial.put(
             selfId,
-            new CombatantSpatialState(self.position(), self.getBoundingBox(), self.getDeltaMovement()),
+            new CombatantSpatialState(self.position(), self.getBoundingBox(), self.getDeltaMovement())
+        );
+        spatial.put(
             targetId,
             new CombatantSpatialState(target.position(), target.getBoundingBox(), target.getDeltaMovement())
         );
+        for (AbstractClientPlayer player : level.players()) {
+            if (player == self || player == target || player.isRemoved()) {
+                continue;
+            }
+            combatants.put(player.getUUID(), observedRemote(player, effects(player)));
+            spatial.put(
+                player.getUUID(),
+                new CombatantSpatialState(
+                    player.position(),
+                    player.getBoundingBox(),
+                    player.getDeltaMovement()
+                )
+            );
+        }
 
         boolean respawnAnchorWorks = level.environmentAttributes()
             .getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, selfPos);
@@ -183,6 +194,22 @@ public final class ClientCombatSnapshotBuilder {
             spatial,
             level.getDifficulty()
         ));
+    }
+
+    private static SimCombatant observedRemote(
+        AbstractClientPlayer player,
+        EffectState effects
+    ) {
+        return ObservedCombatantAssembler.target(
+            player.getHealth(),
+            equipment(player),
+            effects,
+            blocking(player),
+            player.invulnerableTime,
+            player.getMainHandItem().is(Items.TOTEM_OF_UNDYING),
+            player.getOffhandItem().is(Items.TOTEM_OF_UNDYING),
+            player.isDeadOrDying()
+        );
     }
 
     private static InventoryState inventory(LocalPlayer self) {

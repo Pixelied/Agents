@@ -7,26 +7,18 @@ import java.util.UUID;
 
 public final class HurtWindowTracker {
     private static final long MAX_EVIDENCE_AGE_NANOS = 1_000_000_000L;
-    private final Map<UUID, Evidence> evidence = new HashMap<>();
+    private static final double BOUNDED_CONFIDENCE = 0.65;
+    private final Map<UUID, DamageWindowEvidence> evidence = new HashMap<>();
 
-    public synchronized void observeAttributedIncoming(
-        UUID targetId,
-        float incoming,
-        int invulnerableTime,
-        long nowNanos
-    ) {
+    public synchronized void observeEvidence(UUID targetId, DamageWindowEvidence observation) {
         Objects.requireNonNull(targetId, "targetId");
-        if (!Float.isFinite(incoming) || incoming < 0.0f) {
-            throw new IllegalArgumentException("incoming must be finite and non-negative");
-        }
-        if (invulnerableTime <= 10) {
+        Objects.requireNonNull(observation, "observation");
+        if (observation.invulnerableTime() <= 10
+            || observation.confidence() == DamageWindowEvidence.Confidence.UNKNOWN) {
             evidence.remove(targetId);
             return;
         }
-        if (nowNanos < 0L) {
-            throw new IllegalArgumentException("timestamp must be non-negative");
-        }
-        evidence.put(targetId, new Evidence(incoming, invulnerableTime, nowNanos));
+        evidence.put(targetId, observation);
     }
 
     public synchronized HurtThresholdEstimate estimate(
@@ -43,14 +35,27 @@ public final class HurtWindowTracker {
             return HurtThresholdEstimate.unprotected();
         }
 
-        Evidence known = evidence.get(targetId);
-        if (known == null
-            || nowNanos < known.observedAtNanos()
-            || nowNanos - known.observedAtNanos() > MAX_EVIDENCE_AGE_NANOS
-            || observedInvulnerableTime > known.invulnerableTime()) {
+        DamageWindowEvidence known = evidence.get(targetId);
+        if (known == null) {
             return HurtThresholdEstimate.unknownProtected();
         }
-        return HurtThresholdEstimate.exact(known.incoming());
+        if (nowNanos < known.observedAtNanos()
+            || nowNanos - known.observedAtNanos() > MAX_EVIDENCE_AGE_NANOS
+            || observedInvulnerableTime > known.invulnerableTime()) {
+            evidence.remove(targetId);
+            return HurtThresholdEstimate.unknownProtected();
+        }
+
+        return switch (known.confidence()) {
+            case EXACT -> HurtThresholdEstimate.exact(known.expectedIncoming());
+            case BOUNDED -> HurtThresholdEstimate.bounded(
+                known.lowerIncoming(),
+                known.expectedIncoming(),
+                known.upperIncoming(),
+                BOUNDED_CONFIDENCE
+            );
+            case UNKNOWN -> HurtThresholdEstimate.unknownProtected();
+        };
     }
 
     public synchronized void clear(UUID targetId) {
@@ -61,8 +66,5 @@ public final class HurtWindowTracker {
 
     public synchronized void clear() {
         evidence.clear();
-    }
-
-    private record Evidence(float incoming, int invulnerableTime, long observedAtNanos) {
     }
 }

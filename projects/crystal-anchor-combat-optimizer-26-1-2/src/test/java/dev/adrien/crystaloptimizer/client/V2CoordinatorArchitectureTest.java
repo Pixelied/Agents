@@ -44,7 +44,7 @@ class V2CoordinatorArchitectureTest {
     }
 
     @Test
-    void strategicWorkLivesOnlyOnTickAndTargetShortlistIsBounded() throws IOException {
+    void strategicWorkLivesOnlyOnTickAndTargetExactEvaluationIsBounded() throws IOException {
         String coordinator = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientCombatCoordinator.java"
         ));
@@ -56,7 +56,8 @@ class V2CoordinatorArchitectureTest {
         int onEvent = coordinator.indexOf("public void onEvent(CombatEvent event)");
         assertTrue(tick >= 0 && onEvent > tick);
         assertTrue(coordinator.substring(tick, onEvent).contains("strategicTick.run()"));
-        assertTrue(targets.contains("SHORTLIST_LIMIT = 3"));
+        assertFalse(targets.contains("SHORTLIST_LIMIT = 3"));
+        assertTrue(targets.contains("StrategicTargetSelector.MAX_EXACT_TARGETS"));
         assertTrue(targets.contains("isAlliedTo"));
         assertTrue(targets.contains("stickyTarget"));
     }

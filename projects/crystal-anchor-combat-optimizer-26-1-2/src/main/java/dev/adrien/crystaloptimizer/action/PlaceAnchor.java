@@ -21,8 +21,13 @@ public record PlaceAnchor(BlockPos pos) implements CombatAction {
         if (state.inventory().count(Items.RESPAWN_ANCHOR) <= 0) {
             return ActionLegality.denied("no respawn anchor resource is known available");
         }
-        if (state.inventory().selectedItem().filter(Items.RESPAWN_ANCHOR::equals).isEmpty()) {
-            return ActionLegality.denied("respawn anchor is not selected in the real main hand");
+        ActionLegality hand = ActionChecks.requireItemInInteractionHand(
+            state,
+            Items.RESPAWN_ANCHOR,
+            "respawn anchor"
+        );
+        if (!hand.legal()) {
+            return hand;
         }
         ActionLegality replaceable = ActionChecks.requireReplaceablePlacementTarget(state, pos);
         if (!replaceable.legal() || state.anchors().containsKey(pos)) {

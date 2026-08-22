@@ -10,7 +10,9 @@ import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
 import dev.adrien.crystaloptimizer.v2.strategy.FastOpportunitySelector;
 import dev.adrien.crystaloptimizer.v2.strategy.HurtThresholdEstimate;
 import dev.adrien.crystaloptimizer.v2.strategy.HurtWindowTracker;
+import dev.adrien.crystaloptimizer.v2.strategy.PlannedOpportunity;
 import dev.adrien.crystaloptimizer.v2.strategy.SelectionContext;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Objects;
@@ -22,41 +24,65 @@ import net.minecraft.client.player.AbstractClientPlayer;
 public final class ClientStrategicScanner {
     private static final long APPROVAL_LIFETIME_NANOS = 250_000_000L;
 
-    private final ClientDamageMapBuilder damageMaps;
     private final CombatBlackboard blackboard;
     private final FastOpportunitySelector selector;
     private final HurtWindowTracker hurtWindows;
     private final AtomicLong nextApprovalId = new AtomicLong();
 
     public ClientStrategicScanner(
-        ClientDamageMapBuilder damageMaps,
         CombatBlackboard blackboard,
         FastOpportunitySelector selector,
         HurtWindowTracker hurtWindows
     ) {
-        this.damageMaps = Objects.requireNonNull(damageMaps, "damageMaps");
         this.blackboard = Objects.requireNonNull(blackboard, "blackboard");
         this.selector = Objects.requireNonNull(selector, "selector");
         this.hurtWindows = Objects.requireNonNull(hurtWindows, "hurtWindows");
     }
 
-    public DamageMap scan(
+    public void publish(
         AbstractClientPlayer target,
-        long worldRevision,
-        long targetRevision,
+        DamageMap map,
+        long inventoryRevision,
+        long configRevision,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
+        publish(
+            target,
+            map,
+            Optional.empty(),
+            inventoryRevision,
+            configRevision,
+            config,
+            nowNanos
+        );
+    }
+
+    public void publish(
+        AbstractClientPlayer target,
+        DamageMap map,
+        Optional<PlannedOpportunity> plannedOpportunity,
         long inventoryRevision,
         long configRevision,
         OptimizerConfig config,
         long nowNanos
     ) {
         Objects.requireNonNull(target, "target");
+        Objects.requireNonNull(map, "map");
+        Objects.requireNonNull(plannedOpportunity, "plannedOpportunity");
         Objects.requireNonNull(config, "config");
-        DamageMap map = damageMaps.update(target, worldRevision, targetRevision, config);
+        if (!map.targetId().equals(target.getUUID())) {
+            throw new IllegalArgumentException("damage map target does not match selected player");
+        }
         HurtThresholdEstimate threshold = hurtWindows.estimate(
             target.getUUID(),
             target.invulnerableTime,
             nowNanos
         );
+        ClientCombatDiagnostics.latest().ifPresent(diagnostics -> {
+            diagnostics.recordHurtWindowConfidence(threshold.confidence());
+            diagnostics.recordCandidateCounts(map.candidateCounts());
+        });
         SelectionContext context = new SelectionContext(
             threshold,
             target.getHealth(),
@@ -64,15 +90,23 @@ public final class ClientStrategicScanner {
         );
 
         EnumMap<ApprovalSlot, ActionApproval> approvals = new EnumMap<>(ApprovalSlot.class);
-        List<DamageOpportunity> all = List.copyOf(map.opportunities().values());
+        ArrayList<DamageOpportunity> combined = new ArrayList<>(map.opportunities().values());
+        plannedOpportunity.ifPresent(planned -> {
+            DamageOpportunity terminal = planned.terminalOpportunity();
+            boolean duplicate = combined.stream().anyMatch(opportunity -> opportunity.id().equals(terminal.id()));
+            if (!duplicate) {
+                combined.add(terminal);
+            }
+        });
+        List<DamageOpportunity> all = List.copyOf(combined);
         putSelected(approvals, ApprovalSlot.LETHAL, all, DamageOpportunity::lethal, context,
             map, inventoryRevision, configRevision, nowNanos);
         putSelected(approvals, ApprovalSlot.FINISHER, all,
             opportunity -> direct(opportunity) && opportunity.timing().hardFeedbackBoundaries() == 0,
             context, map, inventoryRevision, configRevision, nowNanos);
         putSelected(approvals, ApprovalSlot.STAIRCASE, all,
-            opportunity -> FastOpportunitySelector.usefulLowerBound(
-                opportunity.targetDamage().lowerBound(), threshold) > 0.0f,
+            opportunity -> FastOpportunitySelector.effectiveLowerBound(
+                opportunity.targetDamage(), context) > 0.0f,
             context, map, inventoryRevision, configRevision, nowNanos);
         putSelected(approvals, ApprovalSlot.RECYCLE, all,
             opportunity -> opportunity.id().startsWith("recycle:"),
@@ -92,13 +126,12 @@ public final class ClientStrategicScanner {
 
         blackboard.publish(new CombatBlackboardSnapshot(
             target.getUUID(),
-            targetRevision,
-            worldRevision,
+            map.targetRevision(),
+            map.worldRevision(),
             inventoryRevision,
             configRevision,
             approvals
         ));
-        return map;
     }
 
     private void putSelected(

@@ -13,6 +13,7 @@ import dev.adrien.crystaloptimizer.candidate.CandidateBudget;
 import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
 import dev.adrien.crystaloptimizer.candidate.CandidatePruner;
 import dev.adrien.crystaloptimizer.prediction.PositionHypothesis;
+import dev.adrien.crystaloptimizer.prediction.PredictedSpatialState;
 import dev.adrien.crystaloptimizer.prediction.PredictionSet;
 import dev.adrien.crystaloptimizer.sim.damage.DamageRequest;
 import dev.adrien.crystaloptimizer.sim.damage.DamageResult;
@@ -213,7 +214,7 @@ public final class BeamPlanner {
         }
 
         var selfSpatial = state.selfSpatial();
-        PositionHypothesis likely = predictions.likely();
+        PredictedSpatialState likely = predictions.likely();
         DamageResult likelyTargetResult = simulateTargetExplosion(state, explosion, likely);
         float selfIncoming = ExplosionDamageCalculator26.incoming(
             explosion,
@@ -250,14 +251,11 @@ public final class BeamPlanner {
     private DamageResult simulateTargetExplosion(
         CombatState state,
         ExplosionContext explosion,
-        PositionHypothesis hypothesis
+        PredictedSpatialState hypothesis
     ) {
-        var baseSpatial = state.targetSpatial();
-        Vec3 offset = hypothesis.position().subtract(baseSpatial.position());
-        AABB predictedBox = baseSpatial.boundingBox().move(offset);
         float targetIncoming = ExplosionDamageCalculator26.incoming(
             explosion,
-            predictedBox,
+            hypothesis.box(),
             hypothesis.position(),
             state.geometry()
         );
@@ -283,7 +281,7 @@ public final class BeamPlanner {
         if (likelyResult.target().dead()) {
             return predictions.hypotheses().stream()
                 .filter(hypothesis -> simulateTargetExplosion(state, explosion, hypothesis).target().dead())
-                .mapToDouble(PositionHypothesis::weight)
+                .mapToDouble(PredictedSpatialState::weight)
                 .sum();
         }
         if (likelyResult.trace().totemTriggered()) {
@@ -292,7 +290,7 @@ public final class BeamPlanner {
                     DamageResult result = simulateTargetExplosion(state, explosion, hypothesis);
                     return result.target().dead() || result.trace().totemTriggered();
                 })
-                .mapToDouble(PositionHypothesis::weight)
+                .mapToDouble(PredictedSpatialState::weight)
                 .sum();
         }
 
@@ -302,7 +300,7 @@ public final class BeamPlanner {
         }
 
         double weightedRetention = 0.0;
-        for (PositionHypothesis hypothesis : predictions.hypotheses()) {
+        for (PredictedSpatialState hypothesis : predictions.hypotheses()) {
             DamageResult result = simulateTargetExplosion(state, explosion, hypothesis);
             double reduction = initialEffective - effectiveHealth(result.target());
             weightedRetention += hypothesis.weight() * clamp01(reduction / likelyReduction);
@@ -331,8 +329,17 @@ public final class BeamPlanner {
     private static PredictionSet currentPositionPrediction(CombatState state) {
         Vec3 position = state.hasSpatialState() ? state.targetSpatial().position() : Vec3.ZERO;
         Vec3 velocity = state.hasSpatialState() ? state.targetSpatial().velocity() : Vec3.ZERO;
+        AABB box = state.hasSpatialState()
+            ? state.targetSpatial().boundingBox()
+            : new AABB(-0.3, 0.0, -0.3, 0.3, 1.8, 0.3);
         return new PredictionSet(
-            List.of(new PositionHypothesis(PositionHypothesis.Kind.LIKELY, position, velocity, 1.0)),
+            List.of(new PredictedSpatialState(
+                PositionHypothesis.Kind.LIKELY_INERTIAL,
+                position,
+                box,
+                velocity,
+                1.0
+            )),
             1.0
         );
     }

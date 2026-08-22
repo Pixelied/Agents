@@ -1,6 +1,7 @@
 package dev.adrien.crystaloptimizer.world;
 
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionContext;
+import dev.adrien.crystaloptimizer.sim.damage.ExplosionDamageCalculator26;
 import dev.adrien.crystaloptimizer.sim.model.AnchorState;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import dev.adrien.crystaloptimizer.sim.model.InventoryState;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -36,6 +38,44 @@ class CombatStateOverlayTest {
         assertTrue(placedBranch.getBlockState(stone).is(Blocks.STONE));
         assertTrue(base.getBlockState(stone).is(Blocks.STONE));
         assertTrue(base.getBlockState(obsidian).isAir());
+    }
+
+    @Test
+    void removedBlockExistsOnlyInOverlayNotParentGeometry() {
+        BlockPos block = new BlockPos(1, 64, 0);
+        CombatRegion parent = CombatRegion.singleBlock(block, Blocks.STONE.defaultBlockState());
+        BlockDeltaOverlay overlay = new BlockDeltaOverlay(parent).withRemoved(block);
+
+        assertTrue(parent.getBlockState(block).is(Blocks.STONE));
+        assertTrue(overlay.getBlockState(block).isAir());
+    }
+
+    @Test
+    void removingOneAssumedBlockDoesNotMakeNeighboringTerrainTransparent() {
+        BlockPos lowerCover = new BlockPos(1, 64, 0);
+        BlockPos upperCover = new BlockPos(1, 65, 0);
+        CombatRegion parent = CombatRegion.of(
+            Map.of(
+                lowerCover, Blocks.STONE.defaultBlockState(),
+                upperCover, Blocks.STONE.defaultBlockState()
+            ),
+            Map.of()
+        );
+        BlockDeltaOverlay oneRemoved = new BlockDeltaOverlay(parent).withRemoved(lowerCover);
+        BlockDeltaOverlay allRemoved = oneRemoved.withRemoved(upperCover);
+        ExplosionContext explosion = ExplosionContext.crystal(new Vec3(0.5, 65.0, 0.5));
+        Vec3 targetPosition = new Vec3(2.5, 64.0, 0.5);
+        AABB targetBox = new AABB(2.2, 64.0, 0.2, 2.8, 65.8, 0.8);
+
+        float neighboringStoneStillPresent = ExplosionDamageCalculator26.incoming(
+            explosion, targetBox, targetPosition, oneRemoved
+        );
+        float allCoverRemoved = ExplosionDamageCalculator26.incoming(
+            explosion, targetBox, targetPosition, allRemoved
+        );
+
+        assertTrue(oneRemoved.getBlockState(upperCover).is(Blocks.STONE));
+        assertTrue(neighboringStoneStillPresent < allCoverRemoved);
     }
 
     @Test

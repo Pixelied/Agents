@@ -10,11 +10,13 @@ import org.junit.jupiter.api.Test;
 
 final class V2StrategicScannerArchitectureTest {
     @Test
-    void strategicScannerMayScanButReactivePackagesNeverImportItOrBeamPlanner() throws IOException {
+    void strategicScannerPublishesComputedMapsButReactivePackagesNeverImportStrategicWork() throws IOException {
         String scanner = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientStrategicScanner.java"
         ));
-        assertTrue(scanner.contains("ClientDamageMapBuilder"));
+        assertFalse(scanner.contains("ClientDamageMapBuilder"),
+            "V3 scanner must not rebuild exact maps after target selection");
+        assertTrue(scanner.contains("DamageMap map"));
         assertTrue(scanner.contains("blackboard.publish("));
         assertTrue(scanner.contains("FastOpportunitySelector"));
 

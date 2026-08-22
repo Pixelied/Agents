@@ -25,16 +25,24 @@ public final class DamageEngine {
             throw new IllegalArgumentException("no damage scenarios");
         }
 
-        float lower = Float.POSITIVE_INFINITY;
-        float upper = Float.NEGATIVE_INFINITY;
-        double weightedDamage = 0.0;
+        float effectiveLower = Float.POSITIVE_INFINITY;
+        float effectiveUpper = Float.NEGATIVE_INFINITY;
+        float healthLower = Float.POSITIVE_INFINITY;
+        float healthUpper = Float.NEGATIVE_INFINITY;
+        float postMitigationLower = Float.POSITIVE_INFINITY;
+        float postMitigationUpper = Float.NEGATIVE_INFINITY;
+        double weightedEffective = 0.0;
+        double weightedHealth = 0.0;
+        double weightedPostMitigation = 0.0;
+        double weightedPop = 0.0;
+        double weightedKill = 0.0;
         double weightedConfidence = 0.0;
         double totalWeight = 0.0;
         EnumSet<DamageUncertainty> reasons = EnumSet.noneOf(DamageUncertainty.class);
 
         for (DamageScenario scenario : scenarios) {
             Objects.requireNonNull(scenario, "damage scenario");
-            float incoming = ExplosionDamageCalculator26.incoming(
+            float rawIncoming = ExplosionDamageCalculator26.incoming(
                 explosion,
                 scenario.box(),
                 scenario.position(),
@@ -42,27 +50,63 @@ public final class DamageEngine {
             );
             DamageResult result = VanillaDamageSimulator.apply(
                 scenario.victim(),
-                DamageRequest.explosion(incoming)
+                DamageRequest.explosion(rawIncoming)
                     .withDifficulty(state.base().difficulty())
                     .withSourcePosition(explosion.center())
             );
-            float damage = result.trace().healthDamage();
-            lower = Math.min(lower, damage);
-            upper = Math.max(upper, damage);
-            weightedDamage += damage * scenario.probabilityWeight();
-            weightedConfidence += scenario.confidence() * scenario.probabilityWeight();
-            totalWeight += scenario.probabilityWeight();
+            DamageProjection projection = projection(result);
+            double weight = scenario.probabilityWeight();
+
+            effectiveLower = Math.min(effectiveLower, projection.effectiveTotalLoss());
+            effectiveUpper = Math.max(effectiveUpper, projection.effectiveTotalLoss());
+            healthLower = Math.min(healthLower, projection.healthLoss());
+            healthUpper = Math.max(healthUpper, projection.healthLoss());
+            postMitigationLower = Math.min(postMitigationLower, projection.postMitigationIncoming());
+            postMitigationUpper = Math.max(postMitigationUpper, projection.postMitigationIncoming());
+
+            weightedEffective += projection.effectiveTotalLoss() * weight;
+            weightedHealth += projection.healthLoss() * weight;
+            weightedPostMitigation += projection.postMitigationIncoming() * weight;
+            weightedPop += (projection.totemTriggered() ? 1.0 : 0.0) * weight;
+            weightedKill += (result.trace().dead() ? 1.0 : 0.0) * weight;
+            weightedConfidence += scenario.confidence() * weight;
+            totalWeight += weight;
             reasons.addAll(scenario.uncertainties());
         }
 
         return new DamageEstimate(
-            lower,
-            (float) (weightedDamage / totalWeight),
-            upper,
+            effectiveLower,
+            (float) (weightedEffective / totalWeight),
+            effectiveUpper,
+            healthLower,
+            (float) (weightedHealth / totalWeight),
+            healthUpper,
+            postMitigationLower,
+            (float) (weightedPostMitigation / totalWeight),
+            postMitigationUpper,
+            weightedPop / totalWeight,
+            weightedKill / totalWeight,
             weightedConfidence / totalWeight,
             reasons,
             geometryRevision,
             combatRevision
+        );
+    }
+
+    private static DamageProjection projection(DamageResult result) {
+        var trace = result.trace();
+        float postHitEffectiveHealth = result.target().health() + result.target().absorption();
+        float nextHurtThreshold = result.target().hurtWindow().lastHurtKnown()
+            ? result.target().hurtWindow().lastHurt()
+            : 0.0f;
+        return new DamageProjection(
+            trace.rawIncoming(),
+            trace.incoming(),
+            trace.absorptionConsumed(),
+            trace.healthDamage(),
+            postHitEffectiveHealth,
+            nextHurtThreshold,
+            trace.totemTriggered()
         );
     }
 }

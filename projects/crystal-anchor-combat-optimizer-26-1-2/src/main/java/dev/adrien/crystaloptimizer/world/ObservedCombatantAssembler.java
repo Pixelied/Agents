@@ -11,6 +11,7 @@ import java.util.Objects;
 public final class ObservedCombatantAssembler {
     public static SimCombatant self(
         float health,
+        float absorption,
         EquipmentState equipment,
         EffectState effects,
         BlockingState blocking,
@@ -21,7 +22,7 @@ public final class ObservedCombatantAssembler {
     ) {
         return assemble(
             health,
-            0.0f,
+            absorption,
             equipment,
             effects,
             blocking,

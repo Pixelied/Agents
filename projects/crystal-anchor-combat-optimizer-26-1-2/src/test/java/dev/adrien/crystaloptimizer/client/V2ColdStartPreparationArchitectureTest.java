@@ -10,7 +10,7 @@ class V2ColdStartPreparationArchitectureTest {
     @Test
     void damageMapPublishesAdmittedCompletePreparationSequences() throws Exception {
         String builder = Files.readString(Path.of(
-            "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientDamageMapBuilder.java"
+            "src/main/java/dev/adrien/crystaloptimizer/v2/strategy/StrategicDamageMapBuilder.java"
         ));
         String scanner = Files.readString(Path.of(
             "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientStrategicScanner.java"

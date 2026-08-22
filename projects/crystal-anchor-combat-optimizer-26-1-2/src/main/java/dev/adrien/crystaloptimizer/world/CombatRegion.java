@@ -65,6 +65,10 @@ public final class CombatRegion implements BlockView {
         return states;
     }
 
+    public Map<BlockPos, VoxelShape> collisionShapes() {
+        return collisionShapes;
+    }
+
     private static <V> Map<BlockPos, V> immutablePosMap(Map<BlockPos, V> source) {
         LinkedHashMap<BlockPos, V> copy = new LinkedHashMap<>();
         source.forEach((pos, value) -> copy.put(pos.immutable(), Objects.requireNonNull(value)));

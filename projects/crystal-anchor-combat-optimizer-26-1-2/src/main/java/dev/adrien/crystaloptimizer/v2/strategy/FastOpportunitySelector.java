@@ -1,6 +1,7 @@
 package dev.adrien.crystaloptimizer.v2.strategy;
 
 import dev.adrien.crystaloptimizer.config.OptimizerStrategy;
+import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -20,27 +21,29 @@ public final class FastOpportunitySelector {
             .max(comparator(context));
     }
 
-    public static float usefulLowerBound(
-        float incomingLowerBound,
-        HurtThresholdEstimate threshold
+    public static float effectiveLowerBound(
+        DamageEstimate estimate,
+        SelectionContext context
     ) {
-        Objects.requireNonNull(threshold, "threshold");
-        return Math.max(0.0f, incomingLowerBound - threshold.upperBound());
+        Objects.requireNonNull(estimate, "estimate");
+        Objects.requireNonNull(context, "context");
+        return Math.max(0.0f, estimate.lowerBound());
     }
 
-    public static float usefulExpected(
-        float incomingExpected,
-        HurtThresholdEstimate threshold
+    public static float effectiveExpected(
+        DamageEstimate estimate,
+        SelectionContext context
     ) {
-        Objects.requireNonNull(threshold, "threshold");
-        return Math.max(0.0f, incomingExpected - threshold.expected());
+        Objects.requireNonNull(estimate, "estimate");
+        Objects.requireNonNull(context, "context");
+        return Math.max(0.0f, estimate.expected());
     }
 
     private Comparator<DamageOpportunity> comparator(SelectionContext context) {
         return Comparator
             .comparingInt((DamageOpportunity opportunity) -> priorityClass(opportunity, context))
-            .thenComparingDouble(opportunity -> usefulLowerRate(opportunity, context))
-            .thenComparingDouble(opportunity -> usefulExpectedRate(opportunity, context))
+            .thenComparingDouble(opportunity -> effectiveLowerRate(opportunity, context))
+            .thenComparingDouble(opportunity -> effectiveExpectedRate(opportunity, context))
             .thenComparingDouble(opportunity -> opportunity.targetDamage().lowerBound())
             .thenComparingDouble(opportunity -> opportunity.targetDamage().expected())
             .thenComparingInt(opportunity -> -opportunity.timing().hardFeedbackBoundaries())
@@ -51,17 +54,19 @@ public final class FastOpportunitySelector {
 
     private int priorityClass(DamageOpportunity opportunity, SelectionContext context) {
         boolean certifiedLethal = opportunity.lethal()
-            && opportunity.targetDamage().confidence() >= LETHAL_CONFIDENCE_FLOOR
-            && opportunity.targetDamage().lowerBound() >= context.targetEffectiveHealth();
+            && opportunity.targetDamage().killProbability() == 1.0
+            && opportunity.targetDamage().confidence() >= LETHAL_CONFIDENCE_FLOOR;
         if (certifiedLethal) {
             return 5;
         }
-        if (opportunity.popsTotem()
+        boolean certifiedPop = opportunity.popsTotem()
+            && opportunity.targetDamage().popProbability() == 1.0
             && opportunity.timing().hardFeedbackBoundaries() == 0
-            && opportunity.targetDamage().confidence() >= LETHAL_CONFIDENCE_FLOOR) {
+            && opportunity.targetDamage().confidence() >= LETHAL_CONFIDENCE_FLOOR;
+        if (certifiedPop) {
             return 4;
         }
-        if (usefulLowerBound(opportunity.targetDamage().lowerBound(), context.threshold()) > 0.0f) {
+        if (effectiveLowerBound(opportunity.targetDamage(), context) > 0.0f) {
             return 3;
         }
         if (context.strategy() == OptimizerStrategy.SAFE) {
@@ -70,25 +75,19 @@ public final class FastOpportunitySelector {
         return 1;
     }
 
-    private static double usefulLowerRate(
+    private static double effectiveLowerRate(
         DamageOpportunity opportunity,
         SelectionContext context
     ) {
-        float useful = usefulLowerBound(
-            opportunity.targetDamage().lowerBound(),
-            context.threshold()
-        );
+        float useful = effectiveLowerBound(opportunity.targetDamage(), context);
         return useful / rateDenominator(opportunity.timing().p90Millis());
     }
 
-    private static double usefulExpectedRate(
+    private static double effectiveExpectedRate(
         DamageOpportunity opportunity,
         SelectionContext context
     ) {
-        float useful = usefulExpected(
-            opportunity.targetDamage().expected(),
-            context.threshold()
-        );
+        float useful = effectiveExpected(opportunity.targetDamage(), context);
         return useful / rateDenominator(opportunity.timing().expectedMillis());
     }
 

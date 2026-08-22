@@ -36,11 +36,17 @@ class VanillaDispatcherAimingArchitectureTest {
 
         int useHelper = source.indexOf("private DispatchReceipt useItemOn");
         int blockAim = source.indexOf("aimAt(hit.getLocation(), mode, critical)", useHelper);
+        int routeHand = source.indexOf("InteractionHand hand = route.hand()", useHelper);
         int useSend = source.indexOf(
-            "minecraft.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit)",
+            "minecraft.gameMode.useItemOn(player, hand, hit)",
             useHelper
         );
-        assertTrue(useHelper >= 0 && blockAim > useHelper && blockAim < useSend,
-            "all block interactions must visibly aim at their real hit location before useItemOn");
+        assertTrue(
+            useHelper >= 0
+                && blockAim > useHelper
+                && routeHand > blockAim
+                && useSend > routeHand,
+            "all block interactions must visibly aim before resolving and sending the routed vanilla hand"
+        );
     }
 }
