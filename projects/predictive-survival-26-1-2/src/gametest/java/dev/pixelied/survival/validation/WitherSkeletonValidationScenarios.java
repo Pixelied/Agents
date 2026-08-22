@@ -135,6 +135,18 @@ final class WitherSkeletonValidationScenarios {
                 && minecraft.level != null
                 && minecraft.level.getEntity(skeletonId) instanceof WitherSkeleton);
 
+            // The inventory synchronization above can take long enough for vanilla regeneration
+            // to change the 4-HP lethal precondition. Re-arm the controlled lethal state only after
+            // inventory is authoritative, then require the LocalPlayer snapshot to observe it before
+            // the production engine is allowed to make its first decision.
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                player.invulnerableTime = 0;
+                player.setHealth(4f);
+            });
+            context.waitFor(minecraft -> minecraft.player != null
+                && Math.abs(minecraft.player.getHealth() - 4f) <= EPSILON);
+
             RuntimeHarness harness = context.computeOnClient(minecraft -> {
                 MinecraftSurvivalRuntime runtime = new MinecraftSurvivalRuntime(minecraft);
                 SurvivalEngine engine = new SurvivalEngine(
