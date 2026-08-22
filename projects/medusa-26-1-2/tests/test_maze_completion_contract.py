@@ -18,12 +18,15 @@ class MazeCompletionContract(unittest.TestCase):
 
     def test_sanctum_crossing_is_the_first_clear_gate(self):
         check = FN / "maze/completion/check.mcfunction"
+        check_ctx = FN / "maze/completion/check_ctx.mcfunction"
         complete = FN / "maze/completion/complete.mcfunction"
         self.assertTrue(check.is_file(), "maze completion check is missing")
+        self.assertTrue(check_ctx.is_file(), "instance-scoped maze completion check is missing")
         self.assertTrue(complete.is_file(), "maze completion handler is missing")
-        check_text = check.read_text()
+        check_text = check.read_text() + "\n" + check_ctx.read_text()
         self.assertIn("gamemode=survival", check_text)
         self.assertIn("gamemode=adventure", check_text)
+        self.assertIn("md_eid=$(eid)", check_text)
         self.assertNotIn("gamemode=spectator", check_text)
         complete_text = complete.read_text()
         self.assertIn("md_dungeon_clear 1", complete_text)
