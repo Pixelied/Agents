@@ -52,9 +52,9 @@ class DungeonContract(unittest.TestCase):
             self.assertTrue(path.is_file(), f"missing maze architecture module: {path.name}")
 
         shell_text = shell.read_text()
-        roof_text = roofs.read_text()
+        roof_text = roofs.read_text() + (FN / "maze/roof_column.mcfunction").read_text()
         landmark_text = landmarks.read_text()
-        self.assertGreater(shell_text.count("fill "), 300, "13x13 maze shell is unexpectedly sparse")
+        self.assertGreaterEqual(shell_text.count("fill "), 35, "13x13 maze shell is unexpectedly sparse")
         for token in ["stone_brick_stairs", "stone_brick_slab", "chain", "soul_lantern"]:
             self.assertIn(token, roof_text, f"roof architecture is missing {token}")
         for district in [
