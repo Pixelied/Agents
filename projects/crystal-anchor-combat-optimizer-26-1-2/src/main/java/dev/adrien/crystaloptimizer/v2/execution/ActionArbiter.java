@@ -141,6 +141,9 @@ public final class ActionArbiter {
             || startIndex >= actions.size()) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
         }
+        if (view.userControllingCombatInput()) {
+            return ArbitrationResult.rejected(ArbitrationResult.Reason.MANUAL_OVERRIDE);
+        }
 
         if (!approval.isCurrent(
             view.worldRevision(),
