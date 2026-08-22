@@ -9,6 +9,7 @@ scoreboard players set @s md_ritual_paid 0
 scoreboard players set @s md_mphase 0
 scoreboard players set @s md_mtick 0
 scoreboard players set @s md_mtry 0
+scoreboard players set @s md_mgen_try 0
 scoreboard players set @s md_mdelta 0
 tag @s remove md.new_instance
 function medusa:dungeon/build_generated
