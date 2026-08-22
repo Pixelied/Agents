@@ -26,23 +26,7 @@ scoreboard players add $next_eid md_eid 0
 scoreboard players add $next_aid md_aid 0
 scoreboard players add $next_tid md_tid 0
 schedule function medusa:instance/recover_loaded 1t replace
-scoreboard objectives add md_p1_done dummy
-scoreboard objectives add md_p2_done dummy
-scoreboard objectives add md_p3_done dummy
 scoreboard objectives add md_dungeon_clear dummy
-scoreboard objectives add md_p1_o1 dummy
-scoreboard objectives add md_p1_o2 dummy
-scoreboard objectives add md_p1_o3 dummy
-scoreboard objectives add md_p1_b1 dummy
-scoreboard objectives add md_p1_b2 dummy
-scoreboard objectives add md_p1_b3 dummy
-scoreboard objectives add md_p1_submit dummy
-scoreboard objectives add md_p2_left dummy
-scoreboard objectives add md_p2_right dummy
-scoreboard objectives add md_p2_bl dummy
-scoreboard objectives add md_p2_br dummy
-scoreboard objectives add md_p3_timer dummy
-scoreboard objectives add md_p3_zone dummy
 scoreboard objectives add md_eye_state dummy
 scoreboard players set $75 md_tmp 75
 scoreboard players set $60 md_tmp 60
