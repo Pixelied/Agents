@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "harden-pearl-catcher-26-1-2",
+  "scope": "docs/superpowers/specs/2026-08-22-pearl-catcher-26-1-2-hardening-design.md",
+  "owner": "openai-pearl-hardening-6f2a",
+  "state": "active",
+  "intent": "Capture the already-approved Pearl Catcher hardening design exactly enough to drive implementation and verification without expanding scope.",
+  "claimed_at": "2026-08-22T16:29:00+00:00",
+  "heartbeat_at": "2026-08-22T16:29:00+00:00",
+  "expires_at": "2026-08-23T16:29:00+00:00",
+  "generation": 1
+}
