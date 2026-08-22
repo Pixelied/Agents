@@ -1,6 +1,7 @@
 package dev.adrien.crystaloptimizer.v2.debug;
 
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,11 +17,16 @@ final class ReplayResourceTest {
     );
 
     @Test
-    void checkedInRegressionReplaysLoadAndRemainDeterministic() throws Exception {
+    void checkedInRegressionReplaysMatchBuildersAndRemainDeterministic() throws Exception {
         ReplayCodec codec = new ReplayCodec();
         ReplayRunner runner = new ReplayRunner();
+        Map<String, ReplayFixture> generated = V3ReplayFixtures.checkedInFixtures();
+        assertEquals(FIXTURES.size(), generated.size(), "checked-in replay set drifted from builders");
+
         for (String name : FIXTURES) {
             ReplayFixture fixture = codec.readResource("replays/v3/" + name);
+            assertEquals(generated.get(name), fixture, name + " drifted from its scenario builder");
+
             ReplayResult first = runner.run(fixture);
             ReplayFixture roundTrip = codec.decode(codec.encode(fixture));
             ReplayResult second = runner.run(roundTrip);
