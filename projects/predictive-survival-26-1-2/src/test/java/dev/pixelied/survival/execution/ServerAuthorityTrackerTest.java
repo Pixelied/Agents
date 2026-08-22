@@ -56,6 +56,21 @@ class ServerAuthorityTrackerTest {
         assertEquals(0, tracker.confirmedUseTicks(true, SurvivalAction.Hand.MAIN_HAND, 20));
     }
 
+
+    @Test
+    void endedUseSessionCannotBeReusedByLaterUseOfSameHand() {
+        ServerAuthorityTracker tracker = new ServerAuthorityTracker(0);
+        tracker.sentUseItem(
+            SurvivalAction.Hand.OFF_HAND,
+            new TimingSnapshot(100, 50, 0, new TickWindow(104, 104))
+        );
+
+        assertEquals(5, tracker.confirmedUseTicks(true, SurvivalAction.Hand.OFF_HAND, 109));
+        assertEquals(0, tracker.confirmedUseTicks(false, null, 120));
+        assertEquals(0, tracker.confirmedUseTicks(true, SurvivalAction.Hand.OFF_HAND, 500),
+            "a new local use must never inherit warmup from a completed old server-use session");
+    }
+
     @Test
     void defaultShieldAngleAcceptsFrontAndRejectsBehind() {
         Vec3Snapshot player = new Vec3Snapshot(0, 64, 0);

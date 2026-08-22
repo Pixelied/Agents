@@ -121,8 +121,8 @@ public final class SurvivalCandidateGenerator {
         ThreatTimeline timeline,
         InventorySnapshot inventory
     ) {
-        boolean guaranteedBlock = timeline.events().stream().allMatch(ThreatEvent::blockable);
-        if (!guaranteedBlock) return;
+        boolean hasBlockableThreat = timeline.events().stream().anyMatch(ThreatEvent::blockable);
+        if (!hasBlockableThreat) return;
 
         boolean activeOffhand = inventory.activeOffhandShield()
             && inventory.slot(40).map(slot -> !slot.blockingOnCooldown()).orElse(false);
@@ -164,23 +164,26 @@ public final class SurvivalCandidateGenerator {
         InventorySnapshot inventory
     ) {
         inventory.slot(inventory.selectedHotbarIndex())
-            .ifPresent(slot -> addHeldItemCandidates(candidates, context, slot));
-        inventory.slot(40).ifPresent(slot -> addHeldItemCandidates(candidates, context, slot));
+            .ifPresent(slot -> addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.MAIN_HAND));
+        inventory.slot(40).ifPresent(slot ->
+            addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.OFF_HAND));
     }
 
     private static void addHeldItemCandidates(
         List<SurvivalAction> candidates,
         PredictionContext context,
-        InventorySlotSnapshot slot
+        InventorySlotSnapshot slot,
+        SurvivalAction.Hand hand
     ) {
-        slot.consumable().ifPresent(consumable -> addConsumableCandidate(candidates, context, slot, consumable));
-        slot.equippable().ifPresent(equippable -> addEquipmentCandidate(candidates, context, slot, equippable));
+        slot.consumable().ifPresent(consumable -> addConsumableCandidate(candidates, context, slot, hand, consumable));
+        slot.equippable().ifPresent(equippable -> addEquipmentCandidate(candidates, context, slot, hand, equippable));
     }
 
     private static void addConsumableCandidate(
         List<SurvivalAction> candidates,
         PredictionContext context,
         InventorySlotSnapshot slot,
+        SurvivalAction.Hand hand,
         ConsumableSurvivalSnapshot consumable
     ) {
         if (!consumable.usable() || consumable.guaranteedEffects().isEmpty()) return;
@@ -204,7 +207,12 @@ public final class SurvivalCandidateGenerator {
             true,
             1d,
             1,
-            1
+            1,
+            java.util.Optional.of(new SurvivalAction.HeldItemRef(
+                hand, slot.stackKey(), slot.componentFingerprint()
+            )),
+            consumable.guaranteedEffects(),
+            absorptionFloor
         ));
     }
 
@@ -212,6 +220,7 @@ public final class SurvivalCandidateGenerator {
         List<SurvivalAction> candidates,
         PredictionContext context,
         InventorySlotSnapshot slot,
+        SurvivalAction.Hand hand,
         EquippableSurvivalSnapshot equippable
     ) {
         if (!equippable.usable() || !equippable.armorPiece().present()) return;
@@ -227,7 +236,11 @@ public final class SurvivalCandidateGenerator {
             true,
             1d,
             0,
-            2
+            2,
+            java.util.Optional.of(new SurvivalAction.HeldItemRef(
+                hand, slot.stackKey(), slot.componentFingerprint()
+            )),
+            java.util.Optional.of(piece)
         ));
     }
 

@@ -69,12 +69,13 @@ public final class ThreatPredictorRegistry {
             ),
             damage,
             lessCertain(first.confidence(), second.confidence()),
-            mergeOptional(first.sourcePosition(), second.sourcePosition()),
-            mergeOptional(first.impactPosition(), second.impactPosition()),
+            mergeKnownOnly(first.sourcePosition(), second.sourcePosition()),
+            mergeKnownOnly(first.impactPosition(), second.impactPosition()),
             first.avoidable() && second.avoidable(),
             first.blockable() && second.blockable(),
             first.relocatable() && second.relocatable(),
-            first.canDisableBlocking() || second.canDisableBlocking()
+            first.canDisableBlocking() || second.canDisableBlocking(),
+            mergePrerequisite(first.requiresAcceptedEventId(), second.requiresAcceptedEventId())
         );
     }
 
@@ -92,10 +93,16 @@ public final class ThreatPredictorRegistry {
             first.scalesWithDifficulty() || second.scalesWithDifficulty(),
             Math.max(first.freezingMultiplier(), second.freezingMultiplier()),
             first.piercingProjectile() || second.piercingProjectile(),
-            mergeOptional(first.sourcePosition(), second.sourcePosition()),
+            mergeKnownOnly(first.sourcePosition(), second.sourcePosition()),
             first.sourceKey().equals(second.sourceKey())
                 ? first.sourceKey()
-                : "merged:" + threatId
+                : "merged:" + threatId,
+            Math.min(
+                first.applicationHealthThresholdExclusive(),
+                second.applicationHealthThresholdExclusive()
+            ),
+            Math.min(first.armorEffectivenessAdjustment(), second.armorEffectivenessAdjustment()),
+            Math.max(first.blockingDisableSeconds(), second.blockingDisableSeconds())
         );
     }
 
@@ -103,9 +110,21 @@ public final class ThreatPredictorRegistry {
         return first.ordinal() >= second.ordinal() ? first : second;
     }
 
-    private static <T> Optional<T> mergeOptional(Optional<T> first, Optional<T> second) {
-        if (first.isEmpty()) return second;
-        if (second.isEmpty()) return first;
+    /**
+     * Positional knowledge is safe to retain only when every duplicate predictor independently
+     * reports the same value. Treat a missing or conflicting position as unknown: promoting one
+     * predictor's coordinate can incorrectly make an otherwise unknown shield angle look safe.
+     */
+    private static <T> Optional<T> mergeKnownOnly(Optional<T> first, Optional<T> second) {
+        return first.isPresent() && first.equals(second) ? first : Optional.empty();
+    }
+
+    /**
+     * A causal prerequisite can only survive a merge when all observations agree on that exact
+     * prerequisite. If one observation is unconditional, or observations disagree, the merged
+     * threat must remain unconditional so a rejected prerequisite cannot hide a still-possible hit.
+     */
+    private static Optional<String> mergePrerequisite(Optional<String> first, Optional<String> second) {
         return first.equals(second) ? first : Optional.empty();
     }
 }

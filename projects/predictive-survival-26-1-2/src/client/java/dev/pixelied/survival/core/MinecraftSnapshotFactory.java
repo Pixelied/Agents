@@ -62,6 +62,7 @@ public final class MinecraftSnapshotFactory {
         int crammingOverlapCount = observableCrammingOverlapCount(player, box);
 
         Map<String, String> state = new LinkedHashMap<>();
+        state.put("max_health", Float.toString(player.getMaxHealth()));
         state.put("fall_distance", Double.toString(player.fallDistance));
         state.put("safe_fall_distance", Double.toString(player.getAttributeValue(Attributes.SAFE_FALL_DISTANCE)));
         state.put("fall_damage_multiplier", Double.toString(player.getAttributeValue(Attributes.FALL_DAMAGE_MULTIPLIER)));

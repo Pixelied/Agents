@@ -55,6 +55,9 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
         ClientTickEvents.START_CLIENT_TICK.register(client -> {
             if (client.player != null && client.level != null) {
                 engine.tick();
+            } else {
+                runtime.reset();
+                engine.reset();
             }
         });
 

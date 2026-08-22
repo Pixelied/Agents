@@ -32,8 +32,11 @@ class ModMenuContractTest {
         assertTrue(lang.contains("predictive_survival.config.title"));
         assertTrue(lang.contains("predictive_survival.config.safety_mode.description"));
         assertTrue(lang.contains("predictive_survival.config.restore_hand.description"));
-        assertTrue(lang.contains("predictive_survival.config.automatic_movement.description"));
-        assertTrue(lang.contains("predictive_survival.config.clutches.description"));
+        assertFalse(lang.contains("predictive_survival.config.automatic_movement.description"));
+        assertFalse(lang.contains("predictive_survival.config.clutches.description"));
+        String screen = Files.readString(Path.of("src/client/java/dev/pixelied/survival/config/PredictiveSurvivalConfigScreen.java"));
+        assertFalse(screen.contains("predictive_survival.config.automatic_movement"));
+        assertFalse(screen.contains("predictive_survival.config.clutches"));
         assertTrue(lang.contains("predictive_survival.config.debug.description"));
         assertTrue(lang.contains("predictive_survival.config.reset_defaults"));
     }
