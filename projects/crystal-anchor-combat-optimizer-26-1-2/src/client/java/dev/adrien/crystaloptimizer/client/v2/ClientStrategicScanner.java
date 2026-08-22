@@ -10,7 +10,9 @@ import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
 import dev.adrien.crystaloptimizer.v2.strategy.FastOpportunitySelector;
 import dev.adrien.crystaloptimizer.v2.strategy.HurtThresholdEstimate;
 import dev.adrien.crystaloptimizer.v2.strategy.HurtWindowTracker;
+import dev.adrien.crystaloptimizer.v2.strategy.PlannedOpportunity;
 import dev.adrien.crystaloptimizer.v2.strategy.SelectionContext;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Objects;
@@ -45,8 +47,29 @@ public final class ClientStrategicScanner {
         OptimizerConfig config,
         long nowNanos
     ) {
+        publish(
+            target,
+            map,
+            Optional.empty(),
+            inventoryRevision,
+            configRevision,
+            config,
+            nowNanos
+        );
+    }
+
+    public void publish(
+        AbstractClientPlayer target,
+        DamageMap map,
+        Optional<PlannedOpportunity> plannedOpportunity,
+        long inventoryRevision,
+        long configRevision,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(map, "map");
+        Objects.requireNonNull(plannedOpportunity, "plannedOpportunity");
         Objects.requireNonNull(config, "config");
         if (!map.targetId().equals(target.getUUID())) {
             throw new IllegalArgumentException("damage map target does not match selected player");
@@ -63,7 +86,15 @@ public final class ClientStrategicScanner {
         );
 
         EnumMap<ApprovalSlot, ActionApproval> approvals = new EnumMap<>(ApprovalSlot.class);
-        List<DamageOpportunity> all = List.copyOf(map.opportunities().values());
+        ArrayList<DamageOpportunity> combined = new ArrayList<>(map.opportunities().values());
+        plannedOpportunity.ifPresent(planned -> {
+            DamageOpportunity terminal = planned.terminalOpportunity();
+            boolean duplicate = combined.stream().anyMatch(opportunity -> opportunity.id().equals(terminal.id()));
+            if (!duplicate) {
+                combined.add(terminal);
+            }
+        });
+        List<DamageOpportunity> all = List.copyOf(combined);
         putSelected(approvals, ApprovalSlot.LETHAL, all, DamageOpportunity::lethal, context,
             map, inventoryRevision, configRevision, nowNanos);
         putSelected(approvals, ApprovalSlot.FINISHER, all,
