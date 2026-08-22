@@ -2,6 +2,7 @@ package dev.adrien.crystaloptimizer.execution;
 
 import dev.adrien.crystaloptimizer.action.ChargeAnchor;
 import dev.adrien.crystaloptimizer.action.CombatAction;
+import dev.adrien.crystaloptimizer.action.DetonateAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
 import dev.adrien.crystaloptimizer.action.PlaceObsidian;
@@ -88,6 +89,9 @@ public final class InventoryCoordinator {
     ) {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(inventory, "inventory");
+        if (action instanceof DetonateAnchor) {
+            return Optional.of(routeForAnchorDetonation(inventory));
+        }
         Item required = requiredItem(action);
         return required == null
             ? Optional.empty()
@@ -131,6 +135,24 @@ public final class InventoryCoordinator {
             // The slot-change packet and following interaction can be ordered in the same client
             // dispatch; server/profile spacing is modeled separately rather than guessed here.
             .map(entry -> InteractionRoute.selectMainhand(entry.getKey(), 0.0));
+    }
+
+    private static InteractionRoute routeForAnchorDetonation(InventoryState inventory) {
+        boolean mainhandGlowstone = inventory.selectedItem()
+            .filter(Items.GLOWSTONE::equals)
+            .isPresent();
+        boolean offhandGlowstone = inventory.offhandItem()
+            .filter(Items.GLOWSTONE::equals)
+            .isPresent();
+        if (!mainhandGlowstone) {
+            return InteractionRoute.selectedMainhand();
+        }
+        if (!offhandGlowstone) {
+            return InteractionRoute.offhand();
+        }
+        // A fully charged anchor may still detonate when both hands contain glowstone. Partial
+        // anchors are rejected by DetonateAnchor legality before dispatch.
+        return InteractionRoute.selectedMainhand();
     }
 
     private static Item requiredItem(CombatAction action) {
