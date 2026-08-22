@@ -27,15 +27,10 @@ public record DetonateAnchor(BlockPos pos) implements CombatAction {
         if (state.base().legality().respawnAnchorWorks()) {
             return ActionLegality.denied("respawn anchors work normally in this environment");
         }
-        if (anchor.charges() < 4 && bothInteractionHandsHoldGlowstone(state)) {
-            return ActionLegality.denied("both interaction hands would charge the anchor instead of detonating it");
+        if (anchor.charges() < 4 && state.inventory().hasItemInEitherHand(Items.GLOWSTONE)) {
+            return ActionLegality.denied("glowstone in a hand would charge the anchor instead of detonating it");
         }
         return ActionLegality.allowed();
-    }
-
-    private static boolean bothInteractionHandsHoldGlowstone(CombatState state) {
-        return state.inventory().selectedItem().filter(Items.GLOWSTONE::equals).isPresent()
-            && state.inventory().offhandItem().filter(Items.GLOWSTONE::equals).isPresent();
     }
 
     @Override
