@@ -168,9 +168,14 @@ public final class VanillaInteractionDispatcher {
         RotationMode mode,
         boolean critical
     ) {
-        InteractionRoute route = inventoryCoordinator
-            .routeForObserved(action, observedInventory(player))
-            .orElse(InteractionRoute.selectedMainhand());
+        Optional<InteractionRoute> observedRoute = inventoryCoordinator.routeForObserved(
+            action,
+            observedInventory(player)
+        );
+        if (requiresInteractionItem(action) && observedRoute.isEmpty()) {
+            return DispatchReceipt.failed("required interaction item is no longer in a usable hand or hotbar slot");
+        }
+        InteractionRoute route = observedRoute.orElse(InteractionRoute.selectedMainhand());
         if (!aimAt(hit.getLocation(), mode, critical)) {
             return DispatchReceipt.deferred("real rotation still converging");
         }
@@ -179,6 +184,13 @@ public final class VanillaInteractionDispatcher {
         minecraft.gameMode.useItemOn(player, hand, hit);
         player.swing(hand);
         return DispatchReceipt.sent(detail + " via " + hand.name().toLowerCase());
+    }
+
+    private static boolean requiresInteractionItem(CombatAction action) {
+        return action instanceof PlaceCrystal
+            || action instanceof PlaceObsidian
+            || action instanceof PlaceAnchor
+            || action instanceof ChargeAnchor;
     }
 
     private static void applySelectedSlot(LocalPlayer player, InteractionRoute route) {
