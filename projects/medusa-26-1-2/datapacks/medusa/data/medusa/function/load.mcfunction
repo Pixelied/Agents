@@ -66,3 +66,22 @@ scoreboard objectives add md_staff_stone_timer dummy
 scoreboard objectives add md_staff_stone_limit dummy
 scoreboard objectives add md_staff_beam_tick dummy
 scoreboard players set $20 md_tmp 20
+scoreboard objectives add md_mrow dummy
+scoreboard objectives add md_mcol dummy
+scoreboard objectives add md_mn dummy
+scoreboard objectives add md_me dummy
+scoreboard objectives add md_ms dummy
+scoreboard objectives add md_mw dummy
+scoreboard objectives add md_nn dummy
+scoreboard objectives add md_ne dummy
+scoreboard objectives add md_ns dummy
+scoreboard objectives add md_nw dummy
+scoreboard objectives add md_mseen dummy
+scoreboard objectives add md_mfront dummy
+scoreboard objectives add md_mdist dummy
+scoreboard objectives add md_mparent dummy
+scoreboard objectives add md_mphase dummy
+scoreboard objectives add md_mtick dummy
+scoreboard objectives add md_mtry dummy
+scoreboard objectives add md_mdelta dummy
+scoreboard objectives add md_mblocked dummy
