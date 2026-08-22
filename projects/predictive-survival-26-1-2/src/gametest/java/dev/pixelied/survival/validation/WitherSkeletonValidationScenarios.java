@@ -9,6 +9,7 @@ import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.execution.ExecutionCommand;
 import dev.pixelied.survival.execution.MinecraftCommandDispatcher;
 import dev.pixelied.survival.timeline.ThreatEvent;
+import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerLevel;
@@ -171,10 +172,30 @@ final class WitherSkeletonValidationScenarios {
             if (!protectedOnServer) {
                 String clientDiagnostic = context.computeOnClient(minecraft -> {
                     var frame = harness.runtime().lastFrame().orElse(null);
+                    var snapshot = frame == null ? null : frame.context().player();
+                    var baseline = frame == null ? null : new ThreatTimelineSimulator().simulate(snapshot, frame.timeline());
+                    ThreatEvent direct = frame == null ? null : frame.timeline().events().stream()
+                        .filter(event -> event.id().equals("melee:" + skeletonId))
+                        .findFirst()
+                        .orElse(null);
+                    var directDamage = snapshot == null || direct == null
+                        ? null
+                        : new DamageSimulator().simulate(snapshot, direct.damage());
                     return "clientSelected=" + (minecraft.player == null ? -1 : minecraft.player.getInventory().getSelectedSlot())
                         + ", clientHealth=" + (minecraft.player == null ? -1f : minecraft.player.getHealth())
-                        + ", snapshotHealth=" + (frame == null ? "none" : Float.toString(frame.context().player().health()))
-                        + ", snapshotAbsorption=" + (frame == null ? "none" : Float.toString(frame.context().player().absorption()))
+                        + ", snapshotHealth=" + (snapshot == null ? "none" : Float.toString(snapshot.health()))
+                        + ", snapshotAbsorption=" + (snapshot == null ? "none" : Float.toString(snapshot.absorption()))
+                        + ", snapshotDifficulty=" + (snapshot == null ? "none" : snapshot.difficulty())
+                        + ", snapshotPlayerInvulnerable=" + (snapshot == null ? "none" : snapshot.playerInvulnerable())
+                        + ", snapshotAbilityInvulnerable=" + (snapshot == null ? "none" : snapshot.abilityInvulnerable())
+                        + ", snapshotDeadOrDying=" + (snapshot == null ? "none" : snapshot.deadOrDying())
+                        + ", snapshotMitigation=" + (snapshot == null ? "none" : snapshot.mitigation())
+                        + ", snapshotEffects=" + (snapshot == null ? "none" : snapshot.statusEffects())
+                        + ", snapshotBlocking=" + (snapshot == null ? "none" : snapshot.blocking())
+                        + ", snapshotHurtState=" + (snapshot == null ? "none" : snapshot.hurtState())
+                        + ", snapshotDeathProtection=" + (snapshot == null ? "none" : snapshot.deathProtection())
+                        + ", directDamage=" + directDamage
+                        + ", baseline=" + baseline
                         + ", currentPlan=" + harness.engine().currentPlan()
                         + ", executionStatus=" + harness.engine().executionStatus()
                         + ", history=" + harness.engine().history().snapshot()
