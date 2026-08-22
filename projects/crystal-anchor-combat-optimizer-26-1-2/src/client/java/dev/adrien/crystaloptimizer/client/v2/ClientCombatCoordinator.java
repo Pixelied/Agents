@@ -171,6 +171,13 @@ public final class ClientCombatCoordinator {
                 return;
             }
 
+            if (config.autoRestock()
+                && pendingItems.reservationCount() == 0
+                && restocker.restockOne(self)) {
+                revisions.markInventoryMutation();
+                return;
+            }
+
             Optional<StrategicResult> ready = plannerService.pollLatest();
             if (ready.isPresent()) {
                 StrategicResult result = ready.orElseThrow();
@@ -196,13 +203,6 @@ public final class ClientCombatCoordinator {
                         diagnostics.recordTarget(target.getName().getString());
                     }
                 }
-            }
-
-            if (config.autoRestock()
-                && pendingItems.reservationCount() == 0
-                && restocker.restockOne(self)) {
-                revisions.markInventoryMutation();
-                return;
             }
 
             List<AbstractClientPlayer> observedPlayers = List.copyOf(level.players());
