@@ -20,9 +20,10 @@ import dev.adrien.crystaloptimizer.v2.reactive.ReactiveDecision;
 import dev.adrien.crystaloptimizer.v2.state.ApprovalSlot;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboard;
 import dev.adrien.crystaloptimizer.v2.state.CombatBlackboardSnapshot;
+import dev.adrien.crystaloptimizer.v2.state.StrategicResult;
 import dev.adrien.crystaloptimizer.v2.strategy.FastOpportunitySelector;
 import dev.adrien.crystaloptimizer.v2.strategy.HurtWindowTracker;
-import dev.adrien.crystaloptimizer.v2.strategy.StrategicTargetSelector;
+import dev.adrien.crystaloptimizer.v2.strategy.StrategicCombatPlanner;
 import dev.adrien.crystaloptimizer.v2.strategy.TargetPreScore;
 import dev.adrien.crystaloptimizer.v2.strategy.TargetProtectionPolicyConfig;
 import dev.adrien.crystaloptimizer.v2.timing.TimingDistribution;
@@ -43,6 +44,7 @@ import net.minecraft.client.player.LocalPlayer;
 
 public final class ClientCombatCoordinator {
     private static final float MAX_VISIBLE_ROTATION_DEGREES_PER_UPDATE = 35.0f;
+    private static final int STRATEGIC_REFRESH_TICKS = 2;
 
     private final OptimizerConfigService configService;
     private final CombatBlackboard blackboard;
@@ -115,7 +117,6 @@ public final class ClientCombatCoordinator {
         CombatBlackboard blackboard = new CombatBlackboard();
         ClientRevisionTracker revisions = new ClientRevisionTracker();
         TimingEngine timingEngine = ClientTimingObserver.instance().timingEngine();
-        ClientDamageMapBuilder damageMaps = new ClientDamageMapBuilder(minecraft, timingEngine);
         HurtWindowTracker hurtWindows = new HurtWindowTracker();
         RemoteDamageWindowObserver.instance().bind(hurtWindows);
         ClientStrategicScanner scanner = new ClientStrategicScanner(
@@ -145,9 +146,19 @@ public final class ClientCombatCoordinator {
         );
         ClientCombatDiagnostics diagnostics = new ClientCombatDiagnostics();
         TargetManager targets = new TargetManager();
-        StrategicTargetSelector selector = new StrategicTargetSelector();
         TargetProtectionPolicyConfig protectionConfig = TargetProtectionPolicyConfig.defaults();
         ClientTargetProtectionResolver protectionResolver = new ClientTargetProtectionResolver(minecraft);
+        ClientStrategicSnapshotCapture capture = new ClientStrategicSnapshotCapture(
+            minecraft,
+            revisions,
+            timingEngine,
+            protectionResolver,
+            protectionConfig
+        );
+        ClientStrategicPlannerService plannerService = new ClientStrategicPlannerService(
+            new StrategicCombatPlanner()
+        );
+        long[] lastSubmitted = {-1L, -1L, -1L, Long.MIN_VALUE, Long.MIN_VALUE};
 
         Runnable strategicTick = () -> {
             OptimizerConfig config = configService.current();
@@ -156,8 +167,37 @@ public final class ClientCombatCoordinator {
             if (self == null || level == null) {
                 targets.clear();
                 diagnostics.recordTarget("");
+                plannerService.pollLatest();
                 return;
             }
+
+            Optional<StrategicResult> ready = plannerService.pollLatest();
+            if (ready.isPresent()) {
+                StrategicResult result = ready.orElseThrow();
+                boolean current = result.worldRevision() == revisions.worldRevision()
+                    && result.inventoryRevision() == revisions.inventoryRevision()
+                    && result.configRevision() == configService.revision()
+                    && result.damageMap().targetRevision() == revisions.targetRevision(result.targetId());
+                if (current) {
+                    AbstractClientPlayer target = level.players().stream()
+                        .filter(player -> player.getUUID().equals(result.targetId()))
+                        .findFirst()
+                        .orElse(null);
+                    if (target != null && !target.isRemoved() && !target.isDeadOrDying()) {
+                        targets.markSelected(result.targetId());
+                        scanner.publish(
+                            target,
+                            result.damageMap(),
+                            result.inventoryRevision(),
+                            result.configRevision(),
+                            config,
+                            System.nanoTime()
+                        );
+                        diagnostics.recordTarget(target.getName().getString());
+                    }
+                }
+            }
+
             if (config.autoRestock()
                 && pendingItems.reservationCount() == 0
                 && restocker.restockOne(self)) {
@@ -173,59 +213,38 @@ public final class ClientCombatCoordinator {
                 diagnostics.recordTarget("");
                 return;
             }
-
             Map<UUID, AbstractClientPlayer> playersById = new LinkedHashMap<>();
             for (AbstractClientPlayer player : observedPlayers) {
                 playersById.put(player.getUUID(), player);
             }
+            List<AbstractClientPlayer> candidates = preScores.stream()
+                .map(score -> playersById.get(score.targetId()))
+                .filter(Objects::nonNull)
+                .toList();
+
             long worldRevision = revisions.worldRevision();
-            StrategicEpoch epoch = new StrategicEpoch(targetId -> {
-                AbstractClientPlayer candidate = playersById.get(targetId);
-                if (candidate == null) {
-                    return dev.adrien.crystaloptimizer.v2.strategy.DamageMap.empty(
-                        targetId,
-                        revisions.targetRevision(targetId),
-                        worldRevision
-                    );
-                }
-                return damageMaps.update(
-                    candidate,
-                    worldRevision,
-                    revisions.targetRevision(targetId),
-                    config,
-                    protectedIds,
-                    protectionConfig
-                );
-            });
-            Optional<StrategicTargetSelector.Selection> selected = selector.selectBest(
-                preScores,
-                targets.stickyTarget().orElse(null),
-                Set.of(),
-                epoch::damageMap
-            );
-            if (selected.isEmpty()) {
-                diagnostics.recordTarget("");
-                return;
+            long inventoryRevision = revisions.inventoryRevision();
+            long configRevision = configService.revision();
+            long targetFingerprint = targetRevisionFingerprint(candidates, revisions);
+            long tick = self.tickCount;
+            boolean revisionsChanged = worldRevision != lastSubmitted[0]
+                || inventoryRevision != lastSubmitted[1]
+                || configRevision != lastSubmitted[2]
+                || targetFingerprint != lastSubmitted[3];
+            boolean cadenceDue = lastSubmitted[4] == Long.MIN_VALUE
+                || tick - lastSubmitted[4] >= STRATEGIC_REFRESH_TICKS;
+            if (revisionsChanged || cadenceDue) {
+                capture.capture(candidates, configRevision).ifPresent(snapshot -> {
+                    plannerService.submit(snapshot, config);
+                    lastSubmitted[0] = snapshot.worldRevision();
+                    lastSubmitted[1] = snapshot.inventoryRevision();
+                    lastSubmitted[2] = snapshot.configRevision();
+                    lastSubmitted[3] = targetFingerprint;
+                    lastSubmitted[4] = tick;
+                });
             }
 
-            StrategicTargetSelector.Selection selection = selected.orElseThrow();
-            AbstractClientPlayer target = playersById.get(selection.targetId());
-            if (target == null || target.isRemoved() || target.isDeadOrDying()) {
-                diagnostics.recordTarget("");
-                return;
-            }
-            targets.markSelected(selection.targetId());
             long nowNanos = System.nanoTime();
-            scanner.publish(
-                target,
-                selection.damageMap(),
-                revisions.inventoryRevision(),
-                configService.revision(),
-                config,
-                nowNanos
-            );
-            diagnostics.recordTarget(target.getName().getString());
-
             TimingDistribution placeSpawn = timingEngine.distribution(
                 TimingTransition.CRYSTAL_PLACE_TO_SPAWN,
                 nowNanos
@@ -437,6 +456,18 @@ public final class ClientCombatCoordinator {
             case FAILED -> null;
             case SENT -> throw new IllegalStateException("sent receipt escaped sent prefix");
         };
+    }
+
+    private static long targetRevisionFingerprint(
+        List<AbstractClientPlayer> targets,
+        ClientRevisionTracker revisions
+    ) {
+        long hash = 1125899906842597L;
+        for (AbstractClientPlayer target : targets) {
+            hash = 31L * hash + target.getUUID().hashCode();
+            hash = 31L * hash + revisions.targetRevision(target.getUUID());
+        }
+        return hash;
     }
 
     private static boolean preempts(ApprovalSlot challenger, ApprovalSlot pending) {
