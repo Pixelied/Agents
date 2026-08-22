@@ -41,18 +41,19 @@ A plan is executable only if all of the following hold:
 
 1. The nominal pearl/wind solution collides in the intended catch window.
 2. The plan satisfies the existing target-range/error constraints.
-3. Nominal geometric clearance is at least the solver's declared safe-clearance floor.
+3. Nominal geometric clearance is at least **0.03 blocks**.
 4. Sampled robustness is at least a conservative minimum.
 5. Runtime uncertainty introduced by network age, entity/world obstruction, unsupported environment, or player movement does not consume the available margin.
 
-Initial hard floor: **80% robustness over the existing 64 spread samples**, matching the earlier design intent that predictive/reactive solutions be at least 80% robust. The threshold remains an internal safety invariant rather than another user-facing slider.
+Hard floors: **0.03 blocks nominal clearance** and **80% robustness over the existing 64 spread samples**. The robustness threshold matches the earlier design intent that predictive/reactive solutions be at least 80% robust. Both remain internal safety invariants rather than user-facing sliders.
 
 A returned candidate that fails the hard policy is treated as no valid plan. The executor may re-solve when new authoritative state becomes available, but it must never execute a knowingly rejected candidate.
 
 ### Regression requirements
 
 - A known zero-percent robustness case must produce no executable plan.
-- A plan below the clearance floor must produce no executable plan.
+- A plan below 80% robustness must produce no executable plan.
+- A plan below 0.03 blocks clearance must produce no executable plan.
 - A normal robust case must continue to solve.
 - Delay-zero plans are subject to the same hard gate; they do not receive a special exemption.
 
@@ -78,7 +79,7 @@ Each request records:
 
 If the expected state is not observed by the deadline, the lease is cleared and the owning attempt either recomputes from current inventory state or aborts safely. No expired or cancelled lease may block a later attempt.
 
-The lease timeout is an internal protocol constant chosen in ticks and covered by deterministic tests. It is not exposed as normal configuration.
+The deadline must be bounded by the owning attempt's existing preparation lifetime. It is an internal protocol constant/derived deadline covered by deterministic tests and is not exposed as normal configuration.
 
 ## 3. Exact projectile ownership
 
@@ -114,6 +115,7 @@ It must:
 - trace the relevant projectile path through the intended catch window;
 - use the 26.1.2 vanilla block/world-border collision semantics confirmed from source;
 - account for hittable entities using the same effective collision expansion/margin as vanilla projectile collision;
+- ignore only the intended local pearl/wind pair where vanilla self/pair rules require it, not arbitrary nearby entities;
 - reject a pearl path if an entity can intercept the pearl before the intended catch;
 - reject a wind path if an entity can trigger/terminate it before the intended catch;
 - detect entry into water, bubble columns, or another environment whose projectile dynamics are not represented by `VanillaProjectilePhysics`;
@@ -131,18 +133,16 @@ When the client first observes a delayed pearl, the server-side pearl is already
 
 Represent delayed execution timing as a conservative **server-age interval**, not a single client-local age.
 
-Inputs include:
+Use the local player's current connection latency reported by the 26.1.2 client as the RTT estimate. For RTT `p` milliseconds, derive a conservative tick-lead interval:
 
-- observed local pearl state;
-- available connection latency estimate;
-- protocol/tick quantization uncertainty;
-- local observation tick phase where available.
+- lower lead: `max(0, floor(p / 50) - 1)` ticks;
+- upper lead: `ceil(p / 50) + 1` ticks.
 
-The coordinator advances the pearl state conservatively to the earliest/latest plausible server age at the moment a wind-use packet can take effect. A plan is executable only when the catch remains valid across the accepted timing uncertainty or when the uncertainty fits within the plan's proven margin.
+The one-tick guard on each side covers tick-phase quantization and ordinary measurement variance without pretending the ping sample is exact. The observed pearl state is advanced across that entire lead interval before accepting a delayed wind plan.
 
-If latency is unavailable, stale, extreme, or produces an uncertainty window larger than the safe catch window, delayed execution fails closed.
+A delayed plan is executable only if the intended catch remains valid throughout the accepted lead interval after the existing robustness/clearance gates are applied. If connection latency is unavailable/invalid, or the interval cannot be proven safe, delayed execution fails closed.
 
-Do not hide this uncertainty with arbitrary magic delay offsets.
+Do not hide uncertainty with a single arbitrary magic delay offset.
 
 ## 6. Correct silent rotation lifecycle
 
@@ -172,11 +172,11 @@ Vanilla `startUseItem()` can interact with an entity or block before falling thr
 
 ### Design
 
-Before arming a Legit projectile-use input, evaluate the real current vanilla interaction context. If the press could be consumed by an entity/block interaction under the 26.1.2 client path, the attempt is unsafe and must not synthesize the use.
+Synthetic **Legit** projectile use is armed only when the current vanilla `hitResult` is `MISS`. Any block hit or entity hit is treated as ambiguous and rejected before the synthetic key press.
 
-Do not maintain a hand-written list of interactable blocks. Reuse vanilla hit/interaction information and source-confirmed client behavior.
+This is intentionally conservative. It avoids hand-maintaining an interactable-block/entity catalogue and avoids invoking interaction code speculatively just to discover whether it consumes the click. Future relaxation requires a separately proven side-effect-free vanilla-equivalent check.
 
-If a safe item-use path cannot be established without bypassing the requested Legit semantics, fail closed.
+Fast mode may continue to use the direct item-use path because it does not claim to reproduce the normal right-click interaction chain.
 
 ## 8. Manual player choices beat stale automation
 
@@ -287,12 +287,12 @@ Preferred optimization order:
 1. remove duplicate candidate evaluation;
 2. prune candidates using cheap necessary bounds before expensive robustness sampling;
 3. cache pure repeated calculations within one solve;
-4. short-circuit robustness evaluation when a candidate can no longer meet the hard acceptance floor;
+4. short-circuit robustness evaluation when a candidate can no longer meet the hard 80% acceptance floor;
 5. reduce allocations in hot loops where measurement shows meaningful cost.
 
-Do not lower the robustness sample count merely to make a benchmark green unless equivalence is demonstrated.
+Do not lower the 64-sample robustness evaluation merely to make a benchmark green unless equivalence is demonstrated.
 
-Target for CI microbenchmarks: catch accidental order-of-magnitude regressions. Runtime performance claims must remain environment-qualified; CI timing is not a promise of user FPS.
+Performance verification records both wall-clock timing and deterministic work counters such as candidate evaluations/robustness samples. CI uses the deterministic counters as the strict regression gate and reports timing as evidence, avoiding a flaky hardware-dependent millisecond promise.
 
 ## 13. Behavioral test strategy
 
@@ -302,8 +302,8 @@ Required regression groups:
 
 1. **Plan acceptance**
    - 0% robustness rejected;
-   - below-threshold robustness rejected;
-   - insufficient clearance rejected;
+   - below-80% robustness rejected;
+   - below-0.03 clearance rejected;
    - robust nominal plan accepted.
 
 2. **Input lease lifecycle**
@@ -326,7 +326,7 @@ Required regression groups:
 
 5. **Latency/timing**
    - zero/low-latency timing remains valid;
-   - delayed observed pearl is advanced conservatively;
+   - delayed observed pearl is checked over the conservative RTT-derived lead interval;
    - excessive timing uncertainty rejects execution.
 
 6. **Rotation lifecycle**
@@ -337,8 +337,9 @@ Required regression groups:
    - cancellation/disconnect clears it.
 
 7. **Legit interaction safety**
-   - clear-air right-click may arm item use;
-   - entity/block-consumable interaction fails closed.
+   - `MISS` hit result may arm Legit item use;
+   - block hit rejects synthetic Legit use;
+   - entity hit rejects synthetic Legit use.
 
 8. **Manual ownership**
    - untouched mod-owned slot restores;
