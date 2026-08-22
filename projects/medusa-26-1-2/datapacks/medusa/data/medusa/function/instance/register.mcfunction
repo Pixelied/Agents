@@ -3,9 +3,6 @@ scoreboard players operation @s md_eid = $next_eid md_eid
 scoreboard players set @s md_state 0
 scoreboard players set @s md_phase 0
 scoreboard players set @s md_timer 0
-scoreboard players set @s md_p1_done 0
-scoreboard players set @s md_p2_done 0
-scoreboard players set @s md_p3_done 0
 scoreboard players set @s md_dungeon_clear 0
 scoreboard players set @s md_rewarded 0
 scoreboard players set @s md_ritual_paid 0
