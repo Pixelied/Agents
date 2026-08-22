@@ -81,7 +81,9 @@ public final class StrategicDamageMapBuilder {
             config.crystals(),
             config.anchors()
         );
+        LinkedHashMap<String, Integer> candidateCounts = new LinkedHashMap<>();
         for (var candidate : selectedCandidates) {
+            candidateCounts.merge(candidate.category().name(), 1, Integer::sum);
             CombatAction action = candidate.action();
             if (!enabled(action, config)) {
                 continue;
@@ -174,7 +176,13 @@ public final class StrategicDamageMapBuilder {
             );
         }
 
-        return new DamageMap(targetId, targetRevision, snapshot.worldRevision(), result);
+        return new DamageMap(
+            targetId,
+            targetRevision,
+            snapshot.worldRevision(),
+            result,
+            candidateCounts
+        );
     }
 
     private void addOpportunity(
