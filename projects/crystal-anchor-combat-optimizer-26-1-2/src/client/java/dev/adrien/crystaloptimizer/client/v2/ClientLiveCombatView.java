@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
+import dev.adrien.crystaloptimizer.client.execution.ManualOverrideTracker;
 import dev.adrien.crystaloptimizer.reconcile.PendingCrystalMask;
 import dev.adrien.crystaloptimizer.v2.execution.LiveCombatView;
 import java.util.Objects;
@@ -26,6 +27,7 @@ public final class ClientLiveCombatView implements LiveCombatView {
     private final LongSupplier inventoryRevision;
     private final LongSupplier configRevision;
     private final PendingCrystalMask crystalMask;
+    private final ManualOverrideTracker manualOverride;
 
     public ClientLiveCombatView(
         Minecraft minecraft,
@@ -40,7 +42,8 @@ public final class ClientLiveCombatView implements LiveCombatView {
             targetRevision,
             inventoryRevision,
             configRevision,
-            new PendingCrystalMask()
+            new PendingCrystalMask(),
+            ManualOverrideTracker.live(minecraft)
         );
     }
 
@@ -52,12 +55,33 @@ public final class ClientLiveCombatView implements LiveCombatView {
         LongSupplier configRevision,
         PendingCrystalMask crystalMask
     ) {
+        this(
+            minecraft,
+            worldRevision,
+            targetRevision,
+            inventoryRevision,
+            configRevision,
+            crystalMask,
+            ManualOverrideTracker.live(minecraft)
+        );
+    }
+
+    ClientLiveCombatView(
+        Minecraft minecraft,
+        LongSupplier worldRevision,
+        ToLongFunction<UUID> targetRevision,
+        LongSupplier inventoryRevision,
+        LongSupplier configRevision,
+        PendingCrystalMask crystalMask,
+        ManualOverrideTracker manualOverride
+    ) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
         this.worldRevision = Objects.requireNonNull(worldRevision, "worldRevision");
         this.targetRevision = Objects.requireNonNull(targetRevision, "targetRevision");
         this.inventoryRevision = Objects.requireNonNull(inventoryRevision, "inventoryRevision");
         this.configRevision = Objects.requireNonNull(configRevision, "configRevision");
         this.crystalMask = Objects.requireNonNull(crystalMask, "crystalMask");
+        this.manualOverride = Objects.requireNonNull(manualOverride, "manualOverride");
     }
 
     @Override
@@ -204,6 +228,11 @@ public final class ClientLiveCombatView implements LiveCombatView {
     public int selectedHotbarSlot() {
         LocalPlayer self = minecraft.player;
         return self == null ? -1 : self.getInventory().getSelectedSlot();
+    }
+
+    @Override
+    public boolean userControllingCombatInput() {
+        return manualOverride.isUserControllingCombatInput();
     }
 
     @Override
