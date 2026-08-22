@@ -159,6 +159,9 @@ final class WitherSkeletonValidationScenarios {
                 String clientDiagnostic = context.computeOnClient(minecraft -> {
                     var frame = harness.runtime().lastFrame().orElse(null);
                     return "clientSelected=" + (minecraft.player == null ? -1 : minecraft.player.getInventory().getSelectedSlot())
+                        + ", clientHealth=" + (minecraft.player == null ? -1f : minecraft.player.getHealth())
+                        + ", snapshotHealth=" + (frame == null ? "none" : Float.toString(frame.context().player().health()))
+                        + ", snapshotAbsorption=" + (frame == null ? "none" : Float.toString(frame.context().player().absorption()))
                         + ", currentPlan=" + harness.engine().currentPlan()
                         + ", executionStatus=" + harness.engine().executionStatus()
                         + ", history=" + harness.engine().history().snapshot()
@@ -168,6 +171,9 @@ final class WitherSkeletonValidationScenarios {
                 String serverDiagnostic = singleplayer.getServer().computeOnServer(server -> {
                     ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
                     return "serverSelected=" + player.getInventory().getSelectedSlot()
+                        + ", serverHealth=" + player.getHealth()
+                        + ", serverAbsorption=" + player.getAbsorptionAmount()
+                        + ", serverInvulnerableTime=" + player.invulnerableTime
                         + ", serverMain=" + player.getMainHandItem()
                         + ", serverOffhand=" + player.getOffhandItem();
                 });
