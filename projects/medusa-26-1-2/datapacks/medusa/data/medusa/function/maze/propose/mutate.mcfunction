@@ -1,0 +1,10 @@
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches ..15 run function medusa:maze/propose/mutate_one
+execute if score @s md_mdelta matches 16.. run function medusa:maze/propose/count_delta
+execute if score @s md_mdelta matches 16.. run function medusa:maze/validate/start
