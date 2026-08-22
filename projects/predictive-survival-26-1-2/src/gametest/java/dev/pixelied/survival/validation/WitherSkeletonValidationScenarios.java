@@ -121,6 +121,8 @@ final class WitherSkeletonValidationScenarios {
                 ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
                 SurvivalValidationClientGameTest.reset(player, 4f);
                 player.setDeltaMovement(Vec3.ZERO);
+                player.getFoodData().setFoodLevel(6);
+                player.getFoodData().setSaturation(0f);
                 player.getInventory().setSelectedSlot(0);
                 player.getInventory().setItem(0, new ItemStack(Items.STICK));
                 player.getInventory().setItem(1, new ItemStack(Items.TOTEM_OF_UNDYING));
@@ -135,10 +137,9 @@ final class WitherSkeletonValidationScenarios {
                 && minecraft.level != null
                 && minecraft.level.getEntity(skeletonId) instanceof WitherSkeleton);
 
-            // The inventory synchronization above can take long enough for vanilla regeneration
-            // to change the 4-HP lethal precondition. Re-arm the controlled lethal state only after
-            // inventory is authoritative, then require the LocalPlayer snapshot to observe it before
-            // the production engine is allowed to make its first decision.
+            // Keep the controlled lethal state stable while the real production engine is exercised.
+            // Vanilla natural regeneration can otherwise turn this into a non-lethal scenario while
+            // the test is still polling for server-authoritative inventory confirmation.
             singleplayer.getServer().runOnServer(server -> {
                 ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
                 player.invulnerableTime = 0;
@@ -223,6 +224,8 @@ final class WitherSkeletonValidationScenarios {
                 Entity skeleton = player.level().getEntity(skeletonId);
                 if (skeleton != null) skeleton.discard();
                 SurvivalValidationClientGameTest.reset(player, 20f);
+                player.getFoodData().setFoodLevel(20);
+                player.getFoodData().setSaturation(5f);
                 player.getInventory().setSelectedSlot(0);
                 player.getInventory().setItem(0, ItemStack.EMPTY);
                 player.getInventory().setItem(1, ItemStack.EMPTY);
