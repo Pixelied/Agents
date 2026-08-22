@@ -20,7 +20,7 @@ public final class ReplayRunner {
         boolean ticked = false;
 
         for (ReplayEvent event : fixture.events()) {
-            current = applyRevisionEvent(current, event);
+            current = applyEvent(current, event);
             if ("control.tick".equals(event.type())) {
                 lastResult = planner.computeDeterministic(current, fixture.config());
                 ticked = true;
@@ -74,7 +74,7 @@ public final class ReplayRunner {
         );
     }
 
-    private static StrategicSnapshot applyRevisionEvent(
+    private static StrategicSnapshot applyEvent(
         StrategicSnapshot snapshot,
         ReplayEvent event
     ) {
@@ -95,8 +95,46 @@ public final class ReplayRunner {
                 snapshot.targetRevisions()
             );
             case "combat.target_moved" -> targetMoved(snapshot, event.fields());
+            case "combat.crystal_removed" -> crystalRemoved(snapshot, event.fields());
             default -> snapshot;
         };
+    }
+
+    private static StrategicSnapshot crystalRemoved(
+        StrategicSnapshot snapshot,
+        Map<String, String> fields
+    ) {
+        String entityText = fields.get("entityId");
+        if (entityText == null) {
+            return snapshot;
+        }
+        int entityId;
+        try {
+            entityId = Integer.parseInt(entityText);
+        } catch (NumberFormatException invalid) {
+            return snapshot;
+        }
+        var combat = snapshot.combat();
+        var remaining = combat.crystals().stream()
+            .filter(crystal -> crystal.entityId() != entityId)
+            .toList();
+        if (remaining.size() == combat.crystals().size()) {
+            return snapshot;
+        }
+        var revisedCombat = new dev.adrien.crystaloptimizer.world.CombatSnapshot(
+            combat.worldRevision(),
+            combat.selfId(),
+            combat.region(),
+            combat.combatants(),
+            remaining,
+            combat.anchors(),
+            combat.inventory(),
+            combat.timing(),
+            combat.legality(),
+            combat.spatial(),
+            combat.difficulty()
+        );
+        return withCombat(snapshot, revisedCombat, snapshot.targetRevisions());
     }
 
     private static StrategicSnapshot targetMoved(
@@ -154,6 +192,27 @@ public final class ReplayRunner {
             snapshot.selfId(),
             targetRevisions,
             revisedCombat,
+            snapshot.movementHistory(),
+            snapshot.protectedPlayerIds(),
+            snapshot.targetProtection(),
+            snapshot.timing()
+        );
+    }
+
+    private static StrategicSnapshot withCombat(
+        StrategicSnapshot snapshot,
+        dev.adrien.crystaloptimizer.world.CombatSnapshot combat,
+        Map<UUID, Long> targetRevisions
+    ) {
+        return new StrategicSnapshot(
+            snapshot.snapshotId(),
+            snapshot.worldRevision(),
+            snapshot.inventoryRevision(),
+            snapshot.configRevision(),
+            snapshot.capturedAtNanos(),
+            snapshot.selfId(),
+            targetRevisions,
+            combat,
             snapshot.movementHistory(),
             snapshot.protectedPlayerIds(),
             snapshot.targetProtection(),
