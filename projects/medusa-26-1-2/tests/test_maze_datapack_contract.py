@@ -27,8 +27,11 @@ class MazeDatapackContract(unittest.TestCase):
 
     def test_shift_opens_before_it_closes(self):
         start_open = (FN / "maze/transition/start_open.mcfunction").read_text()
-        open_tick = (FN / "maze/transition/open_tick.mcfunction").read_text()
-        self.assertIn("start_close", open_tick)
+        open_path = (
+            (FN / "maze/transition/open_tick.mcfunction").read_text()
+            + (FN / "maze/transition/open_tick_ctx.mcfunction").read_text()
+        )
+        self.assertIn("start_close", open_path)
         self.assertNotIn("start_close", start_open)
 
     def test_only_survival_or_adventure_players_drive_activity(self):
@@ -68,9 +71,19 @@ class MazeDatapackContract(unittest.TestCase):
         self.assertNotIn(" damage ", abort)
 
     def test_wall_cleanup_is_instance_scoped(self):
-        cleanup = (FN / "maze/wall/cleanup.mcfunction").read_text()
+        cleanup = (
+            (FN / "maze/wall/cleanup.mcfunction").read_text()
+            + (FN / "maze/wall/cleanup_ctx.mcfunction").read_text()
+        )
         self.assertIn("md.maze.wall_display", cleanup)
         self.assertIn("md_eid=$(eid)", cleanup)
+
+    def test_stable_transition_waits_for_wall_controllers(self):
+        opening = (FN / "maze/transition/open_tick_ctx.mcfunction").read_text()
+        closing = (FN / "maze/transition/close_tick_ctx.mcfunction").read_text()
+        self.assertIn("md.maze.wall_controller", opening)
+        self.assertIn("md_mmode=1", opening)
+        self.assertIn("md_mmode=2..3", closing)
 
 
 if __name__ == "__main__":
