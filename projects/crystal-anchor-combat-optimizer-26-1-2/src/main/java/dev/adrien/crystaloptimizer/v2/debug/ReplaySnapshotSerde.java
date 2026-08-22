@@ -26,7 +26,6 @@ import dev.adrien.crystaloptimizer.world.CombatSnapshot;
 import dev.adrien.crystaloptimizer.world.LegalitySnapshot;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -34,12 +33,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Difficulty;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -52,6 +50,10 @@ import net.minecraft.world.phys.Vec3;
 /** Explicit conversion between immutable combat snapshots and stable JSON-friendly DTOs. */
 final class ReplaySnapshotSerde {
     static final int SCHEMA_VERSION = 1;
+    private static final Comparator<BlockPos> POS_ORDER = Comparator
+        .comparingInt((BlockPos value) -> value.getX())
+        .thenComparingInt(value -> value.getY())
+        .thenComparingInt(value -> value.getZ());
 
     private ReplaySnapshotSerde() {
     }
@@ -76,29 +78,29 @@ final class ReplaySnapshotSerde {
         );
     }
 
-    private static SnapshotDto snapshot(StrategicSnapshot snapshot) {
+    private static SnapshotDto snapshot(StrategicSnapshot value) {
         return new SnapshotDto(
-            snapshot.snapshotId(),
-            snapshot.worldRevision(),
-            snapshot.inventoryRevision(),
-            snapshot.configRevision(),
-            snapshot.capturedAtNanos(),
-            snapshot.selfId().toString(),
-            snapshot.targetRevisions().entrySet().stream()
+            value.snapshotId(),
+            value.worldRevision(),
+            value.inventoryRevision(),
+            value.configRevision(),
+            value.capturedAtNanos(),
+            value.selfId().toString(),
+            value.targetRevisions().entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> new RevisionDto(entry.getKey().toString(), entry.getValue()))
                 .toList(),
-            combat(snapshot.combat()),
-            snapshot.movementHistory().entrySet().stream()
+            combat(value.combat()),
+            value.movementHistory().entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> new MovementHistoryDto(
                     entry.getKey().toString(),
                     entry.getValue().stream().map(ReplaySnapshotSerde::movement).toList()
                 ))
                 .toList(),
-            snapshot.protectedPlayerIds().stream().sorted().map(UUID::toString).toList(),
-            targetProtection(snapshot.targetProtection()),
-            timing(snapshot.timing())
+            value.protectedPlayerIds().stream().sorted().map(UUID::toString).toList(),
+            targetProtection(value.targetProtection()),
+            timing(value.timing())
         );
     }
 
@@ -120,68 +122,53 @@ final class ReplaySnapshotSerde {
             revisions,
             combat(dto.combat()),
             history,
-            dto.protectedPlayerIds().stream().map(UUID::fromString).collect(java.util.stream.Collectors.toSet()),
+            dto.protectedPlayerIds().stream().map(UUID::fromString).collect(Collectors.toSet()),
             targetProtection(dto.targetProtection()),
             timing(dto.timing())
         );
     }
 
-    private static CombatDto combat(CombatSnapshot combat) {
-        List<BlockDto> blocks = combat.region().states().entrySet().stream()
-            .sorted(Map.Entry.comparingByKey(Comparator
-                .comparingInt(BlockPos::getX)
-                .thenComparingInt(BlockPos::getY)
-                .thenComparingInt(BlockPos::getZ)))
-            .map(entry -> block(entry.getKey(), entry.getValue()))
-            .toList();
-        List<CombatantDto> combatants = combat.combatants().entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> combatant(entry.getKey(), entry.getValue()))
-            .toList();
-        List<CrystalDto> crystals = combat.crystals().stream()
-            .sorted(Comparator.comparingInt(KnownCrystal::entityId))
-            .map(crystal -> new CrystalDto(crystal.entityId(), vec(crystal.position())))
-            .toList();
-        List<AnchorDto> anchors = combat.anchors().entrySet().stream()
-            .sorted(Map.Entry.comparingByKey(Comparator
-                .comparingInt(BlockPos::getX)
-                .thenComparingInt(BlockPos::getY)
-                .thenComparingInt(BlockPos::getZ)))
-            .map(entry -> new AnchorDto(pos(entry.getKey()), entry.getValue().charges()))
-            .toList();
-        List<SpatialDto> spatial = combat.spatial().entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> spatial(entry.getKey(), entry.getValue()))
-            .toList();
+    private static CombatDto combat(CombatSnapshot value) {
         return new CombatDto(
-            combat.worldRevision(),
-            combat.selfId().toString(),
-            blocks,
-            combatants,
-            crystals,
-            anchors,
-            inventory(combat.inventory()),
+            value.worldRevision(),
+            value.selfId().toString(),
+            value.region().states().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(POS_ORDER))
+                .map(entry -> block(entry.getKey(), entry.getValue()))
+                .toList(),
+            value.combatants().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> combatant(entry.getKey(), entry.getValue()))
+                .toList(),
+            value.crystals().stream()
+                .sorted(Comparator.comparingInt(KnownCrystal::entityId))
+                .map(crystal -> new CrystalDto(crystal.entityId(), vec(crystal.position())))
+                .toList(),
+            value.anchors().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(POS_ORDER))
+                .map(entry -> new AnchorDto(pos(entry.getKey()), entry.getValue().charges()))
+                .toList(),
+            inventory(value.inventory()),
             new TimingStateDto(
-                combat.timing().estimatedServerTick(),
-                combat.timing().confidence(),
-                combat.timing().roundTripMillis(),
-                combat.timing().jitterMillis()
+                value.timing().estimatedServerTick(),
+                value.timing().confidence(),
+                value.timing().roundTripMillis(),
+                value.timing().jitterMillis()
             ),
-            legality(combat.legality()),
-            spatial,
-            combat.difficulty().name()
+            legality(value.legality()),
+            value.spatial().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> spatial(entry.getKey(), entry.getValue()))
+                .toList(),
+            value.difficulty().name()
         );
     }
 
     private static CombatSnapshot combat(CombatDto dto) {
         LinkedHashMap<BlockPos, BlockState> states = new LinkedHashMap<>();
-        dto.blocks().forEach(block -> states.put(pos(block.pos()), blockState(block)));
-        CombatRegion region = CombatRegion.of(states, Map.of());
+        dto.blocks().forEach(entry -> states.put(pos(entry.pos()), blockState(entry)));
         LinkedHashMap<UUID, SimCombatant> combatants = new LinkedHashMap<>();
         dto.combatants().forEach(entry -> combatants.put(UUID.fromString(entry.id()), combatant(entry)));
-        List<KnownCrystal> crystals = dto.crystals().stream()
-            .map(entry -> new KnownCrystal(entry.entityId(), vec(entry.position())))
-            .toList();
         LinkedHashMap<BlockPos, AnchorState> anchors = new LinkedHashMap<>();
         dto.anchors().forEach(entry -> anchors.put(pos(entry.pos()), new AnchorState(entry.charges())));
         LinkedHashMap<UUID, CombatantSpatialState> spatial = new LinkedHashMap<>();
@@ -190,9 +177,11 @@ final class ReplaySnapshotSerde {
         return new CombatSnapshot(
             dto.worldRevision(),
             UUID.fromString(dto.selfId()),
-            region,
+            CombatRegion.of(states, Map.of()),
             combatants,
-            crystals,
+            dto.crystals().stream()
+                .map(entry -> new KnownCrystal(entry.entityId(), vec(entry.position())))
+                .toList(),
             anchors,
             inventory(dto.inventory()),
             new TimingState(
@@ -207,21 +196,21 @@ final class ReplaySnapshotSerde {
         );
     }
 
-    private static CombatantDto combatant(UUID id, SimCombatant combatant) {
+    private static CombatantDto combatant(UUID id, SimCombatant value) {
         return new CombatantDto(
             id.toString(),
-            combatant.health(),
-            combatant.absorption(),
-            equipment(combatant.equipment()),
-            effects(combatant.effects()),
-            blocking(combatant.blocking()),
+            value.health(),
+            value.absorption(),
+            equipment(value.equipment()),
+            effects(value.effects()),
+            blocking(value.blocking()),
             new HurtDto(
-                combatant.hurtWindow().invulnerableTime(),
-                combatant.hurtWindow().lastHurt(),
-                combatant.hurtWindow().lastHurtKnown()
+                value.hurtWindow().invulnerableTime(),
+                value.hurtWindow().lastHurt(),
+                value.hurtWindow().lastHurtKnown()
             ),
-            combatant.totem().name(),
-            combatant.dead()
+            value.totem().name(),
+            value.dead()
         );
     }
 
@@ -239,50 +228,39 @@ final class ReplaySnapshotSerde {
         );
     }
 
-    private static EquipmentDto equipment(EquipmentState equipment) {
+    private static EquipmentDto equipment(EquipmentState value) {
         return new EquipmentDto(
-            armor(equipment.head()),
-            armor(equipment.chest()),
-            armor(equipment.legs()),
-            armor(equipment.feet())
+            armor(value.head()), armor(value.chest()), armor(value.legs()), armor(value.feet())
         );
     }
 
     private static EquipmentState equipment(EquipmentDto dto) {
         return new EquipmentState(
-            armor(dto.head()),
-            armor(dto.chest()),
-            armor(dto.legs()),
-            armor(dto.feet())
+            armor(dto.head()), armor(dto.chest()), armor(dto.legs()), armor(dto.feet())
         );
     }
 
-    private static ArmorDto armor(Optional<ArmorPieceState> piece) {
-        return piece.map(value -> new ArmorDto(
-            value.armorPoints(),
-            value.toughness(),
-            value.durabilityRemaining(),
-            value.enchantmentProtection()
+    private static ArmorDto armor(Optional<ArmorPieceState> value) {
+        return value.map(piece -> new ArmorDto(
+            piece.armorPoints(),
+            piece.toughness(),
+            piece.durabilityRemaining(),
+            piece.enchantmentProtection()
         )).orElse(null);
     }
 
     private static Optional<ArmorPieceState> armor(ArmorDto dto) {
-        return dto == null
-            ? Optional.empty()
-            : Optional.of(new ArmorPieceState(
-                dto.armorPoints(),
-                dto.toughness(),
-                dto.durabilityRemaining(),
-                dto.enchantmentProtection()
-            ));
+        return dto == null ? Optional.empty() : Optional.of(new ArmorPieceState(
+            dto.armorPoints(), dto.toughness(), dto.durabilityRemaining(), dto.enchantmentProtection()
+        ));
     }
 
-    private static EffectsDto effects(EffectState effects) {
+    private static EffectsDto effects(EffectState value) {
         return new EffectsDto(
-            effect(effects.resistance()),
-            effect(effects.regeneration()),
-            effect(effects.absorption()),
-            effect(effects.fireResistance())
+            effect(value.resistance()),
+            effect(value.regeneration()),
+            effect(value.absorption()),
+            effect(value.fireResistance())
         );
     }
 
@@ -295,8 +273,8 @@ final class ReplaySnapshotSerde {
         );
     }
 
-    private static EffectDto effect(Optional<EffectState.EffectInstance> effect) {
-        return effect.map(value -> new EffectDto(value.amplifier(), value.durationTicks())).orElse(null);
+    private static EffectDto effect(Optional<EffectState.EffectInstance> value) {
+        return value.map(effect -> new EffectDto(effect.amplifier(), effect.durationTicks())).orElse(null);
     }
 
     private static Optional<EffectState.EffectInstance> effect(EffectDto dto) {
@@ -305,14 +283,14 @@ final class ReplaySnapshotSerde {
             : Optional.of(new EffectState.EffectInstance(dto.amplifier(), dto.durationTicks()));
     }
 
-    private static BlockingDto blocking(BlockingState blocking) {
+    private static BlockingDto blocking(BlockingState value) {
         return new BlockingDto(
-            blocking.active(),
-            vec(blocking.position()),
-            blocking.headYawDegrees(),
-            blocking.horizontalBlockingAngle(),
-            blocking.baseReduction(),
-            blocking.factorReduction()
+            value.active(),
+            vec(value.position()),
+            value.headYawDegrees(),
+            value.horizontalBlockingAngle(),
+            value.baseReduction(),
+            value.factorReduction()
         );
     }
 
@@ -327,24 +305,22 @@ final class ReplaySnapshotSerde {
         );
     }
 
-    private static InventoryDto inventory(InventoryState inventory) {
-        List<ItemCountDto> counts = inventory.knownCounts().entrySet().stream()
-            .map(entry -> new ItemCountDto(itemSymbol(entry.getKey()), entry.getValue()))
-            .sorted(Comparator.comparing(ItemCountDto::item))
-            .toList();
-        List<HotbarDto> hotbar = inventory.hotbarItems().entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> new HotbarDto(
-                entry.getKey(),
-                itemSymbol(entry.getValue()),
-                inventory.hotbarCount(entry.getKey())
-            ))
-            .toList();
+    private static InventoryDto inventory(InventoryState value) {
         return new InventoryDto(
-            inventory.selectedHotbarSlot(),
-            counts,
-            hotbar,
-            inventory.offhandItem().map(ReplaySnapshotSerde::itemSymbol).orElse(null)
+            value.selectedHotbarSlot(),
+            value.knownCounts().entrySet().stream()
+                .map(entry -> new ItemCountDto(itemSymbol(entry.getKey()), entry.getValue()))
+                .sorted(Comparator.comparing(ItemCountDto::item))
+                .toList(),
+            value.hotbarItems().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new HotbarDto(
+                    entry.getKey(),
+                    itemSymbol(entry.getValue()),
+                    value.hotbarCount(entry.getKey())
+                ))
+                .toList(),
+            value.offhandItem().map(ReplaySnapshotSerde::itemSymbol).orElse(null)
         );
     }
 
@@ -366,13 +342,13 @@ final class ReplaySnapshotSerde {
         );
     }
 
-    private static LegalityDto legality(LegalitySnapshot legality) {
+    private static LegalityDto legality(LegalitySnapshot value) {
         return new LegalityDto(
-            vec(legality.eyePosition()),
-            legality.blockInteractionRange(),
-            legality.entityInteractionRange(),
-            legality.occupiedEntityBoxes().stream().map(ReplaySnapshotSerde::box).toList(),
-            legality.respawnAnchorWorks()
+            vec(value.eyePosition()),
+            value.blockInteractionRange(),
+            value.entityInteractionRange(),
+            value.occupiedEntityBoxes().stream().map(ReplaySnapshotSerde::box).toList(),
+            value.respawnAnchorWorks()
         );
     }
 
@@ -386,12 +362,9 @@ final class ReplaySnapshotSerde {
         );
     }
 
-    private static SpatialDto spatial(UUID id, CombatantSpatialState spatial) {
+    private static SpatialDto spatial(UUID id, CombatantSpatialState value) {
         return new SpatialDto(
-            id.toString(),
-            vec(spatial.position()),
-            box(spatial.boundingBox()),
-            vec(spatial.velocity())
+            id.toString(), vec(value.position()), box(value.boundingBox()), vec(value.velocity())
         );
     }
 
@@ -399,44 +372,46 @@ final class ReplaySnapshotSerde {
         return new CombatantSpatialState(vec(dto.position()), box(dto.boundingBox()), vec(dto.velocity()));
     }
 
-    private static MovementDto movement(MovementSample sample) {
-        return new MovementDto(sample.timestampNanos(), vec(sample.position()), vec(sample.velocity()));
+    private static MovementDto movement(MovementSample value) {
+        return new MovementDto(value.timestampNanos(), vec(value.position()), vec(value.velocity()));
     }
 
     private static MovementSample movement(MovementDto dto) {
         return new MovementSample(dto.timestampNanos(), vec(dto.position()), vec(dto.velocity()));
     }
 
-    private static ProtectionDto targetProtection(TargetProtectionPolicyConfig config) {
+    private static ProtectionDto targetProtection(TargetProtectionPolicyConfig value) {
         return new ProtectionDto(
-            config.protectedPlayerIds().stream().sorted().map(UUID::toString).toList(),
-            config.protectScoreboardTeam(),
-            config.maxProtectedDamage()
+            value.protectedPlayerIds().stream().sorted().map(UUID::toString).toList(),
+            value.protectScoreboardTeam(),
+            value.maxProtectedDamage()
         );
     }
 
     private static TargetProtectionPolicyConfig targetProtection(ProtectionDto dto) {
         return new TargetProtectionPolicyConfig(
-            dto.protectedPlayerIds().stream().map(UUID::fromString).collect(java.util.stream.Collectors.toSet()),
+            dto.protectedPlayerIds().stream().map(UUID::fromString).collect(Collectors.toSet()),
             dto.protectScoreboardTeam(),
             dto.maxProtectedDamage()
         );
     }
 
-    private static TimingSnapshotDto timing(TimingSnapshot timing) {
-        List<TimingDistributionDto> distributions = timing.distributions().entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> new TimingDistributionDto(
-                entry.getKey().name(),
-                entry.getValue().sampleCount(),
-                Double.toString(entry.getValue().p50Millis()),
-                Double.toString(entry.getValue().p90Millis()),
-                entry.getValue().medianAbsoluteDeviationMillis(),
-                entry.getValue().confidence(),
-                entry.getValue().newestSampleNanos()
-            ))
-            .toList();
-        return new TimingSnapshotDto(timing.capturedAtNanos(), distributions);
+    private static TimingSnapshotDto timing(TimingSnapshot value) {
+        return new TimingSnapshotDto(
+            value.capturedAtNanos(),
+            value.distributions().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new TimingDistributionDto(
+                    entry.getKey().name(),
+                    entry.getValue().sampleCount(),
+                    Double.toString(entry.getValue().p50Millis()),
+                    Double.toString(entry.getValue().p90Millis()),
+                    entry.getValue().medianAbsoluteDeviationMillis(),
+                    entry.getValue().confidence(),
+                    entry.getValue().newestSampleNanos()
+                ))
+                .toList()
+        );
     }
 
     private static TimingSnapshot timing(TimingSnapshotDto dto) {
@@ -455,19 +430,11 @@ final class ReplaySnapshotSerde {
         return new TimingSnapshot(dto.capturedAtNanos(), distributions);
     }
 
-    private static ConfigDto config(OptimizerConfig config) {
+    private static ConfigDto config(OptimizerConfig value) {
         return new ConfigDto(
-            config.enabled(),
-            config.strategy().name(),
-            config.targetRange(),
-            config.minDamage(),
-            config.maxSelfDamage(),
-            config.facePlaceHealth(),
-            config.crystals(),
-            config.anchors(),
-            config.autoRestock(),
-            config.rotationMode().name(),
-            config.hud()
+            value.enabled(), value.strategy().name(), value.targetRange(), value.minDamage(),
+            value.maxSelfDamage(), value.facePlaceHealth(), value.crystals(), value.anchors(),
+            value.autoRestock(), value.rotationMode().name(), value.hud()
         );
     }
 
@@ -487,8 +454,8 @@ final class ReplaySnapshotSerde {
         ).validated();
     }
 
-    private static EventDto event(ReplayEvent event) {
-        return new EventDto(event.relativeNanos(), event.type(), new LinkedHashMap<>(event.fields()));
+    private static EventDto event(ReplayEvent value) {
+        return new EventDto(value.relativeNanos(), value.type(), new LinkedHashMap<>(value.fields()));
     }
 
     private static ReplayEvent event(EventDto dto) {
@@ -532,16 +499,16 @@ final class ReplaySnapshotSerde {
         return state.setValue(property, parsed);
     }
 
-    private static String itemSymbol(Item item) {
-        return staticSymbol(Items.class, item, Item.class);
+    private static String itemSymbol(Item value) {
+        return staticSymbol(Items.class, value, Item.class);
     }
 
     private static Item item(String symbol) {
         return staticValue(Items.class, symbol, Item.class);
     }
 
-    private static String blockSymbol(Block block) {
-        return staticSymbol(Blocks.class, block, Block.class);
+    private static String blockSymbol(Block value) {
+        return staticSymbol(Blocks.class, value, Block.class);
     }
 
     private static Block block(String symbol) {
@@ -562,8 +529,7 @@ final class ReplaySnapshotSerde {
     private static <T> T staticValue(Class<?> holder, String symbol, Class<T> type) {
         try {
             Field field = holder.getField(symbol.toUpperCase(Locale.ROOT));
-            Object value = field.get(null);
-            return type.cast(value);
+            return type.cast(field.get(null));
         } catch (ReflectiveOperationException | ClassCastException invalid) {
             throw new IllegalArgumentException("unknown vanilla symbol: " + symbol, invalid);
         }
@@ -573,32 +539,32 @@ final class ReplaySnapshotSerde {
         try {
             return field.get(null);
         } catch (IllegalAccessException impossible) {
-            throw new IllegalStateException("public vanilla registry field became inaccessible", impossible);
+            throw new IllegalStateException("public vanilla field became inaccessible", impossible);
         }
     }
 
-    private static PosDto pos(BlockPos pos) {
-        return new PosDto(pos.getX(), pos.getY(), pos.getZ());
+    private static PosDto pos(BlockPos value) {
+        return new PosDto(value.getX(), value.getY(), value.getZ());
     }
 
-    private static BlockPos pos(PosDto pos) {
-        return new BlockPos(pos.x(), pos.y(), pos.z());
+    private static BlockPos pos(PosDto value) {
+        return new BlockPos(value.x(), value.y(), value.z());
     }
 
-    private static VecDto vec(Vec3 vec) {
-        return new VecDto(vec.x, vec.y, vec.z);
+    private static VecDto vec(Vec3 value) {
+        return new VecDto(value.x, value.y, value.z);
     }
 
-    private static Vec3 vec(VecDto vec) {
-        return new Vec3(vec.x(), vec.y(), vec.z());
+    private static Vec3 vec(VecDto value) {
+        return new Vec3(value.x(), value.y(), value.z());
     }
 
-    private static BoxDto box(AABB box) {
-        return new BoxDto(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ);
+    private static BoxDto box(AABB value) {
+        return new BoxDto(value.minX, value.minY, value.minZ, value.maxX, value.maxY, value.maxZ);
     }
 
-    private static AABB box(BoxDto box) {
-        return new AABB(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ());
+    private static AABB box(BoxDto value) {
+        return new AABB(value.minX(), value.minY(), value.minZ(), value.maxX(), value.maxY(), value.maxZ());
     }
 
     record RootDto(int schemaVersion, SnapshotDto snapshot, ConfigDto config, List<EventDto> events) {}
