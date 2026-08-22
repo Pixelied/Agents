@@ -70,7 +70,7 @@ jobs:
           )
           unzip -p run/world/datapacks/medusa.zip pack.mcmeta >/dev/null
           printf 'eula=true\n' > run/eula.txt
-          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\n' > run/server.properties
+          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\npause-when-empty-seconds=-1\n' > run/server.properties
       - name: Boot server and exercise Medusa runtime
         shell: bash
         run: |
