@@ -11,7 +11,9 @@ import dev.pixelied.survival.damage.StatusEffectsSnapshot;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
@@ -401,13 +403,27 @@ public final class ThreatTimelineSimulator {
             float expiringHearts = 4f * (absorptionEffect.amplifier() + 1);
             absorption = Math.max(0f, absorption - expiringHearts);
         }
+
+        Map<String, String> stateProperties = player.stateProperties();
+        EffectInstanceSnapshot healthBoost = effects.effects().get("minecraft:health_boost");
+        if (healthBoost != null
+            && !healthBoost.infiniteDuration()
+            && healthBoost.durationTicks() <= elapsed) {
+            float expiringBonus = 4f * (healthBoost.amplifier() + 1);
+            float maxAfterExpiry = Math.max(1f, observedMaxHealth(player) - expiringBonus);
+            health = Math.min(health, maxAfterExpiry);
+            LinkedHashMap<String, String> nextState = new LinkedHashMap<>(stateProperties);
+            nextState.put("max_health", Float.toString(maxAfterExpiry));
+            stateProperties = nextState;
+        }
+
         StatusEffectsSnapshot agedEffects = effects.age(elapsed);
 
         return new PlayerSnapshot(
             health, absorption, player.playerInvulnerable(), player.abilityInvulnerable(),
             player.deadOrDying(), player.difficulty(), player.mitigation(), agedEffects, player.blocking().age(elapsed),
             aged, player.deathProtection(), player.boundingBox(), player.position(), player.velocity(),
-            player.equipmentItemKeys(), player.stateProperties()
+            player.equipmentItemKeys(), stateProperties
         );
     }
 
