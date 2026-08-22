@@ -50,6 +50,30 @@ class MetadataPreservationTest {
     }
 
     @Test
+    void duplicateThreatMergeDoesNotPromoteUnknownPositionsToKnown() {
+        Vec3Snapshot knownPosition = new Vec3Snapshot(0, 0, 5);
+        ThreatEvent unknown = event("same", 8f, 0f, 0f, 0f, Optional.empty());
+        DamageSourceSnapshot knownDamage = new DamageSourceSnapshot(
+            DamageRange.exact(8f), Set.of(), false, 1f, false,
+            Optional.of(knownPosition), "test:same", 0f, 0f, 0f
+        );
+        ThreatEvent known = new ThreatEvent(
+            "same", ThreatKind.MELEE, new TickWindow(2, 2), knownDamage, Confidence.EXACT,
+            Optional.of(knownPosition), Optional.of(knownPosition), false, true, false, false, Optional.empty()
+        );
+        ThreatPredictor one = ignored -> List.of(unknown);
+        ThreatPredictor two = ignored -> List.of(known);
+
+        ThreatEvent merged = new ThreatPredictorRegistry(List.of(one, two))
+            .predictAll(context())
+            .getFirst();
+
+        assertEquals(Optional.empty(), merged.damage().sourcePosition());
+        assertEquals(Optional.empty(), merged.sourcePosition());
+        assertEquals(Optional.empty(), merged.impactPosition());
+    }
+
+    @Test
     void placeCoverRawDamageOverridePreservesAllOtherThreatMetadata() {
         ThreatEvent original = event("child", 10f, 2f, -0.30f, 3f, Optional.of("parent"));
         SurvivalAction.PlaceCover cover = new SurvivalAction.PlaceCover(
