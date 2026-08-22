@@ -1,6 +1,7 @@
 package dev.pixelied.survival.execution;
 
 import dev.pixelied.survival.core.AabbSnapshot;
+import dev.pixelied.survival.core.Confidence;
 import dev.pixelied.survival.core.DamageRange;
 import dev.pixelied.survival.core.DifficultySnapshot;
 import dev.pixelied.survival.core.EngineLimits;
@@ -10,6 +11,7 @@ import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.HurtState;
@@ -22,6 +24,8 @@ import dev.pixelied.survival.inventory.MenuSlotMap;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalCandidateGenerator;
 import dev.pixelied.survival.timing.TimingSnapshot;
+import dev.pixelied.survival.timeline.ThreatEvent;
+import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import org.junit.jupiter.api.Test;
 
@@ -131,7 +135,18 @@ class NonTotemActionExecutorTest {
         );
         SurvivalAction.ApplyEffects fireAction = assertInstanceOf(
             SurvivalAction.ApplyEffects.class,
-            new SurvivalCandidateGenerator().generate(prediction, new ThreatTimeline(List.of()), inventory, menu).stream()
+            new SurvivalCandidateGenerator().generate(
+                prediction,
+                new ThreatTimeline(List.of(new ThreatEvent(
+                    "incoming", ThreatKind.OTHER, new TickWindow(20, 20),
+                    new DamageSourceSnapshot(
+                        DamageRange.exact(1f), Set.of(), false, 1f, false, Optional.empty(), "test:incoming"
+                    ),
+                    Confidence.EXACT, Optional.empty(), Optional.empty(), true, false, true, false
+                ))),
+                inventory,
+                menu
+            ).stream()
                 .filter(SurvivalAction.ApplyEffects.class::isInstance)
                 .map(SurvivalAction.ApplyEffects.class::cast)
                 .filter(action -> action.statusEffectsAfter().fireResistance())
