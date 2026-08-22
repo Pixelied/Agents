@@ -22,7 +22,8 @@ class RuntimeEntrypointContract(unittest.TestCase):
     def test_debug_harness_waits_for_entity_ready_chunk(self):
         entry = (FN / "debug/create_test_temple.mcfunction").read_text()
         waiter = FN / "debug/wait_for_test_chunk.mcfunction"
-        self.assertIn("forceload add 0 0 96 96", entry)
+        self.assertIn("forceload add -64 0 128 128", entry)
+        self.assertNotIn("forceload add 0 0 96 96", entry)
         self.assertIn("schedule function medusa:debug/wait_for_test_chunk 1t replace", entry)
         self.assertNotIn("create_test_temple_loaded 5t", entry)
         self.assertTrue(waiter.is_file(), "entity-readiness wait function is missing")
