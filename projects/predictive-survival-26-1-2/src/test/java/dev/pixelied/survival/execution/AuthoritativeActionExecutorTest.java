@@ -65,7 +65,7 @@ class AuthoritativeActionExecutorTest {
     }
 
     @Test
-    void shieldAngleContradictionFailsAndRequestsReplan() {
+    void globalShieldAngleFlagDoesNotAbortPerThreatBlockingDecision() {
         ShieldActionExecutor executor = new ShieldActionExecutor();
         SurvivalAction.RaiseShield action = new SurvivalAction.RaiseShield(
             0, true, true, true, 1.0, 1f, 4, 5, 0
@@ -75,11 +75,10 @@ class AuthoritativeActionExecutorTest {
             context(inventory(0, false, true), true, SurvivalAction.Hand.OFF_HAND, 4, true, 300)
         );
 
-        ExecutionStatus.Failed failed = assertInstanceOf(
-            ExecutionStatus.Failed.class,
+        assertInstanceOf(
+            ExecutionStatus.WaitingForServer.class,
             executor.observe(context(inventory(0, false, true), true, SurvivalAction.Hand.OFF_HAND, 4, false, 301))
         );
-        assertTrue(failed.replanRequired());
     }
 
     @Test

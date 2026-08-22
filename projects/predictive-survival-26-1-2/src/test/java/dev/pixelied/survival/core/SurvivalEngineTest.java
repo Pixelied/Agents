@@ -323,6 +323,7 @@ class SurvivalEngineTest {
         private boolean lastRestorationEnabled;
         private boolean lastLethalWithoutProtection;
         private int reportedRemainingServerTicks = -1;
+        private long activeStartedClientTick;
 
         private FakeRuntime(SurvivalEngine.EngineFrame frame) {
             this.frame = frame;
@@ -349,11 +350,15 @@ class SurvivalEngineTest {
         public ExecutionStatus begin(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
             beginCount++;
             active = action;
+            activeStartedClientTick = ignored.context().timing().clientTick();
             return new ExecutionStatus.WaitingForServer("sent");
         }
 
+        @Override
         public int remainingServerTicks(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
-            return reportedRemainingServerTicks >= 0 ? reportedRemainingServerTicks : action.requiredServerTicks();
+            if (reportedRemainingServerTicks >= 0) return reportedRemainingServerTicks;
+            long elapsed = Math.max(0L, ignored.context().timing().clientTick() - activeStartedClientTick);
+            return (int) Math.max(0L, (long) action.requiredServerTicks() - elapsed);
         }
 
         @Override

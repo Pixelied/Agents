@@ -1,5 +1,6 @@
 package dev.pixelied.survival.planner;
 
+import dev.pixelied.survival.core.Confidence;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -42,7 +43,15 @@ public final class SurvivalPlanner {
         int cap = Math.min(context.limits().maxPlannerCandidates(), candidates.size());
         List<ActionSimulation> evaluated = new ArrayList<>(cap);
         for (int i = 0; i < cap; i++) {
-            evaluated.add(simulate(context, timeline, Objects.requireNonNull(candidates.get(i), "candidate"), mode));
+            evaluated.add(simulate(
+                context,
+                timeline,
+                Objects.requireNonNull(candidates.get(i), "candidate"),
+                mode,
+                baseline.result(),
+                false,
+                -1
+            ));
         }
 
         ActionSimulation best = evaluated.stream()
@@ -60,13 +69,17 @@ public final class SurvivalPlanner {
         SurvivalAction action,
         SafetyMode mode
     ) {
-        return simulate(context, timeline, action, mode, true);
+        TimelineResult baseline = timelineSimulator.simulate(
+            Objects.requireNonNull(context, "context").player(),
+            Objects.requireNonNull(timeline, "timeline")
+        );
+        return simulate(context, timeline, action, mode, baseline, false, -1);
     }
 
     /**
-     * Re-evaluates an action that has already been dispatched. The original packet/warmup deadline was
-     * proven when execution began, so normal countdown must not charge the full action duration again.
-     * All other legality and survival constraints are still evaluated against the latest frame.
+     * Conservative compatibility overload for callers that cannot report executor progress yet.
+     * The full action duration is treated as still outstanding rather than pretending the action
+     * has already completed.
      */
     public ActionSimulation simulateInFlight(
         PredictionContext context,
@@ -74,7 +87,29 @@ public final class SurvivalPlanner {
         SurvivalAction action,
         SafetyMode mode
     ) {
-        return simulate(context, timeline, action, mode, false);
+        return simulateInFlight(context, timeline, action, mode, action.requiredServerTicks());
+    }
+
+    /**
+     * Re-evaluates a dispatched action using the executor's current conservative estimate of the
+     * server work still outstanding. Packet transit is not charged a second time: remaining ticks
+     * are relative to the current frame.
+     */
+    public ActionSimulation simulateInFlight(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        SurvivalAction action,
+        SafetyMode mode,
+        int remainingServerTicks
+    ) {
+        if (remainingServerTicks < 0) {
+            throw new IllegalArgumentException("remainingServerTicks must be non-negative");
+        }
+        TimelineResult baseline = timelineSimulator.simulate(
+            Objects.requireNonNull(context, "context").player(),
+            Objects.requireNonNull(timeline, "timeline")
+        );
+        return simulate(context, timeline, action, mode, baseline, true, remainingServerTicks);
     }
 
     private ActionSimulation simulate(
@@ -82,28 +117,68 @@ public final class SurvivalPlanner {
         ThreatTimeline timeline,
         SurvivalAction action,
         SafetyMode mode,
-        boolean enforceDeadline
+        TimelineResult baselineResult,
+        boolean inFlight,
+        int remainingServerTicks
     ) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(baselineResult, "baselineResult");
 
-        TimelineResult baselineResult = timelineSimulator.simulate(context.player(), timeline);
-        String rejection = hardConstraintFailure(context, timeline, action, mode);
+        String rejection = hardConstraintFailure(action, mode);
         if (rejection != null) {
-            return new ActionSimulation(
-                action, baselineResult, false, action.reliability(),
-                action.consumableCost(), action.disruptionCost(), rejection, DeadlineStatus.NOT_APPLICABLE
-            );
+            return rejected(action, baselineResult, rejection, DeadlineStatus.NOT_APPLICABLE);
         }
 
-        DeadlineStatus deadlineStatus = deadlineStatus(context, timeline, action, baselineResult, enforceDeadline);
-        if (deadlineStatus == DeadlineStatus.MISSED) {
-            return new ActionSimulation(
-                action, baselineResult, false, action.reliability(),
-                action.consumableCost(), action.disruptionCost(), "server deadline missed", DeadlineStatus.MISSED
+        if (isDelayedStateAction(action)) {
+            int remaining = inFlight ? remainingServerTicks : action.requiredServerTicks();
+            long activationTick = stateActivationTick(context, action, remaining, inFlight);
+            TimelineResult delayedResult = timelineSimulator.simulateWithActivation(
+                context.player(),
+                timeline,
+                activationTick,
+                action::apply
             );
+
+            DeadlineStatus completedStatus = activationTick == 0L
+                ? DeadlineStatus.NOT_APPLICABLE
+                : DeadlineStatus.GUARANTEED;
+            if (delayedResult.survived()) {
+                return accepted(action, delayedResult, "ok", completedStatus);
+            }
+
+            // Distinguish "the action does not save this timeline" from "it would save the timeline
+            // if it were already authoritative, but cannot become authoritative soon enough".
+            TimelineResult immediateResult = timelineSimulator.simulate(action.apply(context.player()), timeline);
+            if (immediateResult.survived()) {
+                if (!inFlight && eligibleForImmediateBestEffort(action, timeline, baselineResult)) {
+                    return accepted(
+                        action,
+                        immediateResult,
+                        "best effort: immediate potential threat may beat server authority",
+                        DeadlineStatus.BEST_EFFORT
+                    );
+                }
+                return rejected(action, delayedResult, "server deadline missed", DeadlineStatus.MISSED);
+            }
+
+            return accepted(action, delayedResult, "ok", completedStatus);
+        }
+
+        // Timeline-transforming actions remain modeled as a single atomic transformation. They are
+        // not dispatchable by the production engine, but the model remains available to tests and
+        // future route generators without silently changing its established semantics.
+        DeadlineStatus deadlineStatus = legacyDeadlineStatus(
+            context,
+            timeline,
+            action,
+            baselineResult,
+            !inFlight
+        );
+        if (deadlineStatus == DeadlineStatus.MISSED) {
+            return rejected(action, baselineResult, "server deadline missed", DeadlineStatus.MISSED);
         }
 
         ThreatTimeline transformedTimeline = action.applyTimeline(timeline);
@@ -111,10 +186,7 @@ public final class SurvivalPlanner {
         String reason = deadlineStatus == DeadlineStatus.BEST_EFFORT
             ? "best effort: immediate potential threat may beat server authority"
             : "ok";
-        return new ActionSimulation(
-            action, result, true, action.reliability(),
-            action.consumableCost(), action.disruptionCost(), reason, deadlineStatus
-        );
+        return accepted(action, result, reason, deadlineStatus);
     }
 
     private ActionSimulation simulateBaseline(PredictionContext context, ThreatTimeline timeline) {
@@ -123,28 +195,56 @@ public final class SurvivalPlanner {
         return new ActionSimulation(noAction, result, true, 1d, 0, 0, "baseline");
     }
 
-    private static String hardConstraintFailure(
-        PredictionContext context,
-        ThreatTimeline timeline,
-        SurvivalAction action,
-        SafetyMode mode
-    ) {
+    private static String hardConstraintFailure(SurvivalAction action, SafetyMode mode) {
         if (!action.legal()) return "illegal";
         if (!action.authoritativePrerequisitesSatisfied()) return "authoritative prerequisites missing";
         if (mode != SafetyMode.EXPERIMENTAL && action.deliberateDamage()) {
             return "safety mode forbids deliberate damage";
         }
-        if (action instanceof SurvivalAction.RaiseShield shield) {
-            if (!shield.guaranteedBlock()) return "shield block is not guaranteed";
-            boolean currentTimelineGuaranteed = timeline.events().stream()
-                .allMatch(event -> event.blockable() && !event.canDisableBlocking());
-            if (!currentTimelineGuaranteed) return "current threat timeline is not guaranteed shield-blockable";
+        if (action instanceof SurvivalAction.RaiseShield shield && !shield.guaranteedBlock()) {
+            return "shield block is not guaranteed";
         }
-
         return null;
     }
 
-    private static DeadlineStatus deadlineStatus(
+    private static boolean isDelayedStateAction(SurvivalAction action) {
+        return action instanceof SurvivalAction.EquipDeathProtection
+            || action instanceof SurvivalAction.RaiseShield
+            || action instanceof SurvivalAction.SwapEquipment
+            || action instanceof SurvivalAction.ApplyEffects;
+    }
+
+    private static long stateActivationTick(
+        PredictionContext context,
+        SurvivalAction action,
+        int remainingServerTicks,
+        boolean inFlight
+    ) {
+        if (inFlight) return remainingServerTicks;
+        if (!requiresPacketWindow(action)) return 0L;
+
+        long completion = context.timing().deadline(remainingServerTicks).completionWindow().latest();
+        return Math.max(0L, completion - context.timing().clientTick());
+    }
+
+    private static boolean eligibleForImmediateBestEffort(
+        SurvivalAction action,
+        ThreatTimeline timeline,
+        TimelineResult baselineResult
+    ) {
+        if (!(action instanceof SurvivalAction.EquipDeathProtection)) return false;
+        if (baselineResult.firstLethalEventId().isEmpty()) return false;
+        String lethalId = baselineResult.firstLethalEventId().get();
+        ThreatEvent lethal = timeline.events().stream()
+            .filter(event -> event.id().equals(lethalId))
+            .findFirst()
+            .orElse(null);
+        return lethal != null
+            && lethal.confidence() == Confidence.POTENTIAL
+            && lethal.impact().earliest() == 0L;
+    }
+
+    private static DeadlineStatus legacyDeadlineStatus(
         PredictionContext context,
         ThreatTimeline timeline,
         SurvivalAction action,
@@ -152,18 +252,12 @@ public final class SurvivalPlanner {
         boolean enforceDeadline
     ) {
         if (!enforceDeadline || !requiresPacketWindow(action)) return DeadlineStatus.NOT_APPLICABLE;
-        TickWindow requiredImpact = requiredImpactForAction(context, timeline, action, baselineResult);
+        TickWindow requiredImpact = legacyRequiredImpactForAction(context, timeline, action, baselineResult);
         if (requiredImpact == null) return DeadlineStatus.NOT_APPLICABLE;
-        if (context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) return DeadlineStatus.GUARANTEED;
-
-        if (action instanceof SurvivalAction.EquipDeathProtection && baselineResult.firstLethalEventId().isPresent()) {
-            String lethalId = baselineResult.firstLethalEventId().get();
-            ThreatEvent lethal = timeline.events().stream().filter(event -> event.id().equals(lethalId)).findFirst().orElse(null);
-            if (lethal != null && lethal.confidence() == dev.pixelied.survival.core.Confidence.POTENTIAL
-                && lethal.impact().earliest() == 0L) {
-                return DeadlineStatus.BEST_EFFORT;
-            }
+        if (context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) {
+            return DeadlineStatus.GUARANTEED;
         }
+        if (eligibleForImmediateBestEffort(action, timeline, baselineResult)) return DeadlineStatus.BEST_EFFORT;
         return DeadlineStatus.MISSED;
     }
 
@@ -175,7 +269,7 @@ public final class SurvivalPlanner {
         return true;
     }
 
-    private static TickWindow requiredImpactForAction(
+    private static TickWindow legacyRequiredImpactForAction(
         PredictionContext context,
         ThreatTimeline timeline,
         SurvivalAction action,
@@ -189,10 +283,6 @@ public final class SurvivalPlanner {
                 .orElse(null);
             if (lethal != null) return absoluteImpact(context, lethal);
         }
-        return earliestAbsoluteImpact(context, timeline);
-    }
-
-    private static TickWindow earliestAbsoluteImpact(PredictionContext context, ThreatTimeline timeline) {
         ThreatEvent earliest = timeline.events().stream()
             .min(Comparator.comparingLong(event -> event.impact().earliest()))
             .orElse(null);
@@ -204,6 +294,42 @@ public final class SurvivalPlanner {
         return new TickWindow(
             saturatingAdd(base, event.impact().earliest()),
             saturatingAdd(base, event.impact().latest())
+        );
+    }
+
+    private static ActionSimulation rejected(
+        SurvivalAction action,
+        TimelineResult result,
+        String reason,
+        DeadlineStatus deadlineStatus
+    ) {
+        return new ActionSimulation(
+            action,
+            result,
+            false,
+            action.reliability(),
+            action.consumableCost(),
+            action.disruptionCost(),
+            reason,
+            deadlineStatus
+        );
+    }
+
+    private static ActionSimulation accepted(
+        SurvivalAction action,
+        TimelineResult result,
+        String reason,
+        DeadlineStatus deadlineStatus
+    ) {
+        return new ActionSimulation(
+            action,
+            result,
+            true,
+            action.reliability(),
+            action.consumableCost(),
+            action.disruptionCost(),
+            reason,
+            deadlineStatus
         );
     }
 

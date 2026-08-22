@@ -61,10 +61,18 @@ public final class ServerAuthorityTracker {
         long currentTick
     ) {
         if (currentTick < 0L) throw new IllegalArgumentException("currentTick must be non-negative");
-        return localUsing
-            && localHand != null
-            && localHand == pendingUseHand
-            && currentTick >= pendingUseServerStartTick;
+        if (pendingUseHand == null) return false;
+
+        // Once the conservative server-start tick has passed, a stopped or different local use
+        // proves that this tracked use session is over. Do not leave the old start tick around for
+        // a later use of the same hand or it would appear to have hundreds of warm-up ticks.
+        if (currentTick >= pendingUseServerStartTick
+            && (!localUsing || localHand == null || localHand != pendingUseHand)) {
+            clearUseSession();
+            return false;
+        }
+
+        return localUsing && localHand == pendingUseHand && currentTick >= pendingUseServerStartTick;
     }
 
     public int confirmedUseTicks(
@@ -75,6 +83,17 @@ public final class ServerAuthorityTracker {
         if (!confirmedUsingItem(localUsing, localHand, currentTick)) return 0;
         long elapsed = currentTick - pendingUseServerStartTick;
         return elapsed >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) elapsed;
+    }
+
+    public void reset() {
+        pendingSelectedSlot = null;
+        pendingSelectedConfirmTick = Long.MAX_VALUE;
+        clearUseSession();
+    }
+
+    private void clearUseSession() {
+        pendingUseHand = null;
+        pendingUseServerStartTick = Long.MAX_VALUE;
     }
 
     public static boolean withinHorizontalBlockAngle(

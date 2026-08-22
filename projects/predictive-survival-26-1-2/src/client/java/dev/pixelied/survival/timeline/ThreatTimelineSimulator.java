@@ -4,7 +4,9 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.damage.DamageResult;
 import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.damage.DamageStage;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.HurtState;
+import dev.pixelied.survival.damage.StatusEffectsSnapshot;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -12,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 public final class ThreatTimelineSimulator {
     private static final int MAX_PERMUTATION_GROUP = 6;
@@ -34,7 +37,55 @@ public final class ThreatTimelineSimulator {
     }
 
     public TimelineResult simulate(PlayerSnapshot start, ThreatTimeline timeline) {
+        return simulateInternal(start, timeline, -1L, null);
+    }
+
+    /**
+     * Simulates a state transition that becomes authoritative at a conservative relative tick.
+     * Any threat window that begins before that tick is clipped to the pre-activation side so an
+     * ambiguous hit is never allowed to benefit from protection that might not have existed yet.
+     */
+    public TimelineResult simulateWithActivation(
+        PlayerSnapshot start,
+        ThreatTimeline timeline,
+        long activationTick,
+        UnaryOperator<PlayerSnapshot> activation
+    ) {
+        if (activationTick < 0L) throw new IllegalArgumentException("activationTick must be non-negative");
+        return simulateInternal(
+            start,
+            timeline,
+            activationTick,
+            java.util.Objects.requireNonNull(activation, "activation")
+        );
+    }
+
+    private TimelineResult simulateInternal(
+        PlayerSnapshot start,
+        ThreatTimeline timeline,
+        long activationTick,
+        UnaryOperator<PlayerSnapshot> activation
+    ) {
+        java.util.Objects.requireNonNull(start, "start");
+        java.util.Objects.requireNonNull(timeline, "timeline");
         List<ThreatEvent> sorted = new ArrayList<>(timeline.events());
+        if (activation != null && activationTick > 0L) {
+            List<ThreatEvent> conservative = new ArrayList<>(sorted.size());
+            for (ThreatEvent event : sorted) {
+                if (event.impact().earliest() < activationTick && event.impact().latest() >= activationTick) {
+                    conservative.add(withImpact(
+                        event,
+                        new dev.pixelied.survival.core.TickWindow(
+                            event.impact().earliest(),
+                            activationTick - 1L
+                        )
+                    ));
+                } else {
+                    conservative.add(event);
+                }
+            }
+            sorted = conservative;
+        }
         sorted.sort(BASE_ORDER);
         Set<String> timelineEventIds = new HashSet<>();
         for (ThreatEvent event : sorted) {
@@ -51,8 +102,20 @@ public final class ThreatTimelineSimulator {
         boolean survivalGuaranteed = true;
         Set<String> acceptedEventIds = new HashSet<>();
         Set<String> processedEventIds = new HashSet<>();
+        boolean activated = activation == null;
+
+        if (!activated && activationTick == 0L) {
+            working = activation.apply(working);
+            activated = true;
+        }
 
         for (List<ThreatEvent> group : overlapGroups(sorted)) {
+            if (!activated && group.getFirst().impact().earliest() >= activationTick) {
+                working = agePlayerState(working, activationTick - previousTick);
+                previousTick = activationTick;
+                working = activation.apply(working);
+                activated = true;
+            }
             GroupOutcome outcome = worstGroupOutcome(
                 working,
                 previousTick,
@@ -76,6 +139,11 @@ public final class ThreatTimelineSimulator {
             }
         }
 
+        if (!activated && survivalGuaranteed) {
+            working = agePlayerState(working, activationTick - previousTick);
+            working = activation.apply(working);
+        }
+
         return new TimelineResult(
             allResults,
             working.health(),
@@ -83,6 +151,17 @@ public final class ThreatTimelineSimulator {
             survivalGuaranteed && working.health() > 0f && firstLethal.isEmpty(),
             consumed,
             firstLethal
+        );
+    }
+
+    private static ThreatEvent withImpact(
+        ThreatEvent event,
+        dev.pixelied.survival.core.TickWindow impact
+    ) {
+        return new ThreatEvent(
+            event.id(), event.kind(), impact, event.damage(), event.confidence(), event.sourcePosition(),
+            event.impactPosition(), event.avoidable(), event.blockable(), event.relocatable(),
+            event.canDisableBlocking(), event.requiresAcceptedEventId()
         );
     }
 
@@ -115,7 +194,7 @@ public final class ThreatTimelineSimulator {
             List<ThreatEvent> fallback = new ArrayList<>(group);
             fallback.sort(CONSERVATIVE_FALLBACK_ORDER);
             long[] schedule = schedule(fallback, previousTick);
-            GroupOutcome outcome = schedule == null ? null : simulateOrder(
+            GroupOutcome damageOrdered = schedule == null ? null : simulateOrder(
                 start,
                 previousTick,
                 fallback,
@@ -124,11 +203,11 @@ public final class ThreatTimelineSimulator {
                 processedBefore,
                 timelineEventIds
             );
-            if (outcome != null) return outcome;
+            if (damageOrdered != null && !damageOrdered.survived()) return damageOrdered;
 
             fallback.sort(BASE_ORDER);
             schedule = schedule(fallback, previousTick);
-            outcome = schedule == null ? null : simulateOrder(
+            GroupOutcome baseOrdered = schedule == null ? null : simulateOrder(
                 start,
                 previousTick,
                 fallback,
@@ -137,10 +216,20 @@ public final class ThreatTimelineSimulator {
                 processedBefore,
                 timelineEventIds
             );
-            if (outcome == null) {
+            if (baseOrdered != null && !baseOrdered.survived()) return baseOrdered;
+            if (damageOrdered == null && baseOrdered == null) {
                 throw new IllegalArgumentException("No feasible ordering for dependent threat group");
             }
-            return outcome;
+
+            // Once the overlap exceeds the exhaustive permutation cap, neither heuristic ordering
+            // is a proof that every legal ordering survives. Returning a positive guarantee here
+            // would be unsafe because a low-damage state-changing hit (for example shield disable)
+            // can make a later high-damage hit lethal. Preserve the worse modeled state for
+            // diagnostics, but deliberately fail the guarantee closed.
+            GroupOutcome modeled = damageOrdered == null
+                ? baseOrdered
+                : baseOrdered == null || isWorse(damageOrdered, baseOrdered) ? damageOrdered : baseOrdered;
+            return failClosed(modeled);
         }
 
         List<List<ThreatEvent>> permutations = new ArrayList<>();
@@ -194,7 +283,7 @@ public final class ThreatTimelineSimulator {
         for (int i = 0; i < order.size(); i++) {
             ThreatEvent event = order.get(i);
             long eventTick = schedule[i];
-            working = ageHurtState(working, eventTick - lastTick);
+            working = agePlayerState(working, eventTick - lastTick);
             lastTick = eventTick;
 
             Optional<String> requiredId = event.requiresAcceptedEventId();
@@ -281,7 +370,7 @@ public final class ThreatTimelineSimulator {
         );
     }
 
-    private static PlayerSnapshot ageHurtState(PlayerSnapshot player, long elapsedTicks) {
+    private static PlayerSnapshot agePlayerState(PlayerSnapshot player, long elapsedTicks) {
         if (elapsedTicks <= 0) return player;
         HurtState hurt = player.hurtState();
         int elapsed = elapsedTicks > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) elapsedTicks;
@@ -290,11 +379,30 @@ public final class ThreatTimelineSimulator {
             Math.max(0, hurt.invulnerableTime() - elapsed),
             hurt.confidence()
         );
+
+        StatusEffectsSnapshot effects = player.statusEffects();
+        float absorption = player.absorption();
+        EffectInstanceSnapshot absorptionEffect = effects.effects().get("minecraft:absorption");
+        if (absorptionEffect != null
+            && !absorptionEffect.infiniteDuration()
+            && absorptionEffect.durationTicks() <= elapsed) {
+            float expiringHearts = 4f * (absorptionEffect.amplifier() + 1);
+            absorption = Math.max(0f, absorption - expiringHearts);
+        }
+        StatusEffectsSnapshot agedEffects = effects.age(elapsed);
+
         return new PlayerSnapshot(
-            player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
-            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking().age(elapsed),
+            player.health(), absorption, player.playerInvulnerable(), player.abilityInvulnerable(),
+            player.deadOrDying(), player.difficulty(), player.mitigation(), agedEffects, player.blocking().age(elapsed),
             aged, player.deathProtection(), player.boundingBox(), player.position(), player.velocity(),
             player.equipmentItemKeys(), player.stateProperties()
+        );
+    }
+
+    private static GroupOutcome failClosed(GroupOutcome modeled) {
+        return new GroupOutcome(
+            modeled.player(), modeled.lastTick(), modeled.results(), modeled.consumedProtection(),
+            modeled.firstLethalEventId(), false, modeled.acceptedEventIds(), modeled.processedEventIds()
         );
     }
 

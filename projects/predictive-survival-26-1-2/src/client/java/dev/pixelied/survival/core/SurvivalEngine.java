@@ -133,6 +133,12 @@ public final class SurvivalEngine {
         clearCurrentPlan();
     }
 
+    public void reset() {
+        failedActions.clear();
+        dangerFingerprint = "";
+        clearCurrentPlan();
+    }
+
     private boolean lethalWithoutDeathProtection(EngineFrame frame) {
         PlayerSnapshot player = frame.context().player();
         PlayerSnapshot withoutProtection = new PlayerSnapshot(
@@ -148,8 +154,11 @@ public final class SurvivalEngine {
         String refreshedScheduleFingerprint = scheduleFingerprint(frame);
         boolean sameAbsoluteSchedule = refreshedScheduleFingerprint.equals(activeThreatScheduleFingerprint);
 
+        int remainingServerTicks = Math.max(0, runtime.remainingServerTicks(active, frame));
         var refreshed = sameAbsoluteSchedule
-            ? planner.simulateInFlight(frame.context(), frame.timeline(), active, config().safetyMode())
+            ? planner.simulateInFlight(
+                frame.context(), frame.timeline(), active, config().safetyMode(), remainingServerTicks
+            )
             : planner.simulate(frame.context(), frame.timeline(), active, config().safetyMode());
         if (refreshed.feasible() && refreshed.result().survived()) {
             activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
@@ -172,9 +181,12 @@ public final class SurvivalEngine {
         List<SurvivalAction> filtered = new ArrayList<>();
         for (SurvivalAction candidate : candidates) {
             if (candidate == null || failedActions.contains(candidate)) continue;
-            if (!config().automaticMovement() && candidate instanceof SurvivalAction.Relocate) continue;
-            if (!config().blockPlacementAndClutches()
-                && (candidate instanceof SurvivalAction.PlaceCover || candidate instanceof SurvivalAction.PearlRescue)) {
+            // These action types have models for future development but no production-safe route
+            // generation/dispatcher yet. Legacy config files may still contain the old booleans;
+            // never let those stale flags make an unsupported action dispatchable.
+            if (candidate instanceof SurvivalAction.Relocate
+                || candidate instanceof SurvivalAction.PlaceCover
+                || candidate instanceof SurvivalAction.PearlRescue) {
                 continue;
             }
             filtered.add(candidate);
@@ -297,6 +309,12 @@ public final class SurvivalEngine {
         EngineFrame capture();
         ExecutionStatus begin(SurvivalAction action, EngineFrame frame);
         ExecutionStatus observe(SurvivalAction action, EngineFrame frame);
+
+        default int remainingServerTicks(SurvivalAction action, EngineFrame frame) {
+            Objects.requireNonNull(action, "action");
+            Objects.requireNonNull(frame, "frame");
+            return action.requiredServerTicks();
+        }
 
         default void maintainRestoration(
             EngineFrame frame,

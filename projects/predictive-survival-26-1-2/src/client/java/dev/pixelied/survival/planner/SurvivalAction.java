@@ -6,11 +6,13 @@ import dev.pixelied.survival.core.DamageRange;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
+import dev.pixelied.survival.damage.ArmorPieceSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.BlockingProfileSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -43,6 +45,15 @@ public interface SurvivalAction {
     enum Hand {
         MAIN_HAND,
         OFF_HAND
+    }
+
+    /** Exact identity of a held stack that produced an executable candidate. */
+    record HeldItemRef(Hand hand, String itemKey, int componentFingerprint) {
+        public HeldItemRef {
+            hand = Objects.requireNonNull(hand, "hand");
+            itemKey = Objects.requireNonNull(itemKey, "itemKey");
+            if (itemKey.isBlank()) throw new IllegalArgumentException("itemKey must not be blank");
+        }
     }
 
     record BlockTarget(int x, int y, int z, String itemKey) {
@@ -130,7 +141,7 @@ public interface SurvivalAction {
                 ? blockingProfile
                 : player.blocking().profile();
             BlockingSnapshot blocking = new BlockingSnapshot(
-                guaranteedBlock, blockedFraction, elapsedUseTicks, requiredUseTicks, profile, 0
+                guaranteedBlock, blockedFraction, Math.max(elapsedUseTicks, requiredUseTicks), requiredUseTicks, profile, 0
             );
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),
@@ -195,11 +206,30 @@ public interface SurvivalAction {
         boolean authoritativePrerequisitesSatisfied,
         double reliability,
         int consumableCost,
-        int disruptionCost
+        int disruptionCost,
+        Optional<HeldItemRef> sourceItem,
+        Optional<ArmorPieceSnapshot> replacementPiece
     ) implements SurvivalAction {
+        public SwapEquipment(
+            MitigationSnapshot mitigationAfter,
+            Map<String, String> equipmentUpdates,
+            int requiredServerTicks,
+            boolean legal,
+            boolean authoritativePrerequisitesSatisfied,
+            double reliability,
+            int consumableCost,
+            int disruptionCost
+        ) {
+            this(mitigationAfter, equipmentUpdates, requiredServerTicks, legal,
+                authoritativePrerequisitesSatisfied, reliability, consumableCost, disruptionCost,
+                Optional.empty(), Optional.empty());
+        }
+
         public SwapEquipment {
             mitigationAfter = Objects.requireNonNull(mitigationAfter, "mitigationAfter");
             equipmentUpdates = Map.copyOf(Objects.requireNonNull(equipmentUpdates, "equipmentUpdates"));
+            sourceItem = Objects.requireNonNull(sourceItem, "sourceItem");
+            replacementPiece = Objects.requireNonNull(replacementPiece, "replacementPiece");
             validateCommon(requiredServerTicks, reliability, consumableCost, disruptionCost);
         }
 
@@ -209,8 +239,11 @@ public interface SurvivalAction {
         public PlayerSnapshot apply(PlayerSnapshot player) {
             LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
             equipment.putAll(equipmentUpdates);
+            MitigationSnapshot mitigation = replacementPiece
+                .map(piece -> replaceArmorPiece(player.mitigation(), piece))
+                .orElse(mitigationAfter);
             return copy(
-                player, player.health(), player.absorption(), mitigationAfter, player.statusEffects(),
+                player, player.health(), player.absorption(), mitigation, player.statusEffects(),
                 player.blocking(), player.deathProtection(), equipment
             );
         }
@@ -226,8 +259,28 @@ public interface SurvivalAction {
         boolean authoritativePrerequisitesSatisfied,
         double reliability,
         int consumableCost,
-        int disruptionCost
+        int disruptionCost,
+        Optional<HeldItemRef> sourceItem,
+        List<EffectInstanceSnapshot> appliedEffects,
+        float absorptionFloor
     ) implements SurvivalAction {
+        public ApplyEffects(
+            StatusEffectsSnapshot statusEffectsAfter,
+            float healthGain,
+            float absorptionGain,
+            String itemKey,
+            int requiredServerTicks,
+            boolean legal,
+            boolean authoritativePrerequisitesSatisfied,
+            double reliability,
+            int consumableCost,
+            int disruptionCost
+        ) {
+            this(statusEffectsAfter, healthGain, absorptionGain, itemKey, requiredServerTicks, legal,
+                authoritativePrerequisitesSatisfied, reliability, consumableCost, disruptionCost,
+                Optional.empty(), List.of(), -1f);
+        }
+
         public ApplyEffects(
             StatusEffectsSnapshot statusEffectsAfter,
             float healthGain,
@@ -240,14 +293,20 @@ public interface SurvivalAction {
             int disruptionCost
         ) {
             this(statusEffectsAfter, healthGain, absorptionGain, "", requiredServerTicks, legal,
-                authoritativePrerequisitesSatisfied, reliability, consumableCost, disruptionCost);
+                authoritativePrerequisitesSatisfied, reliability, consumableCost, disruptionCost,
+                Optional.empty(), List.of(), -1f);
         }
 
         public ApplyEffects {
             statusEffectsAfter = Objects.requireNonNull(statusEffectsAfter, "statusEffectsAfter");
             itemKey = Objects.requireNonNull(itemKey, "itemKey");
+            sourceItem = Objects.requireNonNull(sourceItem, "sourceItem");
+            appliedEffects = List.copyOf(Objects.requireNonNull(appliedEffects, "appliedEffects"));
             if (!Float.isFinite(healthGain) || healthGain < 0f || !Float.isFinite(absorptionGain) || absorptionGain < 0f) {
                 throw new IllegalArgumentException("health/absorption gains must be finite and non-negative");
+            }
+            if (!Float.isFinite(absorptionFloor) || absorptionFloor < -1f) {
+                throw new IllegalArgumentException("absorptionFloor must be -1 or finite and non-negative");
             }
             validateCommon(requiredServerTicks, reliability, consumableCost, disruptionCost);
         }
@@ -257,9 +316,14 @@ public interface SurvivalAction {
         @Override
         public PlayerSnapshot apply(PlayerSnapshot player) {
             float health = Math.min(maxHealth(player), player.health() + healthGain);
-            float absorption = player.absorption() + absorptionGain;
+            float absorption = absorptionFloor >= 0f
+                ? Math.max(player.absorption(), absorptionFloor)
+                : player.absorption() + absorptionGain;
+            StatusEffectsSnapshot effects = appliedEffects.isEmpty()
+                ? statusEffectsAfter
+                : player.statusEffects().apply(appliedEffects);
             return copy(
-                player, health, absorption, player.mitigation(), statusEffectsAfter,
+                player, health, absorption, player.mitigation(), effects,
                 player.blocking(), player.deathProtection(), player.equipmentItemKeys()
             );
         }
@@ -422,6 +486,43 @@ public interface SurvivalAction {
             }
         }
         return Math.max(player.health(), 20f);
+    }
+
+    private static MitigationSnapshot replaceArmorPiece(
+        MitigationSnapshot current,
+        ArmorPieceSnapshot replacement
+    ) {
+        List<ArmorPieceSnapshot> pieces = new ArrayList<>(current.armorPieces().size() + 1);
+        ArmorPieceSnapshot replaced = null;
+        for (ArmorPieceSnapshot piece : current.armorPieces()) {
+            if (piece.slot() == replacement.slot()) replaced = piece;
+            else pieces.add(piece);
+        }
+        pieces.add(replacement);
+
+        float armor = current.armor() - (replaced == null ? 0f : replaced.armor()) + replacement.armor();
+        float toughness = current.toughness() - (replaced == null ? 0f : replaced.toughness()) + replacement.toughness();
+        int protection = current.enchantmentProtection()
+            - (replaced == null ? 0 : replaced.enchantmentProtection())
+            + replacement.enchantmentProtection();
+        protection = Math.max(0, Math.min(20, protection));
+
+        boolean helmetPresent = current.helmetPresent();
+        int helmetDurability = current.helmetDurability();
+        if (replacement.slot() == ArmorPieceSnapshot.Slot.HEAD) {
+            helmetPresent = replacement.present();
+            helmetDurability = replacement.remainingDurability();
+        }
+
+        return new MitigationSnapshot(
+            Math.max(0f, armor),
+            Math.max(0f, toughness),
+            current.armorEffectivenessMultiplier(),
+            protection,
+            helmetPresent,
+            helmetDurability,
+            pieces
+        );
     }
 
     private static List<ThreatEvent> withoutThreats(ThreatTimeline timeline, Set<String> removedThreatIds) {
