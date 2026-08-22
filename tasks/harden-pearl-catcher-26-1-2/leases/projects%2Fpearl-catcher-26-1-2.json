@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "harden-pearl-catcher-26-1-2",
+  "scope": "projects/pearl-catcher-26-1-2",
+  "owner": "openai-pearl-hardening-6f2a",
+  "state": "active",
+  "intent": "Import the reviewed Pearl Catcher 2.5.1 source and implement the approved regression-first reliability, vanilla-authority, lifecycle, latency, performance, and focused executor-structure hardening without unrelated rewrites.",
+  "claimed_at": "2026-08-22T16:29:00+00:00",
+  "heartbeat_at": "2026-08-22T16:29:00+00:00",
+  "expires_at": "2026-08-23T16:29:00+00:00",
+  "generation": 1
+}

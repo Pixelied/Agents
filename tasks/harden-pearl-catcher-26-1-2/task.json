@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "harden-pearl-catcher-26-1-2",
+  "title": "Harden and simplify Pearl Catcher 26.1.2",
+  "objective": "Import the reviewed Pearl Catcher 2.5.1 source as a first-class project and make catch execution fail-closed, vanilla-faithful, latency-aware, ownership-safe, behaviorally tested, and simpler to maintain without replacing the proven general solver architecture.",
+  "created_by": "openai-pearl-hardening-6f2a",
+  "created_at": "2026-08-22T16:28:30+00:00",
+  "priority": "critical",
+  "status": "open",
+  "scopes": [
+    "projects/pearl-catcher-26-1-2",
+    ".github/workflows/pearl-catcher-26-1-2-ci.yml",
+    "docs/superpowers/specs/2026-08-22-pearl-catcher-26-1-2-hardening-design.md",
+    "tasks/harden-pearl-catcher-26-1-2/artifacts"
+  ],
+  "acceptance_criteria": [
+    "Low-robustness or insufficient-clearance catch plans are rejected rather than executed, including previously accepted zero-percent robustness cases",
+    "Legit hotbar/offhand input leases have bounded confirmation deadlines and cannot permanently block later catches",
+    "Observed pearls and wind charges are attributed to the local player using vanilla projectile ownership before becoming attempt-owned",
+    "Preflight safety covers vanilla-relevant block, world-border, and hittable-entity interference and fails closed for unmodeled fluid or environmental projectile dynamics",
+    "Delayed catch timing accounts conservatively for network/server projectile age and refuses plans whose timing uncertainty exceeds the safe collision window",
+    "Silent execution restores server rotation after the final projectile action without corrupting projectile inherited movement ordering",
+    "Legit right-click execution cannot silently become a block or entity interaction; ambiguous interaction contexts fail closed",
+    "Automatic slot/offhand restoration never overwrites a newer manual player choice and all owned asynchronous state is removed on disable, cancellation, disconnect, or supersession",
+    "Unsupported riding or vehicle movement states fail closed until their exact vanilla send-position semantics are modeled",
+    "CatchExecutor responsibilities are reduced into focused coordination, vanilla-input, and projectile-tracking components without introducing alternate planner architectures or extra user-facing tuning clutter",
+    "Behavioral regression tests cover every reviewed failure mode, existing physics/solver regressions remain green, and CI verifies build plus tests",
+    "The initial synchronous solver hot path is profiled and pruned where safe, with no correctness regression and no arbitrary asynchronous complexity"
+  ]
+}

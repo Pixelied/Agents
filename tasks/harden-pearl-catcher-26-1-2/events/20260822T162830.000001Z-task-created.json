@@ -1,0 +1,14 @@
+{
+  "agent_id": "openai-pearl-hardening-6f2a",
+  "created_at": "2026-08-22T16:28:30+00:00",
+  "data": {
+    "source": "Pixelied-Studio-Pearl-Catcher-2.5.1-source.zip",
+    "minecraft_source": "minecraft-26.1.2-client .(2)(2).zip"
+  },
+  "event_id": "pearl-catcher-hardening-task-created-20260822",
+  "message": "Created task: Harden and simplify Pearl Catcher 26.1.2",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "harden-pearl-catcher-26-1-2",
+  "type": "task_created"
+}
