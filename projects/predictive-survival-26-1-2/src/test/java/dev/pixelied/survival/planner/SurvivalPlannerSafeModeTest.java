@@ -14,6 +14,7 @@ import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
@@ -149,6 +150,109 @@ class SurvivalPlannerSafeModeTest {
 
         assertInstanceOf(SurvivalAction.RaiseShield.class, plan.action());
         assertEquals(0, plan.simulation().consumableCost());
+    }
+
+
+    @Test
+    void shieldWarmupCompletesBeforeLaterImpact() {
+        PredictionContext context = context(EngineLimits.defaults());
+        SurvivalAction shield = new SurvivalAction.RaiseShield(
+            5, true, true, true, 1.0, 1f, 0, 5, 0
+        );
+
+        ActionSimulation simulation = planner.simulate(context, lethalTimeline(8, false), shield, SafetyMode.SAFE);
+
+        assertTrue(simulation.feasible(), simulation.reason());
+        assertTrue(simulation.result().survived(), "a shield with enough server time to warm up must be active at impact");
+    }
+
+    @Test
+    void shieldCanBlockCurrentHitBeforeThatHitDisablesBlocking() {
+        PredictionContext context = context(EngineLimits.defaults());
+        DamageSourceSnapshot disabling = new DamageSourceSnapshot(
+            DamageRange.exact(10f), Set.of(DamageFlag.BYPASSES_COOLDOWN), false, 1f, false,
+            Optional.empty(), "test:disabling_melee", 0f, 0f, 5f
+        );
+        ThreatTimeline timeline = new ThreatTimeline(List.of(new ThreatEvent(
+            "disable", ThreatKind.MELEE, new TickWindow(3, 3), disabling, Confidence.EXACT,
+            Optional.empty(), Optional.empty(), false, true, false, true
+        )));
+        SurvivalAction shield = new SurvivalAction.RaiseShield(
+            0, true, true, true, 1.0, 1f, 5, 5, 0
+        );
+
+        ActionSimulation simulation = planner.simulate(context, timeline, shield, SafetyMode.SAFE);
+
+        assertTrue(simulation.feasible(), simulation.reason());
+        assertTrue(simulation.result().survived(), "the disabling melee hit is blocked before the disable takes effect");
+    }
+
+    @Test
+    void shieldCanSaveMixedTimelineWithoutBlockingEveryThreat() {
+        PredictionContext context = context(EngineLimits.defaults());
+        ThreatEvent chip = new ThreatEvent(
+            "chip", ThreatKind.OTHER, new TickWindow(1, 1),
+            new DamageSourceSnapshot(
+                DamageRange.exact(1f), Set.of(DamageFlag.BYPASSES_SHIELD, DamageFlag.BYPASSES_COOLDOWN),
+                false, 1f, false, Optional.empty(), "test:chip"
+            ),
+            Confidence.EXACT, Optional.empty(), Optional.empty(), true, false, true, false
+        );
+        ThreatEvent lethal = threat("blockable-lethal", 3, 10f, Set.of(DamageFlag.BYPASSES_COOLDOWN));
+        SurvivalAction shield = new SurvivalAction.RaiseShield(
+            0, true, true, true, 1.0, 1f, 5, 5, 0
+        );
+
+        ActionSimulation simulation = planner.simulate(
+            context, new ThreatTimeline(List.of(chip, lethal)), shield, SafetyMode.SAFE
+        );
+
+        assertTrue(simulation.feasible(), simulation.reason());
+        assertTrue(simulation.result().survived(), "taking harmless chip damage must not invalidate a shield save");
+    }
+
+    @Test
+    void consumableCanCompleteAfterHarmlessEarlyHitButBeforeLethalFire() {
+        PredictionContext context = context(EngineLimits.defaults());
+        ThreatEvent chip = threat("chip", 1, 1f, Set.of(DamageFlag.BYPASSES_COOLDOWN));
+        ThreatEvent fire = new ThreatEvent(
+            "fire", ThreatKind.OTHER, new TickWindow(8, 8),
+            new DamageSourceSnapshot(
+                DamageRange.exact(20f), Set.of(DamageFlag.IS_FIRE, DamageFlag.BYPASSES_COOLDOWN),
+                false, 1f, false, Optional.empty(), "test:fire"
+            ),
+            Confidence.EXACT, Optional.empty(), Optional.empty(), true, false, true, false
+        );
+        StatusEffectsSnapshot fireResistance = new StatusEffectsSnapshot(
+            true,
+            -1,
+            Map.of("minecraft:fire_resistance", new EffectInstanceSnapshot("minecraft:fire_resistance", 600, 0))
+        );
+        SurvivalAction action = new SurvivalAction.ApplyEffects(
+            fireResistance, 0f, 0f, "minecraft:potion",
+            3, true, true, 1.0, 1, 1
+        );
+
+        ActionSimulation simulation = planner.simulate(
+            context, new ThreatTimeline(List.of(chip, fire)), action, SafetyMode.SAFE
+        );
+
+        assertTrue(simulation.feasible(), simulation.reason());
+        assertTrue(simulation.result().survived(), "an unrelated earlier chip hit must not steal the action deadline");
+    }
+
+    @Test
+    void inFlightActionIsNotAssumedCompleteBeforeItsRemainingServerWork() {
+        PredictionContext context = context(EngineLimits.defaults(), new TickWindow(0, 0));
+        SurvivalAction shield = new SurvivalAction.RaiseShield(
+            5, true, true, true, 1.0, 1f, 5, 5, 0
+        );
+
+        ActionSimulation simulation = planner.simulateInFlight(
+            context, lethalTimeline(2, false), shield, SafetyMode.SAFE
+        );
+
+        assertFalse(simulation.result().survived(), "pending work must not be modeled as already completed");
     }
 
     @Test
