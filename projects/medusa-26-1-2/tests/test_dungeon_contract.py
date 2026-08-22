@@ -108,19 +108,16 @@ class DungeonContract(unittest.TestCase):
         self.assertIn("function medusa:instance/register", path.read_text())
 
 
-class PuzzleMigrationContract(unittest.TestCase):
-    def test_old_puzzle_runtime_can_exist_temporarily_but_is_not_built(self):
-        fn = ROOT / "datapacks/medusa/data/medusa/function/puzzle"
-        for rel in [
-            "averted_eyes/tick.mcfunction",
-            "borrowed_gaze/tick.mcfunction",
-            "blind_passage/tick.mcfunction",
+class RemovedPuzzleContract(unittest.TestCase):
+    def test_old_puzzle_runtime_and_rooms_are_gone(self):
+        puzzle = ROOT / "datapacks/medusa/data/medusa/function/puzzle"
+        self.assertFalse(puzzle.exists(), "obsolete puzzle runtime must be removed")
+        for name in [
+            "build_puzzle_averted_room.mcfunction",
+            "build_puzzle_borrowed_room.mcfunction",
+            "build_puzzle_blind_room.mcfunction",
         ]:
-            self.assertTrue((fn / rel).is_file(), f"migration unexpectedly removed puzzle runtime early: {rel}")
-        generated = OUT.read_text()
-        self.assertNotIn("build_puzzle_averted_room", generated)
-        self.assertNotIn("build_puzzle_borrowed_room", generated)
-        self.assertNotIn("build_puzzle_blind_room", generated)
+            self.assertFalse((FN / name).exists(), f"obsolete puzzle room still exists: {name}")
 
 
 if __name__ == "__main__":
