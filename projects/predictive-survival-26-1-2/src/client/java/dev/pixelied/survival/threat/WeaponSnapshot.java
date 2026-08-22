@@ -58,13 +58,17 @@ public record WeaponSnapshot(
     }
 
     public static float maceSmashBonus(double fallDistance) {
+        return saturatingFloat(maceSmashBonusDouble(fallDistance));
+    }
+
+    static double maceSmashBonusDouble(double fallDistance) {
         if (!Double.isFinite(fallDistance) || fallDistance < 0d) {
             throw new IllegalArgumentException("fallDistance must be finite and non-negative");
         }
-        if (fallDistance <= 1.5d) return 0f;
-        if (fallDistance <= 3d) return saturatingFloat(4d * fallDistance);
-        if (fallDistance <= 8d) return saturatingFloat(12d + 2d * (fallDistance - 3d));
-        return saturatingFloat(22d + (fallDistance - 8d));
+        if (fallDistance <= 1.5d) return 0d;
+        if (fallDistance <= 3d) return 4d * fallDistance;
+        if (fallDistance <= 8d) return 12d + 2d * (fallDistance - 3d);
+        return 22d + (fallDistance - 8d);
     }
 
     public static float attackScale(float attackStrength) {

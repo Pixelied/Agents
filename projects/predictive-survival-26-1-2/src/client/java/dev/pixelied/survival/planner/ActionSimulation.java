@@ -11,11 +11,26 @@ public record ActionSimulation(
     double reliability,
     int consumableCost,
     int disruptionCost,
-    String reason
+    String reason,
+    DeadlineStatus deadlineStatus
 ) {
     public ActionSimulation {
         action = Objects.requireNonNull(action, "action");
         result = Objects.requireNonNull(result, "result");
         reason = Objects.requireNonNull(reason, "reason");
+        deadlineStatus = Objects.requireNonNull(deadlineStatus, "deadlineStatus");
+    }
+
+    public ActionSimulation(
+        SurvivalAction action,
+        TimelineResult result,
+        boolean feasible,
+        double reliability,
+        int consumableCost,
+        int disruptionCost,
+        String reason
+    ) {
+        this(action, result, feasible, reliability, consumableCost, disruptionCost, reason,
+            action instanceof SurvivalAction.NoAction ? DeadlineStatus.NOT_APPLICABLE : DeadlineStatus.GUARANTEED);
     }
 }

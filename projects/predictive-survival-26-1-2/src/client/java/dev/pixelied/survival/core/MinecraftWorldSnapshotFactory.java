@@ -19,7 +19,7 @@ import net.minecraft.world.entity.AreaEffectCloud;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
@@ -46,6 +46,7 @@ import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RespawnAnchorBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
@@ -109,9 +110,8 @@ public final class MinecraftWorldSnapshotFactory {
             return true;
         }
         if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) return true;
-        if (entity instanceof LivingEntity living) {
-            var attackDamage = living.getAttribute(Attributes.ATTACK_DAMAGE);
-            if (attackDamage != null && attackDamage.getValue() > 0d) return true;
+        if (entity instanceof LivingEntity living && MinecraftMeleeSnapshotAdapter.isPotentialMeleeCandidate(living)) {
+            return true;
         }
         if (!(entity instanceof Projectile)) return false;
 
@@ -270,25 +270,10 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("scales_with_difficulty", "true");
         }
 
-        if (entity instanceof LivingEntity living) {
-            var attackDamage = living.getAttribute(Attributes.ATTACK_DAMAGE);
-            if (attackDamage != null && attackDamage.getValue() > 0d) {
-                properties.put("melee_capable", "true");
-                properties.put("attack_damage", Double.toString(attackDamage.getValue()));
-                var range = living.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
-                if (range != null) properties.put("attack_range", Double.toString(range.getValue()));
-                properties.put("attack_strength", entity instanceof Player p
-                    ? Float.toString(p.getAttackStrengthScale(0f))
-                    : "1");
-                ItemStack weapon = living.getMainHandItem();
-                properties.put("weapon_key", itemKey(weapon));
-                properties.put("fall_distance", Double.toString(living.fallDistance));
-                properties.put("critical_possible", entity instanceof Player ? "unknown" : "false");
-                properties.put("line_of_sight", Boolean.toString(player.hasLineOfSight(entity)));
-                properties.put("scales_with_difficulty", Boolean.toString(!(entity instanceof Player)));
-                properties.put("source_key", entity instanceof Player ? "minecraft:player_attack" : "minecraft:mob_attack");
-                if (itemKey(weapon).endsWith("_axe")) properties.put("can_disable_blocking", "true");
-            }
+        if (entity instanceof Mob mob) {
+            properties.putAll(MinecraftMeleeSnapshotAdapter.mobProperties(mob, player::hasLineOfSight));
+        } else if (entity instanceof Player remotePlayer) {
+            properties.putAll(MinecraftMeleeSnapshotAdapter.playerProperties(remotePlayer, player::hasLineOfSight));
         }
 
         AABB box = entity.getBoundingBox();
@@ -391,10 +376,15 @@ public final class MinecraftWorldSnapshotFactory {
                     if (state.getBlock() instanceof BedBlock) {
                         BedRule rule = (BedRule) level.environmentAttributes().getValue(EnvironmentAttributes.BED_RULE, pos);
                         if (rule.explodes()) {
-                            properties.put("explosion_radius", "5");
-                            properties.put("triggerable", "true");
-                            properties.put("source_key", "minecraft:bad_respawn_point");
-                            properties.put("scales_with_difficulty", "true");
+                            BedPart part = state.getValue(BedBlock.PART);
+                            BlockPos headPos = part == BedPart.HEAD ? pos : pos.relative(state.getValue(BedBlock.FACING));
+                            properties.put("pre_explosion_remove_group", "bed:" + headPos.toShortString());
+                            if (part == BedPart.HEAD) {
+                                properties.put("explosion_radius", "5");
+                                properties.put("triggerable", "true");
+                                properties.put("source_key", "minecraft:bad_respawn_point");
+                                properties.put("scales_with_difficulty", "true");
+                            }
                         }
                     } else if (state.getBlock() instanceof RespawnAnchorBlock) {
                         boolean works = (Boolean) level.environmentAttributes().getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, pos);
@@ -403,6 +393,7 @@ public final class MinecraftWorldSnapshotFactory {
                             properties.put("triggerable", "true");
                             properties.put("source_key", "minecraft:bad_respawn_point");
                             properties.put("scales_with_difficulty", "true");
+                            properties.put("pre_explosion_remove_group", "anchor:" + pos.toShortString());
                         }
                     }
 

@@ -90,19 +90,30 @@ public final class SurvivalPlanner {
         Objects.requireNonNull(mode, "mode");
 
         TimelineResult baselineResult = timelineSimulator.simulate(context.player(), timeline);
-        String rejection = hardConstraintFailure(context, timeline, action, mode, baselineResult, enforceDeadline);
+        String rejection = hardConstraintFailure(context, timeline, action, mode);
         if (rejection != null) {
             return new ActionSimulation(
                 action, baselineResult, false, action.reliability(),
-                action.consumableCost(), action.disruptionCost(), rejection
+                action.consumableCost(), action.disruptionCost(), rejection, DeadlineStatus.NOT_APPLICABLE
+            );
+        }
+
+        DeadlineStatus deadlineStatus = deadlineStatus(context, timeline, action, baselineResult, enforceDeadline);
+        if (deadlineStatus == DeadlineStatus.MISSED) {
+            return new ActionSimulation(
+                action, baselineResult, false, action.reliability(),
+                action.consumableCost(), action.disruptionCost(), "server deadline missed", DeadlineStatus.MISSED
             );
         }
 
         ThreatTimeline transformedTimeline = action.applyTimeline(timeline);
         TimelineResult result = timelineSimulator.simulate(action.apply(context.player()), transformedTimeline);
+        String reason = deadlineStatus == DeadlineStatus.BEST_EFFORT
+            ? "best effort: immediate potential threat may beat server authority"
+            : "ok";
         return new ActionSimulation(
             action, result, true, action.reliability(),
-            action.consumableCost(), action.disruptionCost(), "ok"
+            action.consumableCost(), action.disruptionCost(), reason, deadlineStatus
         );
     }
 
@@ -116,9 +127,7 @@ public final class SurvivalPlanner {
         PredictionContext context,
         ThreatTimeline timeline,
         SurvivalAction action,
-        SafetyMode mode,
-        TimelineResult baselineResult,
-        boolean enforceDeadline
+        SafetyMode mode
     ) {
         if (!action.legal()) return "illegal";
         if (!action.authoritativePrerequisitesSatisfied()) return "authoritative prerequisites missing";
@@ -132,13 +141,30 @@ public final class SurvivalPlanner {
             if (!currentTimelineGuaranteed) return "current threat timeline is not guaranteed shield-blockable";
         }
 
-        if (enforceDeadline && requiresPacketWindow(action)) {
-            TickWindow requiredImpact = requiredImpactForAction(context, timeline, action, baselineResult);
-            if (requiredImpact != null && !context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) {
-                return "server deadline missed";
+        return null;
+    }
+
+    private static DeadlineStatus deadlineStatus(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        SurvivalAction action,
+        TimelineResult baselineResult,
+        boolean enforceDeadline
+    ) {
+        if (!enforceDeadline || !requiresPacketWindow(action)) return DeadlineStatus.NOT_APPLICABLE;
+        TickWindow requiredImpact = requiredImpactForAction(context, timeline, action, baselineResult);
+        if (requiredImpact == null) return DeadlineStatus.NOT_APPLICABLE;
+        if (context.timing().canCompleteBefore(action.requiredServerTicks(), requiredImpact)) return DeadlineStatus.GUARANTEED;
+
+        if (action instanceof SurvivalAction.EquipDeathProtection && baselineResult.firstLethalEventId().isPresent()) {
+            String lethalId = baselineResult.firstLethalEventId().get();
+            ThreatEvent lethal = timeline.events().stream().filter(event -> event.id().equals(lethalId)).findFirst().orElse(null);
+            if (lethal != null && lethal.confidence() == dev.pixelied.survival.core.Confidence.POTENTIAL
+                && lethal.impact().earliest() == 0L) {
+                return DeadlineStatus.BEST_EFFORT;
             }
         }
-        return null;
+        return DeadlineStatus.MISSED;
     }
 
     private static boolean requiresPacketWindow(SurvivalAction action) {

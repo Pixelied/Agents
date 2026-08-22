@@ -42,7 +42,7 @@ class BalancedPolicyTest {
             0, true, true, 1d, 0, 1
         );
         SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
-            DeathProtectionSnapshot.ProtectionItem.generic(),
+            DeathProtectionSnapshot.ProtectionItem.deterministicNoOp(),
             SurvivalAction.Hand.OFF_HAND,
             0, true, true, 1d, 1, 1
         );
@@ -61,7 +61,7 @@ class BalancedPolicyTest {
             0, true, false, 1d, 0, 1
         );
         SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
-            DeathProtectionSnapshot.ProtectionItem.generic(),
+            DeathProtectionSnapshot.ProtectionItem.deterministicNoOp(),
             SurvivalAction.Hand.OFF_HAND,
             0, true, true, 1d, 1, 1
         );

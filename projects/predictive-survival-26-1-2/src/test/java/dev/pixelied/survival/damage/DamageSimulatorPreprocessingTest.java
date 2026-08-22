@@ -66,6 +66,7 @@ class DamageSimulatorPreprocessingTest {
         );
 
         assertEquals(0f, result.trace().after(DamageStage.BLOCKING), 0.0001f);
+        assertTrue(result.rejected(), "vanilla hurtServer returns false for a fully blocked hit");
         assertEquals(0f, result.after().hurtState().lastHurt().max(), 0.0001f);
         assertEquals(20, result.after().hurtState().invulnerableTime());
     }

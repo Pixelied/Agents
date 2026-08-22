@@ -2,6 +2,7 @@ package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.execution.DeathProtectionActionExecutor;
+import dev.pixelied.survival.execution.DeathProtectionRestorationController;
 import dev.pixelied.survival.execution.ExecutionCommand;
 import dev.pixelied.survival.execution.ExecutionContext;
 import dev.pixelied.survival.execution.ExecutionStatus;
@@ -60,6 +61,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final ThreatPredictorRegistry predictors;
     private final SurvivalCandidateGenerator candidateGenerator;
     private final DeathProtectionActionExecutor protectionExecutor;
+    private final DeathProtectionRestorationController restorationController;
     private final ShieldActionExecutor shieldExecutor;
     private final NonTotemActionExecutor nonTotemExecutor;
     private final MinecraftCommandDispatcher dispatcher;
@@ -97,6 +99,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         ));
         this.candidateGenerator = new SurvivalCandidateGenerator();
         this.protectionExecutor = new DeathProtectionActionExecutor();
+        this.restorationController = new DeathProtectionRestorationController();
         this.shieldExecutor = new ShieldActionExecutor();
         this.nonTotemExecutor = new NonTotemActionExecutor();
         this.dispatcher = new MinecraftCommandDispatcher();
@@ -145,6 +148,33 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, timeline, candidates);
         liveState = new LiveState(frame, inventory, menu, timing, reactive.player());
         return frame;
+    }
+
+    @Override
+    public void maintainRestoration(
+        SurvivalEngine.EngineFrame frame,
+        boolean restorationEnabled,
+        boolean lethalWithoutProtection,
+        boolean survivalActionActive
+    ) {
+        LiveState state = requireLiveState(frame);
+        protectionExecutor.takeRestorationCheckpoint().ifPresent(restorationController::arm);
+        Optional<ExecutionCommand> restore = restorationController.update(
+            restorationEnabled,
+            lethalWithoutProtection,
+            survivalActionActive,
+            executionContext(state)
+        );
+        if (restore.isEmpty()) return;
+
+        ExecutionCommand command = restore.get();
+        if (!dispatcher.dispatch(minecraft, command)) {
+            restorationController.abort();
+            return;
+        }
+        if (command instanceof ExecutionCommand.SelectHotbar select) {
+            authority.sentHotbarSelection(select.hotbarIndex(), state.timing());
+        }
     }
 
     @Override
@@ -208,12 +238,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             confirmedTicks = Math.max(0, player.getTicksUsingItem() - delay);
         }
 
-        BlockingSnapshot conservative = new BlockingSnapshot(
-            blocking.usingBlockingItem(),
-            blocking.blockedFraction(),
-            confirmedTicks,
-            blocking.requiredUseTicks()
-        );
+        BlockingSnapshot conservative = blocking.withElapsedUseTicks(confirmedTicks);
         return withHeadYaw(snapshot, conservative, player.getYHeadRot());
     }
 

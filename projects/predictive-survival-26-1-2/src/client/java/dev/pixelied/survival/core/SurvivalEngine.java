@@ -9,6 +9,8 @@ import dev.pixelied.survival.planner.SurvivalPlan;
 import dev.pixelied.survival.planner.SurvivalPlanner;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
+import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
+import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -16,12 +18,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class SurvivalEngine {
-    private final SurvivalConfig config;
+    private final AtomicReference<SurvivalConfig> config;
     private final RuntimeAdapter runtime;
     private final DecisionHistory history;
     private final SurvivalPlanner planner;
+    private final ThreatTimelineSimulator restorationSafetySimulator = new ThreatTimelineSimulator();
     private final Set<SurvivalAction> failedActions = new LinkedHashSet<>();
 
     private Optional<SurvivalPlan> currentPlan = Optional.empty();
@@ -39,7 +43,7 @@ public final class SurvivalEngine {
         DecisionHistory history,
         SurvivalPlanner planner
     ) {
-        this.config = Objects.requireNonNull(config, "config");
+        this.config = new AtomicReference<>(Objects.requireNonNull(config, "config"));
         this.runtime = Objects.requireNonNull(runtime, "runtime");
         this.history = Objects.requireNonNull(history, "history");
         this.planner = Objects.requireNonNull(planner, "planner");
@@ -48,6 +52,12 @@ public final class SurvivalEngine {
     public void tick() {
         EngineFrame frame = Objects.requireNonNull(runtime.capture(), "runtime frame");
         updateDangerWindow(frame.timeline());
+        runtime.maintainRestoration(
+            frame,
+            config().restoreHandState(),
+            lethalWithoutDeathProtection(frame),
+            currentPlan.isPresent()
+        );
 
         if (currentPlan.isPresent()) {
             SurvivalAction active = currentPlan.get().action();
@@ -74,7 +84,7 @@ public final class SurvivalEngine {
         int maxAttempts = Math.max(1, frame.context().limits().maxPlannerCandidates());
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             List<SurvivalAction> candidates = filteredCandidates(frame.candidates());
-            SurvivalPlan plan = planner.plan(frame.context(), frame.timeline(), candidates, config.safetyMode());
+            SurvivalPlan plan = planner.plan(frame.context(), frame.timeline(), candidates, config().safetyMode());
 
             if (plan.action() instanceof SurvivalAction.NoAction) {
                 clearCurrentPlan();
@@ -114,7 +124,24 @@ public final class SurvivalEngine {
     }
 
     public SurvivalConfig config() {
-        return config;
+        return config.get();
+    }
+
+    public void replaceConfig(SurvivalConfig replacement) {
+        config.set(Objects.requireNonNull(replacement, "replacement"));
+        failedActions.clear();
+        clearCurrentPlan();
+    }
+
+    private boolean lethalWithoutDeathProtection(EngineFrame frame) {
+        PlayerSnapshot player = frame.context().player();
+        PlayerSnapshot withoutProtection = new PlayerSnapshot(
+            player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
+            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
+            player.hurtState(), DeathProtectionSnapshot.none(), player.boundingBox(), player.position(), player.velocity(),
+            player.equipmentItemKeys(), player.stateProperties()
+        );
+        return !restorationSafetySimulator.simulate(withoutProtection, frame.timeline()).survived();
     }
 
     private boolean shouldReplaceActivePlan(SurvivalAction active, EngineFrame frame) {
@@ -122,8 +149,8 @@ public final class SurvivalEngine {
         boolean sameAbsoluteSchedule = refreshedScheduleFingerprint.equals(activeThreatScheduleFingerprint);
 
         var refreshed = sameAbsoluteSchedule
-            ? planner.simulateInFlight(frame.context(), frame.timeline(), active, config.safetyMode())
-            : planner.simulate(frame.context(), frame.timeline(), active, config.safetyMode());
+            ? planner.simulateInFlight(frame.context(), frame.timeline(), active, config().safetyMode())
+            : planner.simulate(frame.context(), frame.timeline(), active, config().safetyMode());
         if (refreshed.feasible() && refreshed.result().survived()) {
             activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
             return false;
@@ -133,7 +160,7 @@ public final class SurvivalEngine {
             frame.context(),
             frame.timeline(),
             filteredCandidates(frame.candidates()),
-            config.safetyMode()
+            config().safetyMode()
         );
         boolean replace = !(replacement.action() instanceof SurvivalAction.NoAction)
             && !replacement.action().equals(active);
@@ -145,8 +172,8 @@ public final class SurvivalEngine {
         List<SurvivalAction> filtered = new ArrayList<>();
         for (SurvivalAction candidate : candidates) {
             if (candidate == null || failedActions.contains(candidate)) continue;
-            if (!config.automaticMovement() && candidate instanceof SurvivalAction.Relocate) continue;
-            if (!config.blockPlacementAndClutches()
+            if (!config().automaticMovement() && candidate instanceof SurvivalAction.Relocate) continue;
+            if (!config().blockPlacementAndClutches()
                 && (candidate instanceof SurvivalAction.PlaceCover || candidate instanceof SurvivalAction.PearlRescue)) {
                 continue;
             }
@@ -270,5 +297,13 @@ public final class SurvivalEngine {
         EngineFrame capture();
         ExecutionStatus begin(SurvivalAction action, EngineFrame frame);
         ExecutionStatus observe(SurvivalAction action, EngineFrame frame);
+
+        default void maintainRestoration(
+            EngineFrame frame,
+            boolean restorationEnabled,
+            boolean lethalWithoutProtection,
+            boolean survivalActionActive
+        ) {
+        }
     }
 }

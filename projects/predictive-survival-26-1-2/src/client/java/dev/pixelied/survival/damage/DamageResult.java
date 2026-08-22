@@ -6,6 +6,15 @@ public record DamageResult(
     PlayerSnapshot after,
     DamageTrace trace,
     boolean rejected,
-    boolean deathProtectionConsumed
+    boolean deathProtectionConsumed,
+    boolean postStateUncertain
 ) {
+    public DamageResult(
+        PlayerSnapshot after,
+        DamageTrace trace,
+        boolean rejected,
+        boolean deathProtectionConsumed
+    ) {
+        this(after, trace, rejected, deathProtectionConsumed, false);
+    }
 }

@@ -8,7 +8,11 @@ import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.EnumSet;
@@ -41,8 +45,21 @@ public final class MinecraftDamageAdapter {
             sourcePosition == null
                 ? Optional.empty()
                 : Optional.of(new Vec3Snapshot(sourcePosition.x(), sourcePosition.y(), sourcePosition.z())),
-            source.typeHolder().getRegisteredName()
+            source.typeHolder().getRegisteredName(),
+            0f,
+            armorEffectivenessAdjustment(source.getWeaponItem())
         );
+    }
+
+    public static float armorEffectivenessAdjustment(ItemStack weapon) {
+        if (weapon == null || weapon.isEmpty()) return 0f;
+        ItemEnchantments enchantments = weapon.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
+        for (var entry : enchantments.entrySet()) {
+            if (entry.getKey().is(Enchantments.BREACH)) {
+                return -0.15f * entry.getIntValue();
+            }
+        }
+        return 0f;
     }
 
     static boolean piercingProjectile(boolean directEntityIsArrow, int pierceLevel) {
@@ -60,6 +77,7 @@ public final class MinecraftDamageAdapter {
             case BYPASSES_RESISTANCE -> DamageTypeTags.BYPASSES_RESISTANCE;
             case BYPASSES_ENCHANTMENTS -> DamageTypeTags.BYPASSES_ENCHANTMENTS;
             case IS_FIRE -> DamageTypeTags.IS_FIRE;
+            case BURN_FROM_STEPPING -> DamageTypeTags.BURN_FROM_STEPPING;
             case IS_PROJECTILE -> DamageTypeTags.IS_PROJECTILE;
             case IS_EXPLOSION -> DamageTypeTags.IS_EXPLOSION;
             case IS_FALL -> DamageTypeTags.IS_FALL;

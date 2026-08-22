@@ -2,6 +2,8 @@ package dev.pixelied.survival.inventory;
 
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.MinecraftEquipmentAdapter;
+import dev.pixelied.survival.damage.MinecraftBlockingAdapter;
+import dev.pixelied.survival.damage.MinecraftDeathProtectionAdapter;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -64,13 +66,22 @@ public final class MinecraftInventorySnapshotFactory {
         String key = stack.isEmpty()
             ? "minecraft:air"
             : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        var protectionItem = stack.isEmpty()
+            ? java.util.Optional.<dev.pixelied.survival.damage.DeathProtectionSnapshot.ProtectionItem>empty()
+            : MinecraftDeathProtectionAdapter.snapshot(stack);
+        var blockingProfile = MinecraftBlockingAdapter.profile(stack);
+        boolean blockingOnCooldown = blockingProfile.isPresent() && player.getCooldowns().isOnCooldown(stack);
         return new InventorySlotSnapshot(
             index,
             key,
+            stack.isEmpty() ? 0 : ItemStack.hashItemAndComponents(stack),
             stack.getCount(),
-            !stack.isEmpty() && stack.get(DataComponents.DEATH_PROTECTION) != null,
+            protectionItem.isPresent(),
             consumableCapability(stack, player),
-            equippableCapability(stack, player)
+            equippableCapability(stack, player),
+            blockingProfile,
+            protectionItem,
+            blockingOnCooldown
         );
     }
 

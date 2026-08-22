@@ -10,6 +10,9 @@
   "entrypoints": {
     "client": [
       "dev.pixelied.survival.PredictiveSurvivalClient"
+    ],
+    "modmenu": [
+      "dev.pixelied.survival.config.PredictiveSurvivalModMenu"
     ]
   },
   "mixins": [
@@ -20,5 +23,8 @@
     "minecraft": "~26.1.2",
     "java": ">=25",
     "fabric-api": "*"
+  },
+  "suggests": {
+    "modmenu": ">=18.0.0"
   }
 }

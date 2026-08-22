@@ -34,7 +34,7 @@ class GuardianBeamPredictorTest {
                 "guardian_beam_target_local", "true",
                 "guardian_attack_ticks", "30",
                 "guardian_attack_duration", "80",
-                "attack_damage", "6.0"
+                "direct_damage", "6.0"
             )
         ));
 
@@ -62,7 +62,8 @@ class GuardianBeamPredictorTest {
                 "guardian_beam_target_local", "true",
                 "guardian_attack_ticks", "70",
                 "guardian_attack_duration", "80",
-                "attack_damage", "8.0"
+                "direct_damage_min", "7.0",
+                "direct_damage_max", "9.0"
             )
         ));
 
@@ -70,6 +71,9 @@ class GuardianBeamPredictorTest {
         assertEquals(5f, magic.damage().rawDamage().min(), 0.0001f);
         assertEquals(5f, magic.damage().rawDamage().max(), 0.0001f);
         assertEquals(new TickWindow(0, 10), magic.impact());
+        ThreatEvent melee = events.stream().filter(event -> event.id().endsWith(":melee")).findFirst().orElseThrow();
+        assertEquals(7f, melee.damage().rawDamage().min(), 0.0001f);
+        assertEquals(9f, melee.damage().rawDamage().max(), 0.0001f);
     }
 
     @Test
@@ -81,7 +85,7 @@ class GuardianBeamPredictorTest {
                 "guardian_beam_target_local", "false",
                 "guardian_attack_ticks", "30",
                 "guardian_attack_duration", "80",
-                "attack_damage", "6.0"
+                "direct_damage", "6.0"
             )
         )).isEmpty());
     }

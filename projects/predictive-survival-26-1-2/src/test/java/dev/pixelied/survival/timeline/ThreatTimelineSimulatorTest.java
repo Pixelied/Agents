@@ -54,9 +54,21 @@ class ThreatTimelineSimulatorTest {
     }
 
     @Test
-    void simulationContinuesAfterPopAndCanStillDie() {
+    void uncertainDeathProtectionPopDoesNotCountAsGuaranteedSurvival() {
         TimelineResult result = simulator.simulate(
             player(5f, MitigationSnapshot.none(), DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.generic())),
+            new ThreatTimeline(List.of(event("uncertain-pop", 10f, 0)))
+        );
+
+        assertEquals(1, result.consumedDeathProtectionCount());
+        assertEquals(1f, result.finalHealth(), 0.0001f);
+        assertFalse(result.survived());
+    }
+
+    @Test
+    void simulationContinuesAfterPopAndCanStillDie() {
+        TimelineResult result = simulator.simulate(
+            player(5f, MitigationSnapshot.none(), DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.deterministicNoOp())),
             new ThreatTimeline(List.of(event("pop", 10f, 0), event("followup", 10f, 21)))
         );
 

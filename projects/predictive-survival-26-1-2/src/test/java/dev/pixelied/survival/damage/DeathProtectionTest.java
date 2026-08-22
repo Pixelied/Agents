@@ -24,6 +24,19 @@ class DeathProtectionTest {
     }
 
     @Test
+    void uncertainCustomProtectionMarksThePostStateUncertain() {
+        DamageResult result = simulator.simulate(
+            DamageSimulatorMitigationTest.player(4f, 0f, MitigationSnapshot.none(), StatusEffectsSnapshot.none(),
+                DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.generic()), HurtState.unknown()),
+            source(8f)
+        );
+
+        assertTrue(result.deathProtectionConsumed());
+        assertTrue(result.postStateUncertain());
+        assertEquals(1f, result.after().health(), 0.0001f);
+    }
+
+    @Test
     void offHandDeathProtectionPreventsDeath() {
         DamageResult result = simulator.simulate(
             DamageSimulatorMitigationTest.player(4f, 0f, MitigationSnapshot.none(), StatusEffectsSnapshot.none(),

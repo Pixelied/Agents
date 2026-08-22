@@ -60,10 +60,10 @@ public final class GuardianBeamPredictor implements ThreatPredictor {
                 false
             ));
 
-            float attackDamage = positiveFloat(entity.properties().get("attack_damage"), 0f);
-            if (attackDamage > 0f) {
+            DamageRange directDamage = directDamage(entity.properties());
+            if (directDamage.max() > 0f) {
                 DamageSourceSnapshot melee = new DamageSourceSnapshot(
-                    DamageRange.exact(attackDamage),
+                    directDamage,
                     EnumSet.noneOf(DamageFlag.class),
                     true,
                     1f,
@@ -113,5 +113,15 @@ public final class GuardianBeamPredictor implements ThreatPredictor {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
+    }
+
+    private static DamageRange directDamage(java.util.Map<String, String> properties) {
+        float exact = positiveFloat(properties.get("direct_damage"), 0f);
+        if (exact > 0f) return DamageRange.exact(exact);
+
+        float min = positiveFloat(properties.get("direct_damage_min"), 0f);
+        float max = positiveFloat(properties.get("direct_damage_max"), 0f);
+        if (max <= 0f) return DamageRange.exact(0f);
+        return new DamageRange(Math.min(min, max), max);
     }
 }

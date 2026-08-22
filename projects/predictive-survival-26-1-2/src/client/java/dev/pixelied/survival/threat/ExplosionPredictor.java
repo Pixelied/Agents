@@ -1,5 +1,6 @@
 package dev.pixelied.survival.threat;
 
+import dev.pixelied.survival.core.AabbSnapshot;
 import dev.pixelied.survival.core.Confidence;
 import dev.pixelied.survival.core.DamageRange;
 import dev.pixelied.survival.core.PredictionContext;
@@ -27,14 +28,15 @@ public final class ExplosionPredictor implements ThreatPredictor {
 
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             buildEvent(
-                "explosion:" + entity.id(), entity.typeKey(), entity.position(), entity.properties(),
+                "explosion:" + entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.properties(),
                 context, world
             ).ifPresent(events::add);
         }
         for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+            OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(context.world().blocks(), block);
             buildEvent(
-                "explosion:block:" + block.blockId() + ":" + block.position(), block.blockId(), block.position(), block.properties(),
-                context, world
+                "explosion:block:" + block.blockId() + ":" + block.position(), block.blockId(), block.position(),
+                new Vec3Snapshot(0, 0, 0), block.properties(), context, eventWorld
             ).ifPresent(events::add);
         }
         return List.copyOf(events);
@@ -44,6 +46,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
         String id,
         String typeKey,
         Vec3Snapshot center,
+        Vec3Snapshot sourceVelocity,
         Map<String, String> properties,
         PredictionContext context,
         OcclusionView world
@@ -53,6 +56,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
 
         TickWindow impact;
         Confidence confidence;
+        boolean triggerable = Boolean.parseBoolean(properties.getOrDefault("triggerable", "false"));
         Integer fuse = parseNonNegativeInt(properties.get("fuse_ticks"));
         if (fuse != null) {
             if (fuse > context.limits().maxProjectileHorizonTicks()) return Optional.empty();
@@ -66,8 +70,12 @@ public final class ExplosionPredictor implements ThreatPredictor {
                 long latest = Math.min(fuseMax, context.limits().maxProjectileHorizonTicks());
                 impact = new TickWindow(fuseMin, latest);
                 confidence = Confidence.BOUNDED;
-            } else if (Boolean.parseBoolean(properties.getOrDefault("triggerable", "false"))) {
-                long latest = Math.min(2, context.limits().maxProjectileHorizonTicks());
+            } else if (triggerable) {
+                long reactionTicks = Math.max(
+                    0L,
+                    context.timing().nextPacketProcessingWindow().latest() - context.timing().clientTick()
+                );
+                long latest = Math.min(reactionTicks, context.limits().maxProjectileHorizonTicks());
                 impact = new TickWindow(0, latest);
                 confidence = Confidence.POTENTIAL;
             } else {
@@ -76,10 +84,11 @@ public final class ExplosionPredictor implements ThreatPredictor {
         }
         if (radius.bounded()) confidence = lessCertain(confidence, Confidence.BOUNDED);
 
-        float seen = exposure.seenPercent(context.player().boundingBox(), center, world);
-        double distance = distance(context.player().position(), center);
-        float rawMin = exposure.rawEntityDamage(radius.min(), distance, seen);
-        float rawMax = exposure.rawEntityDamage(radius.max(), distance, seen);
+        DamageRange raw = triggerable
+            ? triggerableDamageEnvelope(radius, center, sourceVelocity, impact.latest(), context, world)
+            : damageAt(radius, center, context.player().position(), context.player().boundingBox(), world);
+        float rawMin = raw.min();
+        float rawMax = raw.max();
         if (rawMax <= 0f) return Optional.empty();
 
         EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.IS_EXPLOSION);
@@ -103,6 +112,72 @@ public final class ExplosionPredictor implements ThreatPredictor {
             true,
             false
         ));
+    }
+
+    private DamageRange triggerableDamageEnvelope(
+        RadiusRange radius,
+        Vec3Snapshot center,
+        Vec3Snapshot sourceVelocity,
+        long reactionTicks,
+        PredictionContext context,
+        OcclusionView world
+    ) {
+        float rawMin = Float.POSITIVE_INFINITY;
+        float rawMax = 0f;
+        for (long tick = 0; tick <= reactionTicks; tick++) {
+            Vec3Snapshot playerOffset = scale(context.player().velocity(), tick);
+            Vec3Snapshot sourceOffset = scale(sourceVelocity, tick);
+            Vec3Snapshot projectedPlayer = add(context.player().position(), playerOffset);
+            AabbSnapshot projectedBox = translate(context.player().boundingBox(), playerOffset);
+            Vec3Snapshot projectedCenter = add(center, sourceOffset);
+            DamageRange atTick = damageAt(radius, projectedCenter, projectedPlayer, projectedBox, world);
+            rawMin = Math.min(rawMin, atTick.min());
+            rawMax = Math.max(rawMax, atTick.max());
+        }
+        if (!Float.isFinite(rawMin)) rawMin = 0f;
+        return new DamageRange(rawMin, rawMax);
+    }
+
+    private DamageRange damageAt(
+        RadiusRange radius,
+        Vec3Snapshot center,
+        Vec3Snapshot playerPosition,
+        AabbSnapshot playerBox,
+        OcclusionView world
+    ) {
+        float seen = exposure.seenPercent(playerBox, center, world);
+        double distance = distance(playerPosition, center);
+        return new DamageRange(
+            exposure.rawEntityDamage(radius.min(), distance, seen),
+            exposure.rawEntityDamage(radius.max(), distance, seen)
+        );
+    }
+
+    private static OcclusionView withoutPreExplosionRemovedBlocks(
+        List<WorldSnapshot.BlockSnapshot> blocks,
+        WorldSnapshot.BlockSnapshot source
+    ) {
+        String group = source.properties().get("pre_explosion_remove_group");
+        if (group == null || group.isBlank()) return new SnapshotOcclusionView(blocks, List.of());
+        List<WorldSnapshot.BlockSnapshot> filtered = blocks.stream()
+            .filter(block -> !group.equals(block.properties().get("pre_explosion_remove_group")))
+            .toList();
+        return new SnapshotOcclusionView(filtered, List.of());
+    }
+
+    private static Vec3Snapshot scale(Vec3Snapshot vector, long ticks) {
+        return new Vec3Snapshot(vector.x() * ticks, vector.y() * ticks, vector.z() * ticks);
+    }
+
+    private static Vec3Snapshot add(Vec3Snapshot vector, Vec3Snapshot offset) {
+        return new Vec3Snapshot(vector.x() + offset.x(), vector.y() + offset.y(), vector.z() + offset.z());
+    }
+
+    private static AabbSnapshot translate(AabbSnapshot box, Vec3Snapshot offset) {
+        return new AabbSnapshot(
+            box.minX() + offset.x(), box.minY() + offset.y(), box.minZ() + offset.z(),
+            box.maxX() + offset.x(), box.maxY() + offset.y(), box.maxZ() + offset.z()
+        );
     }
 
     static boolean canUseUnitCubeOcclusion(WorldSnapshot.BlockSnapshot block) {
