@@ -3,6 +3,7 @@ package dev.adrien.crystaloptimizer.client.mixin;
 import dev.adrien.crystaloptimizer.client.execution.InteractionTimingRecorder;
 import dev.adrien.crystaloptimizer.client.intel.ClientObservationBus;
 import dev.adrien.crystaloptimizer.client.intel.RemoteDamageWindowObserver;
+import dev.adrien.crystaloptimizer.client.intel.TargetMotionTracker;
 import dev.adrien.crystaloptimizer.client.v2.ClientCombatEventBus;
 import dev.adrien.crystaloptimizer.client.v2.ClientRevisionTracker;
 import dev.adrien.crystaloptimizer.client.v2.ClientTimingObserver;
@@ -82,7 +83,7 @@ public abstract class ClientPacketListenerMixin {
         if (level == null) {
             return;
         }
-        crystaloptimizer$publishTargetMovement(packet.getEntity(level));
+        crystaloptimizer$publishTargetMovement(packet.getEntity(level), false);
     }
 
     @Inject(method = "handleEntityPositionSync", at = @At("TAIL"))
@@ -94,7 +95,7 @@ public abstract class ClientPacketListenerMixin {
         if (level == null) {
             return;
         }
-        crystaloptimizer$publishTargetMovement(level.getEntity(packet.id()));
+        crystaloptimizer$publishTargetMovement(level.getEntity(packet.id()), false);
     }
 
     @Inject(method = "handleTeleportEntity", at = @At("TAIL"))
@@ -106,7 +107,7 @@ public abstract class ClientPacketListenerMixin {
         if (level == null) {
             return;
         }
-        crystaloptimizer$publishTargetMovement(level.getEntity(packet.id()));
+        crystaloptimizer$publishTargetMovement(level.getEntity(packet.id()), true);
     }
 
     @Inject(method = "handleAddEntity", at = @At("TAIL"))
@@ -141,6 +142,9 @@ public abstract class ClientPacketListenerMixin {
 
         for (int entityId : packet.getEntityIds()) {
             Entity entity = level.getEntity(entityId);
+            if (entity instanceof AbstractClientPlayer player) {
+                TargetMotionTracker.instance().remove(player.getUUID());
+            }
             if (!(entity instanceof EndCrystal crystal)) {
                 continue;
             }
@@ -186,12 +190,20 @@ public abstract class ClientPacketListenerMixin {
         );
     }
 
-    private static void crystaloptimizer$publishTargetMovement(Entity entity) {
+    private static void crystaloptimizer$publishTargetMovement(Entity entity, boolean correction) {
         Minecraft minecraft = Minecraft.getInstance();
         if (!(entity instanceof AbstractClientPlayer player) || player == minecraft.player) {
             return;
         }
         long nowNanos = System.nanoTime();
+        TargetMotionTracker.instance().observe(
+            player.getUUID(),
+            player.position(),
+            player.getBoundingBox(),
+            player.getDeltaMovement(),
+            correction,
+            nowNanos
+        );
         long revision = ClientRevisionTracker.instance().markTargetMovement(player.getUUID());
         ClientCombatEventBus.instance().publish(
             new CombatEvent.TargetMoved(player.getUUID(), revision, nowNanos)
