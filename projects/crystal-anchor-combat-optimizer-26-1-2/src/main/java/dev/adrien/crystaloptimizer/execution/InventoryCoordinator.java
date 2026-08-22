@@ -2,7 +2,6 @@ package dev.adrien.crystaloptimizer.execution;
 
 import dev.adrien.crystaloptimizer.action.ChargeAnchor;
 import dev.adrien.crystaloptimizer.action.CombatAction;
-import dev.adrien.crystaloptimizer.action.DetonateAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
 import dev.adrien.crystaloptimizer.action.PlaceObsidian;
@@ -50,10 +49,6 @@ public final class InventoryCoordinator {
         return ReservationResult.granted(token, revoked);
     }
 
-    /**
-     * Chooses the least disruptive legal hand/slot route for an item-consuming interaction.
-     * Pending item reservations are treated as already spent so routing cannot double-spend them.
-     */
     public Optional<InteractionRoute> routeFor(
         CombatAction action,
         InventoryState inventory,
@@ -76,22 +71,12 @@ public final class InventoryCoordinator {
         return routeForRequiredItem(required, inventory);
     }
 
-    /**
-     * Resolves a hand/slot from the player's currently observed inventory only.
-     *
-     * <p>This is intended for the final vanilla dispatcher after the arbiter and pending-item
-     * ledger have already approved/reserved the action. Re-applying reservation accounting here
-     * would incorrectly hide the action's own reservation.</p>
-     */
     public Optional<InteractionRoute> routeForObserved(
         CombatAction action,
         InventoryState inventory
     ) {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(inventory, "inventory");
-        if (action instanceof DetonateAnchor) {
-            return Optional.of(routeForAnchorDetonation(inventory));
-        }
         Item required = requiredItem(action);
         return required == null
             ? Optional.empty()
@@ -132,27 +117,7 @@ public final class InventoryCoordinator {
             .filter(entry -> entry.getValue().equals(required))
             .filter(entry -> inventory.hotbarCount(entry.getKey()) > 0)
             .min(Comparator.comparingInt(Map.Entry::getKey))
-            // The slot-change packet and following interaction can be ordered in the same client
-            // dispatch; server/profile spacing is modeled separately rather than guessed here.
             .map(entry -> InteractionRoute.selectMainhand(entry.getKey(), 0.0));
-    }
-
-    private static InteractionRoute routeForAnchorDetonation(InventoryState inventory) {
-        boolean mainhandGlowstone = inventory.selectedItem()
-            .filter(Items.GLOWSTONE::equals)
-            .isPresent();
-        boolean offhandGlowstone = inventory.offhandItem()
-            .filter(Items.GLOWSTONE::equals)
-            .isPresent();
-        if (!mainhandGlowstone) {
-            return InteractionRoute.selectedMainhand();
-        }
-        if (!offhandGlowstone) {
-            return InteractionRoute.offhand();
-        }
-        // A fully charged anchor may still detonate when both hands contain glowstone. Partial
-        // anchors are rejected by DetonateAnchor legality before dispatch.
-        return InteractionRoute.selectedMainhand();
     }
 
     private static Item requiredItem(CombatAction action) {
