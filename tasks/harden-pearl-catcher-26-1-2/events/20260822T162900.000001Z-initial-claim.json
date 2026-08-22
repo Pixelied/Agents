@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "pearl-catcher-hardening-initial-claim-20260822",
+  "task_id": "harden-pearl-catcher-26-1-2",
+  "agent_id": "openai-pearl-hardening-6f2a",
+  "type": "progress",
+  "message": "Claimed the new Pearl Catcher project and hardening-design scopes from current main before implementation.",
+  "data": {
+    "coordination_branch": "coord/pearl-catcher-hardening-claim",
+    "planned_implementation_branch": "fix/pearl-catcher-26-1-2-hardening",
+    "source_archive": "Pixelied-Studio-Pearl-Catcher-2.5.1-source.zip",
+    "minecraft_reference_archive": "minecraft-26.1.2-client .(2)(2).zip",
+    "verification_strategy": "behavioral regressions first, full project tests/build, workspace validation, GitHub Actions"
+  },
+  "created_at": "2026-08-22T16:29:00+00:00"
+}
