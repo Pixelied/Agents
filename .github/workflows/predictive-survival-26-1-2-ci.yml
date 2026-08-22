@@ -19,10 +19,10 @@ jobs:
         run: |
           set -euo pipefail
           cat ci/predictive-survival-hardening/final-fix/part-*.b64 | tr -d '\n' | base64 -d > /tmp/final-fix.patch.gz
-          echo 'ad6b1d6f013f01af8a04906a53d4eac283dbf3791e22e63a84bd1431cb9d7230  /tmp/final-fix.patch.gz' | sha256sum -c -
+          echo '5f6ccfbb314b7bbbab2768348c01d47d0ecc8cb51c2550decda66a299ce6fb6b  /tmp/final-fix.patch.gz' | sha256sum -c -
           gzip -t /tmp/final-fix.patch.gz
           gzip -dc /tmp/final-fix.patch.gz > /tmp/final-fix.patch
-          echo '99255fdd1ed40db77c3be7e47ad6fb3d337eb5c8b052447276b0be7d34fcd4bd  /tmp/final-fix.patch' | sha256sum -c -
+          echo 'b19ce2a1e966b17e5b465d228bbb572c0445ce14632ca7cc55f6b22e6a97d174  /tmp/final-fix.patch' | sha256sum -c -
 
       - name: Checkout exact clean audited base and apply final fix
         shell: bash
