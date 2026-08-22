@@ -72,22 +72,26 @@ public final class InventoryCoordinator {
         if (globallyAvailable <= 0) {
             return Optional.empty();
         }
+        return routeForRequiredItem(required, inventory);
+    }
 
-        if (inventory.offhandItem().filter(required::equals).isPresent()) {
-            return Optional.of(InteractionRoute.offhand());
-        }
-        if (inventory.selectedItem().filter(required::equals).isPresent()
-            && inventory.hotbarCount(inventory.selectedHotbarSlot()) > 0) {
-            return Optional.of(InteractionRoute.selectedMainhand());
-        }
-
-        return inventory.hotbarItems().entrySet().stream()
-            .filter(entry -> entry.getValue().equals(required))
-            .filter(entry -> inventory.hotbarCount(entry.getKey()) > 0)
-            .min(Comparator.comparingInt(Map.Entry::getKey))
-            // The slot-change packet and following interaction can be ordered in the same client
-            // dispatch; server/profile spacing is modeled separately rather than guessed here.
-            .map(entry -> InteractionRoute.selectMainhand(entry.getKey(), 0.0));
+    /**
+     * Resolves a hand/slot from the player's currently observed inventory only.
+     *
+     * <p>This is intended for the final vanilla dispatcher after the arbiter and pending-item
+     * ledger have already approved/reserved the action. Re-applying reservation accounting here
+     * would incorrectly hide the action's own reservation.</p>
+     */
+    public Optional<InteractionRoute> routeForObserved(
+        CombatAction action,
+        InventoryState inventory
+    ) {
+        Objects.requireNonNull(action, "action");
+        Objects.requireNonNull(inventory, "inventory");
+        Item required = requiredItem(action);
+        return required == null
+            ? Optional.empty()
+            : routeForRequiredItem(required, inventory);
     }
 
     public synchronized void release(ReservationToken token) {
@@ -106,6 +110,27 @@ public final class InventoryCoordinator {
 
     public synchronized void addReservationListener(Consumer<ReservationRequest> listener) {
         listeners.add(Objects.requireNonNull(listener, "listener"));
+    }
+
+    private static Optional<InteractionRoute> routeForRequiredItem(
+        Item required,
+        InventoryState inventory
+    ) {
+        if (inventory.offhandItem().filter(required::equals).isPresent()) {
+            return Optional.of(InteractionRoute.offhand());
+        }
+        if (inventory.selectedItem().filter(required::equals).isPresent()
+            && inventory.hotbarCount(inventory.selectedHotbarSlot()) > 0) {
+            return Optional.of(InteractionRoute.selectedMainhand());
+        }
+
+        return inventory.hotbarItems().entrySet().stream()
+            .filter(entry -> entry.getValue().equals(required))
+            .filter(entry -> inventory.hotbarCount(entry.getKey()) > 0)
+            .min(Comparator.comparingInt(Map.Entry::getKey))
+            // The slot-change packet and following interaction can be ordered in the same client
+            // dispatch; server/profile spacing is modeled separately rather than guessed here.
+            .map(entry -> InteractionRoute.selectMainhand(entry.getKey(), 0.0));
     }
 
     private static Item requiredItem(CombatAction action) {
