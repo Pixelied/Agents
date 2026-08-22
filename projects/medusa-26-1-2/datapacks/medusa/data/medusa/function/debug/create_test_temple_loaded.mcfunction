@@ -7,4 +7,5 @@ execute if entity @e[type=minecraft:marker,tag=md.instance,limit=1] run say MEDU
 execute unless entity @e[type=minecraft:marker,tag=md.instance,limit=1] run say MEDUSA_INSTANCE_IMMEDIATE_MISSING
 tag @e[type=minecraft:marker,tag=md.instance,limit=1,sort=nearest] add md.debug_maze_primary
 scoreboard players set $maze_wait md_tmp 0
+scoreboard players set $maze_smoke_started md_tmp 0
 schedule function medusa:debug/wait_for_maze_ready 1t replace
