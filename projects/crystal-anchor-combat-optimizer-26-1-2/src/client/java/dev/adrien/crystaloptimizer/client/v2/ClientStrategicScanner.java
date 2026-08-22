@@ -79,6 +79,10 @@ public final class ClientStrategicScanner {
             target.invulnerableTime,
             nowNanos
         );
+        ClientCombatDiagnostics.latest().ifPresent(diagnostics -> {
+            diagnostics.recordHurtWindowConfidence(threshold.confidence());
+            diagnostics.recordCandidateCounts(map.candidateCounts());
+        });
         SelectionContext context = new SelectionContext(
             threshold,
             target.getHealth(),
