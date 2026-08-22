@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
+import dev.adrien.crystaloptimizer.client.intel.TargetMotionTracker;
 import dev.adrien.crystaloptimizer.client.world.ClientCombatSnapshotBuilder;
 import dev.adrien.crystaloptimizer.prediction.MovementSample;
 import dev.adrien.crystaloptimizer.sim.model.AnchorState;
@@ -26,8 +27,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /** Client-thread-only capture. Everything returned is immutable worker input. */
@@ -84,12 +85,17 @@ public final class ClientStrategicSnapshotCapture {
         long worldRevision = revisions.worldRevision();
         CombatSnapshot combat = merge(captured, worldRevision);
         LinkedHashMap<UUID, Long> targetRevisions = new LinkedHashMap<>();
+        LinkedHashMap<UUID, List<MovementSample>> movementHistory = new LinkedHashMap<>();
         for (AbstractClientPlayer target : validTargets) {
-            targetRevisions.put(target.getUUID(), revisions.targetRevision(target.getUUID()));
+            UUID targetId = target.getUUID();
+            targetRevisions.put(targetId, revisions.targetRevision(targetId));
+            List<MovementSample> history = TargetMotionTracker.instance().snapshot(targetId);
+            if (!history.isEmpty()) {
+                movementHistory.put(targetId, history);
+            }
         }
         List<AbstractClientPlayer> observedPlayers = List.copyOf(minecraft.level.players());
         Set<UUID> protectedIds = protectionResolver.resolve(observedPlayers, protectionConfig);
-        Map<UUID, List<MovementSample>> movementHistory = Map.of();
 
         return Optional.of(new StrategicSnapshot(
             snapshotIds.incrementAndGet(),
