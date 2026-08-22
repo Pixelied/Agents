@@ -8,6 +8,8 @@ import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.execution.ExecutionCommand;
 import dev.pixelied.survival.execution.MinecraftCommandDispatcher;
+import dev.pixelied.survival.planner.SafetyMode;
+import dev.pixelied.survival.planner.SurvivalPlanner;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -173,7 +175,8 @@ final class WitherSkeletonValidationScenarios {
                 String clientDiagnostic = context.computeOnClient(minecraft -> {
                     var frame = harness.runtime().lastFrame().orElse(null);
                     var snapshot = frame == null ? null : frame.context().player();
-                    var baseline = frame == null ? null : new ThreatTimelineSimulator().simulate(snapshot, frame.timeline());
+                    var timelineSimulator = new ThreatTimelineSimulator();
+                    var baseline = frame == null ? null : timelineSimulator.simulate(snapshot, frame.timeline());
                     ThreatEvent direct = frame == null ? null : frame.timeline().events().stream()
                         .filter(event -> event.id().equals("melee:" + skeletonId))
                         .findFirst()
@@ -181,6 +184,13 @@ final class WitherSkeletonValidationScenarios {
                     var directDamage = snapshot == null || direct == null
                         ? null
                         : new DamageSimulator().simulate(snapshot, direct.damage());
+                    var candidate = frame == null || frame.candidates().isEmpty() ? null : frame.candidates().getFirst();
+                    var candidateSimulation = frame == null || candidate == null
+                        ? null
+                        : new SurvivalPlanner().simulate(frame.context(), frame.timeline(), candidate, SafetyMode.SAFE);
+                    var immediateCandidateResult = snapshot == null || frame == null || candidate == null
+                        ? null
+                        : timelineSimulator.simulate(candidate.apply(snapshot), frame.timeline());
                     return "clientSelected=" + (minecraft.player == null ? -1 : minecraft.player.getInventory().getSelectedSlot())
                         + ", clientHealth=" + (minecraft.player == null ? -1f : minecraft.player.getHealth())
                         + ", snapshotHealth=" + (snapshot == null ? "none" : Float.toString(snapshot.health()))
@@ -196,6 +206,8 @@ final class WitherSkeletonValidationScenarios {
                         + ", snapshotDeathProtection=" + (snapshot == null ? "none" : snapshot.deathProtection())
                         + ", directDamage=" + directDamage
                         + ", baseline=" + baseline
+                        + ", candidateSimulation=" + candidateSimulation
+                        + ", immediateCandidateResult=" + immediateCandidateResult
                         + ", currentPlan=" + harness.engine().currentPlan()
                         + ", executionStatus=" + harness.engine().executionStatus()
                         + ", history=" + harness.engine().history().snapshot()
