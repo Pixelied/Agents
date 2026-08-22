@@ -34,6 +34,25 @@ class InitialMazeValidationContract(unittest.TestCase):
         self.assertIn("$maze_smoke_started", waiter)
         self.assertIn("matches 0", waiter)
 
+    def test_initial_smoke_checks_rejection_before_success_continuation(self):
+        tick = (FN / "debug/maze_smoke/initial_tick.mcfunction").read_text()
+        reject = tick.find("md_mphase matches 3 run say MEDUSA_MAZE_INITIAL_SOLVABLE_FAILED")
+        success = tick.find("md_mphase matches 5 run function medusa:debug/maze_smoke/initial_pass")
+        self.assertGreaterEqual(reject, 0)
+        self.assertGreaterEqual(success, 0)
+        self.assertLess(
+            reject,
+            success,
+            "the successful initial_pass starts proposal phase 3, so the rejection check must run first",
+        )
+
+    def test_headless_occupied_close_probe_is_debug_gated(self):
+        check = (FN / "maze/wall/check_occupied.mcfunction").read_text()
+        self.assertIn("gamemode=survival", check)
+        self.assertIn("gamemode=adventure", check)
+        self.assertIn("tag=md.debug_occupied_controller", check)
+        self.assertIn("md.maze.occupancy_probe", check)
+
     def test_exact_runtime_disables_empty_server_pause(self):
         workflow = (REPO / ".github/workflows/medusa-26-1-2-ci.yml").read_text()
         self.assertIn("pause-when-empty-seconds=-1", workflow)
