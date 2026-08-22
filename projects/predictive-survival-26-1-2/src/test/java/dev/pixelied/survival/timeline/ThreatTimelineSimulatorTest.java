@@ -12,6 +12,7 @@ import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
@@ -130,6 +131,49 @@ class ThreatTimelineSimulatorTest {
         assertEquals(0, result.eventResult("two").damageResult().after().mitigation().armorPieces().getFirst().remainingDurability());
     }
 
+
+    @Test
+    void finiteFireResistanceExpiresBeforeDelayedThreat() {
+        StatusEffectsSnapshot effects = new StatusEffectsSnapshot(
+            true,
+            -1,
+            Map.of("minecraft:fire_resistance", new EffectInstanceSnapshot("minecraft:fire_resistance", 1, 0))
+        );
+        PlayerSnapshot start = player(20f, MitigationSnapshot.none(), DeathProtectionSnapshot.none(), effects, 0f);
+        DamageSourceSnapshot fire = new DamageSourceSnapshot(
+            DamageRange.exact(5f), Set.of(DamageFlag.IS_FIRE, DamageFlag.BYPASSES_COOLDOWN),
+            false, 1f, false, Optional.empty(), "test:fire"
+        );
+
+        TimelineResult result = simulator.simulate(
+            start,
+            new ThreatTimeline(List.of(new ThreatEvent(
+                "fire", ThreatKind.OTHER, new TickWindow(5, 5), fire, Confidence.EXACT,
+                Optional.empty(), Optional.empty(), true, false, true, false
+            )))
+        );
+
+        assertEquals(15f, result.finalHealth(), 0.0001f, "expired fire resistance must not protect a later hit");
+    }
+
+    @Test
+    void absorptionFromExpiredEffectDoesNotPersistForever() {
+        StatusEffectsSnapshot effects = new StatusEffectsSnapshot(
+            false,
+            -1,
+            Map.of("minecraft:absorption", new EffectInstanceSnapshot("minecraft:absorption", 1, 0))
+        );
+        PlayerSnapshot start = player(20f, MitigationSnapshot.none(), DeathProtectionSnapshot.none(), effects, 4f);
+
+        TimelineResult result = simulator.simulate(
+            start,
+            new ThreatTimeline(List.of(event("delayed", 5f, 5)))
+        );
+
+        assertEquals(15f, result.finalHealth(), 0.0001f, "expired absorption hearts must be removed before damage");
+        assertEquals(0f, result.finalAbsorption(), 0.0001f);
+    }
+
     @Test
     void elapsedTimelineTicksPreservePlayerStateProperties() {
         PlayerSnapshot start = new PlayerSnapshot(
@@ -170,9 +214,19 @@ class ThreatTimelineSimulatorTest {
     }
 
     private static PlayerSnapshot player(float health, MitigationSnapshot mitigation, DeathProtectionSnapshot protection) {
+        return player(health, mitigation, protection, StatusEffectsSnapshot.none(), 0f);
+    }
+
+    private static PlayerSnapshot player(
+        float health,
+        MitigationSnapshot mitigation,
+        DeathProtectionSnapshot protection,
+        StatusEffectsSnapshot effects,
+        float absorption
+    ) {
         return new PlayerSnapshot(
-            health, 0f, false, false, false, DifficultySnapshot.NORMAL,
-            mitigation, StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(), protection,
+            health, absorption, false, false, false, DifficultySnapshot.NORMAL,
+            mitigation, effects, BlockingSnapshot.none(), HurtState.unknown(), protection,
             new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
             new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
         );
