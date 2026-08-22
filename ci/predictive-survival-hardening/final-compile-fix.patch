@@ -1,0 +1,62 @@
+diff --git a/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java b/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java
+index e7005c9..83523e3 100644
+--- a/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java
++++ b/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java
+@@ -70,10 +70,11 @@ final class MinecraftMeleeSnapshotAdapter {
+         int sharpness = enchantmentLevel(weapon, Enchantments.SHARPNESS);
+         float enchantmentDamage = sharpness <= 0 ? 0f : 1f + 0.5f * (sharpness - 1);
+         int density = enchantmentLevel(weapon, Enchantments.DENSITY);
+-        if ("minecraft:mace".equals(itemKey(weapon)) && remotePlayer.fallDistance > 1.5f && density > 0) {
++        float fallDistance = conservativeFallDistance(remotePlayer.fallDistance);
++        if ("minecraft:mace".equals(itemKey(weapon)) && fallDistance > 1.5f && density > 0) {
+             // MaceItem#getAttackDamageBonus applies Density as 0.5 * level * fallDistance.
+             // At the conservative full-strength bound this belongs to the crit-scaled base side.
+-            attackAttribute = saturatingAdd(attackAttribute, 0.5f * density * remotePlayer.fallDistance);
++            attackAttribute = saturatingAdd(attackAttribute, 0.5f * density * fallDistance);
+         }
+ 
+         Map<String, String> properties = new LinkedHashMap<>();
+@@ -85,7 +86,7 @@ final class MinecraftMeleeSnapshotAdapter {
+         // as a favorable safety assumption, so potential lethal bounds use full strength.
+         properties.put("attack_strength", "1.0");
+         properties.put("weapon_key", itemKey(weapon));
+-        properties.put("fall_distance", Float.toString(Math.max(0f, remotePlayer.fallDistance)));
++        properties.put("fall_distance", Float.toString(fallDistance));
+         properties.put("critical_possible", "unknown");
+         properties.put("line_of_sight", Boolean.toString(playerView.hasLineOfSight(remotePlayer)));
+         properties.put("scales_with_difficulty", "false");
+@@ -192,6 +193,12 @@ final class MinecraftMeleeSnapshotAdapter {
+         return Map.copyOf(properties);
+     }
+ 
++    private static float conservativeFallDistance(double value) {
++        if (value <= 0d) return 0f;
++        if (!Double.isFinite(value) || value >= Float.MAX_VALUE) return Float.MAX_VALUE;
++        return (float)value;
++    }
++
+     private static float saturatingAdd(float left, float right) {
+         double value = (double)left + right;
+         if (!Double.isFinite(value) || value >= Float.MAX_VALUE) return Float.MAX_VALUE;
+diff --git a/src/test/java/dev/pixelied/survival/core/RemotePlayerMeleeSnapshotContractTest.java b/src/test/java/dev/pixelied/survival/core/RemotePlayerMeleeSnapshotContractTest.java
+index cb8278a..4f2da14 100644
+--- a/src/test/java/dev/pixelied/survival/core/RemotePlayerMeleeSnapshotContractTest.java
++++ b/src/test/java/dev/pixelied/survival/core/RemotePlayerMeleeSnapshotContractTest.java
+@@ -9,6 +9,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
+ class RemotePlayerMeleeSnapshotContractTest {
++    @Test
++    void remotePlayerFallDistanceIsClampedFromDoubleBeforeFloatMeleeMath() throws Exception {
++        String adapter = Files.readString(Path.of(
++            "src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java"
++        ));
++
++        assertTrue(adapter.contains("conservativeFallDistance(remotePlayer.fallDistance)"));
++        assertFalse(adapter.contains("0.5f * density * remotePlayer.fallDistance"));
++        assertFalse(adapter.contains("Float.toString(Math.max(0f, remotePlayer.fallDistance))"));
++    }
++
+     @Test
+     void remotePlayerMeleeNeverTrustsUnsyncedAttackDamageValue() throws Exception {
+         String factory = Files.readString(Path.of(
