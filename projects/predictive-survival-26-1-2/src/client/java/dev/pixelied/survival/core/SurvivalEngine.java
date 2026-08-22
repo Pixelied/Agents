@@ -31,6 +31,7 @@ public final class SurvivalEngine {
     private Optional<SurvivalPlan> currentPlan = Optional.empty();
     private Optional<ExecutionStatus> executionStatus = Optional.empty();
     private String dangerFingerprint = "";
+    private String dangerSafetyFingerprint = "";
     private String activeThreatScheduleFingerprint = "";
 
     public SurvivalEngine(SurvivalConfig config, RuntimeAdapter runtime, DecisionHistory history) {
@@ -136,6 +137,7 @@ public final class SurvivalEngine {
     public void reset() {
         failedActions.clear();
         dangerFingerprint = "";
+        dangerSafetyFingerprint = "";
         clearCurrentPlan();
     }
 
@@ -195,11 +197,18 @@ public final class SurvivalEngine {
     }
 
     private void updateDangerWindow(ThreatTimeline timeline) {
-        String next = fingerprint(timeline);
-        if (!next.equals(dangerFingerprint)) {
-            dangerFingerprint = next;
+        String nextIdentity = identityFingerprint(timeline);
+        String nextSafety = failureSafetyFingerprint(timeline);
+        if (!nextIdentity.equals(dangerFingerprint)) {
+            dangerFingerprint = nextIdentity;
+            dangerSafetyFingerprint = nextSafety;
             failedActions.clear();
             clearCurrentPlan();
+            return;
+        }
+        if (!nextSafety.equals(dangerSafetyFingerprint)) {
+            dangerSafetyFingerprint = nextSafety;
+            failedActions.clear();
         }
     }
 
@@ -231,12 +240,45 @@ public final class SurvivalEngine {
         return status.getClass().getSimpleName();
     }
 
-    private static String fingerprint(ThreatTimeline timeline) {
+    private static String identityFingerprint(ThreatTimeline timeline) {
         List<String> identities = timeline.events().stream()
             .map(event -> event.id() + '|' + event.kind() + '|' + event.damage().sourceKey())
             .sorted()
             .toList();
         return String.join(";", identities);
+    }
+
+    private static String failureSafetyFingerprint(ThreatTimeline timeline) {
+        List<String> states = timeline.events().stream()
+            .map(SurvivalEngine::failureSafetyFingerprint)
+            .sorted()
+            .toList();
+        return String.join(";", states);
+    }
+
+    private static String failureSafetyFingerprint(ThreatEvent event) {
+        var damage = event.damage();
+        List<String> flags = damage.flags().stream()
+            .map(Enum::name)
+            .sorted()
+            .toList();
+        return event.id()
+            + '|' + event.kind()
+            + '|' + damage.sourceKey()
+            + '|' + damage.rawDamage().min() + ':' + damage.rawDamage().max()
+            + '|' + flags
+            + '|' + damage.scalesWithDifficulty()
+            + '|' + damage.freezingMultiplier()
+            + '|' + damage.piercingProjectile()
+            + '|' + damage.applicationHealthThresholdExclusive()
+            + '|' + damage.armorEffectivenessAdjustment()
+            + '|' + damage.blockingDisableSeconds()
+            + '|' + event.confidence()
+            + '|' + event.avoidable()
+            + '|' + event.blockable()
+            + '|' + event.relocatable()
+            + '|' + event.canDisableBlocking()
+            + '|' + event.requiresAcceptedEventId();
     }
 
     private static String scheduleFingerprint(EngineFrame frame) {
