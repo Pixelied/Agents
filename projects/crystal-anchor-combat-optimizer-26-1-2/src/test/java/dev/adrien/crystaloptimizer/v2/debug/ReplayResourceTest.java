@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -25,7 +26,11 @@ final class ReplayResourceTest {
 
         for (String name : FIXTURES) {
             ReplayFixture fixture = codec.readResource("replays/v3/" + name);
-            assertEquals(generated.get(name), fixture, name + " drifted from its scenario builder");
+            assertArrayEquals(
+                codec.encode(generated.get(name)),
+                codec.encode(fixture),
+                name + " drifted from its scenario builder"
+            );
 
             ReplayResult first = runner.run(fixture);
             ReplayFixture roundTrip = codec.decode(codec.encode(fixture));
