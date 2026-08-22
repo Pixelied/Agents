@@ -405,17 +405,29 @@ public final class ClientCombatCoordinator {
                 && pending.nextActionIndex() == startIndex
                     ? pending.consumedDependencies()
                     : Set.of();
-            allowed = arbiter.evaluateContinuation(
-                decision.approval(),
-                decision.actions(),
-                startIndex,
-                ReactiveBurstDispatcher.groupReservationId(decision.actionId()),
-                consumedDependencies,
-                liveView,
-                pendingItems,
-                config,
-                nowNanos
-            );
+            if (decision.approval().resources().isEmpty() && consumedDependencies.isEmpty()) {
+                allowed = arbiter.evaluateFrom(
+                    decision.approval(),
+                    decision.actions(),
+                    startIndex,
+                    liveView,
+                    pendingItems,
+                    config,
+                    nowNanos
+                );
+            } else {
+                allowed = arbiter.evaluateContinuation(
+                    decision.approval(),
+                    decision.actions(),
+                    startIndex,
+                    ReactiveBurstDispatcher.groupReservationId(decision.actionId()),
+                    consumedDependencies,
+                    liveView,
+                    pendingItems,
+                    config,
+                    nowNanos
+                );
+            }
         }
         if (!allowed.allowed()) {
             diagnostics.recordRejection(allowed.reason());
