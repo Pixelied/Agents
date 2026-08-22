@@ -324,7 +324,11 @@ public final class ActionArbiter {
         int entityId,
         BlockPos basePos
     ) {
-        return consumedDependencies.contains(new ContinuationDependency.CrystalGone(entityId, basePos));
+        return consumedDependencies.stream().anyMatch(dependency ->
+            dependency instanceof ContinuationDependency.CrystalGone gone
+                && gone.entityId() == entityId
+                && gone.basePos().equals(basePos)
+        );
     }
 
     private static ArbitrationResult.Reason mapSurvivalReason(SelfSurvivalPolicy.Reason reason) {
