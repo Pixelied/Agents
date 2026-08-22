@@ -1,0 +1,2 @@
+$execute as @e[type=minecraft:marker,tag=md.maze.cell,scores={md_eid=$(eid),md_mfront=1}] run scoreboard players add @e[type=minecraft:marker,tag=md.instance,scores={md_eid=$(eid)},limit=1] md_mdelta 1
+$execute as @e[type=minecraft:marker,tag=md.maze.cell,scores={md_eid=$(eid),md_mseen=1}] run scoreboard players add @e[type=minecraft:marker,tag=md.instance,scores={md_eid=$(eid)},limit=1] md_mdelta 1
