@@ -8,13 +8,26 @@ import net.minecraft.core.BlockPos;
 public sealed interface ContinuationDependency permits ContinuationDependency.CrystalGone {
     boolean satisfiedBy(CombatEvent event);
 
-    record CrystalGone(int entityId, BlockPos basePos) implements ContinuationDependency {
+    boolean expired(long nowNanos);
+
+    record CrystalGone(
+        int entityId,
+        BlockPos basePos,
+        long expiresAtNanos
+    ) implements ContinuationDependency {
+        public CrystalGone(int entityId, BlockPos basePos) {
+            this(entityId, basePos, Long.MAX_VALUE);
+        }
+
         public CrystalGone {
             if (entityId <= 0) {
                 throw new IllegalArgumentException("entityId must be positive");
             }
             Objects.requireNonNull(basePos, "basePos");
             basePos = basePos.immutable();
+            if (expiresAtNanos < 0L) {
+                throw new IllegalArgumentException("expiresAtNanos must be non-negative");
+            }
         }
 
         @Override
@@ -22,6 +35,14 @@ public sealed interface ContinuationDependency permits ContinuationDependency.Cr
             return event instanceof CombatEvent.CrystalRemoved removed
                 && removed.entityId() == entityId
                 && removed.basePos().equals(basePos);
+        }
+
+        @Override
+        public boolean expired(long nowNanos) {
+            if (nowNanos < 0L) {
+                throw new IllegalArgumentException("nowNanos must be non-negative");
+            }
+            return nowNanos > expiresAtNanos;
         }
     }
 }
