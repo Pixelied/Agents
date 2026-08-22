@@ -197,6 +197,7 @@ public final class ClientCombatCoordinator {
                         scanner.publish(
                             target,
                             result.damageMap(),
+                            result.plannedOpportunity(),
                             result.inventoryRevision(),
                             result.configRevision(),
                             config,
