@@ -1,4 +1,5 @@
 execute if score @s md_mphase matches 2..7 run function medusa:maze/activity/check_players
+execute if score @s md_mphase matches 2 if score @s md_dungeon_clear matches 0 run function medusa:maze/completion/check
 # Descending phase order prevents a phase transition from executing its next phase in the same game tick.
 execute if score @s md_mphase matches 8 run function medusa:maze/transition/commit
 execute if score @s md_mphase matches 7 if score @s md_tmp matches 1 run function medusa:maze/transition/close_tick
