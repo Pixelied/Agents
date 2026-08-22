@@ -381,6 +381,18 @@ public final class ThreatTimelineSimulator {
         );
 
         StatusEffectsSnapshot effects = player.statusEffects();
+        float health = player.health();
+        EffectInstanceSnapshot regeneration = effects.effects().get("minecraft:regeneration");
+        if (regeneration != null && health > 0f) {
+            float maxHealth = observedMaxHealth(player);
+            if (maxHealth > health) {
+                long applications = regenerationApplications(regeneration, elapsed);
+                if (applications > 0L) {
+                    health = (float) Math.min((double) maxHealth, (double) health + applications);
+                }
+            }
+        }
+
         float absorption = player.absorption();
         EffectInstanceSnapshot absorptionEffect = effects.effects().get("minecraft:absorption");
         if (absorptionEffect != null
@@ -392,11 +404,44 @@ public final class ThreatTimelineSimulator {
         StatusEffectsSnapshot agedEffects = effects.age(elapsed);
 
         return new PlayerSnapshot(
-            player.health(), absorption, player.playerInvulnerable(), player.abilityInvulnerable(),
+            health, absorption, player.playerInvulnerable(), player.abilityInvulnerable(),
             player.deadOrDying(), player.difficulty(), player.mitigation(), agedEffects, player.blocking().age(elapsed),
             aged, player.deathProtection(), player.boundingBox(), player.position(), player.velocity(),
             player.equipmentItemKeys(), player.stateProperties()
         );
+    }
+
+    private static long regenerationApplications(EffectInstanceSnapshot regeneration, int elapsedTicks) {
+        if (elapsedTicks <= 0) return 0L;
+        int interval = 50 >> regeneration.amplifier();
+        if (regeneration.infiniteDuration()) {
+            // Infinite effects use the entity tickCount as their phase. Without snapshotting that
+            // phase, count only the applications guaranteed in every possible alignment.
+            return interval > 0 ? elapsedTicks / interval : elapsedTicks;
+        }
+
+        int duration = regeneration.durationTicks();
+        int activeTicks = Math.min(elapsedTicks, duration);
+        if (activeTicks <= 0) return 0L;
+        if (interval <= 0) return activeTicks;
+
+        // MobEffectInstance.tickServer tests the current remaining duration first and decrements
+        // it afterward. Over activeTicks, the tested values are duration down to
+        // duration-activeTicks+1, inclusive.
+        return duration / interval - (duration - activeTicks) / interval;
+    }
+
+    private static float observedMaxHealth(PlayerSnapshot player) {
+        String raw = player.state("max_health");
+        if (raw == null) return player.health();
+        try {
+            float parsed = Float.parseFloat(raw);
+            return Float.isFinite(parsed) && parsed > 0f
+                ? Math.max(player.health(), parsed)
+                : player.health();
+        } catch (NumberFormatException ignored) {
+            return player.health();
+        }
     }
 
     private static GroupOutcome failClosed(GroupOutcome modeled) {
