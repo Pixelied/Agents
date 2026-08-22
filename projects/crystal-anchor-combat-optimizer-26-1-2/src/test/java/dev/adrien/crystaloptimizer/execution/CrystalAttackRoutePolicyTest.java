@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.execution;
 
+import dev.adrien.crystaloptimizer.sim.model.InventoryState;
 import net.minecraft.world.InteractionHand;
 import org.junit.jupiter.api.Test;
 
@@ -39,5 +40,26 @@ final class CrystalAttackRoutePolicyTest {
             fixture.itemProfile(route),
             StatusEffectSnapshot.none()
         ));
+    }
+
+    @Test
+    void emptyMainhandStillUsesVanillaBaseAttackWhenNoWeaknessIsPresent() {
+        InteractionRoute route = new CrystalAttackRoutePolicy().route(
+            InventoryState.empty(),
+            StatusEffectSnapshot.none(),
+            CrystalAttackCapability.vanilla26_1_2()
+        ).orElseThrow();
+
+        assertEquals(InteractionHand.MAIN_HAND, route.hand());
+        assertTrue(route.selectedSlot().isEmpty());
+    }
+
+    @Test
+    void emptyMainhandUnderWeaknessNeedsARealPositiveDamageTool() {
+        assertTrue(new CrystalAttackRoutePolicy().route(
+            InventoryState.empty(),
+            StatusEffectSnapshot.weakness(0),
+            CrystalAttackCapability.vanilla26_1_2()
+        ).isEmpty());
     }
 }
