@@ -24,9 +24,9 @@ fill ~46 ~-4 ~106 ~46 ~-3 ~122 minecraft:stone_brick_stairs[facing=east,half=top
 fill ~60 ~-4 ~106 ~60 ~-3 ~122 minecraft:stone_brick_stairs[facing=west,half=top,shape=straight,waterlogged=false]
 fill ~47 ~-3 ~106 ~59 ~-3 ~122 minecraft:stone_brick_slab[type=top,waterlogged=false]
 fill ~50 ~-2 ~109 ~56 ~-2 ~119 minecraft:polished_deepslate
-setblock ~53 ~-4 ~110 minecraft:chain[axis=y,waterlogged=false]
+setblock ~53 ~-4 ~110 minecraft:iron_chain[axis=y,waterlogged=false]
 setblock ~53 ~-5 ~110 minecraft:soul_lantern[hanging=true,waterlogged=false]
-setblock ~53 ~-4 ~118 minecraft:chain[axis=y,waterlogged=false]
+setblock ~53 ~-4 ~118 minecraft:iron_chain[axis=y,waterlogged=false]
 setblock ~53 ~-5 ~118 minecraft:soul_lantern[hanging=true,waterlogged=false]
 # Corruption and green Gorgon accents strengthen toward the arena route.
 setblock ~47 ~-17 ~109 minecraft:moss_carpet
