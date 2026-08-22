@@ -1,58 +1,41 @@
-# Snake-infested inner sanctum: compressed ritual hall before the boss arena.
-# connector: sanctum->arena_approach
-# Main hall begins east of the Blind Passage gate at x=-2 so it cannot erase that gate.
-fill ~-1 ~-18 ~58 ~43 ~-10 ~72 minecraft:stone_bricks
-fill ~-1 ~-17 ~59 ~42 ~-11 ~71 minecraft:air
-fill ~-1 ~-18 ~59 ~42 ~-18 ~71 minecraft:polished_deepslate
-# Broken central procession path.
-fill ~-1 ~-18 ~63 ~42 ~-18 ~67 minecraft:cracked_deepslate_tiles
-fill ~5 ~-18 ~64 ~9 ~-18 ~66 minecraft:mossy_stone_bricks
-fill ~17 ~-18 ~63 ~21 ~-18 ~67 minecraft:cracked_stone_bricks
-fill ~30 ~-18 ~64 ~35 ~-18 ~66 minecraft:mossy_stone_bricks
-# Repeating temple ribs create depth without a boxy corridor.
-fill ~2 ~-17 ~59 ~3 ~-11 ~61 minecraft:chiseled_stone_bricks
-fill ~2 ~-17 ~69 ~3 ~-11 ~71 minecraft:chiseled_stone_bricks
-fill ~10 ~-17 ~59 ~11 ~-11 ~61 minecraft:cracked_stone_bricks
-fill ~10 ~-17 ~69 ~11 ~-11 ~71 minecraft:mossy_stone_bricks
-fill ~18 ~-17 ~59 ~19 ~-11 ~61 minecraft:chiseled_stone_bricks
-fill ~18 ~-17 ~69 ~19 ~-11 ~71 minecraft:chiseled_stone_bricks
-fill ~26 ~-17 ~59 ~27 ~-11 ~61 minecraft:mossy_stone_bricks
-fill ~26 ~-17 ~69 ~27 ~-11 ~71 minecraft:cracked_stone_bricks
-fill ~34 ~-17 ~59 ~35 ~-11 ~61 minecraft:chiseled_stone_bricks
-fill ~34 ~-17 ~69 ~35 ~-11 ~71 minecraft:chiseled_stone_bricks
-# Stone-brick arches between ribs.
-fill ~2 ~-11 ~61 ~3 ~-11 ~69 minecraft:stone_brick_slab[type=top,waterlogged=false]
-fill ~10 ~-11 ~61 ~11 ~-11 ~69 minecraft:stone_brick_slab[type=top,waterlogged=false]
-fill ~18 ~-11 ~61 ~19 ~-11 ~69 minecraft:stone_brick_slab[type=top,waterlogged=false]
-fill ~26 ~-11 ~61 ~27 ~-11 ~69 minecraft:stone_brick_slab[type=top,waterlogged=false]
-fill ~34 ~-11 ~61 ~35 ~-11 ~69 minecraft:stone_brick_slab[type=top,waterlogged=false]
-# Serpent altars and petrified-victim plinths.
-fill ~6 ~-17 ~60 ~8 ~-16 ~62 minecraft:chiseled_deepslate
-setblock ~7 ~-15 ~61 minecraft:player_head[rotation=8]
-fill ~14 ~-17 ~68 ~16 ~-16 ~70 minecraft:chiseled_deepslate
-setblock ~15 ~-15 ~69 minecraft:skeleton_skull[rotation=4]
-fill ~22 ~-17 ~60 ~24 ~-16 ~62 minecraft:chiseled_deepslate
-setblock ~23 ~-15 ~61 minecraft:wither_skeleton_skull[rotation=12]
-fill ~30 ~-17 ~68 ~32 ~-16 ~70 minecraft:chiseled_deepslate
-setblock ~31 ~-15 ~69 minecraft:player_head[rotation=0]
-# Corruption increases toward Medusa.
-setblock ~5 ~-17 ~70 minecraft:cobweb
-setblock ~12 ~-17 ~60 minecraft:cobweb
-setblock ~20 ~-17 ~70 minecraft:cobweb
-setblock ~28 ~-17 ~60 minecraft:cobweb
-setblock ~36 ~-17 ~70 minecraft:cobweb
-setblock ~8 ~-17 ~68 minecraft:moss_carpet
-setblock ~16 ~-17 ~61 minecraft:moss_carpet
-setblock ~24 ~-17 ~68 minecraft:moss_carpet
-# Cold procession lighting.
-setblock ~3 ~-10 ~65 minecraft:soul_lantern[hanging=true]
-setblock ~11 ~-10 ~65 minecraft:soul_lantern[hanging=true]
-setblock ~19 ~-10 ~65 minecraft:soul_lantern[hanging=true]
-setblock ~27 ~-10 ~65 minecraft:soul_lantern[hanging=true]
-setblock ~35 ~-10 ~65 minecraft:soul_lantern[hanging=true]
-# Final narrowing throat toward the arena.
-fill ~39 ~-17 ~61 ~43 ~-11 ~69 minecraft:stone_bricks
-fill ~39 ~-17 ~62 ~43 ~-12 ~68 minecraft:air
-fill ~39 ~-18 ~62 ~43 ~-18 ~68 minecraft:polished_deepslate
-fill ~41 ~-17 ~62 ~42 ~-13 ~62 minecraft:cobblestone_wall
-fill ~41 ~-17 ~68 ~42 ~-13 ~68 minecraft:cobblestone_wall
+# Tall serpent sanctum attached to the southeast maze exit at logical cell (12,12).
+# connector: maze->sanctum
+# Carve the far-cell east portal through visible wall and hidden containment.
+fill ~43 ~-17 ~113 ~46 ~-10 ~115 minecraft:air
+fill ~43 ~-18 ~113 ~47 ~-18 ~115 minecraft:polished_deepslate
+# Main sanctum shell and tall interior.
+fill ~44 ~-18 ~104 ~62 ~-2 ~124 minecraft:stone_bricks
+fill ~45 ~-17 ~105 ~61 ~-5 ~123 minecraft:air
+fill ~45 ~-18 ~105 ~61 ~-18 ~123 minecraft:deepslate_tiles
+fill ~48 ~-18 ~108 ~58 ~-18 ~120 minecraft:cracked_deepslate_tiles
+# Massive serpent ribs and altar columns.
+fill ~46 ~-17 ~106 ~47 ~-5 ~108 minecraft:chiseled_stone_bricks
+fill ~59 ~-17 ~106 ~60 ~-5 ~108 minecraft:chiseled_stone_bricks
+fill ~46 ~-17 ~120 ~47 ~-5 ~122 minecraft:mossy_stone_bricks
+fill ~59 ~-17 ~120 ~60 ~-5 ~122 minecraft:cracked_stone_bricks
+fill ~50 ~-17 ~111 ~52 ~-15 ~113 minecraft:chiseled_deepslate
+fill ~54 ~-17 ~116 ~56 ~-15 ~118 minecraft:chiseled_deepslate
+setblock ~51 ~-14 ~112 minecraft:wither_skeleton_skull[rotation=4]
+setblock ~55 ~-14 ~117 minecraft:skeleton_skull[rotation=12]
+# Layered vaulted roof: heavy side shoulders, inward stairs, and a raised central spine.
+fill ~44 ~-4 ~104 ~62 ~-3 ~124 minecraft:deepslate_bricks
+fill ~46 ~-4 ~106 ~60 ~-3 ~122 minecraft:air
+fill ~46 ~-4 ~106 ~46 ~-3 ~122 minecraft:stone_brick_stairs[facing=east,half=top,shape=straight,waterlogged=false]
+fill ~60 ~-4 ~106 ~60 ~-3 ~122 minecraft:stone_brick_stairs[facing=west,half=top,shape=straight,waterlogged=false]
+fill ~47 ~-3 ~106 ~59 ~-3 ~122 minecraft:stone_brick_slab[type=top,waterlogged=false]
+fill ~50 ~-2 ~109 ~56 ~-2 ~119 minecraft:polished_deepslate
+setblock ~53 ~-4 ~110 minecraft:chain[axis=y,waterlogged=false]
+setblock ~53 ~-5 ~110 minecraft:soul_lantern[hanging=true,waterlogged=false]
+setblock ~53 ~-4 ~118 minecraft:chain[axis=y,waterlogged=false]
+setblock ~53 ~-5 ~118 minecraft:soul_lantern[hanging=true,waterlogged=false]
+# Corruption and green Gorgon accents strengthen toward the arena route.
+setblock ~47 ~-17 ~109 minecraft:moss_carpet
+setblock ~59 ~-17 ~118 minecraft:moss_carpet
+setblock ~49 ~-16 ~122 minecraft:cobweb
+setblock ~58 ~-16 ~107 minecraft:cobweb
+fill ~51 ~-16 ~121 ~55 ~-13 ~121 minecraft:oxidized_cut_copper
+setblock ~52 ~-14 ~120 minecraft:green_glazed_terracotta[facing=north]
+setblock ~54 ~-14 ~120 minecraft:green_glazed_terracotta[facing=north]
+# North throat into the roofed arena approach.
+fill ~48 ~-17 ~103 ~54 ~-8 ~106 minecraft:air
+fill ~49 ~-18 ~103 ~53 ~-18 ~106 minecraft:polished_deepslate
