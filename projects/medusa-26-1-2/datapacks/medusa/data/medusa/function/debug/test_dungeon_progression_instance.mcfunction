@@ -1,12 +1,12 @@
-# Temporary CI compatibility aliases while Task 10 replaces the old puzzle marker set with maze-specific runtime proof.
-say MEDUSA_P1_GATE_OK
-say MEDUSA_P2_GATE_OK
-say MEDUSA_P3_GATE_OK
-# The Golden Gorgon Eye must still exist before the labyrinth first-clear flag is set.
-execute positioned ~64 ~-16 ~66 if entity @e[type=minecraft:interaction,tag=md.pedestal_interaction,distance=..2,limit=1] run say MEDUSA_EYE_PRESENT_OK
-execute positioned ~64 ~-16 ~66 unless entity @e[type=minecraft:interaction,tag=md.pedestal_interaction,distance=..2,limit=1] run say MEDUSA_EYE_PRESENT_FAILED
-# Exercise the new canonical completion handler directly; legitimate threshold crossing is covered by the dedicated maze contract and will be runtime-proven in Task 10.
-function medusa:maze/completion/complete
-execute if score @s md_dungeon_clear matches 1 if score @s md_mphase matches 9 run say MEDUSA_FINAL_GATE_OK
-execute unless score @s md_dungeon_clear matches 1 run say MEDUSA_FINAL_GATE_FAILED
-execute unless score @s md_mphase matches 9 run say MEDUSA_FINAL_GATE_FAILED
+# Exact-runtime shifting-maze proof begins only after runtime DFS reaches stable phase 2.
+scoreboard players set $maze_cells md_tmp 0
+execute store result storage medusa:macro maze.eid int 1 run scoreboard players get @s md_eid
+function medusa:debug/maze_smoke/count_cells_ctx with storage medusa:macro maze
+execute if score $maze_cells md_tmp matches 169 run say MEDUSA_MAZE_CELLS_OK
+execute unless score $maze_cells md_tmp matches 169 run say MEDUSA_MAZE_CELLS_FAILED
+# Reuse the production flood validator against CURRENT by copying CURRENT into NEXT.
+function medusa:maze/propose/copy_current with storage medusa:macro maze
+scoreboard players set @s md_mdelta 16
+function medusa:maze/validate/start
+scoreboard players set $maze_initial_wait md_tmp 0
+schedule function medusa:debug/maze_smoke/initial_tick 1t replace
