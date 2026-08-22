@@ -8,6 +8,7 @@ import dev.adrien.crystaloptimizer.client.execution.HotbarRestocker;
 import dev.adrien.crystaloptimizer.client.execution.RotationController;
 import dev.adrien.crystaloptimizer.client.execution.VanillaInteractionDispatcher;
 import dev.adrien.crystaloptimizer.client.intel.RemoteDamageWindowObserver;
+import dev.adrien.crystaloptimizer.client.intel.TargetMotionTracker;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.execution.InventoryCoordinator;
 import dev.adrien.crystaloptimizer.v2.execution.ActionArbiter;
@@ -165,6 +166,7 @@ public final class ClientCombatCoordinator {
             LocalPlayer self = minecraft.player;
             ClientLevel level = minecraft.level;
             if (self == null || level == null) {
+                TargetMotionTracker.instance().clear();
                 targets.clear();
                 diagnostics.recordTarget("");
                 plannerService.pollLatest();
