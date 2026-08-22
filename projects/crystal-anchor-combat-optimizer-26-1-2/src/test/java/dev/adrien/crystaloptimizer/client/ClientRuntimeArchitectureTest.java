@@ -37,14 +37,16 @@ class ClientRuntimeArchitectureTest {
             "local absorption is directly observable and must be preserved in self state");
 
         for (String required : List.of(
-            "ClientDamageMapBuilder",
+            "ClientStrategicSnapshotCapture",
+            "ClientStrategicPlannerService",
+            "StrategicCombatPlanner",
             "TargetManager",
             "ClientStrategicScanner",
             "ReactiveCombatEngine",
             "ReactiveBurstDispatcher",
             "VanillaInteractionDispatcher"
         )) {
-            assertTrue(coordinator.contains(required), "V2 coordinator is missing integration: " + required);
+            assertTrue(coordinator.contains(required), "V3 coordinator is missing integration: " + required);
         }
 
         String productionExecution = initializer + coordinator + dispatcher;
@@ -59,7 +61,7 @@ class ClientRuntimeArchitectureTest {
             "new ServerboundInteractPacket"
         )) {
             assertFalse(productionExecution.contains(forbidden),
-                "V2 runtime contains forbidden primitive: " + forbidden);
+                "V3 runtime contains forbidden primitive: " + forbidden);
         }
     }
 }
