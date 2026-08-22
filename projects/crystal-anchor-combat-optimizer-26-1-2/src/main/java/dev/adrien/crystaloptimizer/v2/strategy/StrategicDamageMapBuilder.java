@@ -12,6 +12,7 @@ import dev.adrien.crystaloptimizer.candidate.CandidateFeatureEstimator;
 import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
 import dev.adrien.crystaloptimizer.candidate.CandidateSelectionPolicy;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
+import dev.adrien.crystaloptimizer.prediction.TargetPredictionModel;
 import dev.adrien.crystaloptimizer.sim.damage.DamageRequest;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionContext;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionDamageCalculator26;
@@ -45,7 +46,17 @@ public final class StrategicDamageMapBuilder {
     private final CandidateSelectionPolicy selectionPolicy = CandidateSelectionPolicy.v3Defaults();
     private final StrategicPreparationPlanner preparation = new StrategicPreparationPlanner(candidates);
     private final DamageEngine damageEngine = new DamageEngine();
-    private final StrategicDamageScenarioFactory scenarios = new StrategicDamageScenarioFactory();
+    private final TargetPredictionModel predictionModel;
+    private final StrategicDamageScenarioFactory scenarios;
+
+    public StrategicDamageMapBuilder() {
+        this(new TargetPredictionModel());
+    }
+
+    public StrategicDamageMapBuilder(TargetPredictionModel predictionModel) {
+        this.predictionModel = Objects.requireNonNull(predictionModel, "predictionModel");
+        this.scenarios = new StrategicDamageScenarioFactory(predictionModel);
+    }
 
     public DamageMap build(
         StrategicSnapshot snapshot,
@@ -184,7 +195,7 @@ public final class StrategicDamageMapBuilder {
         DamageEstimate targetDamage = damageEngine.estimate(
             explosion,
             state,
-            scenarios.targetScenarios(state),
+            scenarios.targetScenarios(snapshot, state, timing),
             geometryRevision,
             snapshot.worldRevision()
         );
@@ -193,6 +204,7 @@ public final class StrategicDamageMapBuilder {
             snapshot,
             state,
             explosion,
+            timing,
             geometryRevision
         );
         if (!CollateralSafetyPolicy.accepts(
@@ -247,6 +259,7 @@ public final class StrategicDamageMapBuilder {
         StrategicSnapshot snapshot,
         CombatState state,
         ExplosionContext explosion,
+        SequenceTiming timing,
         long geometryRevision
     ) {
         LinkedHashMap<UUID, DamageEstimate> damage = new LinkedHashMap<>();
@@ -262,7 +275,7 @@ public final class StrategicDamageMapBuilder {
             damage.put(protectedId, damageEngine.estimate(
                 explosion,
                 protectedState,
-                scenarios.targetScenarios(protectedState),
+                scenarios.targetScenarios(snapshot, protectedState, timing),
                 geometryRevision,
                 snapshot.worldRevision()
             ));
