@@ -11,6 +11,7 @@ import dev.adrien.crystaloptimizer.action.Rotate;
 import dev.adrien.crystaloptimizer.action.SelectHotbarSlot;
 import dev.adrien.crystaloptimizer.action.Wait;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
+import dev.adrien.crystaloptimizer.reconcile.ContinuationDependency;
 import dev.adrien.crystaloptimizer.v2.state.ActionApproval;
 import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
 import dev.adrien.crystaloptimizer.v2.strategy.SelfSurvivalPolicy;
@@ -18,6 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
@@ -35,6 +38,7 @@ public final class ActionArbiter {
             actions,
             0,
             null,
+            Set.of(),
             view,
             pendingItems,
             config,
@@ -56,6 +60,7 @@ public final class ActionArbiter {
             actions,
             startIndex,
             null,
+            Set.of(),
             view,
             pendingItems,
             config,
@@ -73,6 +78,30 @@ public final class ActionArbiter {
         OptimizerConfig config,
         long nowNanos
     ) {
+        return evaluateContinuation(
+            approval,
+            actions,
+            startIndex,
+            ownedReservationId,
+            Set.of(),
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    public ArbitrationResult evaluateContinuation(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        long ownedReservationId,
+        Set<ContinuationDependency> consumedDependencies,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
         if (ownedReservationId < 0L) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
         }
@@ -81,6 +110,7 @@ public final class ActionArbiter {
             actions,
             startIndex,
             ownedReservationId,
+            Objects.requireNonNull(consumedDependencies, "consumedDependencies"),
             view,
             pendingItems,
             config,
@@ -93,6 +123,7 @@ public final class ActionArbiter {
         List<CombatAction> actions,
         int startIndex,
         Long ownedReservationId,
+        Set<ContinuationDependency> consumedDependencies,
         LiveCombatView view,
         PendingItemLedger pendingItems,
         OptimizerConfig config,
@@ -100,6 +131,7 @@ public final class ActionArbiter {
     ) {
         Objects.requireNonNull(approval, "approval");
         Objects.requireNonNull(actions, "actions");
+        Objects.requireNonNull(consumedDependencies, "consumedDependencies");
         Objects.requireNonNull(view, "view");
         Objects.requireNonNull(pendingItems, "pendingItems");
         Objects.requireNonNull(config, "config");
@@ -181,6 +213,11 @@ public final class ActionArbiter {
                     return ArbitrationResult.rejected(ArbitrationResult.Reason.BLOCK_OUT_OF_REACH);
                 }
                 if (previousAttack != null
+                    && !consumedCrystalGone(
+                        consumedDependencies,
+                        previousAttack,
+                        place.basePos()
+                    )
                     && !view.crystalBaseCanFollowBreak(place.basePos(), previousAttack)) {
                     return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
                 }
@@ -280,6 +317,14 @@ public final class ActionArbiter {
         }
 
         return ArbitrationResult.approved(actions.subList(startIndex, actions.size()));
+    }
+
+    private static boolean consumedCrystalGone(
+        Set<ContinuationDependency> consumedDependencies,
+        int entityId,
+        BlockPos basePos
+    ) {
+        return consumedDependencies.contains(new ContinuationDependency.CrystalGone(entityId, basePos));
     }
 
     private static ArbitrationResult.Reason mapSurvivalReason(SelfSurvivalPolicy.Reason reason) {
