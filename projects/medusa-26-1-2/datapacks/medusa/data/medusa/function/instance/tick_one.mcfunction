@@ -1,3 +1,4 @@
+execute if score @s md_mphase matches 0 run function medusa:maze/setup/tick
 execute if score @s md_mphase matches 1 run function medusa:maze/generate/tick
 execute if score @s md_state matches 0 run function medusa:puzzle/tick_all
 execute if score @s md_state matches 1 run function medusa:arena/awakening/tick
