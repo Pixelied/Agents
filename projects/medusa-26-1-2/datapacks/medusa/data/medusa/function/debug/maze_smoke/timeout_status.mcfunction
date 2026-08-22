@@ -6,6 +6,10 @@ execute if score @s md_count matches ..40 run say MEDUSA_MAZE_DEBUG_COUNT_LOW
 execute if score @s md_count matches 41..120 run say MEDUSA_MAZE_DEBUG_COUNT_MID
 execute if score @s md_count matches 121..168 run say MEDUSA_MAZE_DEBUG_COUNT_HIGH
 execute if score @s md_count matches 169.. run say MEDUSA_MAZE_DEBUG_COUNT_COMPLETE
+execute if score @s md_mgen_try matches 0 run say MEDUSA_MAZE_DEBUG_GEN_TRY_0
+execute if score @s md_mgen_try matches 1..5 run say MEDUSA_MAZE_DEBUG_GEN_TRY_1_5
+execute if score @s md_mgen_try matches 6..15 run say MEDUSA_MAZE_DEBUG_GEN_TRY_6_15
+execute if score @s md_mgen_try matches 16.. run say MEDUSA_MAZE_DEBUG_GEN_TRY_FALLBACK
 execute store result storage medusa:macro maze.eid int 1 run scoreboard players get @s md_eid
 scoreboard players set $maze_diag_cells md_tmp 0
 function medusa:debug/maze_smoke/count_cells_ctx with storage medusa:macro maze
