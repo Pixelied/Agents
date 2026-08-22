@@ -537,7 +537,8 @@ public interface SurvivalAction {
     private static ThreatEvent copyEvent(ThreatEvent event, DamageSourceSnapshot damage) {
         return new ThreatEvent(
             event.id(), event.kind(), event.impact(), damage, event.confidence(), event.sourcePosition(),
-            event.impactPosition(), event.avoidable(), event.blockable(), event.relocatable(), event.canDisableBlocking()
+            event.impactPosition(), event.avoidable(), event.blockable(), event.relocatable(),
+            event.canDisableBlocking(), event.requiresAcceptedEventId()
         );
     }
 
@@ -545,7 +546,8 @@ public interface SurvivalAction {
         return new DamageSourceSnapshot(
             rawDamage, source.flags(), source.scalesWithDifficulty(), source.freezingMultiplier(),
             source.piercingProjectile(), source.sourcePosition(), source.sourceKey(),
-            source.applicationHealthThresholdExclusive()
+            source.applicationHealthThresholdExclusive(), source.armorEffectivenessAdjustment(),
+            source.blockingDisableSeconds()
         );
     }
 }
