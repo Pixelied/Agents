@@ -3,11 +3,11 @@
   "protocol_version": "1.0",
   "task_id": "build-predictive-survival-26-1-2",
   "scope": "projects/predictive-survival-26-1-2",
-  "owner": "openai-survival-cont-6e31",
+  "owner": "openai-survival-review-7c4d",
   "state": "active",
-  "intent": "Continue feat/predictive-survival-26-1-2 from its current TDD/runtime-validation state, fix source-confirmed correctness gaps, and complete final acceptance without restarting the project.",
-  "claimed_at": "2026-08-19T11:42:45+00:00",
-  "heartbeat_at": "2026-08-19T11:42:45+00:00",
-  "expires_at": "2026-08-20T11:42:45+00:00",
-  "generation": 2
+  "intent": "Fix every post-PR-22 code-review finding with regression-first validation, conservative temporal/action modeling, exact item execution identity, authority lifecycle cleanup, and hot-path optimization without unrelated rewrites.",
+  "claimed_at": "2026-08-22T14:08:00+00:00",
+  "heartbeat_at": "2026-08-22T14:08:00+00:00",
+  "expires_at": "2026-08-23T14:08:00+00:00",
+  "generation": 3
 }
