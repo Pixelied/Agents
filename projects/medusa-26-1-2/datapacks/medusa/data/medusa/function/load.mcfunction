@@ -85,3 +85,6 @@ scoreboard objectives add md_mtick dummy
 scoreboard objectives add md_mtry dummy
 scoreboard objectives add md_mdelta dummy
 scoreboard objectives add md_mblocked dummy
+scoreboard objectives add md_mmode dummy
+scoreboard objectives add md_morient dummy
+scoreboard objectives add md_manim dummy
