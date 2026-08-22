@@ -156,7 +156,25 @@ final class WitherSkeletonValidationScenarios {
                 if (protectedOnServer) break;
             }
             if (!protectedOnServer) {
-                throw new AssertionError("production engine did not make a Totem server-authoritative before preventable Wither Skeleton melee");
+                String clientDiagnostic = context.computeOnClient(minecraft -> {
+                    var frame = harness.runtime().lastFrame().orElse(null);
+                    return "clientSelected=" + (minecraft.player == null ? -1 : minecraft.player.getInventory().getSelectedSlot())
+                        + ", currentPlan=" + harness.engine().currentPlan()
+                        + ", executionStatus=" + harness.engine().executionStatus()
+                        + ", history=" + harness.engine().history().snapshot()
+                        + ", timeline=" + (frame == null ? "none" : frame.timeline().events())
+                        + ", candidates=" + (frame == null ? "none" : frame.candidates());
+                });
+                String serverDiagnostic = singleplayer.getServer().computeOnServer(server -> {
+                    ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                    return "serverSelected=" + player.getInventory().getSelectedSlot()
+                        + ", serverMain=" + player.getMainHandItem()
+                        + ", serverOffhand=" + player.getOffhandItem();
+                });
+                throw new AssertionError(
+                    "production engine did not make a Totem server-authoritative before preventable Wither Skeleton melee; "
+                        + clientDiagnostic + "; " + serverDiagnostic
+                );
             }
 
             ProtectedHit protectedHit = singleplayer.getServer().computeOnServer(server -> {
