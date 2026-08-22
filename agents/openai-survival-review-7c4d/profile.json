@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-review-7c4d",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Hardens Predictive Survival 26.1.2 against review-discovered temporal-state, execution-authority, planner, item-identity, and performance failure modes while preserving vanilla-faithful fail-closed behavior.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "minecraft-damage-simulation",
+    "combat-prediction",
+    "github-actions",
+    "testing",
+    "code-review",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-22T14:07:30+00:00",
+  "state": "available",
+  "state_reason": "Executing the post-PR-22 Predictive Survival review hardening pass from the current main baseline."
+}
