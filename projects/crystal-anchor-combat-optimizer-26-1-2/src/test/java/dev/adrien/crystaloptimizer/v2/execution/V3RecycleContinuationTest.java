@@ -53,7 +53,8 @@ final class V3RecycleContinuationTest {
         );
         ContinuationDependency.CrystalGone gone = new ContinuationDependency.CrystalGone(
             CRYSTAL_ID,
-            BASE
+            BASE,
+            2_000L
         );
         FakeView view = new FakeView();
 
