@@ -12,7 +12,7 @@ setblock ~-30 ~-17 ~51 minecraft:moss_carpet
 setblock ~-26 ~-17 ~55 minecraft:moss_carpet
 setblock ~-23 ~-17 ~52 minecraft:moss_carpet
 fill ~-32 ~-17 ~57 ~-31 ~-12 ~58 minecraft:mossy_cobblestone
-setblock ~-27 ~-9 ~54 minecraft:chain[axis=y,waterlogged=false]
+setblock ~-27 ~-9 ~54 minecraft:iron_chain[axis=y,waterlogged=false]
 # Lava-cracked district
 fill ~-33 ~-18 ~83 ~-20 ~-18 ~91 minecraft:cracked_deepslate_tiles
 fill ~-31 ~-18 ~86 ~-24 ~-18 ~86 minecraft:magma_block
@@ -35,7 +35,7 @@ fill ~-5 ~-17 ~74 ~-4 ~-4 ~75 minecraft:chiseled_deepslate
 fill ~0 ~-17 ~74 ~1 ~-4 ~75 minecraft:chiseled_deepslate
 fill ~-5 ~-3 ~69 ~1 ~-3 ~75 minecraft:stone_brick_stairs[facing=north,half=top,shape=straight,waterlogged=false]
 fill ~-4 ~-2 ~70 ~0 ~-2 ~74 minecraft:stone_brick_slab[type=top,waterlogged=false]
-setblock ~-2 ~-4 ~72 minecraft:chain[axis=y,waterlogged=false]
+setblock ~-2 ~-4 ~72 minecraft:iron_chain[axis=y,waterlogged=false]
 setblock ~-2 ~-5 ~72 minecraft:soul_lantern[hanging=true,waterlogged=false]
 # Gorgon-relief corridor
 fill ~23 ~-17 ~97 ~30 ~-11 ~103 minecraft:chiseled_stone_bricks
