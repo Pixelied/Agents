@@ -1,73 +1,31 @@
 package dev.adrien.crystaloptimizer.client.v2;
 
-import dev.adrien.crystaloptimizer.action.AttackKnownCrystal;
-import dev.adrien.crystaloptimizer.action.ChargeAnchor;
-import dev.adrien.crystaloptimizer.action.CombatAction;
-import dev.adrien.crystaloptimizer.action.DetonateAnchor;
-import dev.adrien.crystaloptimizer.action.PlaceAnchor;
-import dev.adrien.crystaloptimizer.action.PlaceCrystal;
-import dev.adrien.crystaloptimizer.action.PlaceObsidian;
-import dev.adrien.crystaloptimizer.action.SimulationServices;
-import dev.adrien.crystaloptimizer.candidate.CandidateFeatureEstimator;
-import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
-import dev.adrien.crystaloptimizer.candidate.CandidateSelectionPolicy;
 import dev.adrien.crystaloptimizer.client.world.ClientCombatSnapshotBuilder;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
-import dev.adrien.crystaloptimizer.sim.damage.DamageRequest;
-import dev.adrien.crystaloptimizer.sim.damage.ExplosionContext;
-import dev.adrien.crystaloptimizer.sim.damage.ExplosionDamageCalculator26;
-import dev.adrien.crystaloptimizer.sim.damage.VanillaDamageSimulator;
-import dev.adrien.crystaloptimizer.sim.model.CombatState;
-import dev.adrien.crystaloptimizer.sim.model.HurtWindowState;
-import dev.adrien.crystaloptimizer.v2.damage.DamageEngine;
-import dev.adrien.crystaloptimizer.v2.damage.DamageEstimate;
-import dev.adrien.crystaloptimizer.v2.state.FixedActionSequence;
-import dev.adrien.crystaloptimizer.v2.state.SpawnCrystalCycle;
-import dev.adrien.crystaloptimizer.v2.strategy.CollateralSafetyPolicy;
+import dev.adrien.crystaloptimizer.v2.state.StrategicSnapshot;
 import dev.adrien.crystaloptimizer.v2.strategy.DamageMap;
-import dev.adrien.crystaloptimizer.v2.strategy.DamageOpportunity;
-import dev.adrien.crystaloptimizer.v2.strategy.LethalEfficiencyPolicy;
-import dev.adrien.crystaloptimizer.v2.strategy.OpportunityIntent;
-import dev.adrien.crystaloptimizer.v2.strategy.PreparationSequence;
-import dev.adrien.crystaloptimizer.v2.strategy.ResourceChain;
-import dev.adrien.crystaloptimizer.v2.strategy.SelfDamageEstimate;
-import dev.adrien.crystaloptimizer.v2.strategy.StrategicPreparationPlanner;
+import dev.adrien.crystaloptimizer.v2.strategy.StrategicDamageMapBuilder;
 import dev.adrien.crystaloptimizer.v2.strategy.TargetProtectionPolicyConfig;
-import dev.adrien.crystaloptimizer.v2.timing.SequenceTiming;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
-import dev.adrien.crystaloptimizer.v2.timing.TimingTransition;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
+import dev.adrien.crystaloptimizer.v2.timing.TimingSnapshot;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.phys.Vec3;
 
+/**
+ * Compatibility adapter for focused callers. Live V3 planning captures a
+ * StrategicSnapshot once and runs StrategicDamageMapBuilder on the worker.
+ */
 public final class ClientDamageMapBuilder {
-    private static final double CERTIFIED_OUTCOME_CONFIDENCE = 0.80;
-
     private final ClientCombatSnapshotBuilder snapshots;
-    private final CandidateGenerator candidates;
-    private final CandidateSelectionPolicy selectionPolicy;
-    private final StrategicPreparationPlanner preparation;
-    private final DamageEngine damageEngine;
-    private final ClientDamageScenarioFactory scenarios;
+    private final StrategicDamageMapBuilder strategic = new StrategicDamageMapBuilder();
     private final TimingEngine timingEngine;
 
     public ClientDamageMapBuilder(Minecraft minecraft, TimingEngine timingEngine) {
         this.snapshots = new ClientCombatSnapshotBuilder(Objects.requireNonNull(minecraft, "minecraft"));
-        this.candidates = new CandidateGenerator(CandidateFeatureEstimator.conservative());
-        this.selectionPolicy = CandidateSelectionPolicy.v3Defaults();
-        this.preparation = new StrategicPreparationPlanner(candidates);
-        this.damageEngine = new DamageEngine();
-        this.scenarios = new ClientDamageScenarioFactory();
         this.timingEngine = Objects.requireNonNull(timingEngine, "timingEngine");
     }
 
@@ -102,314 +60,26 @@ public final class ClientDamageMapBuilder {
         if (protectedIds.contains(target.getUUID())) {
             return DamageMap.empty(target.getUUID(), targetRevision, worldRevision);
         }
-        var snapshotOptional = snapshots.build(target);
-        if (snapshotOptional.isEmpty()) {
+
+        var combat = snapshots.build(target);
+        if (combat.isEmpty()) {
             return DamageMap.empty(target.getUUID(), targetRevision, worldRevision);
         }
-
-        var snapshot = snapshotOptional.orElseThrow();
-        CombatState state = CombatState.fromSnapshot(snapshot, target.getUUID());
         long nowNanos = System.nanoTime();
-        LinkedHashMap<String, DamageOpportunity> result = new LinkedHashMap<>();
-
-        var selectedCandidates = selectionPolicy.select(
-            state,
-            candidates.generate(state),
-            config.crystals(),
-            config.anchors()
-        );
-        for (var candidate : selectedCandidates) {
-            CombatAction action = candidate.action();
-            if (!enabled(action, config)) {
-                continue;
-            }
-
-            if (action instanceof PlaceCrystal place) {
-                ExplosionContext futureExplosion = ExplosionContext.crystal(new Vec3(
-                    place.basePos().getX() + 0.5,
-                    place.basePos().getY() + 1.0,
-                    place.basePos().getZ() + 0.5
-                ));
-                SequenceTiming placeTiming = timingEngine.estimateSequence(
-                    List.of(TimingTransition.CRYSTAL_PLACE_TO_SPAWN),
-                    nowNanos
-                );
-                addOpportunity(
-                    result,
-                    state,
-                    "place:" + place.basePos().asLong(),
-                    action,
-                    new FixedActionSequence(List.of(action)),
-                    futureExplosion,
-                    placeTiming,
-                    true,
-                    Set.of(place.basePos(), BlockPos.containing(state.targetSpatial().position())),
-                    config,
-                    snapshot.worldRevision(),
-                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0),
-                    protectedIds,
-                    protectionConfig
-                );
-                addOpportunity(
-                    result,
-                    state,
-                    "recycle:" + place.basePos().asLong(),
-                    action,
-                    new SpawnCrystalCycle(place.basePos(), true),
-                    futureExplosion,
-                    SequenceTiming.immediate(),
-                    true,
-                    Set.of(place.basePos(), BlockPos.containing(state.targetSpatial().position())),
-                    config,
-                    snapshot.worldRevision(),
-                    ResourceChain.of(Map.of(Items.END_CRYSTAL, 1), 1.0),
-                    protectedIds,
-                    protectionConfig
-                );
-                continue;
-            }
-
-            var outcome = action.simulate(state, SimulationServices.defaults());
-            if (outcome.scheduledExplosions().isEmpty()) {
-                continue;
-            }
-            ExplosionContext explosion = outcome.scheduledExplosions().getFirst();
-            String prefix = action instanceof AttackKnownCrystal ? "break:" : "anchor:";
-            Set<BlockPos> dependencies = Set.of(
-                BlockPos.containing(explosion.center()),
-                BlockPos.containing(state.targetSpatial().position())
-            );
-            ResourceChain resources = action instanceof DetonateAnchor
-                ? ResourceChain.of(Map.of(), 0.25)
-                : ResourceChain.none();
-            addOpportunity(
-                result,
-                state,
-                prefix + actionKey(action),
-                action,
-                new FixedActionSequence(List.of(action)),
-                explosion,
-                SequenceTiming.immediate(),
-                true,
-                dependencies,
-                config,
-                snapshot.worldRevision(),
-                resources,
-                protectedIds,
-                protectionConfig
-            );
-        }
-
-        for (PreparationSequence sequence : preparation.planSequences(state, config)) {
-            List<CombatAction> actions = sequence.actions();
-            String id = "prepare:" + Integer.toHexString(actions.hashCode());
-            addOpportunity(
-                result,
-                state,
-                id,
-                actions.getFirst(),
-                new FixedActionSequence(actions),
-                sequence.terminalExplosion(),
-                preparationTiming(sequence, nowNanos),
-                !sequence.geometryDependencies().isEmpty(),
-                withTargetDependency(sequence.geometryDependencies(), state),
-                config,
-                snapshot.worldRevision(),
-                sequence.resources(),
-                protectedIds,
-                protectionConfig
-            );
-        }
-
-        return new DamageMap(target.getUUID(), targetRevision, worldRevision, result);
-    }
-
-    private void addOpportunity(
-        Map<String, DamageOpportunity> result,
-        CombatState state,
-        String id,
-        CombatAction action,
-        dev.adrien.crystaloptimizer.v2.state.ReactiveActionSpec actionSpec,
-        ExplosionContext explosion,
-        SequenceTiming timing,
-        boolean positionDependent,
-        Set<BlockPos> dependencies,
-        OptimizerConfig config,
-        long geometryRevision,
-        ResourceChain resources,
-        Set<UUID> protectedIds,
-        TargetProtectionPolicyConfig protectionConfig
-    ) {
-        DamageEstimate targetDamage = damageEngine.estimate(
-            explosion,
-            state,
-            scenarios.targetScenarios(state),
-            geometryRevision,
-            state.base().worldRevision()
-        );
-        SelfDamageEstimate selfDamage = selfDamageEstimate(state, explosion);
-        Map<UUID, DamageEstimate> protectedDamage = protectedDamage(
-            state,
-            explosion,
+        StrategicSnapshot snapshot = new StrategicSnapshot(
+            0L,
+            worldRevision,
+            0L,
+            0L,
+            nowNanos,
+            combat.orElseThrow().selfId(),
+            Map.of(target.getUUID(), targetRevision),
+            combat.orElseThrow(),
+            Map.of(),
             protectedIds,
-            geometryRevision
+            protectionConfig,
+            TimingSnapshot.capture(timingEngine, nowNanos)
         );
-        if (!CollateralSafetyPolicy.accepts(
-            protectedDamage,
-            state.base(),
-            protectionConfig.maxProtectedDamage()
-        )) {
-            return;
-        }
-
-        boolean popsTotem = targetDamage.popProbability() == 1.0
-            && targetDamage.confidence() >= CERTIFIED_OUTCOME_CONFIDENCE;
-        boolean lethal = targetDamage.killProbability() == 1.0
-            && targetDamage.confidence() >= CERTIFIED_OUTCOME_CONFIDENCE;
-        OpportunityIntent intent = lethal
-            ? OpportunityIntent.LETHAL
-            : popsTotem
-                ? OpportunityIntent.POP
-                : state.target().hurtWindow().invulnerableTime() > 10
-                    && targetDamage.lowerBound() > 0.0f
-                        ? OpportunityIntent.STAIRCASE
-                        : OpportunityIntent.PRESSURE;
-
-        float targetEffectiveHealth = effectiveHealth(state.target());
-        LethalEfficiencyPolicy.Decision admission = LethalEfficiencyPolicy.evaluate(
-            selfDamage,
-            intent,
-            targetDamage.expected(),
-            action instanceof AttackKnownCrystal,
-            targetEffectiveHealth,
-            config
-        );
-        if (!admission.allowed()) {
-            return;
-        }
-
-        result.put(id, new DamageOpportunity(
-            id,
-            actionSpec,
-            targetDamage,
-            intent,
-            selfDamage,
-            resources,
-            timing,
-            lethal,
-            popsTotem,
-            positionDependent,
-            dependencies
-        ));
-    }
-
-    private Map<UUID, DamageEstimate> protectedDamage(
-        CombatState state,
-        ExplosionContext explosion,
-        Set<UUID> protectedIds,
-        long geometryRevision
-    ) {
-        LinkedHashMap<UUID, DamageEstimate> damage = new LinkedHashMap<>();
-        for (UUID protectedId : protectedIds) {
-            if (protectedId.equals(state.base().selfId()) || protectedId.equals(state.targetId())) {
-                continue;
-            }
-            if (!state.base().combatants().containsKey(protectedId)
-                || !state.base().spatial().containsKey(protectedId)) {
-                continue;
-            }
-            CombatState protectedState = CombatState.fromSnapshot(state.base(), protectedId);
-            damage.put(
-                protectedId,
-                damageEngine.estimate(
-                    explosion,
-                    protectedState,
-                    scenarios.targetScenarios(protectedState),
-                    geometryRevision,
-                    state.base().worldRevision()
-                )
-            );
-        }
-        return Map.copyOf(damage);
-    }
-
-    private SequenceTiming preparationTiming(PreparationSequence sequence, long nowNanos) {
-        ArrayList<TimingTransition> transitions = new ArrayList<>();
-        for (CombatAction action : sequence.actions()) {
-            if (action instanceof PlaceObsidian
-                || action instanceof PlaceAnchor
-                || action instanceof ChargeAnchor) {
-                transitions.add(TimingTransition.BLOCK_INTERACTION_TO_ACK);
-            } else if (action instanceof PlaceCrystal) {
-                transitions.add(TimingTransition.CRYSTAL_PLACE_TO_SPAWN);
-            }
-        }
-        return transitions.isEmpty()
-            ? SequenceTiming.immediate()
-            : timingEngine.estimateSequence(transitions, nowNanos);
-    }
-
-    private static Set<BlockPos> withTargetDependency(
-        Set<BlockPos> sequenceDependencies,
-        CombatState state
-    ) {
-        LinkedHashSet<BlockPos> dependencies = new LinkedHashSet<>(sequenceDependencies);
-        dependencies.add(BlockPos.containing(state.targetSpatial().position()));
-        return Set.copyOf(dependencies);
-    }
-
-    private static SelfDamageEstimate selfDamageEstimate(CombatState state, ExplosionContext explosion) {
-        var selfSpatial = state.selfSpatial();
-        float incoming = ExplosionDamageCalculator26.incoming(
-            explosion,
-            selfSpatial.boundingBox(),
-            selfSpatial.position(),
-            state.geometry()
-        );
-        float effectiveBefore = effectiveHealth(state.self());
-        var pessimisticSelf = state.self().withHurtWindow(new HurtWindowState(0, 0.0f));
-        var damageResult = VanillaDamageSimulator.apply(
-            pessimisticSelf,
-            DamageRequest.explosion(incoming)
-                .withDifficulty(state.base().difficulty())
-                .withSourcePosition(explosion.center())
-        );
-        if (damageResult.uncertain()) {
-            return new SelfDamageEstimate(effectiveBefore, 0.0f, false);
-        }
-
-        float effectiveAfter = effectiveHealth(damageResult.target());
-        float lostEffectiveHealth = damageResult.trace().totemTriggered()
-            ? Math.min(effectiveBefore, damageResult.trace().postMagic())
-            : Math.max(0.0f, effectiveBefore - effectiveAfter);
-        return new SelfDamageEstimate(
-            lostEffectiveHealth,
-            damageResult.trace().totemTriggered() ? 1.0f : effectiveAfter,
-            damageResult.trace().totemTriggered()
-        );
-    }
-
-    private static float effectiveHealth(dev.adrien.crystaloptimizer.sim.model.SimCombatant combatant) {
-        return combatant.health() + combatant.absorption();
-    }
-
-    private static boolean enabled(CombatAction action, OptimizerConfig config) {
-        if (action instanceof AttackKnownCrystal || action instanceof PlaceCrystal) {
-            return config.crystals();
-        }
-        if (action instanceof DetonateAnchor) {
-            return config.anchors();
-        }
-        return true;
-    }
-
-    private static String actionKey(CombatAction action) {
-        if (action instanceof AttackKnownCrystal attack) {
-            return Integer.toString(attack.entityId());
-        }
-        if (action instanceof DetonateAnchor detonate) {
-            return Long.toString(detonate.pos().asLong());
-        }
-        return Integer.toHexString(action.hashCode());
+        return strategic.build(snapshot, target.getUUID(), config);
     }
 }
