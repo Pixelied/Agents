@@ -36,7 +36,7 @@ class InitialMazeValidationContract(unittest.TestCase):
 
     def test_initial_smoke_checks_rejection_before_success_continuation(self):
         tick = (FN / "debug/maze_smoke/initial_tick.mcfunction").read_text()
-        reject = tick.find("md_mphase matches 3 run say MEDUSA_MAZE_INITIAL_SOLVABLE_FAILED")
+        reject = tick.find("scores={md_mphase=3},limit=1] run say MEDUSA_MAZE_INITIAL_SOLVABLE_FAILED")
         success = tick.find("md_mphase matches 5 run function medusa:debug/maze_smoke/initial_pass")
         self.assertGreaterEqual(reject, 0)
         self.assertGreaterEqual(success, 0)
