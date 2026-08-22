@@ -11,7 +11,7 @@ final class V3CandidateIntegrationArchitectureTest {
     @Test
     void damageMapBuilderUsesSelectionPolicyInsteadOfRawMaxCandidateBreak() throws Exception {
         String source = Files.readString(Path.of(
-            "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientDamageMapBuilder.java"
+            "src/main/java/dev/adrien/crystaloptimizer/v2/strategy/StrategicDamageMapBuilder.java"
         ));
         assertFalse(source.contains("MAX_CANDIDATES"));
         assertTrue(source.contains("selectionPolicy.select("));
