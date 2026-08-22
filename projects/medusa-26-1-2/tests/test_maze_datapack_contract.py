@@ -42,6 +42,36 @@ class MazeDatapackContract(unittest.TestCase):
         self.assertIn("playsound", warning)
         self.assertIn("start_open", warning)
 
+    def test_moving_walls_use_display_interpolation_and_real_collision(self):
+        spawn = (FN / "maze/wall/spawn_display.mcfunction").read_text()
+        for token in [
+            "minecraft:block_display",
+            "interpolation_duration",
+            "start_interpolation",
+            "transformation",
+            "translation",
+            "left_rotation",
+            "scale",
+            "right_rotation",
+            "md_eid",
+        ]:
+            self.assertIn(token, spawn)
+        close = (FN / "maze/wall/close_tick.mcfunction").read_text()
+        self.assertIn("minecraft:barrier", close)
+        self.assertIn("check_occupied", close)
+        self.assertIn("abort_close", close)
+
+    def test_generic_wall_abort_keeps_the_edge_open(self):
+        abort = (FN / "maze/wall/abort_close.mcfunction").read_text()
+        for token in ["md_ne", "md_nw", "md_ns", "md_nn"]:
+            self.assertIn(token, abort)
+        self.assertNotIn(" damage ", abort)
+
+    def test_wall_cleanup_is_instance_scoped(self):
+        cleanup = (FN / "maze/wall/cleanup.mcfunction").read_text()
+        self.assertIn("md.maze.wall_display", cleanup)
+        self.assertIn("md_eid=$(eid)", cleanup)
+
 
 if __name__ == "__main__":
     unittest.main()
