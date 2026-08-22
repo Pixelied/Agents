@@ -2,6 +2,7 @@ package dev.adrien.crystaloptimizer.client.v2;
 
 import dev.adrien.crystaloptimizer.action.AttackKnownCrystal;
 import dev.adrien.crystaloptimizer.action.DetonateAnchor;
+import dev.adrien.crystaloptimizer.action.PlaceCrystal;
 import dev.adrien.crystaloptimizer.client.config.OptimizerConfigService;
 import dev.adrien.crystaloptimizer.client.execution.DispatchReceipt;
 import dev.adrien.crystaloptimizer.client.execution.HotbarRestocker;
@@ -11,6 +12,8 @@ import dev.adrien.crystaloptimizer.client.intel.RemoteDamageWindowObserver;
 import dev.adrien.crystaloptimizer.client.intel.TargetMotionTracker;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.execution.InventoryCoordinator;
+import dev.adrien.crystaloptimizer.reconcile.ContinuationDependency;
+import dev.adrien.crystaloptimizer.reconcile.PendingCrystalMask;
 import dev.adrien.crystaloptimizer.v2.execution.ActionArbiter;
 import dev.adrien.crystaloptimizer.v2.execution.ArbitrationResult;
 import dev.adrien.crystaloptimizer.v2.execution.LiveCombatView;
@@ -31,6 +34,7 @@ import dev.adrien.crystaloptimizer.v2.timing.TimingDistribution;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
 import dev.adrien.crystaloptimizer.v2.timing.TimingTransition;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +50,8 @@ import net.minecraft.client.player.LocalPlayer;
 public final class ClientCombatCoordinator {
     private static final float MAX_VISIBLE_ROTATION_DEGREES_PER_UPDATE = 35.0f;
     private static final int STRATEGIC_REFRESH_TICKS = 2;
+    private static final double MIN_CRYSTAL_REMOVAL_TIMEOUT_MILLIS = 100.0;
+    private static final double MAX_CRYSTAL_REMOVAL_TIMEOUT_MILLIS = 2_000.0;
 
     private final OptimizerConfigService configService;
     private final CombatBlackboard blackboard;
@@ -57,6 +63,8 @@ public final class ClientCombatCoordinator {
     private final ClientCombatDiagnostics diagnostics;
     private final Runnable strategicTick;
     private final Consumer<CombatEvent> eventObserver;
+    private final PendingCrystalMask crystalMask;
+    private final TimingEngine timingEngine;
     private PendingContinuation continuation;
 
     public ClientCombatCoordinator(
@@ -80,7 +88,9 @@ public final class ClientCombatCoordinator {
             burstDispatcher,
             diagnostics,
             strategicTick,
-            ignored -> {}
+            ignored -> {},
+            new PendingCrystalMask(),
+            ClientTimingObserver.instance().timingEngine()
         );
     }
 
@@ -94,7 +104,9 @@ public final class ClientCombatCoordinator {
         ReactiveBurstSink burstDispatcher,
         ClientCombatDiagnostics diagnostics,
         Runnable strategicTick,
-        Consumer<CombatEvent> eventObserver
+        Consumer<CombatEvent> eventObserver,
+        PendingCrystalMask crystalMask,
+        TimingEngine timingEngine
     ) {
         this.configService = Objects.requireNonNull(configService, "configService");
         this.blackboard = Objects.requireNonNull(blackboard, "blackboard");
@@ -106,6 +118,8 @@ public final class ClientCombatCoordinator {
         this.diagnostics = Objects.requireNonNull(diagnostics, "diagnostics");
         this.strategicTick = Objects.requireNonNull(strategicTick, "strategicTick");
         this.eventObserver = Objects.requireNonNull(eventObserver, "eventObserver");
+        this.crystalMask = Objects.requireNonNull(crystalMask, "crystalMask");
+        this.timingEngine = Objects.requireNonNull(timingEngine, "timingEngine");
     }
 
     public static ClientCombatCoordinator create(
@@ -118,6 +132,7 @@ public final class ClientCombatCoordinator {
         CombatBlackboard blackboard = new CombatBlackboard();
         ClientRevisionTracker revisions = new ClientRevisionTracker();
         TimingEngine timingEngine = ClientTimingObserver.instance().timingEngine();
+        PendingCrystalMask crystalMask = new PendingCrystalMask();
         HurtWindowTracker hurtWindows = new HurtWindowTracker();
         RemoteDamageWindowObserver.instance().bind(hurtWindows);
         ClientStrategicScanner scanner = new ClientStrategicScanner(
@@ -133,7 +148,8 @@ public final class ClientCombatCoordinator {
             revisions::worldRevision,
             revisions::targetRevision,
             revisions::inventoryRevision,
-            configService::revision
+            configService::revision,
+            crystalMask
         );
         VanillaInteractionDispatcher vanilla = new VanillaInteractionDispatcher(
             minecraft,
@@ -270,16 +286,20 @@ public final class ClientCombatCoordinator {
             burstDispatcher,
             diagnostics,
             strategicTick,
-            revisions::observe
+            revisions::observe,
+            crystalMask,
+            timingEngine
         );
     }
 
     public void tick() {
-        pendingItems.reconcile(liveView::observedCount, System.nanoTime());
+        long nowNanos = System.nanoTime();
+        pendingItems.reconcile(liveView::observedCount, nowNanos);
         OptimizerConfig config = configService.current();
         diagnostics.recordConfig(config);
         if (!config.enabled()) {
             continuation = null;
+            crystalMask.clear();
             return;
         }
         if (resumeContinuation(config)) {
@@ -293,6 +313,13 @@ public final class ClientCombatCoordinator {
     public void onEvent(CombatEvent event) {
         Objects.requireNonNull(event, "event");
         eventObserver.accept(event);
+        if (event instanceof CombatEvent.CrystalRemoved removed) {
+            crystalMask.confirmRemoved(removed.entityId());
+        }
+        PendingContinuation pending = continuation;
+        if (pending != null) {
+            continuation = pending.consume(event);
+        }
         pendingItems.reconcile(
             liveView::observedCount,
             Math.max(event.timestampNanos(), System.nanoTime())
@@ -301,6 +328,7 @@ public final class ClientCombatCoordinator {
         diagnostics.recordConfig(config);
         if (!config.enabled()) {
             continuation = null;
+            crystalMask.clear();
             return;
         }
 
@@ -333,6 +361,14 @@ public final class ClientCombatCoordinator {
         if (pending == null) {
             return false;
         }
+        long nowNanos = System.nanoTime();
+        if (pending.hasExpiredDependency(nowNanos)) {
+            continuation = null;
+            return false;
+        }
+        if (!pending.remainingDependencies().isEmpty()) {
+            return true;
+        }
         if (pending.waitTicks() > 0) {
             continuation = pending.withWaitTicks(pending.waitTicks() - 1);
             return true;
@@ -362,22 +398,19 @@ public final class ClientCombatCoordinator {
                 config,
                 nowNanos
             );
-        } else if (decision.approval().resources().isEmpty()) {
-            allowed = arbiter.evaluateFrom(
-                decision.approval(),
-                decision.actions(),
-                startIndex,
-                liveView,
-                pendingItems,
-                config,
-                nowNanos
-            );
         } else {
+            PendingContinuation pending = continuation;
+            Set<ContinuationDependency> consumedDependencies = pending != null
+                && pending.decision().actionId() == decision.actionId()
+                && pending.nextActionIndex() == startIndex
+                    ? pending.consumedDependencies()
+                    : Set.of();
             allowed = arbiter.evaluateContinuation(
                 decision.approval(),
                 decision.actions(),
                 startIndex,
                 ReactiveBurstDispatcher.groupReservationId(decision.actionId()),
+                consumedDependencies,
                 liveView,
                 pendingItems,
                 config,
@@ -398,7 +431,7 @@ public final class ClientCombatCoordinator {
         updateContinuation(decision, startIndex, receipt);
     }
 
-    private static void observeSentExplosionCandidates(
+    private void observeSentExplosionCandidates(
         ReactiveDecision decision,
         int startIndex,
         BurstReceipt receipt
@@ -412,7 +445,15 @@ public final class ClientCombatCoordinator {
             if (receipt.receipts().get(offset).status() != DispatchReceipt.Status.SENT) {
                 continue;
             }
-            var action = decision.actions().get(startIndex + offset);
+            int actionIndex = startIndex + offset;
+            var action = decision.actions().get(actionIndex);
+            if (action instanceof AttackKnownCrystal attack) {
+                liveView.crystalBase(attack.entityId()).ifPresent(base -> crystalMask.markAttacked(
+                    attack.entityId(),
+                    base,
+                    crystalRemovalExpiryNanos(nowNanos)
+                ));
+            }
             if (action instanceof AttackKnownCrystal || action instanceof DetonateAnchor) {
                 RemoteDamageWindowObserver.instance().onExplosionCandidate(
                     decision.approval().targetId(),
@@ -434,6 +475,7 @@ public final class ClientCombatCoordinator {
             return;
         }
 
+        PendingContinuation previous = continuation;
         int sentCount = 0;
         while (sentCount < receipts.size()
             && receipts.get(sentCount).status() == DispatchReceipt.Status.SENT) {
@@ -443,22 +485,99 @@ public final class ClientCombatCoordinator {
 
         if (sentCount == receipts.size()) {
             continuation = nextActionIndex < decision.actions().size()
-                ? new PendingContinuation(decision, nextActionIndex, 0)
+                ? pendingContinuation(decision, nextActionIndex, 0, previous)
                 : null;
             return;
         }
 
         DispatchReceipt terminal = receipts.get(sentCount);
         continuation = switch (terminal.status()) {
-            case DEFERRED -> new PendingContinuation(decision, nextActionIndex, 0);
-            case WAITING -> new PendingContinuation(
+            case DEFERRED -> pendingContinuation(decision, nextActionIndex, 0, previous);
+            case WAITING -> pendingContinuation(
                 decision,
                 Math.min(decision.actions().size(), nextActionIndex + 1),
-                terminal.waitTicks()
+                terminal.waitTicks(),
+                previous
             );
             case FAILED -> null;
             case SENT -> throw new IllegalStateException("sent receipt escaped sent prefix");
         };
+    }
+
+    private PendingContinuation pendingContinuation(
+        ReactiveDecision decision,
+        int nextActionIndex,
+        int waitTicks,
+        PendingContinuation previous
+    ) {
+        Set<ContinuationDependency> consumed = previous != null
+            && previous.decision().actionId() == decision.actionId()
+            && previous.nextActionIndex() == nextActionIndex
+                ? previous.consumedDependencies()
+                : Set.of();
+        Set<ContinuationDependency> remaining = continuationDependencies(
+            decision,
+            nextActionIndex,
+            System.nanoTime()
+        );
+        if (!consumed.isEmpty() && !remaining.isEmpty()) {
+            remaining = remaining.stream()
+                .filter(required -> consumed.stream().noneMatch(done -> sameDependency(done, required)))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        }
+        return new PendingContinuation(
+            decision,
+            nextActionIndex,
+            waitTicks,
+            remaining,
+            consumed
+        );
+    }
+
+    private Set<ContinuationDependency> continuationDependencies(
+        ReactiveDecision decision,
+        int nextActionIndex,
+        long nowNanos
+    ) {
+        if (nextActionIndex <= 0 || nextActionIndex >= decision.actions().size()) {
+            return Set.of();
+        }
+        if (!(decision.actions().get(nextActionIndex - 1) instanceof AttackKnownCrystal attack)
+            || !(decision.actions().get(nextActionIndex) instanceof PlaceCrystal place)) {
+            return Set.of();
+        }
+        return Set.of(new ContinuationDependency.CrystalGone(
+            attack.entityId(),
+            place.basePos(),
+            crystalRemovalExpiryNanos(nowNanos)
+        ));
+    }
+
+    private long crystalRemovalExpiryNanos(long nowNanos) {
+        TimingDistribution distribution = timingEngine.distribution(
+            TimingTransition.CRYSTAL_ATTACK_TO_REMOVAL,
+            nowNanos
+        );
+        double timeoutMillis = distribution.sampleCount() == 0
+            ? MAX_CRYSTAL_REMOVAL_TIMEOUT_MILLIS
+            : distribution.p90Millis() * 2.0;
+        timeoutMillis = Math.max(
+            MIN_CRYSTAL_REMOVAL_TIMEOUT_MILLIS,
+            Math.min(MAX_CRYSTAL_REMOVAL_TIMEOUT_MILLIS, timeoutMillis)
+        );
+        long timeoutNanos = (long) Math.ceil(timeoutMillis * 1_000_000.0);
+        return saturatingAdd(nowNanos, timeoutNanos);
+    }
+
+    private static boolean sameDependency(
+        ContinuationDependency left,
+        ContinuationDependency right
+    ) {
+        if (left instanceof ContinuationDependency.CrystalGone a
+            && right instanceof ContinuationDependency.CrystalGone b) {
+            return a.entityId() == b.entityId() && a.basePos().equals(b.basePos());
+        }
+        return left.equals(right);
     }
 
     private static long targetRevisionFingerprint(
@@ -473,6 +592,13 @@ public final class ClientCombatCoordinator {
         return hash;
     }
 
+    private static long saturatingAdd(long left, long right) {
+        if (right > 0L && left > Long.MAX_VALUE - right) {
+            return Long.MAX_VALUE;
+        }
+        return left + right;
+    }
+
     private static boolean preempts(ApprovalSlot challenger, ApprovalSlot pending) {
         return challenger.ordinal() < pending.ordinal();
     }
@@ -480,20 +606,57 @@ public final class ClientCombatCoordinator {
     private record PendingContinuation(
         ReactiveDecision decision,
         int nextActionIndex,
-        int waitTicks
+        int waitTicks,
+        Set<ContinuationDependency> remainingDependencies,
+        Set<ContinuationDependency> consumedDependencies
     ) {
         private PendingContinuation {
             Objects.requireNonNull(decision, "decision");
+            Objects.requireNonNull(remainingDependencies, "remainingDependencies");
+            Objects.requireNonNull(consumedDependencies, "consumedDependencies");
             if (nextActionIndex < 0 || nextActionIndex > decision.actions().size()) {
                 throw new IllegalArgumentException("nextActionIndex outside reactive decision");
             }
             if (waitTicks < 0) {
                 throw new IllegalArgumentException("waitTicks must be non-negative");
             }
+            remainingDependencies = Set.copyOf(remainingDependencies);
+            consumedDependencies = Set.copyOf(consumedDependencies);
         }
 
         PendingContinuation withWaitTicks(int nextWaitTicks) {
-            return new PendingContinuation(decision, nextActionIndex, nextWaitTicks);
+            return new PendingContinuation(
+                decision,
+                nextActionIndex,
+                nextWaitTicks,
+                remainingDependencies,
+                consumedDependencies
+            );
+        }
+
+        PendingContinuation consume(CombatEvent event) {
+            Objects.requireNonNull(event, "event");
+            if (remainingDependencies.isEmpty()) {
+                return this;
+            }
+            LinkedHashSet<ContinuationDependency> remaining = new LinkedHashSet<>();
+            LinkedHashSet<ContinuationDependency> consumed = new LinkedHashSet<>(consumedDependencies);
+            boolean changed = false;
+            for (ContinuationDependency dependency : remainingDependencies) {
+                if (dependency.satisfiedBy(event)) {
+                    consumed.add(dependency);
+                    changed = true;
+                } else {
+                    remaining.add(dependency);
+                }
+            }
+            return changed
+                ? new PendingContinuation(decision, nextActionIndex, waitTicks, remaining, consumed)
+                : this;
+        }
+
+        boolean hasExpiredDependency(long nowNanos) {
+            return remainingDependencies.stream().anyMatch(dependency -> dependency.expired(nowNanos));
         }
     }
 }
