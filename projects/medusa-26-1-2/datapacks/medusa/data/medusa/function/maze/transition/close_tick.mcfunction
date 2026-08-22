@@ -1,3 +1,3 @@
 scoreboard players add @s md_mtick 1
-execute if score @s md_mtick matches 1 run function medusa:maze/transition/close_apply
-execute if score @s md_mtick matches 4.. run scoreboard players set @s md_mphase 8
+execute store result storage medusa:macro maze.eid int 1 run scoreboard players get @s md_eid
+function medusa:maze/transition/close_tick_ctx with storage medusa:macro maze
