@@ -32,6 +32,11 @@ public interface LiveCombatView {
 
     int selectedHotbarSlot();
 
+    /** True while the user is actively holding a combat interaction input. */
+    default boolean userControllingCombatInput() {
+        return false;
+    }
+
     /**
      * Current local health plus absorption. Implementations used only in old unit fixtures may
      * inherit the conservative compatibility default; the real client view overrides this.
