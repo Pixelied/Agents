@@ -14,8 +14,10 @@ import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.sim.damage.ExplosionContext;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
+import dev.adrien.crystaloptimizer.world.WorldHypothesis;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +45,53 @@ public final class StrategicPreparationPlanner {
             .map(PreparationSequence::actions);
     }
 
+    /** Builds preparations that are legal in the authoritative snapshot only. */
     public List<PreparationSequence> planSequences(CombatState state, OptimizerConfig config) {
+        return planAuthoritativeSequences(state, config);
+    }
+
+    /**
+     * Adds preparations unlocked by explicit counterfactual geometry.
+     *
+     * <p>The authoritative result is always generated first. A hypothetical
+     * sequence is included only when the same action chain is not already legal
+     * in authoritative geometry, and it carries the hypothesis that must be
+     * confirmed before the terminal action may rely on that geometry.</p>
+     */
+    public List<PreparationSequence> planSequences(
+        CombatState state,
+        OptimizerConfig config,
+        List<WorldHypothesis> hypotheses
+    ) {
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(config, "config");
+        Objects.requireNonNull(hypotheses, "hypotheses");
+
+        List<PreparationSequence> authoritative = planAuthoritativeSequences(state, config);
+        LinkedHashMap<List<CombatAction>, PreparationSequence> merged = new LinkedHashMap<>();
+        for (PreparationSequence sequence : authoritative) {
+            merged.put(sequence.actions(), sequence);
+        }
+
+        hypotheses.stream()
+            .map(hypothesis -> Objects.requireNonNull(hypothesis, "world hypothesis"))
+            .sorted(Comparator.comparingDouble(WorldHypothesis::confidence).reversed())
+            .forEach(hypothesis -> {
+                CombatState hypothetical = state.withGeometry(hypothesis.geometry());
+                for (PreparationSequence sequence : planAuthoritativeSequences(hypothetical, config)) {
+                    merged.putIfAbsent(sequence.actions(), sequence.withWorldHypothesis(hypothesis));
+                }
+            });
+
+        ArrayList<PreparationSequence> result = new ArrayList<>(merged.values());
+        sortSequences(result);
+        return List.copyOf(result);
+    }
+
+    private List<PreparationSequence> planAuthoritativeSequences(
+        CombatState state,
+        OptimizerConfig config
+    ) {
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(config, "config");
 
@@ -65,11 +113,16 @@ public final class StrategicPreparationPlanner {
             addNewAnchorSequences(result, state);
         }
 
-        result.sort(Comparator
+        sortSequences(result);
+        return List.copyOf(result);
+    }
+
+    private static void sortSequences(List<PreparationSequence> sequences) {
+        sequences.sort(Comparator
             .comparingDouble((PreparationSequence sequence) -> sequence.resources().cost())
             .thenComparingInt(sequence -> sequence.actions().size())
-            .thenComparingInt(sequence -> sequence.geometryDependencies().hashCode()));
-        return List.copyOf(result);
+            .thenComparingInt(sequence -> sequence.geometryDependencies().hashCode())
+            .thenComparingInt(sequence -> sequence.requiresFeedback() ? 1 : 0));
     }
 
     private void addExistingCrystalBaseSequences(
