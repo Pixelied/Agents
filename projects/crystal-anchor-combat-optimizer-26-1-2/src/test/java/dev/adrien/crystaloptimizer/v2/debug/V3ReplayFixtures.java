@@ -117,7 +117,7 @@ final class V3ReplayFixtures {
             Map.of(TARGET, 4L),
             Map.of(),
             TimingSnapshot.empty(1_000L),
-            config(true, true, 20.0),
+            config(true, true, 16.0),
             "candidate-budget-anchor-starvation"
         );
     }
