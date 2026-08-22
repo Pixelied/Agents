@@ -87,6 +87,14 @@ public final class EmergencyInventoryTransaction {
         return deadlineTick;
     }
 
+    public InventorySlotSnapshot sourceBefore() {
+        return sourceBefore;
+    }
+
+    public InventorySlotSnapshot destinationBefore() {
+        return destinationBefore;
+    }
+
     public boolean canRestoreOriginalDestinationStack() {
         return originalDestinationRestorable
             && state != State.CONSUMED

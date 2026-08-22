@@ -26,19 +26,27 @@ public final class MeleePredictor implements ThreatPredictor {
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             if (!Boolean.parseBoolean(entity.properties().getOrDefault("melee_capable", "false"))) continue;
             if ("false".equalsIgnoreCase(entity.properties().getOrDefault("line_of_sight", "unknown"))) continue;
-            buildThreat(context, entity).ifPresent(result::add);
+            buildThreat(context, entity).ifPresent(direct -> {
+                result.add(direct);
+                result.addAll(MeleeHitFollowups.afterAcceptedDirectHit(context, entity, direct));
+            });
         }
         return List.copyOf(result);
     }
 
     private Optional<ThreatEvent> buildThreat(PredictionContext context, WorldSnapshot.EntitySnapshot attacker) {
         Map<String, String> properties = attacker.properties();
-        double reach = parseFiniteNonNegative(properties.get("attack_range"), Double.POSITIVE_INFINITY);
-        if (aabbDistance(attacker.boundingBox(), context.player().boundingBox()) > reach) return Optional.empty();
+        boolean mobModel = "mob".equals(properties.get("melee_model"));
+        if (mobModel) {
+            if (!withinMobRange(attacker, context.player().boundingBox(), properties)) return Optional.empty();
+        } else {
+            double reach = parseFiniteNonNegative(properties.get("attack_range"), Double.POSITIVE_INFINITY);
+            if (aabbDistance(attacker.boundingBox(), context.player().boundingBox()) > reach) return Optional.empty();
+        }
 
         String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
-        boolean spear = isSpear(weaponKey, properties);
-        WeaponSnapshot weapon = spear ? null : weaponSnapshot(properties);
+        boolean spear = !mobModel && isSpear(weaponKey, properties);
+        WeaponSnapshot weapon = spear || mobModel ? null : weaponSnapshot(properties);
         DamageRange damage;
         boolean maceSmash = false;
 
@@ -46,6 +54,10 @@ public final class MeleePredictor implements ThreatPredictor {
             Optional<DamageRange> spearDamage = spearDamage(attacker, properties);
             if (spearDamage.isEmpty()) return Optional.empty();
             damage = spearDamage.get();
+        } else if (mobModel) {
+            damage = parseRange(properties, "direct_damage");
+            if (damage.max() <= 0f) return Optional.empty();
+            maceSmash = Boolean.parseBoolean(properties.getOrDefault("mace_smash", "false"));
         } else {
             damage = weapon.rawDamageRange();
             if (damage.max() <= 0f) return Optional.empty();
@@ -62,6 +74,10 @@ public final class MeleePredictor implements ThreatPredictor {
             ? "minecraft:spear"
             : maceSmash ? "minecraft:mace_smash" : defaultMeleeSource(attacker);
         String sourceKey = properties.getOrDefault("source_key", defaultSource);
+        float armorEffectivenessAdjustment = parseFiniteFloat(properties.get("armor_effectiveness_adjustment")) == null
+            ? 0f : parseFiniteFloat(properties.get("armor_effectiveness_adjustment"));
+        float blockingDisableSeconds = parseFiniteFloat(properties.get("blocking_disable_seconds")) == null
+            ? 0f : Math.max(0f, parseFiniteFloat(properties.get("blocking_disable_seconds")));
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             damage,
             flags,
@@ -69,7 +85,10 @@ public final class MeleePredictor implements ThreatPredictor {
             1f,
             false,
             Optional.of(attacker.position()),
-            sourceKey
+            sourceKey,
+            0f,
+            armorEffectivenessAdjustment,
+            blockingDisableSeconds
         );
 
         boolean committed = Boolean.parseBoolean(properties.getOrDefault("attack_committed", "false"));
@@ -78,7 +97,7 @@ public final class MeleePredictor implements ThreatPredictor {
             : new TickWindow(0L, POTENTIAL_ATTACK_WINDOW_TICKS);
         Confidence confidence = committed ? Confidence.MATCHED : Confidence.POTENTIAL;
         boolean canDisableBlocking = Boolean.parseBoolean(properties.getOrDefault("can_disable_blocking", "false"));
-        if (!spear) canDisableBlocking = weapon.canDisableBlocking();
+        if (!spear && !mobModel) canDisableBlocking = weapon.canDisableBlocking();
 
         return Optional.of(new ThreatEvent(
             (spear ? "spear:" : "melee:") + attacker.id(),
@@ -93,6 +112,30 @@ public final class MeleePredictor implements ThreatPredictor {
             true,
             canDisableBlocking
         ));
+    }
+
+    private static boolean withinMobRange(
+        WorldSnapshot.EntitySnapshot attacker,
+        dev.pixelied.survival.core.AabbSnapshot target,
+        Map<String, String> properties
+    ) {
+        double min = parseFiniteNonNegative(properties.get("mob_attack_range_min"), 0d);
+        double max = parseFiniteNonNegative(properties.get("mob_attack_range_max"), Math.sqrt(2.04d) - 0.6d);
+        double deflate = parseFiniteNonNegative(properties.get("mob_attack_box_deflate"), 0d);
+        Optional<dev.pixelied.survival.core.AabbSnapshot> vehicle = parseAabb(properties, "vehicle_box_");
+        return MobMeleeRange.isWithin(attacker.boundingBox(), vehicle, target, min, max, deflate);
+    }
+
+    private static Optional<dev.pixelied.survival.core.AabbSnapshot> parseAabb(Map<String, String> properties, String prefix) {
+        Double minX = parseFiniteDouble(properties.get(prefix + "min_x"));
+        Double minY = parseFiniteDouble(properties.get(prefix + "min_y"));
+        Double minZ = parseFiniteDouble(properties.get(prefix + "min_z"));
+        Double maxX = parseFiniteDouble(properties.get(prefix + "max_x"));
+        Double maxY = parseFiniteDouble(properties.get(prefix + "max_y"));
+        Double maxZ = parseFiniteDouble(properties.get(prefix + "max_z"));
+        if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
+            || maxX < minX || maxY < minY || maxZ < minZ) return Optional.empty();
+        return Optional.of(new dev.pixelied.survival.core.AabbSnapshot(minX, minY, minZ, maxX, maxY, maxZ));
     }
 
     private static boolean isSpear(String weaponKey, Map<String, String> properties) {

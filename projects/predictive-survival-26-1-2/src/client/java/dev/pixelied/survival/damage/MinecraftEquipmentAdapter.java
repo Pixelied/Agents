@@ -10,13 +10,20 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.DeathProtection;
+import net.minecraft.world.item.component.DamageResistant;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.item.equipment.Equippable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 public final class MinecraftEquipmentAdapter {
     public MitigationSnapshot mitigation(LocalPlayer player) {
@@ -27,7 +34,9 @@ public final class MinecraftEquipmentAdapter {
             if (!slot.isArmor() || slot == EquipmentSlot.BODY) continue;
             ItemStack stack = player.getItemBySlot(slot);
             if (stack.isEmpty()) continue;
-            pieces.add(armorPiece(stack, slot, stack.isDamageableItem()));
+            Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
+            boolean damageOnHurt = stack.isDamageableItem() && equippable != null && equippable.damageOnHurt();
+            pieces.add(armorPiece(stack, slot, damageOnHurt));
         }
 
         ItemStack head = player.getItemBySlot(EquipmentSlot.HEAD);
@@ -41,8 +50,6 @@ public final class MinecraftEquipmentAdapter {
         return new MitigationSnapshot(
             player.getArmorValue(),
             (float) player.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
-            1f,
-            0,
             helmetPresent,
             helmetDurability,
             pieces
@@ -67,9 +74,10 @@ public final class MinecraftEquipmentAdapter {
             slotFor(slot),
             (float) armorAndToughness[0],
             (float) armorAndToughness[1],
-            0,
+            protectionEnchantments(stack, slot),
             remainingDurability,
-            damageOnHurt
+            damageOnHurt,
+            durabilityResistantDamageTypes(stack)
         );
     }
 
@@ -101,12 +109,39 @@ public final class MinecraftEquipmentAdapter {
     }
 
     private static java.util.Optional<DeathProtectionSnapshot.ProtectionItem> protectionItem(ItemStack stack) {
-        DeathProtection component = stack.get(DataComponents.DEATH_PROTECTION);
-        if (component == null) return java.util.Optional.empty();
-        DeathProtectionSnapshot.ProtectionItem item = component.equals(DeathProtection.TOTEM_OF_UNDYING)
-            ? DeathProtectionSnapshot.ProtectionItem.vanillaTotem()
-            : DeathProtectionSnapshot.ProtectionItem.generic();
-        return java.util.Optional.of(item);
+        return MinecraftDeathProtectionAdapter.snapshot(stack);
+    }
+
+    private static ProtectionEnchantmentsSnapshot protectionEnchantments(ItemStack stack, EquipmentSlot slot) {
+        int protection = 0;
+        int blast = 0;
+        int projectile = 0;
+        int fire = 0;
+        int featherFalling = 0;
+        int frostWalker = 0;
+        ItemEnchantments enchantments = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
+        for (var entry : enchantments.entrySet()) {
+            Holder<Enchantment> enchantment = entry.getKey();
+            if (!enchantment.value().matchingSlot(slot)) continue;
+            int level = entry.getIntValue();
+            if (enchantment.is(Enchantments.PROTECTION)) protection = level;
+            else if (enchantment.is(Enchantments.BLAST_PROTECTION)) blast = level;
+            else if (enchantment.is(Enchantments.PROJECTILE_PROTECTION)) projectile = level;
+            else if (enchantment.is(Enchantments.FIRE_PROTECTION)) fire = level;
+            else if (enchantment.is(Enchantments.FEATHER_FALLING)) featherFalling = level;
+            else if (enchantment.is(Enchantments.FROST_WALKER)) frostWalker = level;
+        }
+        return new ProtectionEnchantmentsSnapshot(protection, blast, projectile, fire, featherFalling, frostWalker);
+    }
+
+    private static Set<String> durabilityResistantDamageTypes(ItemStack stack) {
+        DamageResistant resistance = stack.get(DataComponents.DAMAGE_RESISTANT);
+        if (resistance == null) return Set.of();
+        Set<String> types = new LinkedHashSet<>();
+        for (Holder<DamageType> type : resistance.types()) {
+            types.add(type.getRegisteredName());
+        }
+        return Set.copyOf(types);
     }
 
     private static void accumulateAddValue(

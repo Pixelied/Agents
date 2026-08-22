@@ -15,7 +15,9 @@ public record DamageSourceSnapshot(
     boolean piercingProjectile,
     Optional<Vec3Snapshot> sourcePosition,
     String sourceKey,
-    float applicationHealthThresholdExclusive
+    float applicationHealthThresholdExclusive,
+    float armorEffectivenessAdjustment,
+    float blockingDisableSeconds
 ) {
     public DamageSourceSnapshot(
         DamageRange rawDamage,
@@ -27,7 +29,36 @@ public record DamageSourceSnapshot(
         String sourceKey
     ) {
         this(rawDamage, flags, scalesWithDifficulty, freezingMultiplier, piercingProjectile,
-            sourcePosition, sourceKey, 0f);
+            sourcePosition, sourceKey, 0f, 0f, 0f);
+    }
+
+    public DamageSourceSnapshot(
+        DamageRange rawDamage,
+        Set<DamageFlag> flags,
+        boolean scalesWithDifficulty,
+        float freezingMultiplier,
+        boolean piercingProjectile,
+        Optional<Vec3Snapshot> sourcePosition,
+        String sourceKey,
+        float applicationHealthThresholdExclusive
+    ) {
+        this(rawDamage, flags, scalesWithDifficulty, freezingMultiplier, piercingProjectile,
+            sourcePosition, sourceKey, applicationHealthThresholdExclusive, 0f, 0f);
+    }
+
+    public DamageSourceSnapshot(
+        DamageRange rawDamage,
+        Set<DamageFlag> flags,
+        boolean scalesWithDifficulty,
+        float freezingMultiplier,
+        boolean piercingProjectile,
+        Optional<Vec3Snapshot> sourcePosition,
+        String sourceKey,
+        float applicationHealthThresholdExclusive,
+        float armorEffectivenessAdjustment
+    ) {
+        this(rawDamage, flags, scalesWithDifficulty, freezingMultiplier, piercingProjectile,
+            sourcePosition, sourceKey, applicationHealthThresholdExclusive, armorEffectivenessAdjustment, 0f);
     }
 
     public DamageSourceSnapshot {
@@ -40,6 +71,12 @@ public record DamageSourceSnapshot(
         }
         if (!Float.isFinite(applicationHealthThresholdExclusive) || applicationHealthThresholdExclusive < 0f) {
             throw new IllegalArgumentException("applicationHealthThresholdExclusive must be finite and non-negative");
+        }
+        if (!Float.isFinite(armorEffectivenessAdjustment)) {
+            throw new IllegalArgumentException("armorEffectivenessAdjustment must be finite");
+        }
+        if (!Float.isFinite(blockingDisableSeconds) || blockingDisableSeconds < 0f) {
+            throw new IllegalArgumentException("blockingDisableSeconds must be finite and non-negative");
         }
     }
 

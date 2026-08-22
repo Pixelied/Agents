@@ -110,6 +110,48 @@ class AuthoritativeActionExecutorTest {
         );
     }
 
+
+    @Test
+    void confirmedHotbarEquipExposesExactRestorationCheckpointOnce() {
+        DeathProtectionActionExecutor executor = new DeathProtectionActionExecutor();
+        SurvivalAction.EquipDeathProtection action = new SurvivalAction.EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem.vanillaTotem(),
+            SurvivalAction.Hand.MAIN_HAND,
+            1, true, true, 1.0, 1, 1
+        );
+        InventorySnapshot beforeInventory = inventory(0, true, false);
+        executor.begin(action, context(beforeInventory, false, null, 0, true, 500));
+        executor.observe(context(inventory(1, true, false), false, null, 0, true, 501));
+
+        RestorationCheckpoint.Hotbar checkpoint = assertInstanceOf(
+            RestorationCheckpoint.Hotbar.class,
+            executor.takeRestorationCheckpoint().orElseThrow()
+        );
+        assertEquals(0, checkpoint.originalSelectedIndex());
+        assertEquals(1, checkpoint.protectionHotbarIndex());
+        assertTrue(executor.takeRestorationCheckpoint().isEmpty());
+    }
+
+    @Test
+    void confirmedContainerEquipExposesConfirmedTransactionCheckpoint() {
+        DeathProtectionActionExecutor executor = new DeathProtectionActionExecutor();
+        SurvivalAction.EquipDeathProtection action = new SurvivalAction.EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem.vanillaTotem(),
+            SurvivalAction.Hand.OFF_HAND,
+            1, true, true, 1.0, 1, 1
+        );
+        executor.begin(action, context(inventoryWithMainInventoryTotem(false), false, null, 0, true, 600));
+        executor.observe(context(inventoryWithMainInventoryTotem(true), menu(7, 11), false, null, 0, true, 601));
+
+        RestorationCheckpoint.Container checkpoint = assertInstanceOf(
+            RestorationCheckpoint.Container.class,
+            executor.takeRestorationCheckpoint().orElseThrow()
+        );
+        assertEquals(dev.pixelied.survival.inventory.EmergencyInventoryTransaction.State.CONFIRMED, checkpoint.transaction().state());
+        assertEquals(9, checkpoint.sourceInventoryIndex());
+        assertEquals(40, checkpoint.destinationInventoryIndex());
+    }
+
     private static ExecutionContext context(
         InventorySnapshot inventory,
         boolean serverUsingItem,
@@ -120,6 +162,7 @@ class AuthoritativeActionExecutorTest {
     ) {
         return context(inventory, menu(7, 10), serverUsingItem, usingHand, serverUseTicks, shieldAngleValid, serverTick);
     }
+
 
     private static ExecutionContext context(
         InventorySnapshot inventory,

@@ -14,6 +14,7 @@ import dev.pixelied.survival.inventory.EquippableSurvivalSnapshot;
 import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
+import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 
 import java.util.ArrayList;
@@ -50,7 +51,7 @@ public final class SurvivalCandidateGenerator {
         List<SurvivalAction> candidates = new ArrayList<>();
 
         if (!context.player().deathProtection().anyHandAvailable()) {
-            routePlanner.choose(inventory, menu).ifPresent(route -> addProtectionCandidate(candidates, inventory, route));
+            routePlanner.choose(inventory, menu).ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
         }
 
         addShieldCandidate(candidates, context, timeline, inventory);
@@ -61,6 +62,7 @@ public final class SurvivalCandidateGenerator {
     private static void addProtectionCandidate(
         List<SurvivalAction> candidates,
         InventorySnapshot inventory,
+        MenuSlotMap menu,
         DeathProtectionRoute route
     ) {
         if (route instanceof DeathProtectionRoute.AlreadyInHand) return;
@@ -75,11 +77,13 @@ public final class SurvivalCandidateGenerator {
                 : SurvivalAction.Hand.MAIN_HAND;
         }
 
-        boolean vanillaTotem = inventory.slots().values().stream()
-            .anyMatch(slot -> slot.deathProtection() && "minecraft:totem_of_undying".equals(slot.stackKey()));
-        DeathProtectionSnapshot.ProtectionItem item = vanillaTotem
-            ? DeathProtectionSnapshot.ProtectionItem.vanillaTotem()
-            : DeathProtectionSnapshot.ProtectionItem.generic();
+        InventorySlotSnapshot routedSlot = routedProtectionSlot(inventory, menu, route)
+            .orElseThrow(() -> new IllegalStateException("death-protection route has no source inventory slot"));
+        DeathProtectionSnapshot.ProtectionItem item = routedSlot.deathProtectionItem().orElseGet(() ->
+            "minecraft:totem_of_undying".equals(routedSlot.stackKey())
+                ? DeathProtectionSnapshot.ProtectionItem.vanillaTotem()
+                : DeathProtectionSnapshot.ProtectionItem.generic()
+        );
 
         candidates.add(new SurvivalAction.EquipDeathProtection(
             item,
@@ -93,18 +97,39 @@ public final class SurvivalCandidateGenerator {
         ));
     }
 
+    private static java.util.Optional<InventorySlotSnapshot> routedProtectionSlot(
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        DeathProtectionRoute route
+    ) {
+        if (route instanceof DeathProtectionRoute.HotbarSelect hotbar) {
+            return inventory.slot(hotbar.hotbarIndex());
+        }
+        if (route instanceof DeathProtectionRoute.ContainerSwap swap) {
+            return menu.inventoryIndexToMenuSlot().entrySet().stream()
+                .filter(entry -> entry.getValue() == swap.sourceMenuSlot())
+                .map(entry -> inventory.slot(entry.getKey()).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .findFirst();
+        }
+        return java.util.Optional.empty();
+    }
+
     private static void addShieldCandidate(
         List<SurvivalAction> candidates,
         PredictionContext context,
         ThreatTimeline timeline,
         InventorySnapshot inventory
     ) {
-        boolean guaranteedBlock = timeline.events().stream().allMatch(event -> event.blockable() && !event.canDisableBlocking());
+        boolean guaranteedBlock = timeline.events().stream().allMatch(ThreatEvent::blockable);
         if (!guaranteedBlock) return;
 
-        boolean activeOffhand = inventory.activeOffhandShield();
+        boolean activeOffhand = inventory.activeOffhandShield()
+            && inventory.slot(40).map(slot -> !slot.blockingOnCooldown()).orElse(false);
         boolean selectedMainhandShield = inventory.slot(inventory.selectedHotbarIndex())
-            .map(slot -> slot.count() > 0 && "minecraft:shield".equals(slot.stackKey()))
+            .map(slot -> slot.count() > 0
+                && "minecraft:shield".equals(slot.stackKey())
+                && !slot.blockingOnCooldown())
             .orElse(false);
         if (!activeOffhand && !selectedMainhandShield) return;
 
@@ -115,16 +140,21 @@ public final class SurvivalCandidateGenerator {
             : SHIELD_WARMUP_TICKS;
         int requiredServerTicks = activeOffhand && elapsed >= required ? 0 : Math.max(0, required - elapsed);
 
+        java.util.Optional<dev.pixelied.survival.damage.BlockingProfileSnapshot> profile = activeOffhand
+            ? context.player().blocking().profile().or(() -> inventory.slot(40).flatMap(InventorySlotSnapshot::blockingProfile))
+            : inventory.slot(inventory.selectedHotbarIndex()).flatMap(InventorySlotSnapshot::blockingProfile);
+
         candidates.add(new SurvivalAction.RaiseShield(
             requiredServerTicks,
             true,
             true,
             true,
             1d,
-            1f,
+            profile.isPresent() ? 0f : 1f,
             elapsed,
             required,
-            0
+            0,
+            profile
         ));
     }
 

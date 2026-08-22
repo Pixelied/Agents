@@ -51,6 +51,8 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             LightningSnapshotCapacityValidationScenarios.validateLightningCannotBeSilentlyDroppedByRelevantEntityBudget(context, singleplayer);
             ShulkerBulletValidationScenarios.validateVisibleBulletProducesPreImpactThreat(context, singleplayer);
             GuardianBeamValidationScenarios.validateActiveBeamProducesPreImpactSequence(context, singleplayer);
+            WitherSkeletonValidationScenarios.validateSourceFaithfulMeleeAndPreemptiveProtection(context, singleplayer);
+            CustomDeathProtectionValidationScenarios.validateCustomDeathProtectionComponents(context, singleplayer);
             WardenSonicBoomValidationScenarios.validateObservedChargeProducesSonicThreat(context, singleplayer);
             EvokerFangsValidationScenarios.validateVisibleFangsProducePreImpactThreat(context, singleplayer);
             ContactHazardRuntimeValidationScenarios.validateMagmaContactReachesProductionRuntime(context, singleplayer);
@@ -78,9 +80,15 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             results.addAll(FallRescueValidationScenarios.runtimeSlice(context, singleplayer));
             results.addAll(ExperimentalValidationScenarios.runtimeSlice(singleplayer));
             InventoryValidationScenarios.validateOffhandSwapAndLethalPop(context, singleplayer);
+            DeathProtectionComponentValidationScenarios.validateClientObservableCustomEffects(context, singleplayer);
+            ModMenuRuntimeValidationScenarios.validateOptionalIntegrationAndNativeScreen(context);
             NonTotemCandidateValidationScenarios.validateLiveItemCapabilities(context, singleplayer);
             results.addAll(LiveExplosionScalingValidationScenarios.runtimeSlice(context, singleplayer));
             MinecartTntValidationScenarios.validatePrimedMinecartProducesBoundedExplosionThreat(context, singleplayer);
+            InstantExplosionGuardValidationScenarios.validateVisibleInstantSourcesArmBeforeDetonation(context, singleplayer);
+            HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger(context, singleplayer);
+            BlockingCooldownValidationScenarios.validateServerCooldownMakesShieldUnavailable(context, singleplayer);
+            waitForServerClientLoaded(context, singleplayer);
             validateHurtCooldown(singleplayer);
             validateDeathProtection(singleplayer, InteractionHand.MAIN_HAND);
             validateDeathProtection(singleplayer, InteractionHand.OFF_HAND);

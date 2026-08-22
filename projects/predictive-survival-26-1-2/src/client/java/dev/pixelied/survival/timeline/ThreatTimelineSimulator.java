@@ -48,6 +48,7 @@ public final class ThreatTimelineSimulator {
         List<TimelineEventResult> allResults = new ArrayList<>();
         int consumed = 0;
         Optional<String> firstLethal = Optional.empty();
+        boolean survivalGuaranteed = true;
         Set<String> acceptedEventIds = new HashSet<>();
         Set<String> processedEventIds = new HashSet<>();
 
@@ -69,14 +70,17 @@ public final class ThreatTimelineSimulator {
             if (firstLethal.isEmpty() && outcome.firstLethalEventId().isPresent()) {
                 firstLethal = outcome.firstLethalEventId();
             }
-            if (!outcome.survived()) break;
+            if (!outcome.survived()) {
+                survivalGuaranteed = false;
+                break;
+            }
         }
 
         return new TimelineResult(
             allResults,
             working.health(),
             working.absorption(),
-            working.health() > 0f && firstLethal.isEmpty(),
+            survivalGuaranteed && working.health() > 0f && firstLethal.isEmpty(),
             consumed,
             firstLethal
         );
@@ -181,6 +185,7 @@ public final class ThreatTimelineSimulator {
         List<TimelineEventResult> results = new ArrayList<>();
         int consumed = 0;
         Optional<String> firstLethal = Optional.empty();
+        boolean survivalGuaranteed = true;
         Set<String> acceptedEventIds = new HashSet<>(acceptedBefore);
         Set<String> processedEventIds = new HashSet<>(processedBefore);
         Set<String> groupEventIds = new HashSet<>();
@@ -208,6 +213,7 @@ public final class ThreatTimelineSimulator {
             }
 
             DamageResult damageResult = damageSimulator.simulate(working, event.damage());
+            damageResult = applyBlockingDisable(damageResult, event.damage());
             float finalDamage = damageResult.trace().has(DamageStage.HEALTH_DAMAGE)
                 ? damageResult.trace().after(DamageStage.HEALTH_DAMAGE)
                 : 0f;
@@ -223,6 +229,14 @@ public final class ThreatTimelineSimulator {
             if (damageResult.deathProtectionConsumed()) consumed++;
             working = damageResult.after();
 
+            if (damageResult.postStateUncertain()) {
+                // The DEATH_PROTECTION one-health rescue is known, but an ordered consume effect
+                // (for example a random teleport) leaves the later survival state unknowable from
+                // client-visible data. Fail closed instead of presenting that branch as guaranteed.
+                survivalGuaranteed = false;
+                break;
+            }
+
             if (working.health() <= 0f && !damageResult.deathProtectionConsumed()) {
                 firstLethal = Optional.of(event.id());
                 break;
@@ -235,9 +249,35 @@ public final class ThreatTimelineSimulator {
             results,
             consumed,
             firstLethal,
-            working.health() > 0f && firstLethal.isEmpty(),
+            survivalGuaranteed && working.health() > 0f && firstLethal.isEmpty(),
             Set.copyOf(acceptedEventIds),
             Set.copyOf(processedEventIds)
+        );
+    }
+
+    private static DamageResult applyBlockingDisable(DamageResult result, dev.pixelied.survival.damage.DamageSourceSnapshot source) {
+        if (source.blockingDisableSeconds() <= 0f || source.has(dev.pixelied.survival.damage.DamageFlag.IS_PROJECTILE)) return result;
+        if (!result.trace().has(DamageStage.BLOCKING)) return result;
+        float blocked = result.trace().before(DamageStage.BLOCKING) - result.trace().after(DamageStage.BLOCKING);
+        if (!(blocked > 0f)) return result;
+
+        PlayerSnapshot after = result.after();
+        dev.pixelied.survival.damage.BlockingSnapshot blocking = after.blocking();
+        int ticks = blocking.profile()
+            .map(profile -> profile.disableTicks(source.blockingDisableSeconds()))
+            .orElseGet(() -> {
+                double raw = Math.round(source.blockingDisableSeconds() * 20f);
+                return raw >= Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(0, (int) raw);
+            });
+        if (ticks <= 0) return result;
+        PlayerSnapshot disabled = new PlayerSnapshot(
+            after.health(), after.absorption(), after.playerInvulnerable(), after.abilityInvulnerable(), after.deadOrDying(),
+            after.difficulty(), after.mitigation(), after.statusEffects(), blocking.disableForTicks(ticks),
+            after.hurtState(), after.deathProtection(), after.boundingBox(), after.position(), after.velocity(),
+            after.equipmentItemKeys(), after.stateProperties()
+        );
+        return new DamageResult(
+            disabled, result.trace(), result.rejected(), result.deathProtectionConsumed(), result.postStateUncertain()
         );
     }
 
@@ -252,7 +292,7 @@ public final class ThreatTimelineSimulator {
         );
         return new PlayerSnapshot(
             player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
-            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
+            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking().age(elapsed),
             aged, player.deathProtection(), player.boundingBox(), player.position(), player.velocity(),
             player.equipmentItemKeys(), player.stateProperties()
         );

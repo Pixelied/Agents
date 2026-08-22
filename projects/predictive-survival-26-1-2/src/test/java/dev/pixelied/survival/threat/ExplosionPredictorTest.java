@@ -69,6 +69,84 @@ class ExplosionPredictorTest {
     }
 
     @Test
+    void triggerableThreatWindowExtendsThroughLatestServerProcessingTick() {
+        WorldSnapshot.EntitySnapshot crystal = entity("crystal:timing", "minecraft:end_crystal", Map.of(
+            "explosion_radius", "6.0",
+            "triggerable", "true"
+        ));
+
+        ThreatEvent event = new ExplosionPredictor().predict(context(
+            List.of(crystal), List.of(), player(new Vec3Snapshot(0.3, 0, 0.3), new Vec3Snapshot(0, 0, 0)),
+            new TimingSnapshot(0, 350, 50, new TickWindow(2, 6))
+        )).getFirst();
+
+        assertEquals(new TickWindow(0, 6), event.impact());
+        assertEquals(Confidence.POTENTIAL, event.confidence());
+    }
+
+    @Test
+    void movementIntoTriggerableCrystalEnvelopeRaisesConservativeDamageBound() {
+        WorldSnapshot.EntitySnapshot crystal = new WorldSnapshot.EntitySnapshot(
+            "crystal:moving", "minecraft:end_crystal", new Vec3Snapshot(10.3, 0, 0.3), new Vec3Snapshot(0, 0, 0),
+            new AabbSnapshot(10, 0, 0, 10.6, 2, 0.6),
+            Map.of("explosion_radius", "6.0", "triggerable", "true")
+        );
+        TimingSnapshot slowAuthority = new TimingSnapshot(0, 350, 50, new TickWindow(2, 6));
+
+        ThreatEvent stationary = new ExplosionPredictor().predict(context(
+            List.of(crystal), List.of(), player(new Vec3Snapshot(0.3, 0, 0.3), new Vec3Snapshot(0, 0, 0)), slowAuthority
+        )).getFirst();
+        ThreatEvent movingToward = new ExplosionPredictor().predict(context(
+            List.of(crystal), List.of(), player(new Vec3Snapshot(0.3, 0, 0.3), new Vec3Snapshot(1.4, 0, 0)), slowAuthority
+        )).getFirst();
+
+        assertTrue(stationary.damage().rawDamage().max() < 10f);
+        assertTrue(movingToward.damage().rawDamage().max() > 20f);
+    }
+
+    @Test
+    void removedTriggerableSourceBlockCannotShieldItsOwnExplosion() {
+        WorldSnapshot.BlockSnapshot anchor = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(1.5, 0.5, 0.5), "minecraft:respawn_anchor", true, Map.of(
+                "full_collision_cube", "true",
+                "explosion_radius", "5.0",
+                "triggerable", "true",
+                "source_key", "minecraft:bad_respawn_point",
+                "pre_explosion_remove_group", "anchor:1,0,0"
+            )
+        );
+
+        ThreatEvent event = new ExplosionPredictor().predict(context(List.of(), List.of(anchor))).getFirst();
+
+        assertTrue(event.damage().rawDamage().max() > 20f);
+    }
+
+    @Test
+    void bothBedHalvesAreExcludedBeforeHeadExplosionExposure() {
+        Map<String, String> group = Map.of(
+            "full_collision_cube", "true",
+            "pre_explosion_remove_group", "bed:2,0,0"
+        );
+        WorldSnapshot.BlockSnapshot foot = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(1.5, 0.5, 0.5), "minecraft:red_bed", true, group
+        );
+        WorldSnapshot.BlockSnapshot head = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(2.5, 0.5, 0.5), "minecraft:red_bed", true, Map.of(
+                "full_collision_cube", "true",
+                "pre_explosion_remove_group", "bed:2,0,0",
+                "explosion_radius", "5.0",
+                "triggerable", "true",
+                "source_key", "minecraft:bad_respawn_point"
+            )
+        );
+
+        List<ThreatEvent> events = new ExplosionPredictor().predict(context(List.of(), List.of(foot, head)));
+
+        assertEquals(1, events.size());
+        assertTrue(events.getFirst().damage().rawDamage().max() > 20f);
+    }
+
+    @Test
     void unknownCollisionShapeIsNeverAssumedToBeAFullCube() {
         WorldSnapshot.BlockSnapshot partialOrUnknown = block(true, Map.of());
         WorldSnapshot.BlockSnapshot confirmedFullCube = block(true, Map.of("full_collision_cube", "true"));
@@ -110,17 +188,30 @@ class ExplosionPredictorTest {
         List<WorldSnapshot.EntitySnapshot> entities,
         List<WorldSnapshot.BlockSnapshot> blocks
     ) {
-        PlayerSnapshot player = new PlayerSnapshot(
+        return context(
+            entities, blocks,
+            player(new Vec3Snapshot(0.3, 0, 0.3), new Vec3Snapshot(0, 0, 0)),
+            new TimingSnapshot(0, 100, 10, new TickWindow(1, 2))
+        );
+    }
+
+    private static PredictionContext context(
+        List<WorldSnapshot.EntitySnapshot> entities,
+        List<WorldSnapshot.BlockSnapshot> blocks,
+        PlayerSnapshot player,
+        TimingSnapshot timing
+    ) {
+        return new PredictionContext(player, new WorldSnapshot(entities, blocks), timing, EngineLimits.defaults());
+    }
+
+    private static PlayerSnapshot player(Vec3Snapshot position, Vec3Snapshot velocity) {
+        return new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
-            DeathProtectionSnapshot.none(), new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
-            new Vec3Snapshot(0.3, 0, 0.3), new Vec3Snapshot(0, 0, 0), Map.of()
-        );
-        return new PredictionContext(
-            player,
-            new WorldSnapshot(entities, blocks),
-            new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
-            EngineLimits.defaults()
+            DeathProtectionSnapshot.none(),
+            new AabbSnapshot(position.x() - 0.3, position.y(), position.z() - 0.3,
+                position.x() + 0.3, position.y() + 1.8, position.z() + 0.3),
+            position, velocity, Map.of()
         );
     }
 

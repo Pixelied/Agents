@@ -7,6 +7,7 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.BlockingProfileSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
@@ -91,8 +92,24 @@ public interface SurvivalAction {
         float blockedFraction,
         int elapsedUseTicks,
         int requiredUseTicks,
-        int disruptionCost
+        int disruptionCost,
+        Optional<BlockingProfileSnapshot> blockingProfile
     ) implements SurvivalAction {
+        public RaiseShield(
+            int requiredServerTicks,
+            boolean legal,
+            boolean authoritativePrerequisitesSatisfied,
+            boolean guaranteedBlock,
+            double reliability,
+            float blockedFraction,
+            int elapsedUseTicks,
+            int requiredUseTicks,
+            int disruptionCost
+        ) {
+            this(requiredServerTicks, legal, authoritativePrerequisitesSatisfied, guaranteedBlock, reliability,
+                blockedFraction, elapsedUseTicks, requiredUseTicks, disruptionCost, Optional.empty());
+        }
+
         public RaiseShield {
             validateCommon(requiredServerTicks, reliability, 0, disruptionCost);
             if (!Float.isFinite(blockedFraction) || blockedFraction < 0f || blockedFraction > 1f) {
@@ -101,6 +118,7 @@ public interface SurvivalAction {
             if (elapsedUseTicks < 0 || requiredUseTicks < 0) {
                 throw new IllegalArgumentException("shield use ticks must be non-negative");
             }
+            blockingProfile = Objects.requireNonNull(blockingProfile, "blockingProfile");
         }
 
         @Override public int consumableCost() { return 0; }
@@ -108,8 +126,11 @@ public interface SurvivalAction {
 
         @Override
         public PlayerSnapshot apply(PlayerSnapshot player) {
+            Optional<BlockingProfileSnapshot> profile = blockingProfile.isPresent()
+                ? blockingProfile
+                : player.blocking().profile();
             BlockingSnapshot blocking = new BlockingSnapshot(
-                guaranteedBlock, blockedFraction, elapsedUseTicks, requiredUseTicks
+                guaranteedBlock, blockedFraction, elapsedUseTicks, requiredUseTicks, profile, 0
             );
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),

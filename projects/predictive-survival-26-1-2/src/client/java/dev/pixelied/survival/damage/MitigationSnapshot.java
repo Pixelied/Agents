@@ -35,11 +35,38 @@ public record MitigationSnapshot(
         this(armor, toughness, armorEffectivenessMultiplier, enchantmentProtection, helmetPresent, helmetDurability, List.of());
     }
 
+    public MitigationSnapshot(
+        float armor,
+        float toughness,
+        boolean helmetPresent,
+        int helmetDurability,
+        List<ArmorPieceSnapshot> armorPieces
+    ) {
+        this(armor, toughness, 1f, 0, helmetPresent, helmetDurability, armorPieces);
+    }
+
     public static MitigationSnapshot none() {
         return new MitigationSnapshot(0f, 0f, 1f, 0, false, 0, List.of());
     }
 
-    public MitigationSnapshot damageHelmet(float damage) {
+    public int enchantmentProtection(DamageSourceSnapshot source) {
+        int total = source.has(DamageFlag.BYPASSES_INVULNERABILITY) ? 0 : enchantmentProtection;
+        for (ArmorPieceSnapshot piece : armorPieces) {
+            if (!piece.present()) continue;
+            long next = (long) total + piece.protectionEnchantments().protectionFor(source);
+            total = next > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) next;
+        }
+        return total;
+    }
+
+    public boolean enchantmentImmuneTo(DamageSourceSnapshot source) {
+        for (ArmorPieceSnapshot piece : armorPieces) {
+            if (piece.present() && piece.protectionEnchantments().immuneTo(source)) return true;
+        }
+        return false;
+    }
+
+    public MitigationSnapshot damageHelmet(DamageSourceSnapshot source, float damage) {
         if (!helmetPresent || damage <= 0f) return this;
         int amount = VanillaDamageMath.durabilityDamage(damage);
         boolean hasHeadPiece = armorPieces.stream().anyMatch(piece -> piece.slot() == ArmorPieceSnapshot.Slot.HEAD && piece.present());
@@ -50,13 +77,13 @@ public record MitigationSnapshot(
                 nextDurability > 0, nextDurability, armorPieces
             );
         }
-        return damageSelectedPieces(amount, true);
+        return damageSelectedPieces(source, amount, true);
     }
 
-    public MitigationSnapshot damageArmor(float damage) {
+    public MitigationSnapshot damageArmor(DamageSourceSnapshot source, float damage) {
         if (damage <= 0f) return this;
         int amount = VanillaDamageMath.durabilityDamage(damage);
-        MitigationSnapshot afterPieces = damageSelectedPieces(amount, false);
+        MitigationSnapshot afterPieces = damageSelectedPieces(source, amount, false);
         boolean hasHeadPiece = afterPieces.armorPieces.stream().anyMatch(piece -> piece.slot() == ArmorPieceSnapshot.Slot.HEAD);
         if (hasHeadPiece || !afterPieces.helmetPresent) return afterPieces;
 
@@ -67,22 +94,20 @@ public record MitigationSnapshot(
         );
     }
 
-    private MitigationSnapshot damageSelectedPieces(int amount, boolean headOnly) {
+    private MitigationSnapshot damageSelectedPieces(DamageSourceSnapshot source, int amount, boolean headOnly) {
         if (armorPieces.isEmpty()) return this;
         List<ArmorPieceSnapshot> next = new ArrayList<>(armorPieces.size());
         float nextArmor = armor;
         float nextToughness = toughness;
-        int nextProtection = enchantmentProtection;
         boolean nextHelmetPresent = helmetPresent;
         int nextHelmetDurability = helmetDurability;
 
         for (ArmorPieceSnapshot piece : armorPieces) {
             boolean selected = !headOnly || piece.slot() == ArmorPieceSnapshot.Slot.HEAD;
-            ArmorPieceSnapshot damaged = selected ? piece.damage(amount) : piece;
+            ArmorPieceSnapshot damaged = selected ? piece.damage(source, amount) : piece;
             if (piece.present() && !damaged.present()) {
                 nextArmor = Math.max(0f, nextArmor - piece.armor());
                 nextToughness = Math.max(0f, nextToughness - piece.toughness());
-                nextProtection = Math.max(0, nextProtection - piece.enchantmentProtection());
             }
             if (piece.slot() == ArmorPieceSnapshot.Slot.HEAD && selected) {
                 nextHelmetDurability = damaged.remainingDurability();
@@ -93,7 +118,7 @@ public record MitigationSnapshot(
 
         return new MitigationSnapshot(
             nextArmor, nextToughness, armorEffectivenessMultiplier,
-            Math.min(20, nextProtection), nextHelmetPresent, nextHelmetDurability, next
+            enchantmentProtection, nextHelmetPresent, nextHelmetDurability, next
         );
     }
 }

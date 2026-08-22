@@ -90,6 +90,29 @@ class SurvivalPlannerSafeModeTest {
     }
 
     @Test
+    void immediatePotentialLethalThreatUsesBestEffortDeathProtectionInsteadOfNoAction() {
+        PredictionContext context = context(EngineLimits.defaults(), new TickWindow(2, 2));
+        DamageSourceSnapshot damage = new DamageSourceSnapshot(
+            DamageRange.exact(10f), Set.of(), false, 1f, false, Optional.empty(), "minecraft:explosion"
+        );
+        ThreatTimeline timeline = new ThreatTimeline(List.of(new ThreatEvent(
+            "instant", ThreatKind.OTHER, new TickWindow(0, 2), damage,
+            Confidence.POTENTIAL, Optional.empty(), Optional.empty(), true, true, true, false
+        )));
+        SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem.vanillaTotem(),
+            SurvivalAction.Hand.OFF_HAND,
+            0, true, true, 1.0, 1, 1
+        );
+
+        SurvivalPlan plan = planner.plan(context, timeline, List.of(protection), SafetyMode.SAFE);
+
+        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, plan.action());
+        assertTrue(plan.simulation().feasible(), plan.simulation().reason());
+        assertEquals(DeadlineStatus.BEST_EFFORT, plan.simulation().deadlineStatus());
+    }
+
+    @Test
     void zeroWarmupEquipmentSwapStillNeedsNextServerProcessingWindow() {
         PredictionContext context = context(EngineLimits.defaults(), new TickWindow(2, 2));
         SurvivalAction swap = new SurvivalAction.SwapEquipment(
@@ -150,7 +173,7 @@ class SurvivalPlannerSafeModeTest {
         List<SurvivalAction> candidates = new ArrayList<>();
         for (int i = 0; i < 40; i++) {
             candidates.add(new SurvivalAction.EquipDeathProtection(
-                DeathProtectionSnapshot.ProtectionItem.generic(),
+                DeathProtectionSnapshot.ProtectionItem.deterministicNoOp(),
                 SurvivalAction.Hand.OFF_HAND,
                 0, true, true, 0.5 + i / 100.0, 1, i
             ));

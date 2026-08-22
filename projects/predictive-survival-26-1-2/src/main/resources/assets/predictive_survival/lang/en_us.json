@@ -1,0 +1,19 @@
+{
+  "predictive_survival.config.title": "Predictive Survival",
+  "predictive_survival.config.safety_mode": "Safety mode",
+  "predictive_survival.config.safety_mode.description": "Controls how conservative Predictive Survival is when observations or timing are uncertain.",
+  "predictive_survival.config.safety_mode.safe": "Safe",
+  "predictive_survival.config.safety_mode.balanced": "Balanced",
+  "predictive_survival.config.safety_mode.experimental": "Experimental",
+  "predictive_survival.config.restore_hand": "Restore prior hand state",
+  "predictive_survival.config.restore_hand.description": "Restore the selected item or swapped inventory slot after danger is stably gone and the server has reconciled the emergency action.",
+  "predictive_survival.config.automatic_movement": "Automatic movement",
+  "predictive_survival.config.automatic_movement.description": "Allow Predictive Survival to move the player when relocation is the safest server-valid action.",
+  "predictive_survival.config.clutches": "Block placement / clutches",
+  "predictive_survival.config.clutches.description": "Allow emergency cover placement and clutch-style survival actions when they are predicted to help.",
+  "predictive_survival.config.debug": "Debug HUD",
+  "predictive_survival.config.debug.description": "Show prediction, planner, timing and executor diagnostics on the HUD.",
+  "predictive_survival.config.reset_defaults": "Reset Defaults",
+  "predictive_survival.config.reset_defaults.description": "Reset the staged settings to Predictive Survival defaults. Nothing is saved until Done.",
+  "predictive_survival.config.save_failed": "Could not save Predictive Survival settings. No live settings were changed."
+}

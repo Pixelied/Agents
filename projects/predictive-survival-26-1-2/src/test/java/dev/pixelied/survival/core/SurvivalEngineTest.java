@@ -25,6 +25,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SurvivalEngineTest {
     @Test
@@ -153,6 +154,23 @@ class SurvivalEngineTest {
     }
 
     @Test
+    void replacingConfigAtomicallyInvalidatesActivePlan() {
+        SurvivalAction shield = shield();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection()), 100, 5));
+        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(128));
+        engine.tick();
+        assertInstanceOf(SurvivalAction.RaiseShield.class, engine.currentPlan().orElseThrow().action());
+
+        SurvivalConfig replacement = new SurvivalConfig(
+            dev.pixelied.survival.planner.SafetyMode.EXPERIMENTAL, false, true, false, true
+        );
+        engine.replaceConfig(replacement);
+
+        assertEquals(replacement, engine.config());
+        assertEquals(Optional.empty(), engine.currentPlan());
+    }
+
+    @Test
     void defaultConfigFiltersAutomaticMovementCandidates() {
         SurvivalAction relocate = new SurvivalAction.Relocate(
             new Vec3Snapshot(4, 0, 0), Set.of("incoming"),
@@ -169,6 +187,33 @@ class SurvivalEngineTest {
         assertInstanceOf(SurvivalAction.EquipDeathProtection.class, engine.currentPlan().orElseThrow().action());
     }
 
+
+    @Test
+    void restorationDangerCheckSimulatesTimelineWithoutHeldDeathProtection() {
+        SurvivalEngine.EngineFrame base = frame(List.of(), 700, 0);
+        PlayerSnapshot player = base.context().player();
+        PlayerSnapshot protectedPlayer = new PlayerSnapshot(
+            player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
+            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
+            player.hurtState(),
+            new DeathProtectionSnapshot(Optional.of(DeathProtectionSnapshot.ProtectionItem.deterministicNoOp()), Optional.empty()),
+            player.boundingBox(), player.position(), player.velocity(), player.equipmentItemKeys(), player.stateProperties()
+        );
+        SurvivalEngine.EngineFrame protectedFrame = new SurvivalEngine.EngineFrame(
+            new PredictionContext(protectedPlayer, base.context().world(), base.context().timing(), base.context().limits()),
+            base.timeline(),
+            List.of()
+        );
+        FakeRuntime runtime = new FakeRuntime(protectedFrame);
+        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(128));
+
+        engine.tick();
+
+        assertTrue(runtime.maintenanceCalled);
+        assertTrue(runtime.lastLethalWithoutProtection);
+        assertTrue(runtime.lastRestorationEnabled);
+    }
+
     private static SurvivalAction shield() {
         return new SurvivalAction.RaiseShield(0, true, true, true, 1d, 1f, 5, 5, 0);
     }
@@ -179,7 +224,7 @@ class SurvivalEngineTest {
 
     private static SurvivalAction protection() {
         return new SurvivalAction.EquipDeathProtection(
-            DeathProtectionSnapshot.ProtectionItem.generic(),
+            DeathProtectionSnapshot.ProtectionItem.deterministicNoOp(),
             SurvivalAction.Hand.OFF_HAND,
             0, true, true, 1d, 1, 1
         );
@@ -233,6 +278,9 @@ class SurvivalEngineTest {
         private boolean failObservedAction;
         private int beginCount;
         private int observeCount;
+        private boolean maintenanceCalled;
+        private boolean lastRestorationEnabled;
+        private boolean lastLethalWithoutProtection;
 
         private FakeRuntime(SurvivalEngine.EngineFrame frame) {
             this.frame = frame;
@@ -241,6 +289,18 @@ class SurvivalEngineTest {
         @Override
         public SurvivalEngine.EngineFrame capture() {
             return frame;
+        }
+
+        @Override
+        public void maintainRestoration(
+            SurvivalEngine.EngineFrame ignored,
+            boolean restorationEnabled,
+            boolean lethalWithoutProtection,
+            boolean survivalActionActive
+        ) {
+            maintenanceCalled = true;
+            lastRestorationEnabled = restorationEnabled;
+            lastLethalWithoutProtection = lethalWithoutProtection;
         }
 
         @Override

@@ -11,6 +11,7 @@ import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.ArmorPieceSnapshot;
+import dev.pixelied.survival.damage.BlockingProfileSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
@@ -105,6 +106,50 @@ class SurvivalCandidateGeneratorTest {
         );
 
         assertTrue(candidates.stream().noneMatch(SurvivalAction.EquipDeathProtection.class::isInstance));
+    }
+
+    @Test
+    void shieldCanBlockTheCurrentMeleeHitBeforeThatHitDisablesBlocking() {
+        InventorySnapshot inventory = new InventorySnapshot(
+            0,
+            Map.of(0, slot(0, "minecraft:shield", false)),
+            false
+        );
+        MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36));
+        DamageSourceSnapshot damage = new DamageSourceSnapshot(
+            DamageRange.exact(10f), Set.of(), false, 1f, false, Optional.empty(), "test:disabling_melee"
+        );
+        ThreatTimeline disablingMelee = new ThreatTimeline(List.of(new ThreatEvent(
+            "disabling-melee", ThreatKind.MELEE, new TickWindow(6, 6), damage, Confidence.EXACT,
+            Optional.empty(), Optional.empty(), true, true, true, true
+        )));
+
+        List<SurvivalAction> candidates = generator.generate(
+            context(DeathProtectionSnapshot.none(), BlockingSnapshot.none()),
+            disablingMelee,
+            inventory,
+            menu
+        );
+
+        assertTrue(candidates.stream().anyMatch(SurvivalAction.RaiseShield.class::isInstance),
+            "vanilla blocks the current melee hit before applying the blocking-item disable");
+    }
+
+    @Test
+    void selectedBlockingItemOnServerCooldownCannotCreateRaiseShieldCandidate() {
+        InventorySlotSnapshot coolingShield = blockingSlotOnCooldown(0, "minecraft:shield");
+        InventorySnapshot inventory = new InventorySnapshot(0, Map.of(0, coolingShield), false);
+        MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36));
+
+        List<SurvivalAction> candidates = generator.generate(
+            context(DeathProtectionSnapshot.none(), BlockingSnapshot.none()),
+            timeline(true),
+            inventory,
+            menu
+        );
+
+        assertTrue(candidates.stream().noneMatch(SurvivalAction.RaiseShield.class::isInstance),
+            "server-synchronized item cooldown must make the blocking item unavailable");
     }
 
     @Test
@@ -219,6 +264,25 @@ class SurvivalCandidateGeneratorTest {
             "incoming", ThreatKind.OTHER, new TickWindow(impactTick, impactTick), damage, Confidence.EXACT,
             Optional.empty(), Optional.empty(), true, blockable, true, false
         )));
+    }
+
+    private static InventorySlotSnapshot blockingSlotOnCooldown(int index, String key) {
+        try {
+            var constructor = InventorySlotSnapshot.class.getDeclaredConstructor(
+                int.class, String.class, int.class, int.class, boolean.class,
+                Optional.class, Optional.class, Optional.class, Optional.class, boolean.class
+            );
+            return constructor.newInstance(
+                index, key, key.hashCode(), 1, false,
+                Optional.empty(), Optional.empty(), Optional.of(BlockingProfileSnapshot.fullBlock(336)),
+                Optional.empty(), true
+            );
+        } catch (ReflectiveOperationException missingCooldownState) {
+            throw new AssertionError(
+                "inventory slot snapshot cannot represent a client-observable blocking-item cooldown",
+                missingCooldownState
+            );
+        }
     }
 
     private static InventorySlotSnapshot slot(int index, String key, boolean protection) {

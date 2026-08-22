@@ -2,15 +2,19 @@ package dev.pixelied.survival.execution;
 
 import dev.pixelied.survival.inventory.DeathProtectionRoute;
 import dev.pixelied.survival.inventory.DeathProtectionRoutePlanner;
+import dev.pixelied.survival.inventory.EmergencyInventoryTransaction;
+import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.planner.SurvivalAction;
 
 import java.util.Objects;
+import java.util.Optional;
 
 public final class DeathProtectionActionExecutor implements ActionExecutor<SurvivalAction.EquipDeathProtection> {
     private static final long CONFIRMATION_TIMEOUT_TICKS = 20L;
 
     private final DeathProtectionRoutePlanner routePlanner;
     private Pending pending;
+    private RestorationCheckpoint confirmedRestoration;
 
     public DeathProtectionActionExecutor() {
         this(new DeathProtectionRoutePlanner());
@@ -25,6 +29,7 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(context, "context");
         pending = null;
+        confirmedRestoration = null;
 
         if (!action.legal() || !action.authoritativePrerequisitesSatisfied()) {
             return new ExecutionStatus.Failed("death-protection action is no longer legal", true);
@@ -43,7 +48,15 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         }
 
         if (route instanceof DeathProtectionRoute.HotbarSelect hotbar) {
-            pending = new Pending.Hotbar(hotbar.hotbarIndex(), context.currentServerTick());
+            int originalIndex = context.inventory().selectedHotbarIndex();
+            InventorySlotSnapshot originalBefore = context.inventory().slot(originalIndex).orElse(null);
+            InventorySlotSnapshot protectionBefore = context.inventory().slot(hotbar.hotbarIndex()).orElse(null);
+            if (originalBefore == null || protectionBefore == null || !protectionBefore.deathProtection()) {
+                return new ExecutionStatus.Failed("hotbar state contradicted route selection", true);
+            }
+            pending = new Pending.Hotbar(
+                originalIndex, hotbar.hotbarIndex(), originalBefore, protectionBefore, context.currentServerTick()
+            );
             return new ExecutionStatus.WaitingForServer(
                 "waiting for server-observed held-slot selection",
                 new ExecutionCommand.SelectHotbar(hotbar.hotbarIndex())
@@ -51,14 +64,27 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         }
 
         DeathProtectionRoute.ContainerSwap swap = (DeathProtectionRoute.ContainerSwap) route;
-        pending = new Pending.ContainerSwap(
+        int sourceInventoryIndex = sourceInventoryIndex(context, swap.sourceMenuSlot());
+        int destinationInventoryIndex = swap.destination() == DeathProtectionRoute.Destination.OFF_HAND
+            ? 40
+            : context.inventory().selectedHotbarIndex();
+        InventorySlotSnapshot sourceBefore = context.inventory().slot(sourceInventoryIndex).orElse(null);
+        InventorySlotSnapshot destinationBefore = context.inventory().slot(destinationInventoryIndex).orElse(null);
+        if (sourceBefore == null || destinationBefore == null || !sourceBefore.deathProtection()) {
+            return new ExecutionStatus.Failed("container state contradicted route selection", true);
+        }
+
+        EmergencyInventoryTransaction transaction = EmergencyInventoryTransaction.planned(
+            swap,
             context.menu().containerId(),
             context.menu().stateId(),
-            swap.sourceMenuSlot(),
-            swap.button(),
-            swap.destination(),
-            context.inventory().selectedHotbarIndex(),
-            context.currentServerTick()
+            sourceBefore,
+            destinationBefore,
+            context.currentServerTick(),
+            saturatingAdd(context.currentServerTick(), CONFIRMATION_TIMEOUT_TICKS)
+        ).markSent();
+        pending = new Pending.ContainerSwap(
+            transaction, sourceInventoryIndex, destinationInventoryIndex, context.currentServerTick()
         );
         return new ExecutionStatus.WaitingForServer(
             "waiting for server-observed container revision and destination contents",
@@ -83,12 +109,24 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         }
 
         if (pending instanceof Pending.Hotbar hotbar) {
-            var slot = context.inventory().slot(hotbar.hotbarIndex());
-            if (slot.isEmpty() || !slot.get().deathProtection()) {
+            InventorySlotSnapshot currentProtection = context.inventory().slot(hotbar.protectionHotbarIndex()).orElse(null);
+            if (currentProtection == null || !currentProtection.deathProtection()) {
                 pending = null;
                 return new ExecutionStatus.Failed("death-protection item left the requested hotbar slot", true);
             }
-            if (context.inventory().selectedHotbarIndex() == hotbar.hotbarIndex()) {
+            if (context.inventory().selectedHotbarIndex() == hotbar.protectionHotbarIndex()) {
+                InventorySlotSnapshot currentOriginal = context.inventory().slot(hotbar.originalSelectedIndex()).orElse(null);
+                if (currentOriginal != null
+                    && currentOriginal.sameContents(hotbar.originalSelectedBefore())
+                    && currentProtection.sameContents(hotbar.protectionBefore())) {
+                    confirmedRestoration = new RestorationCheckpoint.Hotbar(
+                        hotbar.originalSelectedIndex(),
+                        hotbar.protectionHotbarIndex(),
+                        hotbar.originalSelectedBefore(),
+                        currentProtection,
+                        context.currentServerTick()
+                    );
+                }
                 pending = null;
                 return new ExecutionStatus.Confirmed("server-observed held slot now contains death protection");
             }
@@ -96,28 +134,49 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         }
 
         Pending.ContainerSwap swap = (Pending.ContainerSwap) pending;
-        if (context.menu().containerId() != swap.containerId()) {
+        EmergencyInventoryTransaction transaction = swap.transaction();
+        if (context.menu().containerId() != transaction.containerId()) {
             pending = null;
             return new ExecutionStatus.Failed("container changed before swap confirmation", true);
         }
+        if (context.menu().stateId() == transaction.stateId()) {
+            return new ExecutionStatus.WaitingForServer("waiting for authoritative container revision");
+        }
 
-        int destinationIndex = swap.destination() == DeathProtectionRoute.Destination.OFF_HAND
-            ? 40
-            : swap.destinationHotbarIndex();
-        boolean destinationProtected = context.inventory().slot(destinationIndex)
-            .map(slot -> slot.deathProtection())
-            .orElse(false);
-        boolean revisionAdvanced = context.menu().stateId() != swap.initialStateId();
-
-        if (destinationProtected && revisionAdvanced) {
+        InventorySlotSnapshot source = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
+        if (source == null || destination == null) {
             pending = null;
+            return new ExecutionStatus.Failed("authoritative inventory slots disappeared during reconciliation", true);
+        }
+
+        transaction = transaction.observeStateIdMismatch().reconcile(source, destination);
+        pending = null;
+        if (transaction.state() == EmergencyInventoryTransaction.State.CONFIRMED) {
+            confirmedRestoration = new RestorationCheckpoint.Container(
+                transaction,
+                swap.sourceInventoryIndex(),
+                swap.destinationInventoryIndex(),
+                context.menu().stateId(),
+                context.currentServerTick()
+            );
             return new ExecutionStatus.Confirmed("container revision and destination contents confirmed by server state");
         }
-        if (revisionAdvanced && !destinationProtected) {
-            pending = null;
-            return new ExecutionStatus.Failed("server revised container without placing death protection in destination", true);
-        }
-        return new ExecutionStatus.WaitingForServer("waiting for authoritative container revision");
+        return new ExecutionStatus.Failed("server revised container without the exact planned swap", true);
+    }
+
+    public Optional<RestorationCheckpoint> takeRestorationCheckpoint() {
+        RestorationCheckpoint result = confirmedRestoration;
+        confirmedRestoration = null;
+        return Optional.ofNullable(result);
+    }
+
+    private static int sourceInventoryIndex(ExecutionContext context, int sourceMenuSlot) {
+        return context.menu().inventoryIndexToMenuSlot().entrySet().stream()
+            .filter(entry -> entry.getValue() == sourceMenuSlot)
+            .mapToInt(java.util.Map.Entry::getKey)
+            .findFirst()
+            .orElse(-1);
     }
 
     private static boolean destinationHasProtection(
@@ -131,19 +190,26 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             .orElse(false);
     }
 
+    private static long saturatingAdd(long value, long increment) {
+        return value > Long.MAX_VALUE - increment ? Long.MAX_VALUE : value + increment;
+    }
+
     private sealed interface Pending {
         long startedAtServerTick();
 
-        record Hotbar(int hotbarIndex, long startedAtServerTick) implements Pending {
+        record Hotbar(
+            int originalSelectedIndex,
+            int protectionHotbarIndex,
+            InventorySlotSnapshot originalSelectedBefore,
+            InventorySlotSnapshot protectionBefore,
+            long startedAtServerTick
+        ) implements Pending {
         }
 
         record ContainerSwap(
-            int containerId,
-            int initialStateId,
-            int sourceMenuSlot,
-            int button,
-            DeathProtectionRoute.Destination destination,
-            int destinationHotbarIndex,
+            EmergencyInventoryTransaction transaction,
+            int sourceInventoryIndex,
+            int destinationInventoryIndex,
             long startedAtServerTick
         ) implements Pending {
         }

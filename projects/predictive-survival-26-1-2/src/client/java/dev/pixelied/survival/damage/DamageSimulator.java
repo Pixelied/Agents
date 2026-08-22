@@ -15,6 +15,9 @@ public final class DamageSimulator {
         if ((working.playerInvulnerable() || working.abilityInvulnerable()) && !bypassesInvulnerability) {
             return rejected(working, trace);
         }
+        if (working.mitigation().enchantmentImmuneTo(source)) {
+            return rejected(working, trace);
+        }
         if (working.deadOrDying()) {
             return rejected(working, trace);
         }
@@ -42,11 +45,26 @@ public final class DamageSimulator {
         trace.record(DamageStage.CLAMP_NEGATIVE, before, damage);
 
         before = damage;
+        float blockedDamage = 0f;
         if (working.blocking().active()
             && !source.has(DamageFlag.BYPASSES_SHIELD)
             && !source.piercingProjectile()) {
-            damage *= 1f - working.blocking().blockedFraction();
+            BlockingSnapshot blocking = working.blocking();
+            if (blocking.profile().isPresent()) {
+                BlockingProfileSnapshot profile = blocking.profile().get();
+                double angle = horizontalBlockingAngle(working, source);
+                blockedDamage = profile.resolveBlockedDamage(source, damage, angle);
+                BlockingProfileSnapshot afterItemDamage = profile.damageForBlockedAmount(blockedDamage);
+                if (!afterItemDamage.equals(profile)) {
+                    working = withBlocking(working, blocking.withProfile(afterItemDamage));
+                }
+                damage = Math.max(0f, damage - blockedDamage);
+            } else {
+                blockedDamage = damage * blocking.blockedFraction();
+                damage = Math.max(0f, damage - blockedDamage);
+            }
         }
+        boolean fullyBlocked = before > 0f && blockedDamage > 0f && damage <= 0f;
         trace.record(DamageStage.BLOCKING, before, damage);
 
         before = damage;
@@ -57,7 +75,7 @@ public final class DamageSimulator {
 
         before = damage;
         if (source.has(DamageFlag.DAMAGES_HELMET) && working.mitigation().helmetPresent()) {
-            MitigationSnapshot afterHelmetDamage = working.mitigation().damageHelmet(damage);
+            MitigationSnapshot afterHelmetDamage = working.mitigation().damageHelmet(source, damage);
             working = withState(working, working.health(), working.absorption(), afterHelmetDamage,
                 working.statusEffects(), working.hurtState(), working.deathProtection());
             damage *= 0.75f;
@@ -91,16 +109,20 @@ public final class DamageSimulator {
         working = withState(working, working.health(), working.absorption(), working.mitigation(),
             working.statusEffects(), nextHurt, working.deathProtection());
 
-        return actuallyHurt(working, source, damage, trace);
+        DamageResult result = actuallyHurt(working, source, damage, trace);
+        if (fullyBlocked && !result.rejected()) {
+            return new DamageResult(result.after(), result.trace(), true, result.deathProtectionConsumed());
+        }
+        return result;
     }
 
     private DamageResult actuallyHurt(PlayerSnapshot player, DamageSourceSnapshot source, float damage, DamageTrace.Builder trace) {
         MitigationSnapshot mitigation = player.mitigation();
         float before = damage;
         if (!source.has(DamageFlag.BYPASSES_ARMOR)) {
-            mitigation = mitigation.damageArmor(damage);
+            mitigation = mitigation.damageArmor(source, damage);
             damage = VanillaDamageMath.afterArmor(
-                damage, mitigation.armor(), mitigation.toughness(), mitigation.armorEffectivenessMultiplier()
+                damage, mitigation.armor(), mitigation.toughness(), source.armorEffectivenessAdjustment()
             );
         }
         trace.record(DamageStage.ARMOR, before, damage);
@@ -117,8 +139,8 @@ public final class DamageSimulator {
         if (!source.has(DamageFlag.BYPASSES_EFFECTS)
             && damage > 0f
             && !source.has(DamageFlag.BYPASSES_ENCHANTMENTS)
-            && mitigation.enchantmentProtection() > 0) {
-            damage = VanillaDamageMath.afterMagicProtection(damage, mitigation.enchantmentProtection());
+            && mitigation.enchantmentProtection(source) > 0) {
+            damage = VanillaDamageMath.afterMagicProtection(damage, mitigation.enchantmentProtection(source));
         }
         trace.record(DamageStage.MAGIC, before, damage);
 
@@ -162,7 +184,35 @@ public final class DamageSimulator {
             afterDamage, 1f, protectionAbsorption, mitigation, effects,
             afterDamage.hurtState(), consumption.get().remaining()
         );
-        return new DamageResult(protectedPlayer, trace.build(), false, true);
+        return new DamageResult(protectedPlayer, trace.build(), false, true, item.outcomeUncertain());
+    }
+
+    private static double horizontalBlockingAngle(PlayerSnapshot player, DamageSourceSnapshot source) {
+        if (source.sourcePosition().isEmpty()) return Math.PI;
+        String yawValue = player.state("head_yaw");
+        if (yawValue == null) return Math.PI;
+        final float yaw;
+        try { yaw = Float.parseFloat(yawValue); } catch (NumberFormatException ignored) { return Math.PI; }
+        if (!Float.isFinite(yaw)) return Math.PI;
+
+        double realYRot = -Math.toRadians(yaw);
+        double viewX = Math.sin(realYRot);
+        double viewZ = Math.cos(realYRot);
+        double toX = source.sourcePosition().get().x() - player.position().x();
+        double toZ = source.sourcePosition().get().z() - player.position().z();
+        double length = Math.hypot(toX, toZ);
+        if (!(length > 0d) || !Double.isFinite(length)) return 0d;
+        double dot = (toX / length) * viewX + (toZ / length) * viewZ;
+        dot = Math.max(-1d, Math.min(1d, dot));
+        return Math.acos(dot);
+    }
+
+    private static PlayerSnapshot withBlocking(PlayerSnapshot player, BlockingSnapshot blocking) {
+        return new PlayerSnapshot(
+            player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(), player.deadOrDying(),
+            player.difficulty(), player.mitigation(), player.statusEffects(), blocking, player.hurtState(), player.deathProtection(),
+            player.boundingBox(), player.position(), player.velocity(), player.equipmentItemKeys(), player.stateProperties()
+        );
     }
 
     private static Confidence confidenceFor(DamageSourceSnapshot source) {
