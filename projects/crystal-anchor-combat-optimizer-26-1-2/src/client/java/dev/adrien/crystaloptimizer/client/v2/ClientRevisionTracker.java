@@ -13,7 +13,7 @@ public final class ClientRevisionTracker {
     private final AtomicLong inventoryRevision = new AtomicLong();
     private final ConcurrentHashMap<UUID, AtomicLong> targetRevisions = new ConcurrentHashMap<>();
 
-    private ClientRevisionTracker() {
+    public ClientRevisionTracker() {
     }
 
     public static ClientRevisionTracker instance() {
