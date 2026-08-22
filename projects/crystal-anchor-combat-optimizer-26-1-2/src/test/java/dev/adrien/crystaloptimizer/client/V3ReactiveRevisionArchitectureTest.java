@@ -36,7 +36,8 @@ final class V3ReactiveRevisionArchitectureTest {
         String inventory = Files.readString(inventoryMixinPath);
         assertTrue(inventory.contains("markInventoryMutation"));
         assertTrue(inventory.contains("new CombatEvent.InventoryChanged"));
-        assertTrue(inventory.contains("Minecraft.getInstance().player"));
+        assertTrue(inventory.contains("Minecraft.getInstance()"));
+        assertTrue(inventory.contains("minecraft.player.getInventory()"));
 
         assertTrue(tracker.contains("long markTargetMovement"));
         assertTrue(tracker.contains("long markInventoryMutation"));
