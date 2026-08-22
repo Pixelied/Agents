@@ -126,7 +126,6 @@ public final class FallPredictor implements ThreatPredictor {
         PlayerSnapshot player = context.player();
         Vec3Snapshot position = player.position();
         Vec3Snapshot velocity = player.velocity();
-        double gravity = finiteNonNegative(player.state("effective_gravity"), 0.08d);
         double verticalFriction = finitePositive(player.state("vertical_friction"), 0.98d);
         double horizontalFriction = finitePositive(player.state("horizontal_friction"), 0.91d);
         if (position.y() < threshold) return 0L;
@@ -134,6 +133,7 @@ public final class FallPredictor implements ThreatPredictor {
         for (long tick = 1; tick <= context.limits().maxProjectileHorizonTicks() && tick < stopBeforeOrAt; tick++) {
             position = add(position, velocity);
             if (position.y() < threshold) return tick;
+            double gravity = FallLandingSolver.effectiveGravityForFutureMovementTick(player, velocity, tick);
             velocity = new Vec3Snapshot(
                 velocity.x() * horizontalFriction,
                 (velocity.y() - gravity) * verticalFriction,
