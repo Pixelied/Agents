@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 
 /** Chooses the least disruptive main-hand route that can positively damage an end crystal. */
 public final class CrystalAttackRoutePolicy {
@@ -24,6 +25,10 @@ public final class CrystalAttackRoutePolicy {
                 AttackItemProfile.fromVanillaItem(selected.orElseThrow()),
                 effects
             )) {
+            return Optional.of(InteractionRoute.selectedMainhand());
+        }
+        if (selected.isEmpty()
+            && capability.canDamageCrystal(AttackItemProfile.fromVanillaItem(Items.AIR), effects)) {
             return Optional.of(InteractionRoute.selectedMainhand());
         }
 
