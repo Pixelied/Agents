@@ -1,5 +1,7 @@
 package dev.adrien.crystaloptimizer.v2.strategy;
 
+import dev.adrien.crystaloptimizer.action.ChargeAnchor;
+import dev.adrien.crystaloptimizer.action.DetonateAnchor;
 import dev.adrien.crystaloptimizer.action.PlaceCrystal;
 import dev.adrien.crystaloptimizer.action.PlaceObsidian;
 import dev.adrien.crystaloptimizer.candidate.CandidateFeatureEstimator;
@@ -7,6 +9,7 @@ import dev.adrien.crystaloptimizer.candidate.CandidateGenerator;
 import dev.adrien.crystaloptimizer.config.OptimizerConfig;
 import dev.adrien.crystaloptimizer.config.OptimizerStrategy;
 import dev.adrien.crystaloptimizer.execution.RotationMode;
+import dev.adrien.crystaloptimizer.sim.model.AnchorState;
 import dev.adrien.crystaloptimizer.sim.model.CombatState;
 import dev.adrien.crystaloptimizer.sim.model.CombatantSpatialState;
 import dev.adrien.crystaloptimizer.sim.model.InventoryState;
@@ -34,6 +37,7 @@ final class OffhandPreparationPlannerTest {
     private static final UUID SELF = UUID.fromString("00000000-0000-0000-0000-000000000c01");
     private static final UUID TARGET = UUID.fromString("00000000-0000-0000-0000-000000000c02");
     private static final BlockPos SUPPORT = new BlockPos(1, 63, 2);
+    private static final BlockPos ANCHOR = new BlockPos(1, 64, 1);
 
     @Test
     void coldCrystalSetupUsesOffhandCrystalWithoutPointlessHotbarSwap() {
@@ -44,13 +48,11 @@ final class OffhandPreparationPlannerTest {
             Map.of(1, 16),
             Optional.of(Items.END_CRYSTAL)
         );
-        CombatState state = state(inventory);
-        StrategicPreparationPlanner planner = new StrategicPreparationPlanner(
-            new CandidateGenerator(CandidateFeatureEstimator.conservative())
-        );
+        CombatState state = crystalState(inventory);
+        StrategicPreparationPlanner planner = planner();
 
         List<dev.adrien.crystaloptimizer.action.CombatAction> actions = planner
-            .plan(state, config())
+            .plan(state, crystalConfig())
             .orElseThrow();
 
         assertEquals(2, actions.size());
@@ -59,7 +61,56 @@ final class OffhandPreparationPlannerTest {
         assertEquals(obsidian.pos(), crystal.basePos());
     }
 
-    private static CombatState state(InventoryState inventory) {
+    @Test
+    void offhandGlowstoneCanChargeThenMainhandDetonateWithoutPointlessSwap() {
+        InventoryState inventory = new InventoryState(
+            0,
+            Map.of(Items.DIAMOND_SWORD, 1, Items.GLOWSTONE, 2),
+            Map.of(0, Items.DIAMOND_SWORD),
+            Map.of(0, 1),
+            Optional.of(Items.GLOWSTONE)
+        );
+        CombatState state = anchorState(inventory);
+
+        List<dev.adrien.crystaloptimizer.action.CombatAction> actions = planner()
+            .plan(state, anchorConfig())
+            .orElseThrow();
+
+        assertEquals(2, actions.size());
+        assertEquals(ANCHOR, assertInstanceOf(ChargeAnchor.class, actions.get(0)).pos());
+        assertEquals(ANCHOR, assertInstanceOf(DetonateAnchor.class, actions.get(1)).pos());
+    }
+
+    private static StrategicPreparationPlanner planner() {
+        return new StrategicPreparationPlanner(
+            new CandidateGenerator(CandidateFeatureEstimator.conservative())
+        );
+    }
+
+    private static CombatState crystalState(InventoryState inventory) {
+        return state(
+            CombatRegion.of(Map.of(SUPPORT, Blocks.STONE.defaultBlockState()), Map.of()),
+            Map.of(),
+            inventory
+        );
+    }
+
+    private static CombatState anchorState(InventoryState inventory) {
+        return state(
+            CombatRegion.of(Map.of(
+                SUPPORT, Blocks.STONE.defaultBlockState(),
+                ANCHOR, Blocks.RESPAWN_ANCHOR.defaultBlockState()
+            ), Map.of()),
+            Map.of(ANCHOR, new AnchorState(0)),
+            inventory
+        );
+    }
+
+    private static CombatState state(
+        CombatRegion region,
+        Map<BlockPos, AnchorState> anchors,
+        InventoryState inventory
+    ) {
         SimCombatant self = SimCombatant.testPlayer(20.0f);
         SimCombatant target = SimCombatant.testPlayer(20.0f);
         Map<UUID, CombatantSpatialState> spatial = Map.of(
@@ -77,10 +128,10 @@ final class OffhandPreparationPlannerTest {
         CombatSnapshot snapshot = new CombatSnapshot(
             1L,
             SELF,
-            CombatRegion.of(Map.of(SUPPORT, Blocks.STONE.defaultBlockState()), Map.of()),
+            region,
             Map.of(SELF, self, TARGET, target),
             List.of(),
-            Map.of(),
+            anchors,
             inventory,
             TimingState.unknown(),
             new LegalitySnapshot(
@@ -96,7 +147,7 @@ final class OffhandPreparationPlannerTest {
         return CombatState.fromSnapshot(snapshot, TARGET);
     }
 
-    private static OptimizerConfig config() {
+    private static OptimizerConfig crystalConfig() {
         return new OptimizerConfig(
             true,
             OptimizerStrategy.LETHAL_SPEED,
@@ -106,6 +157,22 @@ final class OffhandPreparationPlannerTest {
             8.0f,
             true,
             false,
+            false,
+            RotationMode.ADAPTIVE,
+            true
+        );
+    }
+
+    private static OptimizerConfig anchorConfig() {
+        return new OptimizerConfig(
+            true,
+            OptimizerStrategy.LETHAL_SPEED,
+            12.0,
+            4.0f,
+            12.0f,
+            8.0f,
+            false,
+            true,
             false,
             RotationMode.ADAPTIVE,
             true
