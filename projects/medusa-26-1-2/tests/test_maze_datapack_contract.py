@@ -25,6 +25,23 @@ class MazeDatapackContract(unittest.TestCase):
         for token in ["md_ne", "md_nw", "md_ns", "md_nn"]:
             self.assertIn(token, mutate)
 
+    def test_shift_opens_before_it_closes(self):
+        start_open = (FN / "maze/transition/start_open.mcfunction").read_text()
+        open_tick = (FN / "maze/transition/open_tick.mcfunction").read_text()
+        self.assertIn("start_close", open_tick)
+        self.assertNotIn("start_close", start_open)
+
+    def test_only_survival_or_adventure_players_drive_activity(self):
+        text = (FN / "maze/activity/check_players.mcfunction").read_text()
+        self.assertIn("gamemode=survival", text)
+        self.assertIn("gamemode=adventure", text)
+        self.assertNotIn("gamemode=creative", text)
+
+    def test_warning_precedes_wall_transition(self):
+        warning = (FN / "maze/warning/tick.mcfunction").read_text()
+        self.assertIn("playsound", warning)
+        self.assertIn("start_open", warning)
+
 
 if __name__ == "__main__":
     unittest.main()
