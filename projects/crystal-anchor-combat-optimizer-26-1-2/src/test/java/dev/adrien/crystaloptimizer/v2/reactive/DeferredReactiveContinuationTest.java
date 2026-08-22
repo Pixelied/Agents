@@ -37,7 +37,7 @@ final class DeferredReactiveContinuationTest {
     private static final BlockPos BASE = new BlockPos(4, 64, 7);
 
     @Test
-    void deferredReplacementRetriesTailOnTickWithoutRepeatingSentAttack() {
+    void deferredReplacementWaitsForConfirmedRemovalThenRetriesTailWithoutRepeatingSentAttack() {
         OptimizerConfigService config = OptimizerConfigService.inMemory(
             OptimizerConfig.defaults().withEnabled(true)
         );
@@ -89,8 +89,15 @@ final class DeferredReactiveContinuationTest {
         );
 
         coordinator.tick();
+        assertEquals(1, sink.calls().size(),
+            "replacement must not retry until the server confirms the attacked crystal is gone");
+        assertEquals(0, strategicTicks.get(),
+            "a dependency-waiting continuation owns the tick and must not run strategic scanning");
 
-        assertEquals(2, sink.calls().size(), "deferred reactive work must retry on client tick");
+        coordinator.onEvent(new CombatEvent.CrystalRemoved(381, BASE, System.nanoTime()));
+        coordinator.tick();
+
+        assertEquals(2, sink.calls().size(), "confirmed removal must release the deferred tail");
         assertEquals(
             List.of(new PlaceCrystal(BASE)),
             sink.calls().get(1),
