@@ -1,5 +1,6 @@
 package dev.adrien.crystaloptimizer.v2.execution;
 
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
@@ -16,6 +17,10 @@ public interface LiveCombatView {
     boolean targetValid(UUID targetId);
 
     boolean liveCrystal(int entityId);
+
+    default Optional<BlockPos> crystalBase(int entityId) {
+        return Optional.empty();
+    }
 
     boolean withinEntityReach(int entityId);
 
