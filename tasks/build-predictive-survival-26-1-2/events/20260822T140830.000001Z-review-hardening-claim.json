@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "predictive-survival-review-hardening-claim-20260822",
+  "task_id": "build-predictive-survival-26-1-2",
+  "agent_id": "openai-survival-review-7c4d",
+  "type": "progress",
+  "message": "Claimed the expired Predictive Survival project scope for a post-PR-22 regression-first hardening pass based on merged main commit cd7e6806e4f96094e84bfef39d1830ed3f6741e0.",
+  "data": {
+    "implementation_branch": "fix/predictive-survival-review-hardening",
+    "baseline": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0",
+    "review_findings": 10,
+    "verification_strategy": "red regression CI, implementation CI, exact-runtime GameTests, production JAR audit, workspace validation"
+  },
+  "created_at": "2026-08-22T14:08:30+00:00"
+}
