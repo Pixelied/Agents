@@ -22,4 +22,16 @@ final class InteractionRouteTest {
         assertTrue(!route.swapBackRequired());
         assertEquals(0.0, route.estimatedCostMillis(), 1.0e-9);
     }
+
+    @Test
+    void observedInventoryRoutingDoesNotDependOnReservationLedger() {
+        var fixture = InteractionRouteFixtures.offhandCrystalPlacement();
+        InteractionRoute route = new InventoryCoordinator().routeForObserved(
+            fixture.action(),
+            fixture.inventory()
+        ).orElseThrow();
+
+        assertEquals(InteractionHand.OFF_HAND, route.hand());
+        assertTrue(route.selectedSlot().isEmpty());
+    }
 }
