@@ -40,9 +40,16 @@ public final class ClientStrategicPlannerService implements AutoCloseable {
             long durationNanos = Math.max(0L, System.nanoTime() - startedNanos);
             if (latestToken.get() == token) {
                 lastComputationNanos.set(durationNanos);
+                ClientCombatDiagnostics.latest().ifPresent(diagnostics ->
+                    diagnostics.recordStrategicDuration(durationNanos)
+                );
                 if (result != null) {
                     latest.set(result);
                 }
+            } else {
+                ClientCombatDiagnostics.latest().ifPresent(diagnostics ->
+                    diagnostics.recordStaleResult()
+                );
             }
         });
         return token;
