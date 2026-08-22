@@ -17,6 +17,7 @@ public final class ClientStrategicPlannerService implements AutoCloseable {
     private final StrategicComputation computation;
     private final ExecutorService worker;
     private final AtomicLong latestToken = new AtomicLong();
+    private final AtomicLong lastComputationNanos = new AtomicLong();
     private final AtomicReference<StrategicResult> latest = new AtomicReference<>();
 
     public ClientStrategicPlannerService(StrategicComputation computation) {
@@ -34,9 +35,14 @@ public final class ClientStrategicPlannerService implements AutoCloseable {
         Objects.requireNonNull(config, "config");
         long token = latestToken.incrementAndGet();
         worker.execute(() -> {
+            long startedNanos = System.nanoTime();
             StrategicResult result = computation.compute(snapshot, config);
-            if (result != null && latestToken.get() == token) {
-                latest.set(result);
+            long durationNanos = Math.max(0L, System.nanoTime() - startedNanos);
+            if (latestToken.get() == token) {
+                lastComputationNanos.set(durationNanos);
+                if (result != null) {
+                    latest.set(result);
+                }
             }
         });
         return token;
@@ -46,10 +52,15 @@ public final class ClientStrategicPlannerService implements AutoCloseable {
         return Optional.ofNullable(latest.getAndSet(null));
     }
 
+    public long lastComputationNanos() {
+        return lastComputationNanos.get();
+    }
+
     @Override
     public void close() {
         latestToken.incrementAndGet();
         latest.set(null);
+        lastComputationNanos.set(0L);
         worker.shutdownNow();
     }
 }
