@@ -344,7 +344,8 @@ public final class StrategicPreparationPlanner {
     }
 
     private static Optional<SelectedState> selectItem(CombatState state, Item item) {
-        if (state.inventory().selectedItem().filter(item::equals).isPresent()) {
+        if (state.inventory().selectedItem().filter(item::equals).isPresent()
+            || state.inventory().offhandItem().filter(item::equals).isPresent()) {
             return Optional.of(new SelectedState(state, List.of()));
         }
         return state.inventory().hotbarItems().entrySet().stream()
