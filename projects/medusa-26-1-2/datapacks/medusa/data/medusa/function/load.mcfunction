@@ -88,3 +88,6 @@ scoreboard objectives add md_mblocked dummy
 scoreboard objectives add md_mmode dummy
 scoreboard objectives add md_morient dummy
 scoreboard objectives add md_manim dummy
+scoreboard objectives add md_mtrap dummy
+scoreboard objectives add md_marmed dummy
+scoreboard objectives add md_mtrap_timer dummy
