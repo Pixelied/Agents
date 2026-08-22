@@ -55,7 +55,7 @@ class DungeonContract(unittest.TestCase):
         roof_text = roofs.read_text() + (FN / "maze/roof_column.mcfunction").read_text()
         landmark_text = landmarks.read_text()
         self.assertGreaterEqual(shell_text.count("fill "), 35, "13x13 maze shell is unexpectedly sparse")
-        for token in ["stone_brick_stairs", "stone_brick_slab", "chain", "soul_lantern"]:
+        for token in ["stone_brick_stairs", "stone_brick_slab", "iron_chain", "soul_lantern"]:
             self.assertIn(token, roof_text, f"roof architecture is missing {token}")
         for district in [
             "serpent-column gallery",
@@ -66,6 +66,11 @@ class DungeonContract(unittest.TestCase):
             "gorgon-relief corridor",
         ]:
             self.assertIn(district, landmark_text.lower())
+
+    def test_26_1_2_uses_iron_chain_block_id(self):
+        architecture = "\n".join(path.read_text() for path in FN.rglob("*.mcfunction"))
+        self.assertNotIn("minecraft:chain", architecture)
+        self.assertIn("minecraft:iron_chain", architecture)
 
     def test_route_modules_declare_every_physical_connector(self):
         connectors = {
