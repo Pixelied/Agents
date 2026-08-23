@@ -35,7 +35,7 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
         long totalHorizon = horizon(context);
         int interval = interval(poison, effect.amplifier());
         if (effect.infiniteDuration()) {
-            addInfiniteEffectTicks(context, poison, interval, 0L, output);
+            addInfiniteEffectTicks(context, poison, interval, output);
             return;
         }
 
@@ -127,25 +127,23 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
         }
     }
 
+    /** Preserves the established phase-bounded model for effects whose client duration is infinite. */
     private static void addInfiniteEffectTicks(
         PredictionContext context,
         boolean poison,
         int interval,
-        long offset,
         List<ThreatEvent> output
     ) {
-        long totalHorizon = horizon(context);
-        long remainingHorizon = totalHorizon - offset;
+        long horizon = horizon(context);
         String idPrefix = poison ? "env:poison:infinite:" : "env:wither:infinite:";
         String sourceKey = poison ? "minecraft:magic" : "minecraft:wither";
         float healthFloor = poison ? 1f : 0f;
 
         if (interval <= 0) {
-            for (long tick = 1; tick <= remainingHorizon; tick++) {
-                long absoluteTick = offset + tick;
+            for (long tick = 1; tick <= horizon; tick++) {
                 output.add(event(
-                    idPrefix + absoluteTick,
-                    absoluteTick,
+                    idPrefix + tick,
+                    tick,
                     1f,
                     sourceKey,
                     EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
@@ -157,14 +155,14 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
         }
 
         int application = 0;
-        for (long start = 1; start <= remainingHorizon; start += interval) {
+        for (long start = 1; start <= horizon; start += interval) {
             long naturalEnd = start + interval - 1L;
-            long end = Math.min(remainingHorizon, naturalEnd);
+            long end = Math.min(horizon, naturalEnd);
             boolean fullCadenceWindow = end == naturalEnd;
             DamageRange damage = fullCadenceWindow ? DamageRange.exact(1f) : new DamageRange(0f, 1f);
             output.add(windowEvent(
-                idPrefix + offset + ":" + application++,
-                new TickWindow(offset + start, offset + end),
+                idPrefix + application++,
+                new TickWindow(start, end),
                 damage,
                 sourceKey,
                 healthFloor,
