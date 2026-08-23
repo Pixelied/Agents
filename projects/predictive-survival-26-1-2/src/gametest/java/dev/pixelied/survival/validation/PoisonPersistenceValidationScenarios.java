@@ -23,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 
 final class PoisonPersistenceValidationScenarios {
     private static final float EPSILON = 0.0001f;
+    private static final int POISON_I_INTERVAL = 25;
 
     private PoisonPersistenceValidationScenarios() {
     }
@@ -93,9 +94,15 @@ final class PoisonPersistenceValidationScenarios {
                 ));
 
             assertPoisonEvent("active Poison", persistent);
-            if (!new TickWindow(25, 25).equals(persistent.impact())) {
+            int duration = active.context().player().statusEffects()
+                .effect("minecraft:poison")
+                .orElseThrow(() -> new AssertionError("active Poison snapshot lost its finite duration"))
+                .durationTicks();
+            long expectedTick = nextFiniteApplicationTick(duration, POISON_I_INTERVAL);
+            if (!new TickWindow(expectedTick, expectedTick).equals(persistent.impact())) {
                 throw new AssertionError(
-                    "active Poison next tick should be exactly 25 ticks away; event=" + persistent
+                    "active Poison next tick should follow current remaining-duration phase; expected="
+                        + expectedTick + " event=" + persistent
                         + " status=" + active.context().player().statusEffects()
                 );
             }
@@ -113,6 +120,15 @@ final class PoisonPersistenceValidationScenarios {
             });
             context.waitTick();
         }
+    }
+
+    private static long nextFiniteApplicationTick(int duration, int interval) {
+        if (duration <= 0) throw new AssertionError("active Poison duration must be positive");
+        for (long tick = 1; tick <= duration; tick++) {
+            int testedDuration = duration - (int) tick + 1;
+            if (Math.floorMod(testedDuration, interval) == 0) return tick;
+        }
+        throw new AssertionError("finite Poison duration had no application tick before expiry: " + duration);
     }
 
     private static void assertPoisonEvent(String label, ThreatEvent event) {
