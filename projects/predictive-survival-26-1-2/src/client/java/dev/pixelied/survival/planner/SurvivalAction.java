@@ -107,13 +107,18 @@ public interface SurvivalAction {
                 ? new DeathProtectionSnapshot(Optional.of(item), current.offHand())
                 : new DeathProtectionSnapshot(current.mainHand(), Optional.of(item));
             BlockingSnapshot nextBlocking = player.blocking();
-            String targetSlot = hand == Hand.MAIN_HAND ? "mainhand" : "offhand";
+            String targetSlot = handSlot(hand);
             if ("minecraft:shield".equals(player.equipmentItemKeys().get(targetSlot))) {
                 nextBlocking = BlockingSnapshot.none();
             }
+            LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            // EquipDeathProtection intentionally has no registry-key field because generic
+            // DEATH_PROTECTION items are supported. What is certain is that the previous hand item
+            // has been displaced, so never carry its key (especially a shield) into later steps.
+            equipment.remove(targetSlot);
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),
-                nextBlocking, next, player.equipmentItemKeys()
+                nextBlocking, next, equipment
             );
         }
     }
@@ -185,9 +190,18 @@ public interface SurvivalAction {
             BlockingSnapshot blocking = new BlockingSnapshot(
                 guaranteedBlock, blockedFraction, Math.max(elapsedUseTicks, requiredUseTicks), requiredUseTicks, profile, 0
             );
+            DeathProtectionSnapshot protection = player.deathProtection();
+            LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            if (sourceItem.isPresent()) {
+                HeldItemRef source = sourceItem.get();
+                if (source.route().map(route -> !(route instanceof SurvivalItemRoute.AlreadyHeld)).orElse(false)) {
+                    protection = withoutDeathProtection(protection, source.hand());
+                }
+                equipment.put(handSlot(source.hand()), source.itemKey());
+            }
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),
-                blocking, player.deathProtection(), player.equipmentItemKeys()
+                blocking, protection, equipment
             );
         }
     }
@@ -280,13 +294,26 @@ public interface SurvivalAction {
         @Override
         public PlayerSnapshot apply(PlayerSnapshot player) {
             LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            String displacedEquipmentItem = equipmentUpdates.size() == 1
+                ? player.equipmentItemKeys().get(equipmentUpdates.keySet().iterator().next())
+                : null;
             equipment.putAll(equipmentUpdates);
             MitigationSnapshot mitigation = replacementPiece
                 .map(piece -> replaceArmorPiece(player.mitigation(), piece))
                 .orElse(mitigationAfter);
+            BlockingSnapshot blocking = player.blocking();
+            DeathProtectionSnapshot protection = player.deathProtection();
+            if (sourceItem.isPresent()) {
+                HeldItemRef source = sourceItem.get();
+                blocking = BlockingSnapshot.none();
+                protection = withoutDeathProtection(protection, source.hand());
+                String handSlot = handSlot(source.hand());
+                if (displacedEquipmentItem == null) equipment.remove(handSlot);
+                else equipment.put(handSlot, displacedEquipmentItem);
+            }
             return copy(
                 player, player.health(), player.absorption(), mitigation, player.statusEffects(),
-                player.blocking(), player.deathProtection(), equipment
+                blocking, protection, equipment
             );
         }
     }
@@ -364,9 +391,22 @@ public interface SurvivalAction {
             StatusEffectsSnapshot effects = appliedEffects.isEmpty()
                 ? statusEffectsAfter
                 : player.statusEffects().apply(appliedEffects);
+            BlockingSnapshot blocking = player.blocking();
+            DeathProtectionSnapshot protection = player.deathProtection();
+            LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            if (sourceItem.isPresent()) {
+                HeldItemRef source = sourceItem.get();
+                // A concrete consumable use owns the single vanilla use-item state, so it cannot
+                // leave an earlier shield block active. The consumed/used stack also replaces any
+                // protection previously occupying that hand. If a custom stack would remain after
+                // use, dropping the hand identity here is conservative rather than false-safe.
+                blocking = BlockingSnapshot.none();
+                protection = withoutDeathProtection(protection, source.hand());
+                equipment.remove(handSlot(source.hand()));
+            }
             return copy(
                 player, health, absorption, player.mitigation(), effects,
-                player.blocking(), player.deathProtection(), player.equipmentItemKeys()
+                blocking, protection, equipment
             );
         }
     }
@@ -498,6 +538,20 @@ public interface SurvivalAction {
             throw new IllegalArgumentException("reliability must be finite and in [0,1]");
         }
         if (consumableCost < 0 || disruptionCost < 0) throw new IllegalArgumentException("costs must be non-negative");
+    }
+
+    private static String handSlot(Hand hand) {
+        return hand == Hand.MAIN_HAND ? "mainhand" : "offhand";
+    }
+
+    private static DeathProtectionSnapshot withoutDeathProtection(
+        DeathProtectionSnapshot current,
+        Hand hand
+    ) {
+        Objects.requireNonNull(current, "current");
+        return hand == Hand.MAIN_HAND
+            ? new DeathProtectionSnapshot(Optional.empty(), current.offHand())
+            : new DeathProtectionSnapshot(current.mainHand(), Optional.empty());
     }
 
     private static PlayerSnapshot copy(
