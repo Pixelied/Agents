@@ -48,7 +48,7 @@ final class RuntimePathSafety {
             ClientLevel level, LocalPlayer player, Projectile probe, List<Vec3> path,
             String label, int startingTickAge
     ) {
-        if (path == null || path.size() < 2) return Result.safe();
+        if (path == null || path.size() < 2) return Result.allow();
         Predicate<Entity> hittable = entity -> {
             if (entity == player || !entity.canBeHitByProjectile()) return false;
             if (probe instanceof AbstractWindCharge
@@ -81,7 +81,7 @@ final class RuntimePathSafety {
                 return Result.reject(label + "_ENTITY_INTERCEPT_AT_SEGMENT_" + segment);
             }
         }
-        return Result.safe();
+        return Result.allow();
     }
 
     private static String unsupportedEnvironment(ClientLevel level, AABB swept) {
@@ -93,7 +93,7 @@ final class RuntimePathSafety {
     }
 
     record Result(boolean safe, String reason) {
-        static Result safe() { return new Result(true, null); }
+        static Result allow() { return new Result(true, null); }
         static Result reject(String reason) { return new Result(false, reason); }
     }
 }

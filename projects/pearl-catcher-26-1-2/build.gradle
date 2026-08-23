@@ -33,7 +33,7 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
     // Optional: compile against Mod Menu, but do not require it at runtime.
-    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
 processResources {
@@ -51,4 +51,9 @@ java {
     withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
+}
+
+// Core regressions use the explicit self-test harness in scripts/run-core-tests.sh.
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
 }

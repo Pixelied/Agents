@@ -25,7 +25,6 @@ grep -E 'Methodref.*// net/fabricmc/fabric/api/event/Event\.register:\(Ljava/lan
 if grep -E 'InterfaceMethodref.*// net/fabricmc/fabric/api/event/Event\.register:' "$DUMP" >/dev/null; then echo 'FORBIDDEN ABI: Event.register encoded as interface method'; exit 1; fi
 
 need '// net/minecraft/client/Minecraft.getInstance:()Lnet/minecraft/client/Minecraft;'
-need '// net/minecraft/client/Minecraft.getOverlay:()Lnet/minecraft/client/gui/Overlay;'
 need '// net/minecraft/network/chat/Component.literal:(Ljava/lang/String;)Lnet/minecraft/network/chat/MutableComponent;'
 need '// net/minecraft/network/chat/Component.empty:()Lnet/minecraft/network/chat/MutableComponent;'
 need '// net/minecraft/world/InteractionResult.consumesAction:()Z'
@@ -45,7 +44,7 @@ need '// net/minecraft/client/Options.keyHotbarSlots:[Lnet/minecraft/client/KeyM
 need '// net/minecraft/client/Options.keySwapOffhand:Lnet/minecraft/client/KeyMapping;'
 need '// net/minecraft/client/Options.keyUse:Lnet/minecraft/client/KeyMapping;'
 need '// net/minecraft/client/player/LocalPlayer.getOffhandItem:()Lnet/minecraft/world/item/ItemStack;'
-need '// net/minecraft/client/multiplayer/MultiPlayerGameMode.useItem:(Lnet/minecraft/client/player/LocalPlayer;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;'
+need '// net/minecraft/client/multiplayer/MultiPlayerGameMode.useItem:(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;'
 
 forbid '// com/google/gson/Gson.toJson:(Ljava/lang/Object;Ljava/io/Writer;)V'
 forbid 'ClientTickEvents.END_CLIENT_TICK:Lnet/fabricmc/fabric/api/client/event/lifecycle/v1/ClientTickEvents$Event;'

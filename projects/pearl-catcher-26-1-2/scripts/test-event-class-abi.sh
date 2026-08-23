@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 TARGET="${1:?jar or classes path}"
+if [[ "$TARGET" != /* ]]; then TARGET="$(pwd)/$TARGET"; fi
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 if [ -f "$TARGET" ]; then
