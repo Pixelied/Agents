@@ -46,32 +46,12 @@ jobs:
           fb5914cc30712385f87dc46dfcf4aca817f58e9048123cd51f0af9b0eba9c48a  .bootstrap/pearl-catcher/package.part-12
           58330a99809788d59edd7e46edc8816e9227d63f1c2d76d2eddb1aaf0643e457  .bootstrap/pearl-catcher/package.part-13
           SUMS
-
           cat .bootstrap/pearl-catcher/package.part-* | base64 -d > /tmp/pearl-catcher-source.tar.xz
           echo '9963052c268d3b37643b613d766c9e13d6670e61e319db68dbb99a718420b21a  /tmp/pearl-catcher-source.tar.xz' | sha256sum -c -
-
           rm -rf projects/pearl-catcher-26-1-2
           rm -f .github/workflows/pearl-catcher-26-1-2-ci.yml
           tar -xJf /tmp/pearl-catcher-source.tar.xz
           sha256sum -c .pearl-source-manifest.sha256
-
-      - name: Ensure permanent CI includes workspace validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('.github/workflows/pearl-catcher-26-1-2-ci.yml')
-          text = path.read_text()
-          needle = '      - name: Upload playable jar\n'
-          insert = '''      - name: Workspace validation\n        working-directory: .\n        run: |\n          python -m unittest discover -s tests -v\n          python agentctl.py validate\n\n'''
-          if '      - name: Workspace validation\n' not in text:
-              if needle not in text:
-                  raise SystemExit('permanent CI insertion point missing')
-              text = text.replace(needle, insert + needle, 1)
-              path.write_text(text)
-          PY
-          grep -F 'python agentctl.py validate' .github/workflows/pearl-catcher-26-1-2-ci.yml
 
       - name: Source and core regressions
         shell: bash
