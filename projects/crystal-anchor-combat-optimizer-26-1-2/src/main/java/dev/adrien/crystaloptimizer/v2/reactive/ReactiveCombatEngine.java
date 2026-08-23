@@ -149,8 +149,9 @@ public final class ReactiveCombatEngine {
         }
         return switch (event) {
             case CombatEvent.TotemPopped pop -> pop.targetId().equals(targetId);
-            case CombatEvent.EquipmentChanged equipment -> equipment.targetId().equals(targetId);
-            case CombatEvent.TargetMoved moved -> moved.targetId().equals(targetId);
+            case CombatEvent.EquipmentChanged ignored -> false;
+            case CombatEvent.TargetMoved ignored -> false;
+            case CombatEvent.BlockChanged ignored -> false;
             case CombatEvent.InventoryChanged ignored -> false;
             case CombatEvent.ConfigChanged ignored -> false;
             default -> true;
