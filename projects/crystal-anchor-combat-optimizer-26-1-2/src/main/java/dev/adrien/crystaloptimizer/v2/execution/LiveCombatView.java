@@ -26,6 +26,17 @@ public interface LiveCombatView {
 
     boolean withinBlockReach(BlockPos pos);
 
+    /**
+     * True when an end crystal can be placed on this base in the current authoritative client
+     * world using the 26.1.2 base, air-space, and entity-collision rules.
+     *
+     * <p>The compatibility default exists for legacy unit doubles. The real client view must
+     * override this with current-world legality.</p>
+     */
+    default boolean crystalBaseCanPlace(BlockPos basePos) {
+        return true;
+    }
+
     boolean crystalBaseCanFollowBreak(BlockPos basePos, int brokenCrystalEntityId);
 
     int observedCount(Item item);
