@@ -98,6 +98,7 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
                 engine.config(),
                 frame,
                 engine.currentPlan(),
+                engine.currentContingency(),
                 engine.executionStatus()
             );
             int y = 6;
