@@ -227,6 +227,9 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             return false;
         }
         ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
+        if (!evidence.known()) {
+            return context.menu().stateId() != transaction.stateId();
+        }
         return evidence.inventoryMatchesAfter(
                 pending.sourceInventoryIndex(), transaction.destinationBefore(), pending.authorityRevisionBeforeSwap()
             )
