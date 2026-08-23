@@ -3,20 +3,12 @@ package dev.adrien.crystaloptimizer.client.v2;
 import dev.adrien.crystaloptimizer.client.intel.TargetMotionTracker;
 import dev.adrien.crystaloptimizer.client.world.ClientCombatSnapshotBuilder;
 import dev.adrien.crystaloptimizer.prediction.MovementSample;
-import dev.adrien.crystaloptimizer.sim.model.AnchorState;
-import dev.adrien.crystaloptimizer.sim.model.CombatantSpatialState;
-import dev.adrien.crystaloptimizer.sim.model.KnownCrystal;
-import dev.adrien.crystaloptimizer.sim.model.SimCombatant;
 import dev.adrien.crystaloptimizer.v2.state.StrategicSnapshot;
 import dev.adrien.crystaloptimizer.v2.strategy.TargetProtectionPolicyConfig;
 import dev.adrien.crystaloptimizer.v2.timing.TimingEngine;
 import dev.adrien.crystaloptimizer.v2.timing.TimingSnapshot;
-import dev.adrien.crystaloptimizer.world.CombatRegion;
 import dev.adrien.crystaloptimizer.world.CombatSnapshot;
-import dev.adrien.crystaloptimizer.world.LegalitySnapshot;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,10 +18,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 /** Client-thread-only capture. Everything returned is immutable worker input. */
 public final class ClientStrategicSnapshotCapture {
@@ -73,17 +61,14 @@ public final class ClientStrategicSnapshotCapture {
             return Optional.empty();
         }
 
-        ArrayList<CombatSnapshot> captured = new ArrayList<>(validTargets.size());
-        for (AbstractClientPlayer target : validTargets) {
-            combatSnapshots.build(target).ifPresent(captured::add);
-        }
+        Optional<CombatSnapshot> captured = combatSnapshots.build(validTargets);
         if (captured.isEmpty()) {
             return Optional.empty();
         }
 
         long nowNanos = System.nanoTime();
         long worldRevision = revisions.worldRevision();
-        CombatSnapshot combat = merge(captured, worldRevision);
+        CombatSnapshot combat = withRevision(captured.orElseThrow(), worldRevision);
         LinkedHashMap<UUID, Long> targetRevisions = new LinkedHashMap<>();
         LinkedHashMap<UUID, List<MovementSample>> movementHistory = new LinkedHashMap<>();
         for (AbstractClientPlayer target : validTargets) {
@@ -113,47 +98,19 @@ public final class ClientStrategicSnapshotCapture {
         ));
     }
 
-    private static CombatSnapshot merge(List<CombatSnapshot> snapshots, long worldRevision) {
-        CombatSnapshot first = snapshots.getFirst();
-        LinkedHashMap<BlockPos, BlockState> states = new LinkedHashMap<>();
-        LinkedHashMap<BlockPos, VoxelShape> shapes = new LinkedHashMap<>();
-        LinkedHashMap<BlockPos, AnchorState> anchors = new LinkedHashMap<>();
-        LinkedHashMap<UUID, SimCombatant> combatants = new LinkedHashMap<>();
-        LinkedHashMap<UUID, CombatantSpatialState> spatial = new LinkedHashMap<>();
-        LinkedHashMap<Integer, KnownCrystal> crystals = new LinkedHashMap<>();
-        LinkedHashSet<AABB> occupied = new LinkedHashSet<>();
-
-        for (CombatSnapshot snapshot : snapshots) {
-            states.putAll(snapshot.region().states());
-            shapes.putAll(snapshot.region().collisionShapes());
-            anchors.putAll(snapshot.anchors());
-            combatants.putAll(snapshot.combatants());
-            spatial.putAll(snapshot.spatial());
-            for (KnownCrystal crystal : snapshot.crystals()) {
-                crystals.put(crystal.entityId(), crystal);
-            }
-            occupied.addAll(snapshot.legality().occupiedEntityBoxes());
-        }
-
-        LegalitySnapshot legality = new LegalitySnapshot(
-            first.legality().eyePosition(),
-            first.legality().blockInteractionRange(),
-            first.legality().entityInteractionRange(),
-            List.copyOf(occupied),
-            first.legality().respawnAnchorWorks()
-        );
+    private static CombatSnapshot withRevision(CombatSnapshot snapshot, long worldRevision) {
         return new CombatSnapshot(
             worldRevision,
-            first.selfId(),
-            CombatRegion.of(states, shapes),
-            combatants,
-            List.copyOf(crystals.values()),
-            anchors,
-            first.inventory(),
-            first.timing(),
-            legality,
-            spatial,
-            first.difficulty()
+            snapshot.selfId(),
+            snapshot.region(),
+            snapshot.combatants(),
+            snapshot.crystals(),
+            snapshot.anchors(),
+            snapshot.inventory(),
+            snapshot.timing(),
+            snapshot.legality(),
+            snapshot.spatial(),
+            snapshot.difficulty()
         );
     }
 }
