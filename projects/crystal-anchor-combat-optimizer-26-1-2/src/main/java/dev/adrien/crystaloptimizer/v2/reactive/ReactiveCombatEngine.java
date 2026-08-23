@@ -152,6 +152,7 @@ public final class ReactiveCombatEngine {
             case CombatEvent.EquipmentChanged ignored -> false;
             case CombatEvent.TargetMoved ignored -> false;
             case CombatEvent.BlockChanged ignored -> false;
+            case CombatEvent.BlockAcked ignored -> false;
             case CombatEvent.InventoryChanged ignored -> false;
             case CombatEvent.ConfigChanged ignored -> false;
             default -> true;
