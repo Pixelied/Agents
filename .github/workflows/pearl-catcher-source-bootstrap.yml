@@ -170,6 +170,7 @@ jobs:
           rm -f .pearl-source-manifest.sha256
           rm -rf .bootstrap
           rm -f .github/workflows/pearl-catcher-source-bootstrap.yml
+          rm -rf projects/pearl-catcher-26-1-2/build projects/pearl-catcher-26-1-2/.gradle
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
