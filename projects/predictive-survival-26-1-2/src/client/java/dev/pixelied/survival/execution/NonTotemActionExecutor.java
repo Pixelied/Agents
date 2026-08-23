@@ -2,6 +2,7 @@ package dev.pixelied.survival.execution;
 
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.Vec3Snapshot;
+import dev.pixelied.survival.damage.ArmorPieceSnapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
@@ -585,7 +586,27 @@ public final class NonTotemActionExecutor {
             if (!update.getValue().equals(current.equipmentItemKeys().get(update.getKey()))) return false;
         }
         if (action.equipmentUpdates().isEmpty()) return false;
+
+        ArmorPieceSnapshot plannedPiece = action.replacementPiece().orElse(null);
+        if (plannedPiece != null) {
+            ArmorPieceSnapshot actualPiece = current.mitigation().armorPieces().stream()
+                .filter(piece -> piece.slot() == plannedPiece.slot())
+                .findFirst()
+                .orElse(null);
+            return actualPiece != null && armorCapabilityMatches(actualPiece, plannedPiece);
+        }
         return mitigationMatches(current.mitigation(), expected.mitigation());
+    }
+
+    private static boolean armorCapabilityMatches(ArmorPieceSnapshot actual, ArmorPieceSnapshot planned) {
+        if (actual.slot() != planned.slot()) return false;
+        if (actual.present() != planned.present()) return false;
+        if (Math.abs(actual.armor() - planned.armor()) > VALUE_EPSILON) return false;
+        if (Math.abs(actual.toughness() - planned.toughness()) > VALUE_EPSILON) return false;
+        if (!actual.enchantmentProtectionSnapshots().equals(planned.enchantmentProtectionSnapshots())) return false;
+        if (actual.damageOnHurt() != planned.damageOnHurt()) return false;
+        if (!actual.durabilityResistantDamageTypes().equals(planned.durabilityResistantDamageTypes())) return false;
+        return !actual.damageOnHurt() || actual.remainingDurability() > 0;
     }
 
     private static boolean mitigationMatches(MitigationSnapshot actual, MitigationSnapshot expected) {
