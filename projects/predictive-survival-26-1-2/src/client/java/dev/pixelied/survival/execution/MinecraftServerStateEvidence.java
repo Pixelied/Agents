@@ -19,6 +19,10 @@ import java.util.Map;
  * after vanilla has applied that packet, so local interaction prediction cannot manufacture it.
  */
 public final class MinecraftServerStateEvidence {
+    // Vanilla's direct player-inventory set-slot packet uses container id -2. The cursor-only
+    // special id is -1, so keep the exact distinction instead of treating every negative id alike.
+    private static final int PLAYER_INVENTORY_CONTAINER_ID = -2;
+
     private static long revision;
     private static final Map<Integer, ServerStateEvidenceSnapshot.StackEvidence> INVENTORY = new LinkedHashMap<>();
     private static final Map<String, ServerStateEvidenceSnapshot.StackEvidence> EQUIPMENT = new LinkedHashMap<>();
@@ -53,7 +57,7 @@ public final class MinecraftServerStateEvidence {
         ClientboundContainerSetContentPacket packet,
         LocalPlayer player
     ) {
-        if (packet == null || player == null || packet.getContainerId() != player.containerMenu.containerId) return;
+        if (packet == null || player == null || packet.containerId() != player.containerMenu.containerId) return;
         Inventory inventory = player.getInventory();
         long next = nextRevision();
         for (Slot slot : player.containerMenu.slots) {
@@ -93,7 +97,7 @@ public final class MinecraftServerStateEvidence {
     }
 
     private static int inventoryIndex(ClientboundContainerSetSlotPacket packet, LocalPlayer player) {
-        if (packet.getContainerId() == ClientboundContainerSetSlotPacket.PLAYER_INVENTORY) {
+        if (packet.getContainerId() == PLAYER_INVENTORY_CONTAINER_ID) {
             return packet.getSlot();
         }
         if (packet.getContainerId() != player.containerMenu.containerId) return -1;
