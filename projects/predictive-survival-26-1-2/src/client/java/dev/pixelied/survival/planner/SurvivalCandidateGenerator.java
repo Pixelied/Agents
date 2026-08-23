@@ -81,11 +81,13 @@ public final class SurvivalCandidateGenerator {
         if (timeline.events().isEmpty()) return List.of();
         List<SurvivalAction> candidates = new ArrayList<>();
 
-        if (policy.deathProtection()) {
+        if (policy.deathProtection() && policy.inventoryRouting()) {
             DeathProtectionSnapshot protection = context.player().deathProtection();
             if (!protection.anyHandAvailable()) {
-                routePlanner.choose(inventory, menu)
-                    .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                var route = policy.mainHandTakeover()
+                    ? routePlanner.choose(inventory, menu)
+                    : routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND);
+                route.ifPresent(value -> addProtectionCandidate(candidates, inventory, menu, value));
             } else if (policy.proactiveDualProtection() && needsAdditionalProtection(context, timeline)) {
                 if (protection.offHand().isPresent() && protection.mainHand().isEmpty() && policy.mainHandTakeover()) {
                     routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND)
