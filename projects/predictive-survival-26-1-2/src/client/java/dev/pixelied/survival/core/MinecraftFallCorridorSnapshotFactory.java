@@ -44,16 +44,21 @@ final class MinecraftFallCorridorSnapshotFactory {
         Objects.requireNonNull(limits, "limits");
         Objects.requireNonNull(nearbyBlocks, "nearbyBlocks");
 
+        // The fixed nearby scan already knows which cells are collidable/full cubes. Enrich only
+        // partial collidable cells with the actual vanilla VoxelShape envelope; full cubes need no
+        // extra query and non-collidable blocks cannot stop movement.
+        List<WorldSnapshot.BlockSnapshot> enrichedNearby = enrichNearbyCollisionShapes(level, nearbyBlocks);
+
         // The nearby cube already handles grounded/ordinary movement. Only pay for the corridor
         // once the player is actually descending (or has accumulated fall distance).
         if (player.isFallFlying()
             || player.getDeltaMovement().y() >= 0d && player.fallDistance <= 0d) {
-            return nearbyBlocks;
+            return enrichedNearby;
         }
 
-        List<WorldSnapshot.BlockSnapshot> result = new ArrayList<>(nearbyBlocks);
-        Set<Long> seen = new HashSet<>(Math.max(16, nearbyBlocks.size() * 2));
-        for (WorldSnapshot.BlockSnapshot block : nearbyBlocks) {
+        List<WorldSnapshot.BlockSnapshot> result = new ArrayList<>(enrichedNearby);
+        Set<Long> seen = new HashSet<>(Math.max(16, enrichedNearby.size() * 2));
+        for (WorldSnapshot.BlockSnapshot block : enrichedNearby) {
             seen.add(BlockPos.containing(
                 block.position().x(),
                 block.position().y(),
@@ -81,6 +86,44 @@ final class MinecraftFallCorridorSnapshotFactory {
             box = next;
         }
         return List.copyOf(result);
+    }
+
+    private static List<WorldSnapshot.BlockSnapshot> enrichNearbyCollisionShapes(
+        ClientLevel level,
+        List<WorldSnapshot.BlockSnapshot> nearbyBlocks
+    ) {
+        List<WorldSnapshot.BlockSnapshot> enriched = null;
+        for (int i = 0; i < nearbyBlocks.size(); i++) {
+            WorldSnapshot.BlockSnapshot block = nearbyBlocks.get(i);
+            if (!block.collision()
+                || Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
+                continue;
+            }
+
+            BlockPos pos = BlockPos.containing(
+                block.position().x(),
+                block.position().y(),
+                block.position().z()
+            );
+            BlockState state = level.getBlockState(pos);
+            var shape = state.getCollisionShape(level, pos);
+            if (shape.isEmpty()) continue;
+
+            if (enriched == null) enriched = new ArrayList<>(nearbyBlocks);
+            Map<String, String> properties = new LinkedHashMap<>(block.properties());
+            MinecraftCollisionShapeSnapshot.write(
+                properties,
+                shape,
+                state.isCollisionShapeFullBlock(level, pos)
+            );
+            enriched.set(i, new WorldSnapshot.BlockSnapshot(
+                block.position(),
+                block.blockId(),
+                true,
+                properties
+            ));
+        }
+        return enriched == null ? nearbyBlocks : List.copyOf(enriched);
     }
 
     private static void captureDescendingSweep(
