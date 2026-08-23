@@ -603,9 +603,9 @@ public final class NonTotemActionExecutor {
         if (actual.present() != planned.present()) return false;
         if (Math.abs(actual.armor() - planned.armor()) > VALUE_EPSILON) return false;
         if (Math.abs(actual.toughness() - planned.toughness()) > VALUE_EPSILON) return false;
-        if (!actual.enchantmentProtectionSnapshots().equals(planned.enchantmentProtectionSnapshots())) return false;
+        if (!actual.protectionEnchantments().equals(planned.protectionEnchantments())) return false;
         if (actual.damageOnHurt() != planned.damageOnHurt()) return false;
-        if (!actual.durabilityResistantDamageTypes().equals(planned.durabilityResistantDamageTypes())) return false;
+        if (!actual.durabilityResistantDamageTypeKeys().equals(planned.durabilityResistantDamageTypeKeys())) return false;
         return !actual.damageOnHurt() || actual.remainingDurability() > 0;
     }
 
