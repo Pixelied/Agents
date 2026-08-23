@@ -16,7 +16,22 @@ public final class DeathProtectionRestorationController {
     private long safeUntilServerTick = -1L;
 
     public void arm(RestorationCheckpoint checkpoint) {
-        this.checkpoint = Objects.requireNonNull(checkpoint, "checkpoint");
+        RestorationCheckpoint next = Objects.requireNonNull(checkpoint, "checkpoint");
+        if (pendingRestore == null
+            && this.checkpoint instanceof RestorationCheckpoint.Hotbar previous
+            && next instanceof RestorationCheckpoint.Hotbar following
+            && following.originalSelectedIndex() == previous.protectionHotbarIndex()
+            && following.originalSelectedBefore().sameContents(previous.protectionAfter())) {
+            this.checkpoint = new RestorationCheckpoint.Hotbar(
+                previous.originalSelectedIndex(),
+                following.protectionHotbarIndex(),
+                previous.originalSelectedBefore(),
+                following.protectionAfter(),
+                following.confirmedAtServerTick()
+            );
+        } else {
+            this.checkpoint = next;
+        }
         this.pendingRestore = null;
         this.safeUntilServerTick = -1L;
     }
