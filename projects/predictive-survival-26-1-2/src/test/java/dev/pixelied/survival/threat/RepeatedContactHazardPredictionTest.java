@@ -27,7 +27,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RepeatedContactHazardPredictionTest {
     @Test
     void sustainedCactusContactCannotBeModeledAsOneSafeHit() {
-        PlayerSnapshot player = new PlayerSnapshot(
+        PlayerSnapshot player = player();
+        PredictionContext context = context(player, EngineLimits.defaults());
+
+        var events = new ContactHazardPredictor().predict(context);
+        var result = new ThreatTimelineSimulator().simulate(player, new ThreatTimeline(events));
+
+        assertTrue(events.size() > 1, "continued current contact must include later potential damage attempts");
+        assertFalse(result.survived(),
+            "hurt cooldown rejects most cactus attempts, but a later accepted tick can still kill at two health");
+    }
+
+    @Test
+    void sustainedContactUsesDecisionHorizonRatherThanProjectileHorizon() {
+        PlayerSnapshot player = player();
+        EngineLimits limits = new EngineLimits(256, 32, 3, 12);
+
+        var events = new ContactHazardPredictor().predict(context(player, limits));
+
+        assertTrue(events.stream().anyMatch(event -> event.impact().equals(new TickWindow(12, 12))),
+            "current contact can persist through the full decision horizon even when projectile prediction is shorter");
+        assertFalse(events.stream().anyMatch(event -> event.impact().earliest() > 12));
+    }
+
+    private static PlayerSnapshot player() {
+        return new PlayerSnapshot(
             2f,
             0f,
             false,
@@ -45,18 +69,14 @@ class RepeatedContactHazardPredictionTest {
             Map.of(),
             Map.of("contact_cactus", "true")
         );
-        PredictionContext context = new PredictionContext(
+    }
+
+    private static PredictionContext context(PlayerSnapshot player, EngineLimits limits) {
+        return new PredictionContext(
             player,
             new WorldSnapshot(List.of(), List.of()),
             new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
-            EngineLimits.defaults()
+            limits
         );
-
-        var events = new ContactHazardPredictor().predict(context);
-        var result = new ThreatTimelineSimulator().simulate(player, new ThreatTimeline(events));
-
-        assertTrue(events.size() > 1, "continued current contact must include later potential damage attempts");
-        assertFalse(result.survived(),
-            "hurt cooldown rejects most cactus attempts, but a later accepted tick can still kill at two health");
     }
 }
