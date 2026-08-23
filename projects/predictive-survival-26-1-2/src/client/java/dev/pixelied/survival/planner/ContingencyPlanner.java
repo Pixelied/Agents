@@ -257,6 +257,14 @@ public final class ContingencyPlanner {
     }
 
     private static Optional<SourceResource> sourceResource(SurvivalAction action) {
+        if (action instanceof SurvivalAction.EquipDeathProtection protection) {
+            return protection.sourceItem().map(source -> new SourceResource(
+                "inventory:" + source.sourceInventoryIndex(),
+                source.itemKey(),
+                source.componentFingerprint()
+            ));
+        }
+
         Optional<SurvivalAction.HeldItemRef> source;
         if (action instanceof SurvivalAction.RaiseShield shield) {
             source = shield.sourceItem();
