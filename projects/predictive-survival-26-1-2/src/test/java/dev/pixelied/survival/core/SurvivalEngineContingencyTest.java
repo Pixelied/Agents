@@ -14,6 +14,7 @@ import dev.pixelied.survival.damage.StatusEffectsSnapshot;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.execution.ExecutionStatus;
 import dev.pixelied.survival.planner.ContingencyPlan;
+import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.timing.TimingSnapshot;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -70,10 +71,9 @@ class SurvivalEngineContingencyTest {
 
     private static SurvivalConfig config() {
         return new SurvivalConfig(
-            2,
+            SafetyMode.SAFE,
             RescueProfile.CONSERVATIVE_SMART,
-            RescuePolicy.conservativeSmartDefaults(),
-            dev.pixelied.survival.planner.SafetyMode.SAFE,
+            RescuePolicy.smartDefaults(),
             true,
             false,
             false,
