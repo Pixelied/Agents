@@ -100,6 +100,40 @@ final class ReactiveCombatEngineTest {
         assertEquals(java.util.List.of(new DetonateAnchor(base)), decision.actions());
     }
 
+    @Test
+    void inventoryMutationInvalidatesWithoutTriggeringFixedAction() {
+        ReactiveCombatEngine engine = new ReactiveCombatEngine();
+        ActionApproval place = approval(
+            30L,
+            ApprovalSlot.PLACE,
+            new FixedActionSequence(java.util.List.of(new PlaceCrystal(base)))
+        );
+        CombatBlackboardSnapshot snapshot = snapshot(Map.of(ApprovalSlot.PLACE, place));
+
+        assertTrue(engine.decide(
+            new CombatEvent.InventoryChanged(12L, 3_000L),
+            snapshot,
+            3_010L
+        ).isEmpty());
+    }
+
+    @Test
+    void configMutationInvalidatesWithoutTriggeringFixedAction() {
+        ReactiveCombatEngine engine = new ReactiveCombatEngine();
+        ActionApproval place = approval(
+            31L,
+            ApprovalSlot.PLACE,
+            new FixedActionSequence(java.util.List.of(new PlaceCrystal(base)))
+        );
+        CombatBlackboardSnapshot snapshot = snapshot(Map.of(ApprovalSlot.PLACE, place));
+
+        assertTrue(engine.decide(
+            new CombatEvent.ConfigChanged(14L, 3_100L),
+            snapshot,
+            3_110L
+        ).isEmpty());
+    }
+
     private ActionApproval approval(
         long id,
         ApprovalSlot slot,
