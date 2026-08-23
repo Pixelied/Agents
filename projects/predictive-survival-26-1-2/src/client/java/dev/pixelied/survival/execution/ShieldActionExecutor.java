@@ -1,5 +1,8 @@
 package dev.pixelied.survival.execution;
 
+import dev.pixelied.survival.inventory.InventorySlotSnapshot;
+import dev.pixelied.survival.inventory.InventorySnapshot;
+import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.planner.SurvivalAction;
 
 import java.util.Objects;
@@ -21,16 +24,66 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         if (!action.guaranteedBlock()) {
             return new ExecutionStatus.Failed("shield block is not guaranteed", true);
         }
-        SurvivalAction.Hand hand = context.inventory().activeOffhandShield()
-            ? SurvivalAction.Hand.OFF_HAND
-            : SurvivalAction.Hand.MAIN_HAND;
-        pending = new Pending(
-            action,
-            hand,
-            context.currentServerTick(),
-            context.timing().nextPacketProcessingWindow().latest()
+
+        SurvivalAction.HeldItemRef source = action.sourceItem().orElse(null);
+        SurvivalItemRoute route = source == null ? null : source.route().orElse(null);
+        if (route == null) {
+            SurvivalAction.Hand hand = source == null
+                ? (context.inventory().activeOffhandShield() ? SurvivalAction.Hand.OFF_HAND : SurvivalAction.Hand.MAIN_HAND)
+                : handHolding(context.inventory(), source);
+            if (hand == null) {
+                return new ExecutionStatus.Failed("planned shield is no longer in the exact server-recognized hand", true);
+            }
+            pending = usingPending(action, context, hand, null, action.requiredUseTicks());
+            return statusForUsing(context, true);
+        }
+
+        if (!routeMatchesSource(route, source)) {
+            return new ExecutionStatus.Failed("routed shield identity changed before execution", true);
+        }
+
+        if (route instanceof SurvivalItemRoute.AlreadyHeld) {
+            if (handHolding(context.inventory(), source) == null) {
+                return new ExecutionStatus.Failed("planned shield is no longer in the exact server-recognized hand", true);
+            }
+            pending = usingPending(action, context, route.destinationHand(), route, action.requiredUseTicks());
+            return statusForUsing(context, true);
+        }
+
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            InventorySlotSnapshot sourceSlot = context.inventory().slot(hotbar.hotbarIndex()).orElse(null);
+            if (!exact(sourceSlot, route)) {
+                return new ExecutionStatus.Failed("routed hotbar shield changed before selection", true);
+            }
+            if (context.inventory().selectedHotbarIndex() == hotbar.hotbarIndex()) {
+                pending = usingPending(action, context, route.destinationHand(), route, action.requiredUseTicks());
+                return statusForUsing(context, true);
+            }
+            pending = routingPending(action, context, route, action.requiredUseTicks());
+            return new ExecutionStatus.WaitingForServer(
+                "waiting for exact shield to become selected",
+                new ExecutionCommand.SelectHotbar(hotbar.hotbarIndex())
+            );
+        }
+
+        SurvivalItemRoute.ContainerSwap swap = (SurvivalItemRoute.ContainerSwap) route;
+        InventorySlotSnapshot sourceSlot = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        if (!exact(sourceSlot, route)) {
+            return new ExecutionStatus.Failed("routed container shield changed before swap", true);
+        }
+        if (context.menu().menuSlotForInventoryIndex(swap.sourceInventoryIndex()).orElse(-1) != swap.sourceMenuSlot()) {
+            return new ExecutionStatus.Failed("routed shield container mapping changed before swap", true);
+        }
+        pending = routingPending(action, context, route, action.requiredUseTicks());
+        return new ExecutionStatus.WaitingForServer(
+            "waiting for exact shield container swap",
+            new ExecutionCommand.SwapMenuSlot(
+                context.menu().containerId(),
+                context.menu().stateId(),
+                swap.sourceMenuSlot(),
+                swap.button()
+            )
         );
-        return statusForObservation(context, true);
     }
 
     @Override
@@ -43,21 +96,36 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             pending = null;
             return new ExecutionStatus.Failed("shield server confirmation timed out", true);
         }
-        return statusForObservation(context, false);
+
+        if (pending.stage() == Stage.ROUTING) {
+            ExecutionStatus routeStatus = observeRoute(context);
+            if (routeStatus != null) return routeStatus;
+        }
+        return statusForUsing(context, false);
     }
 
     public int remainingServerTicks(ExecutionContext context) {
         Objects.requireNonNull(context, "context");
         if (pending == null) return Integer.MAX_VALUE;
 
-        if (context.serverUsingItem()) {
-            if (context.usingHand() != pending.hand()) return Integer.MAX_VALUE;
-            return Math.max(0, pending.action().requiredUseTicks() - context.serverUseTicks());
+        long currentTick = context.currentServerTick();
+        if (pending.stage() == Stage.ROUTING) {
+            if (routeObserved(pending.route(), context)) return pending.useRequiredServerTicks();
+            if (currentTick <= pending.latestServerStartTick()) {
+                long total = pending.latestServerStartTick() - currentTick + pending.useRequiredServerTicks();
+                return total >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+            }
+            return Integer.MAX_VALUE;
         }
 
-        if (context.currentServerTick() <= pending.latestServerStartTick()) {
-            long waitForStart = pending.latestServerStartTick() - context.currentServerTick();
-            long total = waitForStart + pending.action().requiredUseTicks();
+        if (context.serverUsingItem()) {
+            if (context.usingHand() != pending.hand()) return Integer.MAX_VALUE;
+            return Math.max(0, pending.useRequiredServerTicks() - context.serverUseTicks());
+        }
+
+        if (currentTick <= pending.latestServerStartTick()) {
+            long waitForStart = pending.latestServerStartTick() - currentTick;
+            long total = waitForStart + pending.useRequiredServerTicks();
             return total >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
         }
         return Integer.MAX_VALUE;
@@ -67,13 +135,63 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         pending = null;
     }
 
-    private ExecutionStatus statusForObservation(ExecutionContext context, boolean mayEmitUseCommand) {
+    /** Returns null only when routing finished and normal shield observation can continue immediately. */
+    private ExecutionStatus observeRoute(ExecutionContext context) {
+        SurvivalItemRoute route = pending.route();
+        if (route == null) {
+            pending = null;
+            return new ExecutionStatus.Failed("routed shield lost its route", true);
+        }
+
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            InventorySlotSnapshot slot = context.inventory().slot(hotbar.hotbarIndex()).orElse(null);
+            if (!exact(slot, route)) {
+                pending = null;
+                return new ExecutionStatus.Failed("selected shield no longer matches exact planned components", true);
+            }
+            if (context.inventory().selectedHotbarIndex() != hotbar.hotbarIndex()) {
+                return new ExecutionStatus.WaitingForServer("waiting for exact shield hotbar selection");
+            }
+        } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
+            if (context.menu().containerId() != pending.containerId()) {
+                pending = null;
+                return new ExecutionStatus.Failed("container changed before shield route confirmed", true);
+            }
+            if (context.menu().stateId() == pending.containerStateId()) {
+                return new ExecutionStatus.WaitingForServer("waiting for authoritative shield container revision");
+            }
+            InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
+            if (!exact(destination, route)) {
+                pending = null;
+                return new ExecutionStatus.Failed("container revised without exact planned shield destination", true);
+            }
+        } else {
+            pending = null;
+            return new ExecutionStatus.Failed("unexpected shield route stage", true);
+        }
+
+        Pending routed = pending;
+        pending = new Pending(
+            routed.action(),
+            routed.hand(),
+            routed.startedAtServerTick(),
+            context.timing().nextPacketProcessingWindow().latest(),
+            routed.useRequiredServerTicks(),
+            Stage.USING,
+            routed.route(),
+            routed.containerId(),
+            routed.containerStateId()
+        );
+        return statusForUsing(context, true);
+    }
+
+    private ExecutionStatus statusForUsing(ExecutionContext context, boolean mayEmitUseCommand) {
         if (context.serverUsingItem()) {
             if (context.usingHand() != pending.hand()) {
                 pending = null;
                 return new ExecutionStatus.Failed("server is using a different hand than the planned shield", true);
             }
-            if (context.serverUseTicks() >= pending.action().requiredUseTicks()) {
+            if (context.serverUseTicks() >= pending.useRequiredServerTicks()) {
                 pending = null;
                 return new ExecutionStatus.Confirmed("server-observed shield warmup reached required use time");
             }
@@ -93,11 +211,100 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         return new ExecutionStatus.WaitingForServer("waiting for server-observed shield use state");
     }
 
+    private static Pending usingPending(
+        SurvivalAction.RaiseShield action,
+        ExecutionContext context,
+        SurvivalAction.Hand hand,
+        SurvivalItemRoute route,
+        int useRequiredServerTicks
+    ) {
+        return new Pending(
+            action,
+            hand,
+            context.currentServerTick(),
+            context.timing().nextPacketProcessingWindow().latest(),
+            useRequiredServerTicks,
+            Stage.USING,
+            route,
+            context.menu().containerId(),
+            context.menu().stateId()
+        );
+    }
+
+    private static Pending routingPending(
+        SurvivalAction.RaiseShield action,
+        ExecutionContext context,
+        SurvivalItemRoute route,
+        int useRequiredServerTicks
+    ) {
+        return new Pending(
+            action,
+            route.destinationHand(),
+            context.currentServerTick(),
+            context.timing().nextPacketProcessingWindow().latest(),
+            useRequiredServerTicks,
+            Stage.ROUTING,
+            route,
+            context.menu().containerId(),
+            context.menu().stateId()
+        );
+    }
+
+    private static boolean routeObserved(SurvivalItemRoute route, ExecutionContext context) {
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            return context.inventory().selectedHotbarIndex() == hotbar.hotbarIndex()
+                && exact(context.inventory().slot(hotbar.hotbarIndex()).orElse(null), route);
+        }
+        if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
+            return exact(context.inventory().slot(swap.destinationInventoryIndex()).orElse(null), route);
+        }
+        return true;
+    }
+
+    private static boolean routeMatchesSource(SurvivalItemRoute route, SurvivalAction.HeldItemRef source) {
+        return route.destinationHand() == source.hand()
+            && route.itemKey().equals(source.itemKey())
+            && route.componentFingerprint() == source.componentFingerprint();
+    }
+
+    private static boolean exact(InventorySlotSnapshot slot, SurvivalItemRoute route) {
+        return slot != null
+            && slot.count() > 0
+            && slot.stackKey().equals(route.itemKey())
+            && slot.componentFingerprint() == route.componentFingerprint();
+    }
+
+    private static SurvivalAction.Hand handHolding(InventorySnapshot inventory, SurvivalAction.HeldItemRef source) {
+        int inventoryIndex = source.hand() == SurvivalAction.Hand.MAIN_HAND
+            ? inventory.selectedHotbarIndex()
+            : 40;
+        InventorySlotSnapshot slot = inventory.slot(inventoryIndex).orElse(null);
+        if (slot == null || slot.count() <= 0) return null;
+        if (!slot.stackKey().equals(source.itemKey())) return null;
+        if (slot.componentFingerprint() != source.componentFingerprint()) return null;
+        return source.hand();
+    }
+
+    private enum Stage { ROUTING, USING }
+
     private record Pending(
         SurvivalAction.RaiseShield action,
         SurvivalAction.Hand hand,
         long startedAtServerTick,
-        long latestServerStartTick
+        long latestServerStartTick,
+        int useRequiredServerTicks,
+        Stage stage,
+        SurvivalItemRoute route,
+        int containerId,
+        int containerStateId
     ) {
+        private Pending {
+            action = Objects.requireNonNull(action, "action");
+            hand = Objects.requireNonNull(hand, "hand");
+            stage = Objects.requireNonNull(stage, "stage");
+            if (useRequiredServerTicks < 0) {
+                throw new IllegalArgumentException("useRequiredServerTicks must be non-negative");
+            }
+        }
     }
 }
