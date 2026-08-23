@@ -228,7 +228,8 @@ final class ReplaySnapshotSerde {
             value.hotbarItems().entrySet().stream().sorted(Map.Entry.comparingByKey())
                 .map(entry -> new HotbarDto(entry.getKey(), itemSymbol(entry.getValue()), value.hotbarCount(entry.getKey())))
                 .toList(),
-            value.offhandItem().map(ReplaySnapshotSerde::itemSymbol).orElse(null)
+            value.offhandItem().map(ReplaySnapshotSerde::itemSymbol).orElse(null),
+            value.offhandCount()
         );
     }
 
@@ -241,8 +242,23 @@ final class ReplaySnapshotSerde {
             hotbar.put(entry.slot(), item(entry.item()));
             hotbarCounts.put(entry.slot(), entry.count());
         });
-        return new InventoryState(dto.selectedHotbarSlot(), counts, hotbar, hotbarCounts,
-            Optional.ofNullable(dto.offhandItem()).map(ReplaySnapshotSerde::item));
+        Optional<Item> offhand = Optional.ofNullable(dto.offhandItem()).map(ReplaySnapshotSerde::item);
+        return dto.offhandCount() > 0
+            ? new InventoryState(
+                dto.selectedHotbarSlot(),
+                counts,
+                hotbar,
+                hotbarCounts,
+                offhand,
+                dto.offhandCount()
+            )
+            : new InventoryState(
+                dto.selectedHotbarSlot(),
+                counts,
+                hotbar,
+                hotbarCounts,
+                offhand
+            );
     }
 
     private static LegalityDto legality(LegalitySnapshot value) {
@@ -427,7 +443,7 @@ final class ReplaySnapshotSerde {
     record CrystalDto(int entityId, VecDto position) {}
     record AnchorDto(PosDto pos, int charges) {}
     record InventoryDto(int selectedHotbarSlot, List<ItemCountDto> counts,
-                        List<HotbarDto> hotbar, String offhandItem) {}
+                        List<HotbarDto> hotbar, String offhandItem, int offhandCount) {}
     record ItemCountDto(String item, int count) {}
     record HotbarDto(int slot, String item, int count) {}
     record TimingStateDto(long estimatedServerTick, double confidence, double roundTripMillis, double jitterMillis) {}
