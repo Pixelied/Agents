@@ -118,11 +118,16 @@ public final class FallLandingSolver {
 
         LandingHit best = null;
         for (WorldSnapshot.BlockSnapshot block : blocks) {
-            if (!confirmedFullCollisionCube(block)) continue;
-            double blockMinX = Math.floor(block.position().x());
-            double blockMinY = Math.floor(block.position().y());
-            double blockMinZ = Math.floor(block.position().z());
-            double blockTop = blockMinY + 1d;
+            CollisionBounds collision = collisionBounds(block);
+            if (collision == null) continue;
+            double cellX = Math.floor(block.position().x());
+            double cellY = Math.floor(block.position().y());
+            double cellZ = Math.floor(block.position().z());
+            double blockMinX = cellX + collision.minX();
+            double blockTop = cellY + collision.maxY();
+            double blockMinZ = cellZ + collision.minZ();
+            double blockMaxX = cellX + collision.maxX();
+            double blockMaxZ = cellZ + collision.maxZ();
             if (fromBottom < blockTop - EPSILON || toBottom > blockTop + EPSILON) continue;
 
             double t = (blockTop - fromBottom) / (toBottom - fromBottom);
@@ -133,8 +138,8 @@ public final class FallLandingSolver {
             double maxX = at.x() + bounds.maxX();
             double minZ = at.z() + bounds.minZ();
             double maxZ = at.z() + bounds.maxZ();
-            if (maxX <= blockMinX + EPSILON || minX >= blockMinX + 1d - EPSILON
-                || maxZ <= blockMinZ + EPSILON || minZ >= blockMinZ + 1d - EPSILON) {
+            if (maxX <= blockMinX + EPSILON || minX >= blockMaxX - EPSILON
+                || maxZ <= blockMinZ + EPSILON || minZ >= blockMaxZ - EPSILON) {
                 continue;
             }
             if (best == null || t < best.fraction()) best = new LandingHit(t, at, block);
@@ -145,6 +150,29 @@ public final class FallLandingSolver {
     static boolean confirmedFullCollisionCube(WorldSnapshot.BlockSnapshot block) {
         return block.collision()
             && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
+    }
+
+    /**
+     * Returns a conservative local-space collision AABB for landing checks. Production snapshots
+     * capture the bounds of the block's VoxelShape. Full cubes remain the fast path, while legacy
+     * collidable snapshots without bounds fall back to the whole cell so missing metadata cannot
+     * turn a real landing into a false-safe.
+     */
+    private static CollisionBounds collisionBounds(WorldSnapshot.BlockSnapshot block) {
+        if (!block.collision()) return null;
+        if (confirmedFullCollisionCube(block)) return CollisionBounds.FULL_BLOCK;
+
+        Double minX = finiteDouble(block.properties().get("collision_min_x"));
+        Double minY = finiteDouble(block.properties().get("collision_min_y"));
+        Double minZ = finiteDouble(block.properties().get("collision_min_z"));
+        Double maxX = finiteDouble(block.properties().get("collision_max_x"));
+        Double maxY = finiteDouble(block.properties().get("collision_max_y"));
+        Double maxZ = finiteDouble(block.properties().get("collision_max_z"));
+        if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
+            || maxX <= minX || maxY <= minY || maxZ <= minZ) {
+            return CollisionBounds.FULL_BLOCK;
+        }
+        return new CollisionBounds(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     private static FallSurface surface(WorldSnapshot.BlockSnapshot block, boolean suppressingBounce) {
@@ -231,6 +259,13 @@ public final class FallLandingSolver {
             from.y() + (to.y() - from.y()) * t,
             from.z() + (to.z() - from.z()) * t
         );
+    }
+
+    private record CollisionBounds(
+        double minX, double minY, double minZ,
+        double maxX, double maxY, double maxZ
+    ) {
+        private static final CollisionBounds FULL_BLOCK = new CollisionBounds(0d, 0d, 0d, 1d, 1d, 1d);
     }
 
     private record FallSurface(float damageModifier, double extraFallDistance) {
