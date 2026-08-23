@@ -3,41 +3,61 @@ package dev.pixelied.survival.execution;
 import dev.pixelied.survival.inventory.EmergencyInventoryTransaction;
 import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Reverses only a server-confirmed emergency hand mutation after the lethal window has
- * remained gone through an estimated server processing window. Any disagreement aborts.
+ * Reverses only server-confirmed emergency hand mutations after the lethal window has
+ * remained gone through an estimated server processing window. Mutations are restored in
+ * reverse order and any disagreement aborts the entire chain rather than overwriting player state.
  */
 public final class DeathProtectionRestorationController {
-    private RestorationCheckpoint checkpoint;
+    private static final int MAX_RESTORATION_DEPTH = 8;
+
+    private final Deque<RestorationCheckpoint> checkpoints = new ArrayDeque<>();
     private PendingRestore pendingRestore;
     private long safeUntilServerTick = -1L;
 
     public void arm(RestorationCheckpoint checkpoint) {
         RestorationCheckpoint next = Objects.requireNonNull(checkpoint, "checkpoint");
-        if (pendingRestore == null
-            && this.checkpoint instanceof RestorationCheckpoint.Hotbar previous
+
+        // A new emergency mutation while an inverse mutation is already in flight makes the
+        // previous restore chain ambiguous. Fail closed for restoration and preserve only the
+        // newly confirmed mutation.
+        if (pendingRestore != null) {
+            clear();
+        }
+
+        RestorationCheckpoint previous = checkpoints.peekLast();
+        if (previous instanceof RestorationCheckpoint.Hotbar priorHotbar
             && next instanceof RestorationCheckpoint.Hotbar following
-            && following.originalSelectedIndex() == previous.protectionHotbarIndex()
-            && following.originalSelectedBefore().sameContents(previous.protectionAfter())) {
-            this.checkpoint = new RestorationCheckpoint.Hotbar(
-                previous.originalSelectedIndex(),
+            && following.originalSelectedIndex() == priorHotbar.protectionHotbarIndex()
+            && following.originalSelectedBefore().sameContents(priorHotbar.protectionAfter())) {
+            checkpoints.removeLast();
+            checkpoints.addLast(new RestorationCheckpoint.Hotbar(
+                priorHotbar.originalSelectedIndex(),
                 following.protectionHotbarIndex(),
-                previous.originalSelectedBefore(),
+                priorHotbar.originalSelectedBefore(),
                 following.protectionAfter(),
                 following.confirmedAtServerTick()
-            );
+            ));
         } else {
-            this.checkpoint = next;
+            if (checkpoints.size() >= MAX_RESTORATION_DEPTH) {
+                // Restoration is convenience-only. If an unexpectedly deep chain forms, discard
+                // older restore intent instead of retaining unbounded stale inventory state.
+                checkpoints.clear();
+            }
+            checkpoints.addLast(next);
         }
-        this.pendingRestore = null;
-        this.safeUntilServerTick = -1L;
+
+        pendingRestore = null;
+        safeUntilServerTick = -1L;
     }
 
     public boolean hasPendingRestoration() {
-        return checkpoint != null;
+        return !checkpoints.isEmpty();
     }
 
     public void abort() {
@@ -55,14 +75,16 @@ public final class DeathProtectionRestorationController {
             clear();
             return Optional.empty();
         }
+
+        RestorationCheckpoint checkpoint = checkpoints.peekLast();
         if (checkpoint == null) return Optional.empty();
 
         if (pendingRestore != null) {
-            observePending(context);
+            observePending(checkpoint, context);
             return Optional.empty();
         }
 
-        if (!checkpointStillIntact(context)) {
+        if (!checkpointStillIntact(checkpoint, context)) {
             clear();
             return Optional.empty();
         }
@@ -122,12 +144,9 @@ public final class DeathProtectionRestorationController {
         ));
     }
 
-    private boolean checkpointStillIntact(ExecutionContext context) {
+    private boolean checkpointStillIntact(RestorationCheckpoint checkpoint, ExecutionContext context) {
         if (checkpoint instanceof RestorationCheckpoint.Hotbar hotbar) {
-            if (context.inventory().selectedHotbarIndex() == hotbar.originalSelectedIndex()) {
-                clear();
-                return false;
-            }
+            if (context.inventory().selectedHotbarIndex() == hotbar.originalSelectedIndex()) return false;
             if (context.inventory().selectedHotbarIndex() != hotbar.protectionHotbarIndex()) return false;
             return same(context, hotbar.originalSelectedBefore().inventoryIndex(), hotbar.originalSelectedBefore())
                 && same(context, hotbar.protectionHotbarIndex(), hotbar.protectionAfter());
@@ -156,7 +175,7 @@ public final class DeathProtectionRestorationController {
             && same(context, container.destinationInventoryIndex(), container.transaction().sourceBefore());
     }
 
-    private void observePending(ExecutionContext context) {
+    private void observePending(RestorationCheckpoint checkpoint, ExecutionContext context) {
         if (checkpoint instanceof RestorationCheckpoint.Hotbar hotbar
             && pendingRestore instanceof PendingRestore.Hotbar pending) {
             if (!same(context, hotbar.originalSelectedBefore().inventoryIndex(), hotbar.originalSelectedBefore())
@@ -166,7 +185,7 @@ public final class DeathProtectionRestorationController {
             }
             int selected = context.inventory().selectedHotbarIndex();
             if (selected == hotbar.originalSelectedIndex()) {
-                clear();
+                completeCurrentRestore();
                 return;
             }
             if (selected != hotbar.protectionHotbarIndex() || context.currentServerTick() > pending.confirmByServerTick()) {
@@ -184,7 +203,8 @@ public final class DeathProtectionRestorationController {
             if (context.menu().stateId() != pending.sentStateId()) {
                 boolean restored = same(context, routed.sourceInventoryIndex(), routed.destinationAfter())
                     && same(context, routed.destinationInventoryIndex(), routed.originalDestinationBefore());
-                clear();
+                if (restored) completeCurrentRestore();
+                else clear();
                 return;
             }
             if (context.currentServerTick() > pending.confirmByServerTick()) clear();
@@ -203,7 +223,8 @@ public final class DeathProtectionRestorationController {
         if (context.menu().stateId() != pending.sentStateId()) {
             boolean restored = same(context, container.sourceInventoryIndex(), container.transaction().sourceBefore())
                 && same(context, container.destinationInventoryIndex(), container.transaction().destinationBefore());
-            clear();
+            if (restored) completeCurrentRestore();
+            else clear();
             return;
         }
         if (context.currentServerTick() > pending.confirmByServerTick()) clear();
@@ -213,8 +234,14 @@ public final class DeathProtectionRestorationController {
         return context.inventory().slot(inventoryIndex).map(slot -> slot.sameContents(expected)).orElse(false);
     }
 
+    private void completeCurrentRestore() {
+        if (!checkpoints.isEmpty()) checkpoints.removeLast();
+        pendingRestore = null;
+        safeUntilServerTick = -1L;
+    }
+
     private void clear() {
-        checkpoint = null;
+        checkpoints.clear();
         pendingRestore = null;
         safeUntilServerTick = -1L;
     }
