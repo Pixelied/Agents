@@ -19,11 +19,14 @@ public final class NonTotemActionExecutor {
     private static final float VALUE_EPSILON = 0.001f;
 
     private Pending pending;
+    private RestorationCheckpoint restorationCheckpoint;
+    private HotbarRestorationCandidate hotbarRestorationCandidate;
 
     public ExecutionStatus begin(SurvivalAction action, NonTotemExecutionContext context) {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(context, "context");
         pending = null;
+        hotbarRestorationCandidate = null;
 
         if (!action.legal() || !action.authoritativePrerequisitesSatisfied()) {
             return new ExecutionStatus.Failed("non-totem action is no longer legal", true);
@@ -153,6 +156,9 @@ public final class NonTotemActionExecutor {
                     new ExecutionCommand.UseItem(route.destinationHand())
                 );
             }
+            int originalIndex = context.base().inventory().selectedHotbarIndex();
+            context.base().inventory().slot(originalIndex).ifPresent(original ->
+                hotbarRestorationCandidate = new HotbarRestorationCandidate(originalIndex, hotbar.hotbarIndex(), original));
             pending = routingPending(action, context, expected, route, useTicks(action, route));
             return new ExecutionStatus.WaitingForServer(
                 "waiting for exact survival stack to become selected",
@@ -218,8 +224,16 @@ public final class NonTotemActionExecutor {
         return Integer.MAX_VALUE;
     }
 
+    public Optional<RestorationCheckpoint> takeRestorationCheckpoint() {
+        RestorationCheckpoint checkpoint = restorationCheckpoint;
+        restorationCheckpoint = null;
+        return Optional.ofNullable(checkpoint);
+    }
+
     public void reset() {
         pending = null;
+        restorationCheckpoint = null;
+        hotbarRestorationCandidate = null;
     }
 
     public ExecutionStatus observe(NonTotemExecutionContext context) {
@@ -228,6 +242,7 @@ public final class NonTotemActionExecutor {
 
         if (context.base().currentServerTick() - pending.startedAtServerTick() > CONFIRMATION_TIMEOUT_TICKS) {
             pending = null;
+            hotbarRestorationCandidate = null;
             return new ExecutionStatus.Failed("server confirmation timed out", true);
         }
 
@@ -255,6 +270,7 @@ public final class NonTotemActionExecutor {
             confirmed = near(context.player().position(), relocate.targetPosition());
         } else {
             pending = null;
+            hotbarRestorationCandidate = null;
             return new ExecutionStatus.Failed("pending action type became unsupported", true);
         }
 
@@ -268,6 +284,7 @@ public final class NonTotemActionExecutor {
         SurvivalItemRoute route = pending.route();
         if (route == null) {
             pending = null;
+            hotbarRestorationCandidate = null;
             return new ExecutionStatus.Failed("routed action lost its route", true);
         }
 
@@ -275,14 +292,17 @@ public final class NonTotemActionExecutor {
             InventorySlotSnapshot slot = context.base().inventory().slot(hotbar.hotbarIndex()).orElse(null);
             if (!exact(slot, route)) {
                 pending = null;
+                hotbarRestorationCandidate = null;
                 return new ExecutionStatus.Failed("selected survival stack no longer matches exact planned components", true);
             }
             if (context.base().inventory().selectedHotbarIndex() != hotbar.hotbarIndex()) {
                 return new ExecutionStatus.WaitingForServer("waiting for exact survival stack hotbar selection");
             }
+            captureHotbarRestoration(context.base(), hotbar);
         } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
             if (context.base().menu().containerId() != pending.containerId()) {
                 pending = null;
+                hotbarRestorationCandidate = null;
                 return new ExecutionStatus.Failed("container changed before survival stack route confirmed", true);
             }
             if (context.base().menu().stateId() == pending.containerStateId()) {
@@ -291,10 +311,12 @@ public final class NonTotemActionExecutor {
             InventorySlotSnapshot destination = context.base().inventory().slot(swap.destinationInventoryIndex()).orElse(null);
             if (!exact(destination, route)) {
                 pending = null;
+                hotbarRestorationCandidate = null;
                 return new ExecutionStatus.Failed("container revised without exact planned survival stack destination", true);
             }
         } else {
             pending = null;
+            hotbarRestorationCandidate = null;
             return new ExecutionStatus.Failed("unexpected route stage for already-held survival stack", true);
         }
 
@@ -315,6 +337,22 @@ public final class NonTotemActionExecutor {
         return new ExecutionStatus.WaitingForServer(
             "survival stack route confirmed; waiting for server-observed item use",
             new ExecutionCommand.UseItem(routed.hand())
+        );
+    }
+
+    private void captureHotbarRestoration(ExecutionContext context, SurvivalItemRoute.HotbarSelect hotbar) {
+        HotbarRestorationCandidate candidate = hotbarRestorationCandidate;
+        hotbarRestorationCandidate = null;
+        if (candidate == null || candidate.routedHotbarIndex() != hotbar.hotbarIndex()) return;
+        InventorySlotSnapshot originalNow = context.inventory().slot(candidate.originalSelectedIndex()).orElse(null);
+        InventorySlotSnapshot routedNow = context.inventory().slot(hotbar.hotbarIndex()).orElse(null);
+        if (originalNow == null || routedNow == null || !originalNow.sameContents(candidate.originalSelectedBefore())) return;
+        restorationCheckpoint = new RestorationCheckpoint.Hotbar(
+            candidate.originalSelectedIndex(),
+            hotbar.hotbarIndex(),
+            candidate.originalSelectedBefore(),
+            routedNow,
+            context.currentServerTick()
         );
     }
 
@@ -525,6 +563,20 @@ public final class NonTotemActionExecutor {
             expectedPlayer = Objects.requireNonNull(expectedPlayer, "expectedPlayer");
             stage = Objects.requireNonNull(stage, "stage");
             if (useRequiredServerTicks < 0) throw new IllegalArgumentException("useRequiredServerTicks must be non-negative");
+        }
+    }
+
+    private record HotbarRestorationCandidate(
+        int originalSelectedIndex,
+        int routedHotbarIndex,
+        InventorySlotSnapshot originalSelectedBefore
+    ) {
+        private HotbarRestorationCandidate {
+            if (originalSelectedIndex < 0 || originalSelectedIndex > 8
+                || routedHotbarIndex < 0 || routedHotbarIndex > 8) {
+                throw new IllegalArgumentException("hotbar indices must be in [0, 8]");
+            }
+            originalSelectedBefore = Objects.requireNonNull(originalSelectedBefore, "originalSelectedBefore");
         }
     }
 }
