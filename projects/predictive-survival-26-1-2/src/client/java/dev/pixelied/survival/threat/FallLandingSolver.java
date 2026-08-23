@@ -14,6 +14,7 @@ import java.util.Optional;
 public final class FallLandingSolver {
     private static final double EPSILON = 1.0E-9d;
     private static final double VANILLA_DEFAULT_GRAVITY = 0.08d;
+    private static final double VANILLA_DEFAULT_SAFE_FALL_DISTANCE = 3d;
     private static final double SLOW_FALLING_GRAVITY_CAP = 0.01d;
 
     public Optional<LandingPrediction> solve(PredictionContext context) {
@@ -23,7 +24,6 @@ public final class FallLandingSolver {
 
         double verticalFriction = finitePositive(value(player, "vertical_friction", "0.98"), 0.98d);
         double horizontalFriction = finitePositive(value(player, "horizontal_friction", "0.91"), 0.91d);
-        double safeFallDistance = finiteNonNegative(value(player, "safe_fall_distance", "3"), 3d);
         double fallDamageMultiplier = finiteNonNegative(value(player, "fall_damage_multiplier", "1"), 1d);
         double accumulatedFall = finiteNonNegative(value(player, "fall_distance", "0"), 0d);
         boolean suppressingBounce = Boolean.parseBoolean(value(player, "suppressing_bounce", "false"));
@@ -39,6 +39,7 @@ public final class FallLandingSolver {
                 double downwardPart = Math.max(0d, position.y() - hit.playerPosition().y());
                 double totalFallDistance = accumulatedFall + downwardPart;
                 FallSurface surface = surface(hit.block(), suppressingBounce);
+                double safeFallDistance = safeFallDistanceForFutureLandingTick(player, tick);
                 float raw = rawFallDamage(
                     totalFallDistance + surface.extraFallDistance(),
                     surface.damageModifier(),
@@ -158,6 +159,21 @@ public final class FallLandingSolver {
             return new FallSurface(2f, 2.5d);
         }
         return new FallSurface(1f, 0d);
+    }
+
+    private static double safeFallDistanceForFutureLandingTick(PlayerSnapshot player, long futureTick) {
+        Double captured = finiteDouble(player.state("safe_fall_distance"));
+        double safeFallDistance = captured == null ? VANILLA_DEFAULT_SAFE_FALL_DISTANCE : captured;
+
+        EffectInstanceSnapshot jumpBoost = player.statusEffects().effects().get("minecraft:jump_boost");
+        if (jumpBoost != null && !activeForFutureMovementTick(jumpBoost, futureTick)) {
+            // 26.1.2 Jump Boost contributes +1 SAFE_FALL_DISTANCE per effect level. Effect ticking
+            // happens before movement/landing, so remove the currently-observed modifier once the
+            // finite effect has expired. Hidden weaker effects are not client-snapshotted here;
+            // subtracting the full visible modifier is conservative if one later becomes active.
+            safeFallDistance -= jumpBoost.amplifier() + 1d;
+        }
+        return safeFallDistance;
     }
 
     private static boolean activeForFutureMovementTick(EffectInstanceSnapshot effect, long futureTick) {
