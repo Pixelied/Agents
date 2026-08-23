@@ -400,16 +400,17 @@ public final class ClientCombatCoordinator {
             );
         } else {
             PendingContinuation pending = continuation;
-            Set<ContinuationDependency> consumedDependencies = pending != null
-                && pending.decision().actionId() == decision.actionId()
-                && pending.nextActionIndex() == startIndex
-                    ? pending.consumedDependencies()
-                    : Set.of();
-            if (decision.approval().resources().isEmpty() && consumedDependencies.isEmpty()) {
-                allowed = arbiter.evaluateFrom(
+            if (pending == null
+                || pending.decision().actionId() != decision.actionId()
+                || pending.nextActionIndex() != startIndex) {
+                allowed = ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
+            } else if (decision.approval().resources().isEmpty()) {
+                allowed = arbiter.evaluateFromContinuation(
                     decision.approval(),
                     decision.actions(),
                     startIndex,
+                    pending.acceptedInventoryRevision(),
+                    pending.consumedDependencies(),
                     liveView,
                     pendingItems,
                     config,
@@ -421,7 +422,8 @@ public final class ClientCombatCoordinator {
                     decision.actions(),
                     startIndex,
                     ReactiveBurstDispatcher.groupReservationId(decision.actionId()),
-                    consumedDependencies,
+                    pending.acceptedInventoryRevision(),
+                    pending.consumedDependencies(),
                     liveView,
                     pendingItems,
                     config,
@@ -537,10 +539,12 @@ public final class ClientCombatCoordinator {
                 .filter(required -> consumed.stream().noneMatch(done -> sameDependency(done, required)))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         }
+        long acceptedInventoryRevision = liveView.inventoryRevision();
         return new PendingContinuation(
             decision,
             nextActionIndex,
             waitTicks,
+            acceptedInventoryRevision,
             remaining,
             consumed
         );
@@ -619,6 +623,7 @@ public final class ClientCombatCoordinator {
         ReactiveDecision decision,
         int nextActionIndex,
         int waitTicks,
+        long acceptedInventoryRevision,
         Set<ContinuationDependency> remainingDependencies,
         Set<ContinuationDependency> consumedDependencies
     ) {
@@ -632,6 +637,9 @@ public final class ClientCombatCoordinator {
             if (waitTicks < 0) {
                 throw new IllegalArgumentException("waitTicks must be non-negative");
             }
+            if (acceptedInventoryRevision < 0L) {
+                throw new IllegalArgumentException("acceptedInventoryRevision must be non-negative");
+            }
             remainingDependencies = Set.copyOf(remainingDependencies);
             consumedDependencies = Set.copyOf(consumedDependencies);
         }
@@ -641,6 +649,7 @@ public final class ClientCombatCoordinator {
                 decision,
                 nextActionIndex,
                 nextWaitTicks,
+                acceptedInventoryRevision,
                 remainingDependencies,
                 consumedDependencies
             );
@@ -663,7 +672,14 @@ public final class ClientCombatCoordinator {
                 }
             }
             return changed
-                ? new PendingContinuation(decision, nextActionIndex, waitTicks, remaining, consumed)
+                ? new PendingContinuation(
+                    decision,
+                    nextActionIndex,
+                    waitTicks,
+                    acceptedInventoryRevision,
+                    remaining,
+                    consumed
+                )
                 : this;
         }
 
