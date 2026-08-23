@@ -44,9 +44,9 @@ final class MinecraftFallCorridorSnapshotFactory {
         Objects.requireNonNull(limits, "limits");
         Objects.requireNonNull(nearbyBlocks, "nearbyBlocks");
 
-        // The fixed nearby scan already knows which cells are collidable/full cubes. Enrich only
-        // partial collidable cells with the actual vanilla VoxelShape envelope; full cubes need no
-        // extra query and non-collidable blocks cannot stop movement.
+        // Older/synthetic snapshots may only know collidable/full-cube state. Enrich those partial
+        // cells on demand. Live nearby snapshots already carry the vanilla VoxelShape envelope and
+        // therefore need no second world lookup.
         List<WorldSnapshot.BlockSnapshot> enrichedNearby = enrichNearbyCollisionShapes(level, nearbyBlocks);
 
         // The nearby cube already handles grounded/ordinary movement. Only pay for the corridor
@@ -96,7 +96,8 @@ final class MinecraftFallCorridorSnapshotFactory {
         for (int i = 0; i < nearbyBlocks.size(); i++) {
             WorldSnapshot.BlockSnapshot block = nearbyBlocks.get(i);
             if (!block.collision()
-                || Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
+                || Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))
+                || block.properties().containsKey("collision_min_x")) {
                 continue;
             }
 
