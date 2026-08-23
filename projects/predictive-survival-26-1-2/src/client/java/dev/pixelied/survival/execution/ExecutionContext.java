@@ -15,12 +15,37 @@ public record ExecutionContext(
     boolean serverUsingItem,
     SurvivalAction.Hand usingHand,
     int serverUseTicks,
-    boolean shieldAngleValid
+    boolean shieldAngleValid,
+    ServerStateEvidenceSnapshot serverStateEvidence
 ) {
+    public ExecutionContext(
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        TimingSnapshot timing,
+        long currentServerTick,
+        boolean serverUsingItem,
+        SurvivalAction.Hand usingHand,
+        int serverUseTicks,
+        boolean shieldAngleValid
+    ) {
+        this(
+            inventory,
+            menu,
+            timing,
+            currentServerTick,
+            serverUsingItem,
+            usingHand,
+            serverUseTicks,
+            shieldAngleValid,
+            ServerStateEvidenceSnapshot.unknown()
+        );
+    }
+
     public ExecutionContext {
         inventory = Objects.requireNonNull(inventory, "inventory");
         menu = Objects.requireNonNull(menu, "menu");
         timing = Objects.requireNonNull(timing, "timing");
+        serverStateEvidence = Objects.requireNonNull(serverStateEvidence, "serverStateEvidence");
         if (currentServerTick < 0) throw new IllegalArgumentException("currentServerTick must be non-negative");
         if (serverUseTicks < 0) throw new IllegalArgumentException("serverUseTicks must be non-negative");
         if (!serverUsingItem && usingHand != null) {
