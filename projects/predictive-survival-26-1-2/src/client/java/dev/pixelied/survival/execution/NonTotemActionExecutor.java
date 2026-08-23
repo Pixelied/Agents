@@ -4,11 +4,14 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.inventory.InventorySnapshot;
+import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.planner.SurvivalAction;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public final class NonTotemActionExecutor {
     private static final long CONFIRMATION_TIMEOUT_TICKS = 40L;
@@ -31,7 +34,7 @@ public final class NonTotemActionExecutor {
             if (target == null) return new ExecutionStatus.Failed("cover action has no executable block target", true);
             SurvivalAction.Hand hand = handHolding(context.base().inventory(), target.itemKey());
             if (hand == null) return missingHeldItem(target.itemKey());
-            pending = pending(action, context, action.apply(context.player()), hand);
+            pending = directPending(action, context, action.apply(context.player()), hand);
             return new ExecutionStatus.WaitingForServer(
                 "waiting for target cover block to be observed",
                 new ExecutionCommand.PlaceBlock(target, hand)
@@ -43,17 +46,15 @@ public final class NonTotemActionExecutor {
             if (itemKey == null) {
                 return new ExecutionStatus.Failed("equipment action must describe one concrete item swap", true);
             }
-            SurvivalAction.Hand hand = equipment.sourceItem()
-                .map(source -> handHolding(context.base().inventory(), source))
-                .orElseGet(() -> handHolding(context.base().inventory(), itemKey));
-            if (hand == null) return missingHeldItem(itemKey);
             if (equipmentSatisfied(equipment, context.player())) {
                 return new ExecutionStatus.Confirmed("equipment state is already observed");
             }
-            pending = pending(action, context, action.apply(context.player()), hand);
-            return new ExecutionStatus.WaitingForServer(
-                "waiting for server-observed equipment state",
-                new ExecutionCommand.UseItem(hand)
+            return beginStateAction(
+                action,
+                equipment.sourceItem(),
+                itemKey,
+                action.apply(context.player()),
+                context
             );
         }
 
@@ -61,17 +62,15 @@ public final class NonTotemActionExecutor {
             if (effects.itemKey().isBlank()) {
                 return new ExecutionStatus.Failed("effect action has no executable item key", true);
             }
-            SurvivalAction.Hand hand = effects.sourceItem()
-                .map(source -> handHolding(context.base().inventory(), source))
-                .orElseGet(() -> handHolding(context.base().inventory(), effects.itemKey()));
-            if (hand == null) return missingHeldItem(effects.itemKey());
             if (effectsSatisfied(effects, context.player(), context.player(), 0L)) {
                 return new ExecutionStatus.Confirmed("effect state is already observed");
             }
-            pending = pending(action, context, effects.apply(context.player()), hand);
-            return new ExecutionStatus.WaitingForServer(
-                "waiting for server-observed effect/health state",
-                new ExecutionCommand.UseItem(hand)
+            return beginStateAction(
+                action,
+                effects.sourceItem(),
+                effects.itemKey(),
+                effects.apply(context.player()),
+                context
             );
         }
 
@@ -83,7 +82,7 @@ public final class NonTotemActionExecutor {
             if (near(context.player().position(), target)) {
                 return new ExecutionStatus.Confirmed("pearl destination is already observed");
             }
-            pending = pending(action, context, action.apply(context.player()), hand);
+            pending = directPending(action, context, action.apply(context.player()), hand);
             return new ExecutionStatus.WaitingForServer(
                 "waiting for server-observed pearl relocation",
                 new ExecutionCommand.AimAndUseItem(hand, target)
@@ -94,7 +93,7 @@ public final class NonTotemActionExecutor {
             if (near(context.player().position(), relocate.targetPosition())) {
                 return new ExecutionStatus.Confirmed("relocation target is already observed");
             }
-            pending = pending(action, context, relocate.apply(context.player()), null);
+            pending = directPending(action, context, relocate.apply(context.player()), null);
             return new ExecutionStatus.WaitingForServer(
                 "waiting for server-observed relocation",
                 new ExecutionCommand.MoveToward(relocate.targetPosition())
@@ -104,31 +103,113 @@ public final class NonTotemActionExecutor {
         return new ExecutionStatus.Failed("unsupported non-totem action type", true);
     }
 
+    private ExecutionStatus beginStateAction(
+        SurvivalAction action,
+        Optional<SurvivalAction.HeldItemRef> sourceItem,
+        String fallbackItemKey,
+        PlayerSnapshot expected,
+        NonTotemExecutionContext context
+    ) {
+        SurvivalAction.HeldItemRef source = sourceItem.orElse(null);
+        SurvivalItemRoute route = source == null ? null : source.route().orElse(null);
+        if (route == null) {
+            SurvivalAction.Hand hand = source == null
+                ? handHolding(context.base().inventory(), fallbackItemKey)
+                : handHolding(context.base().inventory(), source);
+            if (hand == null) return missingHeldItem(fallbackItemKey);
+            pending = usingPending(action, context, expected, hand, null, action.requiredServerTicks());
+            return new ExecutionStatus.WaitingForServer(
+                "waiting for server-observed survival item use",
+                new ExecutionCommand.UseItem(hand)
+            );
+        }
+
+        if (!routeMatchesSource(route, source)) {
+            return new ExecutionStatus.Failed("routed survival item identity changed before execution", true);
+        }
+
+        if (route instanceof SurvivalItemRoute.AlreadyHeld) {
+            if (handHolding(context.base().inventory(), source) == null) {
+                return missingHeldItem(source.itemKey());
+            }
+            int useTicks = useTicks(action, route);
+            pending = usingPending(action, context, expected, route.destinationHand(), route, useTicks);
+            return new ExecutionStatus.WaitingForServer(
+                "waiting for server-observed survival item use",
+                new ExecutionCommand.UseItem(route.destinationHand())
+            );
+        }
+
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            InventorySlotSnapshot sourceSlot = context.base().inventory().slot(hotbar.hotbarIndex()).orElse(null);
+            if (!exact(sourceSlot, route)) {
+                return new ExecutionStatus.Failed("routed hotbar survival stack changed before selection", true);
+            }
+            if (context.base().inventory().selectedHotbarIndex() == hotbar.hotbarIndex()) {
+                int useTicks = useTicks(action, route);
+                pending = usingPending(action, context, expected, route.destinationHand(), route, useTicks);
+                return new ExecutionStatus.WaitingForServer(
+                    "waiting for server-observed survival item use",
+                    new ExecutionCommand.UseItem(route.destinationHand())
+                );
+            }
+            pending = routingPending(action, context, expected, route, useTicks(action, route));
+            return new ExecutionStatus.WaitingForServer(
+                "waiting for exact survival stack to become selected",
+                new ExecutionCommand.SelectHotbar(hotbar.hotbarIndex())
+            );
+        }
+
+        SurvivalItemRoute.ContainerSwap swap = (SurvivalItemRoute.ContainerSwap) route;
+        InventorySlotSnapshot sourceSlot = context.base().inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        if (!exact(sourceSlot, route)) {
+            return new ExecutionStatus.Failed("routed container survival stack changed before swap", true);
+        }
+        if (context.base().menu().menuSlotForInventoryIndex(swap.sourceInventoryIndex()).orElse(-1) != swap.sourceMenuSlot()) {
+            return new ExecutionStatus.Failed("routed container slot mapping changed before swap", true);
+        }
+        pending = routingPending(action, context, expected, route, useTicks(action, route));
+        return new ExecutionStatus.WaitingForServer(
+            "waiting for exact survival stack container swap",
+            new ExecutionCommand.SwapMenuSlot(
+                context.base().menu().containerId(),
+                context.base().menu().stateId(),
+                swap.sourceMenuSlot(),
+                swap.button()
+            )
+        );
+    }
+
     public int remainingServerTicks(NonTotemExecutionContext context) {
         Objects.requireNonNull(context, "context");
         if (pending == null) return Integer.MAX_VALUE;
 
         long currentTick = context.base().currentServerTick();
-        SurvivalAction action = pending.action();
-        if (action instanceof SurvivalAction.SwapEquipment equipment) {
-            if (equipmentSatisfied(equipment, context.player())) return 0;
+        if (pending.stage() == Stage.ROUTING) {
+            if (routeObserved(pending.route(), context)) return pending.useRequiredServerTicks();
             if (currentTick <= pending.latestServerStartTick()) {
-                long remaining = pending.latestServerStartTick() - currentTick;
+                long remaining = pending.latestServerStartTick() - currentTick + pending.useRequiredServerTicks();
                 return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
             }
             return Integer.MAX_VALUE;
         }
 
+        SurvivalAction action = pending.action();
+        if (action instanceof SurvivalAction.SwapEquipment equipment) {
+            if (equipmentSatisfied(equipment, context.player())) return 0;
+            return ticksUntilOrUnknown(currentTick, pending.latestServerStartTick());
+        }
+
         if (action instanceof SurvivalAction.ApplyEffects effects) {
-            long elapsed = Math.max(0L, currentTick - pending.startedAtServerTick());
+            long elapsed = Math.max(0L, currentTick - pending.useStartedAtServerTick());
             if (effectsSatisfied(effects, pending.expectedPlayer(), context.player(), elapsed)) return 0;
 
             ExecutionContext base = context.base();
             if (base.serverUsingItem() && base.usingHand() == pending.hand()) {
-                return Math.max(0, action.requiredServerTicks() - base.serverUseTicks());
+                return Math.max(0, pending.useRequiredServerTicks() - base.serverUseTicks());
             }
             if (currentTick <= pending.latestServerStartTick()) {
-                long remaining = pending.latestServerStartTick() - currentTick + action.requiredServerTicks();
+                long remaining = pending.latestServerStartTick() - currentTick + pending.useRequiredServerTicks();
                 return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
             }
             return Integer.MAX_VALUE;
@@ -150,6 +231,11 @@ public final class NonTotemActionExecutor {
             return new ExecutionStatus.Failed("server confirmation timed out", true);
         }
 
+        if (pending.stage() == Stage.ROUTING) {
+            ExecutionStatus routeStatus = observeRoute(context);
+            if (routeStatus != null) return routeStatus;
+        }
+
         SurvivalAction action = pending.action();
         boolean confirmed;
         if (action instanceof SurvivalAction.PlaceCover cover) {
@@ -161,7 +247,7 @@ public final class NonTotemActionExecutor {
                 effects,
                 pending.expectedPlayer(),
                 context.player(),
-                Math.max(0L, context.base().currentServerTick() - pending.startedAtServerTick())
+                Math.max(0L, context.base().currentServerTick() - pending.useStartedAtServerTick())
             );
         } else if (action instanceof SurvivalAction.PearlRescue pearl) {
             confirmed = pearl.targetPosition().map(target -> near(context.player().position(), target)).orElse(false);
@@ -175,6 +261,89 @@ public final class NonTotemActionExecutor {
         if (!confirmed) return new ExecutionStatus.WaitingForServer("waiting for authoritative action confirmation");
         pending = null;
         return new ExecutionStatus.Confirmed("non-totem action confirmed by observed state");
+    }
+
+    /** Returns null when routing is complete and normal action observation should continue. */
+    private ExecutionStatus observeRoute(NonTotemExecutionContext context) {
+        SurvivalItemRoute route = pending.route();
+        if (route == null) {
+            pending = null;
+            return new ExecutionStatus.Failed("routed action lost its route", true);
+        }
+
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            InventorySlotSnapshot slot = context.base().inventory().slot(hotbar.hotbarIndex()).orElse(null);
+            if (!exact(slot, route)) {
+                pending = null;
+                return new ExecutionStatus.Failed("selected survival stack no longer matches exact planned components", true);
+            }
+            if (context.base().inventory().selectedHotbarIndex() != hotbar.hotbarIndex()) {
+                return new ExecutionStatus.WaitingForServer("waiting for exact survival stack hotbar selection");
+            }
+        } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
+            if (context.base().menu().containerId() != pending.containerId()) {
+                pending = null;
+                return new ExecutionStatus.Failed("container changed before survival stack route confirmed", true);
+            }
+            if (context.base().menu().stateId() == pending.containerStateId()) {
+                return new ExecutionStatus.WaitingForServer("waiting for authoritative container revision");
+            }
+            InventorySlotSnapshot destination = context.base().inventory().slot(swap.destinationInventoryIndex()).orElse(null);
+            if (!exact(destination, route)) {
+                pending = null;
+                return new ExecutionStatus.Failed("container revised without exact planned survival stack destination", true);
+            }
+        } else {
+            pending = null;
+            return new ExecutionStatus.Failed("unexpected route stage for already-held survival stack", true);
+        }
+
+        Pending routed = pending;
+        pending = new Pending(
+            routed.action(),
+            routed.startedAtServerTick(),
+            context.base().currentServerTick(),
+            routed.expectedPlayer(),
+            routed.hand(),
+            context.base().timing().nextPacketProcessingWindow().latest(),
+            routed.useRequiredServerTicks(),
+            Stage.USING,
+            routed.route(),
+            routed.containerId(),
+            routed.containerStateId()
+        );
+        return new ExecutionStatus.WaitingForServer(
+            "survival stack route confirmed; waiting for server-observed item use",
+            new ExecutionCommand.UseItem(routed.hand())
+        );
+    }
+
+    private static boolean routeObserved(SurvivalItemRoute route, NonTotemExecutionContext context) {
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            return context.base().inventory().selectedHotbarIndex() == hotbar.hotbarIndex()
+                && exact(context.base().inventory().slot(hotbar.hotbarIndex()).orElse(null), route);
+        }
+        if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
+            return exact(context.base().inventory().slot(swap.destinationInventoryIndex()).orElse(null), route);
+        }
+        return true;
+    }
+
+    private static boolean routeMatchesSource(SurvivalItemRoute route, SurvivalAction.HeldItemRef source) {
+        return route.destinationHand() == source.hand()
+            && route.itemKey().equals(source.itemKey())
+            && route.componentFingerprint() == source.componentFingerprint();
+    }
+
+    private static boolean exact(InventorySlotSnapshot slot, SurvivalItemRoute route) {
+        return slot != null
+            && slot.count() > 0
+            && slot.stackKey().equals(route.itemKey())
+            && slot.componentFingerprint() == route.componentFingerprint();
+    }
+
+    private static int useTicks(SurvivalAction action, SurvivalItemRoute route) {
+        return Math.max(0, action.requiredServerTicks() - route.requiredServerTicks());
     }
 
     private static ExecutionStatus.Failed missingHeldItem(String itemKey) {
@@ -264,7 +433,7 @@ public final class NonTotemActionExecutor {
         return dx * dx + dy * dy + dz * dz <= POSITION_TOLERANCE * POSITION_TOLERANCE;
     }
 
-    private static Pending pending(
+    private static Pending directPending(
         SurvivalAction action,
         NonTotemExecutionContext context,
         PlayerSnapshot expectedPlayer,
@@ -273,22 +442,89 @@ public final class NonTotemActionExecutor {
         return new Pending(
             action,
             context.base().currentServerTick(),
+            context.base().currentServerTick(),
             expectedPlayer,
             hand,
-            context.base().timing().nextPacketProcessingWindow().latest()
+            context.base().timing().nextPacketProcessingWindow().latest(),
+            action.requiredServerTicks(),
+            Stage.USING,
+            null,
+            context.base().menu().containerId(),
+            context.base().menu().stateId()
         );
     }
+
+    private static Pending usingPending(
+        SurvivalAction action,
+        NonTotemExecutionContext context,
+        PlayerSnapshot expectedPlayer,
+        SurvivalAction.Hand hand,
+        SurvivalItemRoute route,
+        int useRequiredServerTicks
+    ) {
+        return new Pending(
+            action,
+            context.base().currentServerTick(),
+            context.base().currentServerTick(),
+            expectedPlayer,
+            hand,
+            context.base().timing().nextPacketProcessingWindow().latest(),
+            useRequiredServerTicks,
+            Stage.USING,
+            route,
+            context.base().menu().containerId(),
+            context.base().menu().stateId()
+        );
+    }
+
+    private static Pending routingPending(
+        SurvivalAction action,
+        NonTotemExecutionContext context,
+        PlayerSnapshot expectedPlayer,
+        SurvivalItemRoute route,
+        int useRequiredServerTicks
+    ) {
+        return new Pending(
+            action,
+            context.base().currentServerTick(),
+            -1L,
+            expectedPlayer,
+            route.destinationHand(),
+            context.base().timing().nextPacketProcessingWindow().latest(),
+            useRequiredServerTicks,
+            Stage.ROUTING,
+            route,
+            context.base().menu().containerId(),
+            context.base().menu().stateId()
+        );
+    }
+
+    private static int ticksUntilOrUnknown(long currentTick, long latestEffectTick) {
+        if (currentTick > latestEffectTick) return Integer.MAX_VALUE;
+        long remaining = latestEffectTick - currentTick;
+        return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
+    }
+
+    private enum Stage { ROUTING, USING }
 
     private record Pending(
         SurvivalAction action,
         long startedAtServerTick,
+        long useStartedAtServerTick,
         PlayerSnapshot expectedPlayer,
         SurvivalAction.Hand hand,
-        long latestServerStartTick
+        long latestServerStartTick,
+        int useRequiredServerTicks,
+        Stage stage,
+        SurvivalItemRoute route,
+        int containerId,
+        int containerStateId
     ) {
         private Pending {
             action = Objects.requireNonNull(action, "action");
             expectedPlayer = Objects.requireNonNull(expectedPlayer, "expectedPlayer");
+            stage = Objects.requireNonNull(stage, "stage");
+            if (useRequiredServerTicks < 0) throw new IllegalArgumentException("useRequiredServerTicks must be non-negative");
         }
     }
 }
