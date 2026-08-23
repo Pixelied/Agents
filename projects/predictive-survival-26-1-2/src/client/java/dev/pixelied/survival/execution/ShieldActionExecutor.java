@@ -6,11 +6,13 @@ import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.planner.SurvivalAction;
 
 import java.util.Objects;
+import java.util.Optional;
 
 public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction.RaiseShield> {
     private static final long CONFIRMATION_TIMEOUT_TICKS = 20L;
 
     private Pending pending;
+    private RestorationCheckpoint restorationCheckpoint;
 
     @Override
     public ExecutionStatus begin(SurvivalAction.RaiseShield action, ExecutionContext context) {
@@ -131,8 +133,15 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         return Integer.MAX_VALUE;
     }
 
+    public Optional<RestorationCheckpoint> takeRestorationCheckpoint() {
+        RestorationCheckpoint checkpoint = restorationCheckpoint;
+        restorationCheckpoint = null;
+        return Optional.ofNullable(checkpoint);
+    }
+
     public void reset() {
         pending = null;
+        restorationCheckpoint = null;
     }
 
     /** Returns null only when routing finished and normal shield observation can continue immediately. */
@@ -152,6 +161,7 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             if (context.inventory().selectedHotbarIndex() != hotbar.hotbarIndex()) {
                 return new ExecutionStatus.WaitingForServer("waiting for exact shield hotbar selection");
             }
+            captureHotbarRestoration(pending, hotbar, context);
         } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
             if (context.menu().containerId() != pending.containerId()) {
                 pending = null;
@@ -180,9 +190,30 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             Stage.USING,
             routed.route(),
             routed.containerId(),
-            routed.containerStateId()
+            routed.containerStateId(),
+            routed.originalSelectedIndex(),
+            routed.originalSelectedBefore()
         );
         return statusForUsing(context, true);
+    }
+
+    private void captureHotbarRestoration(
+        Pending routed,
+        SurvivalItemRoute.HotbarSelect hotbar,
+        ExecutionContext context
+    ) {
+        InventorySlotSnapshot originalBefore = routed.originalSelectedBefore();
+        if (originalBefore == null || routed.originalSelectedIndex() == hotbar.hotbarIndex()) return;
+        InventorySlotSnapshot originalNow = context.inventory().slot(routed.originalSelectedIndex()).orElse(null);
+        InventorySlotSnapshot routedNow = context.inventory().slot(hotbar.hotbarIndex()).orElse(null);
+        if (originalNow == null || routedNow == null || !originalNow.sameContents(originalBefore)) return;
+        restorationCheckpoint = new RestorationCheckpoint.Hotbar(
+            routed.originalSelectedIndex(),
+            hotbar.hotbarIndex(),
+            originalBefore,
+            routedNow,
+            context.currentServerTick()
+        );
     }
 
     private ExecutionStatus statusForUsing(ExecutionContext context, boolean mayEmitUseCommand) {
@@ -227,7 +258,9 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             Stage.USING,
             route,
             context.menu().containerId(),
-            context.menu().stateId()
+            context.menu().stateId(),
+            -1,
+            null
         );
     }
 
@@ -237,6 +270,10 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         SurvivalItemRoute route,
         int useRequiredServerTicks
     ) {
+        int originalIndex = context.inventory().selectedHotbarIndex();
+        InventorySlotSnapshot originalBefore = route instanceof SurvivalItemRoute.HotbarSelect
+            ? context.inventory().slot(originalIndex).orElse(null)
+            : null;
         return new Pending(
             action,
             route.destinationHand(),
@@ -246,7 +283,9 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             Stage.ROUTING,
             route,
             context.menu().containerId(),
-            context.menu().stateId()
+            context.menu().stateId(),
+            originalIndex,
+            originalBefore
         );
     }
 
@@ -296,7 +335,9 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         Stage stage,
         SurvivalItemRoute route,
         int containerId,
-        int containerStateId
+        int containerStateId,
+        int originalSelectedIndex,
+        InventorySlotSnapshot originalSelectedBefore
     ) {
         private Pending {
             action = Objects.requireNonNull(action, "action");
