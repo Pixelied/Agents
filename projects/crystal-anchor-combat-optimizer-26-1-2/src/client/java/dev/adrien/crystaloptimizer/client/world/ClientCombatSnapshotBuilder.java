@@ -75,11 +75,13 @@ public final class ClientCombatSnapshotBuilder {
             return Optional.empty();
         }
 
-        List<AbstractClientPlayer> validTargets = targets.stream()
-            .filter(Objects::nonNull)
-            .filter(target -> target != self && !target.isRemoved())
-            .distinct()
-            .toList();
+        ArrayList<AbstractClientPlayer> validTargets = new ArrayList<>(targets.size());
+        for (AbstractClientPlayer target : targets) {
+            if (target == null || target == self || target.isRemoved() || validTargets.contains(target)) {
+                continue;
+            }
+            validTargets.add(target);
+        }
         if (validTargets.isEmpty()) {
             return Optional.empty();
         }
