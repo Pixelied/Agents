@@ -45,19 +45,19 @@ public final class PredictiveSurvivalPolicyScreen extends Screen {
 
         RescuePolicy policy = this.draft.customPolicy();
         this.deathProtectionButton = addPolicyRow(left, top,
-            "death_protection", policy.deathProtection(), PolicyFlag.DEATH_PROTECTION);
+            "predictive_survival.config.policy.death_protection", policy.deathProtection(), PolicyFlag.DEATH_PROTECTION);
         this.shieldsButton = addPolicyRow(left, top + ROW_GAP,
-            "shields", policy.shields(), PolicyFlag.SHIELDS);
+            "predictive_survival.config.policy.shields", policy.shields(), PolicyFlag.SHIELDS);
         this.consumablesButton = addPolicyRow(left, top + ROW_GAP * 2,
-            "consumables", policy.consumables(), PolicyFlag.CONSUMABLES);
+            "predictive_survival.config.policy.consumables", policy.consumables(), PolicyFlag.CONSUMABLES);
         this.equipmentButton = addPolicyRow(left, top + ROW_GAP * 3,
-            "equipment", policy.equipment(), PolicyFlag.EQUIPMENT);
+            "predictive_survival.config.policy.equipment", policy.equipment(), PolicyFlag.EQUIPMENT);
         this.inventoryRoutingButton = addPolicyRow(left, top + ROW_GAP * 4,
-            "inventory_routing", policy.inventoryRouting(), PolicyFlag.INVENTORY_ROUTING);
+            "predictive_survival.config.policy.inventory_routing", policy.inventoryRouting(), PolicyFlag.INVENTORY_ROUTING);
         this.mainHandTakeoverButton = addPolicyRow(left, top + ROW_GAP * 5,
-            "main_hand_takeover", policy.mainHandTakeover(), PolicyFlag.MAIN_HAND_TAKEOVER);
+            "predictive_survival.config.policy.main_hand_takeover", policy.mainHandTakeover(), PolicyFlag.MAIN_HAND_TAKEOVER);
         this.proactiveDualProtectionButton = addPolicyRow(left, top + ROW_GAP * 6,
-            "proactive_dual_protection", policy.proactiveDualProtection(), PolicyFlag.PROACTIVE_DUAL_PROTECTION);
+            "predictive_survival.config.policy.proactive_dual_protection", policy.proactiveDualProtection(), PolicyFlag.PROACTIVE_DUAL_PROTECTION);
 
         int controlsY = top + ROW_GAP * 7 + 6;
         this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> closeToParent())
@@ -74,11 +74,10 @@ public final class PredictiveSurvivalPolicyScreen extends Screen {
     private CycleButton<Boolean> addPolicyRow(
         int x,
         int y,
-        String key,
+        String label,
         boolean initial,
         PolicyFlag flag
     ) {
-        String label = "predictive_survival.config.policy." + key;
         String description = label + ".description";
         return this.addRenderableWidget(
             CycleButton.onOffBuilder(initial)
