@@ -43,14 +43,20 @@ public final class ContactHazardPredictor implements ThreatPredictor {
         String sourceKey,
         boolean fire
     ) {
-        // Vanilla invokes these contact callbacks every game tick while contact continues. The
-        // current frame proves the tick-0 contact; future contact is only potential because the
-        // player may move away, but modeling a single hit can be falsely safe when hurt cooldown
-        // later expires while the player remains trapped in the hazard.
-        output.add(event(id + ":0", rawDamage, sourceKey, fire, 0L, Confidence.MATCHED));
+        // Preserve the established immediate event identity/window: the frame proves contact now,
+        // while the server may process the corresponding contact callback on the current or next
+        // tick. Future continued contact is only potential because the player can still move away.
+        output.add(event(id, rawDamage, sourceKey, fire, new TickWindow(0, 1), Confidence.MATCHED));
         long horizon = context.limits().maxProjectileHorizonTicks();
-        for (long tick = 1L; tick <= horizon; tick++) {
-            output.add(event(id + ':' + tick, rawDamage, sourceKey, fire, tick, Confidence.POTENTIAL));
+        for (long tick = 2L; tick <= horizon; tick++) {
+            output.add(event(
+                id + ":future:" + tick,
+                rawDamage,
+                sourceKey,
+                fire,
+                new TickWindow(tick, tick),
+                Confidence.POTENTIAL
+            ));
         }
     }
 
@@ -59,7 +65,7 @@ public final class ContactHazardPredictor implements ThreatPredictor {
         float rawDamage,
         String sourceKey,
         boolean fire,
-        long tick,
+        TickWindow impact,
         Confidence confidence
     ) {
         EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.BYPASSES_SHIELD);
@@ -70,7 +76,7 @@ public final class ContactHazardPredictor implements ThreatPredictor {
         return new ThreatEvent(
             "contact:" + id,
             ThreatKind.ENVIRONMENT,
-            new TickWindow(tick, tick),
+            impact,
             damage,
             confidence,
             Optional.empty(),
