@@ -110,7 +110,7 @@ public final class SurvivalCandidateGenerator {
             }
         }
 
-        if (policy.shields()) addShieldCandidate(candidates, context, timeline, inventory);
+        if (policy.shields()) addShieldCandidate(candidates, context, timeline, inventory, menu, policy);
         addNonTotemCandidates(candidates, context, inventory, menu, policy);
         return List.copyOf(candidates);
     }
@@ -237,11 +237,13 @@ public final class SurvivalCandidateGenerator {
         return java.util.Optional.empty();
     }
 
-    private static void addShieldCandidate(
+    private void addShieldCandidate(
         List<SurvivalAction> candidates,
         PredictionContext context,
         ThreatTimeline timeline,
-        InventorySnapshot inventory
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        RescuePolicy policy
     ) {
         boolean hasBlockableThreat = timeline.events().stream().anyMatch(ThreatEvent::blockable);
         if (!hasBlockableThreat) return;
@@ -253,31 +255,66 @@ public final class SurvivalCandidateGenerator {
                 && "minecraft:shield".equals(slot.stackKey())
                 && !slot.blockingOnCooldown())
             .orElse(false);
-        if (!activeOffhand && !selectedMainhandShield) return;
 
-        BlockingSnapshot blocking = context.player().blocking();
-        int elapsed = activeOffhand ? blocking.elapsedUseTicks() : 0;
-        int required = activeOffhand
-            ? Math.max(blocking.requiredUseTicks(), SHIELD_WARMUP_TICKS)
-            : SHIELD_WARMUP_TICKS;
-        int requiredServerTicks = activeOffhand && elapsed >= required ? 0 : Math.max(0, required - elapsed);
+        if (activeOffhand || selectedMainhandShield) {
+            BlockingSnapshot blocking = context.player().blocking();
+            int elapsed = activeOffhand ? blocking.elapsedUseTicks() : 0;
+            int required = activeOffhand
+                ? Math.max(blocking.requiredUseTicks(), SHIELD_WARMUP_TICKS)
+                : SHIELD_WARMUP_TICKS;
+            int requiredServerTicks = activeOffhand && elapsed >= required ? 0 : Math.max(0, required - elapsed);
 
-        java.util.Optional<dev.pixelied.survival.damage.BlockingProfileSnapshot> profile = activeOffhand
-            ? context.player().blocking().profile().or(() -> inventory.slot(40).flatMap(InventorySlotSnapshot::blockingProfile))
-            : inventory.slot(inventory.selectedHotbarIndex()).flatMap(InventorySlotSnapshot::blockingProfile);
+            java.util.Optional<dev.pixelied.survival.damage.BlockingProfileSnapshot> profile = activeOffhand
+                ? context.player().blocking().profile().or(() -> inventory.slot(40).flatMap(InventorySlotSnapshot::blockingProfile))
+                : inventory.slot(inventory.selectedHotbarIndex()).flatMap(InventorySlotSnapshot::blockingProfile);
 
-        candidates.add(new SurvivalAction.RaiseShield(
-            requiredServerTicks,
-            true,
-            true,
-            true,
-            1d,
-            profile.isPresent() ? 0f : 1f,
-            elapsed,
-            required,
-            0,
-            profile
-        ));
+            candidates.add(new SurvivalAction.RaiseShield(
+                requiredServerTicks,
+                true,
+                true,
+                true,
+                1d,
+                profile.isPresent() ? 0f : 1f,
+                elapsed,
+                required,
+                0,
+                profile
+            ));
+            return;
+        }
+
+        if (!policy.inventoryRouting() || !policy.mainHandTakeover()) return;
+        inventory.slots().values().stream()
+            .filter(slot -> slot.count() > 0)
+            .filter(slot -> "minecraft:shield".equals(slot.stackKey()))
+            .filter(slot -> slot.blockingProfile().isPresent() && !slot.blockingOnCooldown())
+            .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
+            .map(slot -> new java.util.AbstractMap.SimpleImmutableEntry<>(
+                slot,
+                itemRoutePlanner.route(inventory, menu, slot, true, true)
+            ))
+            .filter(entry -> entry.getValue().isPresent())
+            .findFirst()
+            .ifPresent(entry -> {
+                InventorySlotSnapshot slot = entry.getKey();
+                SurvivalItemRoute route = entry.getValue().orElseThrow();
+                int requiredTicks = saturatingTickAdd(SHIELD_WARMUP_TICKS, route.requiredServerTicks());
+                candidates.add(new SurvivalAction.RaiseShield(
+                    requiredTicks,
+                    true,
+                    true,
+                    true,
+                    1d,
+                    0f,
+                    0,
+                    SHIELD_WARMUP_TICKS,
+                    1 + route.requiredServerTicks(),
+                    slot.blockingProfile(),
+                    java.util.Optional.of(new SurvivalAction.HeldItemRef(
+                        route.destinationHand(), slot.stackKey(), slot.componentFingerprint(), java.util.Optional.of(route)
+                    ))
+                ));
+            });
     }
 
     private void addNonTotemCandidates(
