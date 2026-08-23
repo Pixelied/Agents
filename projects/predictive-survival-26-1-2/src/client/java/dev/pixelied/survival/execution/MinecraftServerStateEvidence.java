@@ -24,6 +24,7 @@ public final class MinecraftServerStateEvidence {
     private static final int PLAYER_INVENTORY_CONTAINER_ID = -2;
 
     private static long revision;
+    private static boolean active;
     private static final Map<Integer, ServerStateEvidenceSnapshot.StackEvidence> INVENTORY = new LinkedHashMap<>();
     private static final Map<String, ServerStateEvidenceSnapshot.StackEvidence> EQUIPMENT = new LinkedHashMap<>();
     private static final Map<String, ServerStateEvidenceSnapshot.EffectEvidence> EFFECTS = new LinkedHashMap<>();
@@ -32,11 +33,12 @@ public final class MinecraftServerStateEvidence {
     }
 
     public static synchronized ServerStateEvidenceSnapshot snapshot() {
-        return new ServerStateEvidenceSnapshot(true, revision, INVENTORY, EQUIPMENT, EFFECTS);
+        return new ServerStateEvidenceSnapshot(active, revision, INVENTORY, EQUIPMENT, EFFECTS);
     }
 
     public static synchronized void reset() {
         revision = revision == Long.MAX_VALUE ? 0L : revision + 1L;
+        active = false;
         INVENTORY.clear();
         EQUIPMENT.clear();
         EFFECTS.clear();
@@ -49,6 +51,7 @@ public final class MinecraftServerStateEvidence {
         if (packet == null || player == null) return;
         int inventoryIndex = inventoryIndex(packet, player);
         if (inventoryIndex < 0 || inventoryIndex > 40) return;
+        active = true;
         long next = nextRevision();
         recordInventory(inventoryIndex, packet.getItem(), next);
     }
@@ -58,6 +61,7 @@ public final class MinecraftServerStateEvidence {
         LocalPlayer player
     ) {
         if (packet == null || player == null || packet.containerId() != player.containerMenu.containerId) return;
+        active = true;
         Inventory inventory = player.getInventory();
         long next = nextRevision();
         for (Slot slot : player.containerMenu.slots) {
@@ -73,6 +77,7 @@ public final class MinecraftServerStateEvidence {
         LocalPlayer player
     ) {
         if (packet == null || player == null || packet.getEntity() != player.getId()) return;
+        active = true;
         long next = nextRevision();
         for (var pair : packet.getSlots()) {
             EquipmentSlot slot = pair.getFirst();
@@ -86,6 +91,7 @@ public final class MinecraftServerStateEvidence {
         LocalPlayer player
     ) {
         if (packet == null || player == null || packet.getEntityId() != player.getId()) return;
+        active = true;
         long next = nextRevision();
         String key = packet.getEffect().getRegisteredName();
         EFFECTS.put(key, new ServerStateEvidenceSnapshot.EffectEvidence(
