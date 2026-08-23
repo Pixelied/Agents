@@ -1,5 +1,6 @@
 package dev.pixelied.survival.damage;
 
+import dev.pixelied.survival.mixin.MobEffectInstanceAccessor;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
@@ -20,9 +21,10 @@ import net.minecraft.world.item.equipment.Equippable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.Set;
 
 public final class MinecraftEquipmentAdapter {
@@ -86,11 +88,8 @@ public final class MinecraftEquipmentAdapter {
 
         Map<String, EffectInstanceSnapshot> effects = new LinkedHashMap<>();
         for (MobEffectInstance instance : player.getActiveEffects()) {
-            Holder<MobEffect> effect = instance.getEffect();
-            effects.put(
-                effect.getRegisteredName(),
-                new EffectInstanceSnapshot(effect.getRegisteredName(), instance.getDuration(), instance.getAmplifier())
-            );
+            EffectInstanceSnapshot snapshot = effectSnapshot(instance);
+            effects.put(snapshot.effectKey(), snapshot);
         }
 
         MobEffectInstance resistance = player.getEffect(MobEffects.RESISTANCE);
@@ -106,6 +105,19 @@ public final class MinecraftEquipmentAdapter {
         var main = protectionItem(player.getMainHandItem());
         var off = protectionItem(player.getOffhandItem());
         return new DeathProtectionSnapshot(main, off);
+    }
+
+    private static EffectInstanceSnapshot effectSnapshot(MobEffectInstance instance) {
+        Holder<MobEffect> effect = instance.getEffect();
+        String effectKey = effect.getRegisteredName();
+        MobEffectInstance hidden = ((MobEffectInstanceAccessor) (Object) instance)
+            .predictiveSurvival$getHiddenEffect();
+        return new EffectInstanceSnapshot(
+            effectKey,
+            instance.getDuration(),
+            instance.getAmplifier(),
+            Optional.ofNullable(hidden).map(MinecraftEquipmentAdapter::effectSnapshot)
+        );
     }
 
     private static java.util.Optional<DeathProtectionSnapshot.ProtectionItem> protectionItem(ItemStack stack) {
