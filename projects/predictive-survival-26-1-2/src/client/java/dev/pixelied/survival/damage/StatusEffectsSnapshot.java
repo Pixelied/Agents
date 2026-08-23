@@ -55,7 +55,7 @@ public record StatusEffectsSnapshot(
             int remaining = Math.max(0, effect.durationTicks() - elapsedTicks);
             if (remaining > 0) {
                 next.put(effect.effectKey(), new EffectInstanceSnapshot(
-                    effect.effectKey(), remaining, effect.amplifier()
+                    effect.effectKey(), remaining, effect.amplifier(), effect.hiddenTailUnknown()
                 ));
             }
         }

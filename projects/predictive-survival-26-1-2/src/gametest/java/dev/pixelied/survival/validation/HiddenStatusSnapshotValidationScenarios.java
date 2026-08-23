@@ -2,7 +2,6 @@ package dev.pixelied.survival.validation;
 
 import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
-import dev.pixelied.survival.mixin.MobEffectInstanceAccessor;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -31,8 +30,8 @@ final class HiddenStatusSnapshotValidationScenarios {
             player.getFoodData().setSaturation(0f);
 
             // Vanilla stores the weaker, longer Wither I as a hidden effect when the shorter,
-            // stronger Wither II takes over. No projectile/source memory is involved here: this
-            // regression exercises only the effect state synchronized to the client.
+            // stronger Wither II takes over. ClientboundUpdateMobEffectPacket does not serialize
+            // that hidden chain, so production must fail closed until the promotion update arrives.
             player.addEffect(new MobEffectInstance(MobEffects.WITHER, 240, 0));
             player.addEffect(new MobEffectInstance(MobEffects.WITHER, 40, 1));
             return player.position();
@@ -47,12 +46,6 @@ final class HiddenStatusSnapshotValidationScenarios {
 
             MinecraftSurvivalRuntime runtime = context.computeOnClient(MinecraftSurvivalRuntime::new);
             SnapshotPrediction prediction = context.computeOnClient(minecraft -> {
-                if (minecraft.player == null) throw new AssertionError("client player unavailable");
-                MobEffectInstance clientWither = minecraft.player.getEffect(MobEffects.WITHER);
-                if (clientWither == null) throw new AssertionError("client lost active Wither II before capture");
-                MobEffectInstance directHidden = ((MobEffectInstanceAccessor) (Object) clientWither)
-                    .predictiveSurvival$getHiddenEffect();
-
                 var frame = runtime.capture();
                 EffectInstanceSnapshot visible = frame.context().player().statusEffects()
                     .effect("minecraft:wither")
@@ -70,10 +63,8 @@ final class HiddenStatusSnapshotValidationScenarios {
                     .orElse(-1L);
                 return new SnapshotPrediction(
                     visible.durationTicks(),
+                    visible.hiddenTailUnknown(),
                     latest,
-                    directHidden == null ? -1 : directHidden.getDuration(),
-                    directHidden == null ? -1 : directHidden.getAmplifier(),
-                    visible.hiddenEffect().orElse(null),
                     predictedWither
                 );
             });
@@ -120,7 +111,7 @@ final class HiddenStatusSnapshotValidationScenarios {
             }
             if (prediction.latestPredictedTick() < secondHiddenDamage.tick()) {
                 throw new AssertionError(
-                    "client hidden Wither tail was dropped before production prediction; "
+                    "unobservable hidden Wither tail was not conservatively covered; "
                         + "prediction=" + prediction
                         + " downgradeTick=" + downgradeTick
                         + " secondHiddenDamage=" + secondHiddenDamage
@@ -158,10 +149,8 @@ final class HiddenStatusSnapshotValidationScenarios {
 
     private record SnapshotPrediction(
         int visibleDuration,
+        boolean hiddenTailUnknown,
         long latestPredictedTick,
-        int directHiddenDuration,
-        int directHiddenAmplifier,
-        EffectInstanceSnapshot snapshotHidden,
         List<ThreatEvent> events
     ) {
     }

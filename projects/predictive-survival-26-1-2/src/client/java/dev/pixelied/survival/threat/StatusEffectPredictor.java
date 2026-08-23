@@ -20,9 +20,9 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
     public List<ThreatEvent> predict(PredictionContext context) {
         List<ThreatEvent> events = new ArrayList<>();
         context.player().statusEffects().effect("minecraft:poison")
-            .ifPresent(effect -> addEffectTicks(context, effect, true, 0L, events));
+            .ifPresent(effect -> addEffectTicks(context, effect, true, events));
         context.player().statusEffects().effect("minecraft:wither")
-            .ifPresent(effect -> addEffectTicks(context, effect, false, 0L, events));
+            .ifPresent(effect -> addEffectTicks(context, effect, false, events));
         return List.copyOf(events);
     }
 
@@ -30,31 +30,26 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
         PredictionContext context,
         EffectInstanceSnapshot effect,
         boolean poison,
-        long offset,
         List<ThreatEvent> output
     ) {
         long totalHorizon = horizon(context);
-        if (offset >= totalHorizon) return;
-
-        int intervalBase = poison ? 25 : 40;
-        int interval = effect.amplifier() >= 31 ? 0 : intervalBase >> Math.max(0, effect.amplifier());
+        int interval = interval(poison, effect.amplifier());
         if (effect.infiniteDuration()) {
-            addInfiniteEffectTicks(context, poison, interval, offset, output);
+            addInfiniteEffectTicks(context, poison, interval, 0L, output);
             return;
         }
 
         int duration = effect.durationTicks();
-        long relativeHorizon = Math.min(totalHorizon - offset, duration);
-        for (long tick = 1; tick <= relativeHorizon; tick++) {
+        long visibleHorizon = Math.min(totalHorizon, duration);
+        for (long tick = 1; tick <= visibleHorizon; tick++) {
             int remainingDuration = duration - (int) tick;
             boolean applies = interval <= 0 || remainingDuration % interval == 0;
             if (!applies) continue;
 
-            long absoluteTick = offset + tick;
             if (poison) {
                 output.add(event(
-                    "env:poison:" + absoluteTick,
-                    absoluteTick,
+                    "env:poison:" + tick,
+                    tick,
                     1f,
                     "minecraft:magic",
                     EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
@@ -63,8 +58,8 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
                 ));
             } else {
                 output.add(event(
-                    "env:wither:" + absoluteTick,
-                    absoluteTick,
+                    "env:wither:" + tick,
+                    tick,
                     1f,
                     "minecraft:wither",
                     EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
@@ -74,28 +69,62 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
             }
         }
 
-        if (duration > totalHorizon - offset || effect.hiddenEffect().isEmpty()) return;
-
-        // MobEffectInstance.tickDownDuration recursively decrements hidden effects while the
-        // stronger visible effect is active. Once the visible duration reaches zero, vanilla
-        // promotes the already-aged hidden instance. Preserve exactly that concurrent aging before
-        // continuing the established remaining-duration phase calculation for the promoted effect.
-        EffectInstanceSnapshot hidden = ageWhileHidden(effect.hiddenEffect().get(), duration);
-        if (hidden.infiniteDuration() || hidden.durationTicks() > 0) {
-            addEffectTicks(context, hidden, poison, offset + duration, output);
+        if (effect.hiddenTailUnknown() && effect.amplifier() > 0 && duration < totalHorizon) {
+            // ClientboundUpdateMobEffectPacket in 26.1.2 does not serialize hiddenEffect. A live
+            // amplifier-N effect can therefore conceal an arbitrarily longer lower-amplifier tail
+            // that the client cannot distinguish until the server later sends the promotion update.
+            // Amplifier 0 cannot hide a weaker effect, so only N>0 needs this fail-closed branch.
+            addUnknownHiddenTail(
+                context,
+                poison,
+                interval(poison, effect.amplifier() - 1),
+                duration,
+                output
+            );
         }
     }
 
-    private static EffectInstanceSnapshot ageWhileHidden(EffectInstanceSnapshot effect, int elapsedTicks) {
-        int duration = effect.infiniteDuration()
-            ? -1
-            : Math.max(0, effect.durationTicks() - elapsedTicks);
-        return new EffectInstanceSnapshot(
-            effect.effectKey(),
-            duration,
-            effect.amplifier(),
-            effect.hiddenEffect().map(hidden -> ageWhileHidden(hidden, elapsedTicks))
-        );
+    private static void addUnknownHiddenTail(
+        PredictionContext context,
+        boolean poison,
+        int interval,
+        long visibleDuration,
+        List<ThreatEvent> output
+    ) {
+        long remainingHorizon = horizon(context) - visibleDuration;
+        if (remainingHorizon <= 0L) return;
+
+        String idPrefix = poison ? "env:poison:hidden-unknown:" : "env:wither:hidden-unknown:";
+        String sourceKey = poison ? "minecraft:magic" : "minecraft:wither";
+        float healthFloor = poison ? 1f : 0f;
+
+        if (interval <= 0) {
+            for (long relativeTick = 1; relativeTick <= remainingHorizon; relativeTick++) {
+                long absoluteTick = visibleDuration + relativeTick;
+                output.add(windowEvent(
+                    idPrefix + absoluteTick,
+                    new TickWindow(absoluteTick, absoluteTick),
+                    new DamageRange(0f, 1f),
+                    sourceKey,
+                    healthFloor,
+                    Confidence.POTENTIAL
+                ));
+            }
+            return;
+        }
+
+        int application = 0;
+        for (long start = 1L; start <= remainingHorizon; start += interval) {
+            long end = Math.min(remainingHorizon, start + interval - 1L);
+            output.add(windowEvent(
+                idPrefix + application++,
+                new TickWindow(visibleDuration + start, visibleDuration + end),
+                new DamageRange(0f, 1f),
+                sourceKey,
+                healthFloor,
+                Confidence.POTENTIAL
+            ));
+        }
     }
 
     private static void addInfiniteEffectTicks(
@@ -142,6 +171,11 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
                 fullCadenceWindow ? Confidence.BOUNDED : Confidence.POTENTIAL
             ));
         }
+    }
+
+    private static int interval(boolean poison, int amplifier) {
+        int intervalBase = poison ? 25 : 40;
+        return amplifier >= 31 ? 0 : intervalBase >> Math.max(0, amplifier);
     }
 
     private static ThreatEvent windowEvent(
