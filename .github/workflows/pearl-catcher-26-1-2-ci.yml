@@ -55,7 +55,11 @@ jobs:
           test -n "$JAR"
           echo "Auditing $JAR"
           bash scripts/test-event-class-abi.sh "$JAR"
-          bash scripts/verify-manual-abi.sh "$JAR"
+          rm -rf build/abi-classes
+          mkdir -p build/abi-classes
+          cp -R build/classes/java/main/. build/abi-classes/
+          cp -R build/classes/java/client/. build/abi-classes/
+          bash scripts/verify-manual-abi.sh build/abi-classes
 
       - name: Audit production artifact
         working-directory: projects/pearl-catcher-26-1-2
@@ -65,6 +69,8 @@ jobs:
           jar tf "$JAR" > /tmp/pearl-jar-contents.txt
           ! grep -E '(^|/)(build/|\.gradle/|\.git/|docs/|scripts/)|\.java$|\.class\.tmp$' /tmp/pearl-jar-contents.txt
           grep -q 'studio/pixelied/pearlcatch/PearlCatchClient.class' /tmp/pearl-jar-contents.txt
+          grep -q 'studio/pixelied/pearlcatch/CatchCoordinator.class' /tmp/pearl-jar-contents.txt
+          grep -q 'studio/pixelied/pearlcatch/core/GeneralCatchSolver.class' /tmp/pearl-jar-contents.txt
           grep -q 'fabric.mod.json' /tmp/pearl-jar-contents.txt
 
       - name: Run workspace tests
