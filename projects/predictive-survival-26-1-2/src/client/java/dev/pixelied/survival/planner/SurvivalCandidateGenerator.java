@@ -1,5 +1,6 @@
 package dev.pixelied.survival.planner;
 
+import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.damage.ArmorPieceSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
@@ -42,20 +43,31 @@ public final class SurvivalCandidateGenerator {
         InventorySnapshot inventory,
         MenuSlotMap menu
     ) {
+        return generate(context, timeline, inventory, menu, RescuePolicy.smartDefaults());
+    }
+
+    public List<SurvivalAction> generate(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        RescuePolicy policy
+    ) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(menu, "menu");
+        Objects.requireNonNull(policy, "policy");
 
         if (timeline.events().isEmpty()) return List.of();
         List<SurvivalAction> candidates = new ArrayList<>();
 
-        if (!context.player().deathProtection().anyHandAvailable()) {
+        if (policy.deathProtection() && !context.player().deathProtection().anyHandAvailable()) {
             routePlanner.choose(inventory, menu).ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
         }
 
-        addShieldCandidate(candidates, context, timeline, inventory);
-        addHeldNonTotemCandidates(candidates, context, inventory);
+        if (policy.shields()) addShieldCandidate(candidates, context, timeline, inventory);
+        addHeldNonTotemCandidates(candidates, context, inventory, policy);
         return List.copyOf(candidates);
     }
 
@@ -161,22 +173,28 @@ public final class SurvivalCandidateGenerator {
     private static void addHeldNonTotemCandidates(
         List<SurvivalAction> candidates,
         PredictionContext context,
-        InventorySnapshot inventory
+        InventorySnapshot inventory,
+        RescuePolicy policy
     ) {
-        inventory.slot(inventory.selectedHotbarIndex())
-            .ifPresent(slot -> addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.MAIN_HAND));
+        inventory.slot(inventory.selectedHotbarIndex()).ifPresent(slot ->
+            addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.MAIN_HAND, policy));
         inventory.slot(40).ifPresent(slot ->
-            addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.OFF_HAND));
+            addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.OFF_HAND, policy));
     }
 
     private static void addHeldItemCandidates(
         List<SurvivalAction> candidates,
         PredictionContext context,
         InventorySlotSnapshot slot,
-        SurvivalAction.Hand hand
+        SurvivalAction.Hand hand,
+        RescuePolicy policy
     ) {
-        slot.consumable().ifPresent(consumable -> addConsumableCandidate(candidates, context, slot, hand, consumable));
-        slot.equippable().ifPresent(equippable -> addEquipmentCandidate(candidates, context, slot, hand, equippable));
+        if (policy.consumables()) {
+            slot.consumable().ifPresent(consumable -> addConsumableCandidate(candidates, context, slot, hand, consumable));
+        }
+        if (policy.equipment()) {
+            slot.equippable().ifPresent(equippable -> addEquipmentCandidate(candidates, context, slot, hand, equippable));
+        }
     }
 
     private static void addConsumableCandidate(
