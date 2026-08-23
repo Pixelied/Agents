@@ -26,6 +26,48 @@ public sealed interface RestorationCheckpoint {
         }
     }
 
+    /**
+     * Generic reversible SWAP route for an emergency item moved from the player inventory into a
+     * hand slot. sourceAfter must still contain the exact stack displaced from the destination;
+     * destinationAfter is the authoritative post-action state (it may be empty after consumption).
+     */
+    record RoutedContainer(
+        int containerId,
+        int sourceInventoryIndex,
+        int sourceMenuSlot,
+        int destinationInventoryIndex,
+        int button,
+        InventorySlotSnapshot originalDestinationBefore,
+        InventorySlotSnapshot sourceAfter,
+        InventorySlotSnapshot destinationAfter,
+        int confirmedMenuStateId,
+        long confirmedAtServerTick
+    ) implements RestorationCheckpoint {
+        public RoutedContainer {
+            if (containerId < 0 || sourceMenuSlot < 0) {
+                throw new IllegalArgumentException("container/menu slot must be non-negative");
+            }
+            if (sourceInventoryIndex < 0 || sourceInventoryIndex > 40
+                || destinationInventoryIndex < 0 || destinationInventoryIndex > 40) {
+                throw new IllegalArgumentException("inventory indices must be in [0, 40]");
+            }
+            if (!((button >= 0 && button <= 8) || button == 40)) {
+                throw new IllegalArgumentException("swap button must be hotbar 0..8 or offhand 40");
+            }
+            originalDestinationBefore = Objects.requireNonNull(originalDestinationBefore, "originalDestinationBefore");
+            sourceAfter = Objects.requireNonNull(sourceAfter, "sourceAfter");
+            destinationAfter = Objects.requireNonNull(destinationAfter, "destinationAfter");
+            if (originalDestinationBefore.inventoryIndex() != destinationInventoryIndex
+                || sourceAfter.inventoryIndex() != sourceInventoryIndex
+                || destinationAfter.inventoryIndex() != destinationInventoryIndex) {
+                throw new IllegalArgumentException("checkpoint stack snapshots must match their inventory slots");
+            }
+            if (confirmedMenuStateId < 0 || confirmedAtServerTick < 0) {
+                throw new IllegalArgumentException("confirmed menu state/tick must be non-negative");
+            }
+        }
+    }
+
     record Container(
         EmergencyInventoryTransaction transaction,
         int sourceInventoryIndex,
