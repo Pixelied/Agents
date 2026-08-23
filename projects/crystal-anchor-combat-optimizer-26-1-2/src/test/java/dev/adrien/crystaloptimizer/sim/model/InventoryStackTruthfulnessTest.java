@@ -47,6 +47,25 @@ class InventoryStackTruthfulnessTest {
     }
 
     @Test
+    void consumingSingleOffhandStackClearsOnlyOffhandWhileReserveCopiesRemain() {
+        InventoryState inventory = new InventoryState(
+            0,
+            Map.of(Items.GLOWSTONE, 5),
+            Map.of(1, Items.GLOWSTONE),
+            Map.of(1, 4),
+            Optional.of(Items.GLOWSTONE)
+        );
+
+        InventoryState next = inventory.consume(Items.GLOWSTONE, 1);
+
+        assertEquals(4, next.count(Items.GLOWSTONE));
+        assertTrue(next.offhandItem().isEmpty(),
+            "consuming the only held offhand glowstone must not leave a phantom hand stack");
+        assertEquals(4, next.hotbarCount(1),
+            "reserve copies in another slot must remain untouched");
+    }
+
+    @Test
     void selectingAnotherRealStackAfterExhaustionRestoresUsableHandState() {
         InventoryState inventory = new InventoryState(
             0,
