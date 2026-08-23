@@ -140,8 +140,8 @@ class ContainerRoutePlanningTimingTest {
     private static InventorySlotSnapshot deathProtectionSlot(int index) {
         return new InventorySlotSnapshot(
             index, "minecraft:totem_of_undying", 444, 1, true,
-            Optional.of(DeathProtectionSnapshot.ProtectionItem.vanillaTotem()),
-            Optional.empty(), Optional.empty(), Optional.empty()
+            Optional.empty(), Optional.empty(), Optional.empty(),
+            Optional.of(DeathProtectionSnapshot.ProtectionItem.vanillaTotem()), false
         );
     }
 }
