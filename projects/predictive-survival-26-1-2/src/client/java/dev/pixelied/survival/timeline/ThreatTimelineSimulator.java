@@ -388,7 +388,12 @@ public final class ThreatTimelineSimulator {
         if (regeneration != null && health > 0f) {
             float maxHealth = observedMaxHealth(player);
             if (maxHealth > health) {
-                long applications = regenerationApplications(regeneration, elapsed);
+                // Threat scheduling is intentionally worst-case within a server tick. Vanilla
+                // base-tick hazards (fire, in-wall, border, drowning) run before tickEffects(), and
+                // arbitrary external hits are not guaranteed to occur after the player's effect
+                // tick. Credit only regeneration applications from strictly earlier ticks; omitting
+                // a heal that could occur later in the current tick is conservative, never optimistic.
+                long applications = regenerationApplications(regeneration, Math.max(0, elapsed - 1));
                 if (applications > 0L) {
                     health = (float) Math.min((double) maxHealth, (double) health + applications);
                 }
