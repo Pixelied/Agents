@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "d7a2f4e8b1c34d5096fa2e8c7b4a1d55",
+  "task_id": "build-predictive-survival-26-1-2",
+  "agent_id": "openai-survival-review-7c4d",
+  "type": "scope_released",
+  "message": "Released projects/predictive-survival-26-1-2: completed after PR #25 merged with all final CI gates green",
+  "data": {
+    "scope": "projects/predictive-survival-26-1-2",
+    "pr": 25,
+    "merge_commit": "cd1cf985fe5199be95935f306f3af5c4c5694737"
+  },
+  "created_at": "2026-08-23T09:27:34+00:00"
+}
