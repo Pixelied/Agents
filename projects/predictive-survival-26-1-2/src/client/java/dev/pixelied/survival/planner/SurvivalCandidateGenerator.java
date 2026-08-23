@@ -17,6 +17,7 @@ import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
+import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,13 +29,19 @@ public final class SurvivalCandidateGenerator {
     private static final int SHIELD_WARMUP_TICKS = 5;
 
     private final DeathProtectionRoutePlanner routePlanner;
+    private final ThreatTimelineSimulator timelineSimulator;
 
     public SurvivalCandidateGenerator() {
-        this(new DeathProtectionRoutePlanner());
+        this(new DeathProtectionRoutePlanner(), new ThreatTimelineSimulator());
     }
 
     SurvivalCandidateGenerator(DeathProtectionRoutePlanner routePlanner) {
+        this(routePlanner, new ThreatTimelineSimulator());
+    }
+
+    SurvivalCandidateGenerator(DeathProtectionRoutePlanner routePlanner, ThreatTimelineSimulator timelineSimulator) {
         this.routePlanner = Objects.requireNonNull(routePlanner, "routePlanner");
+        this.timelineSimulator = Objects.requireNonNull(timelineSimulator, "timelineSimulator");
     }
 
     public List<SurvivalAction> generate(
@@ -62,13 +69,30 @@ public final class SurvivalCandidateGenerator {
         if (timeline.events().isEmpty()) return List.of();
         List<SurvivalAction> candidates = new ArrayList<>();
 
-        if (policy.deathProtection() && !context.player().deathProtection().anyHandAvailable()) {
-            routePlanner.choose(inventory, menu).ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+        if (policy.deathProtection()) {
+            DeathProtectionSnapshot protection = context.player().deathProtection();
+            if (!protection.anyHandAvailable()) {
+                routePlanner.choose(inventory, menu)
+                    .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+            } else if (policy.proactiveDualProtection() && needsAdditionalProtection(context, timeline)) {
+                if (protection.offHand().isPresent() && protection.mainHand().isEmpty() && policy.mainHandTakeover()) {
+                    routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND)
+                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                } else if (protection.mainHand().isPresent() && protection.offHand().isEmpty()) {
+                    routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND)
+                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                }
+            }
         }
 
         if (policy.shields()) addShieldCandidate(candidates, context, timeline, inventory);
         addHeldNonTotemCandidates(candidates, context, inventory, policy);
         return List.copyOf(candidates);
+    }
+
+    private boolean needsAdditionalProtection(PredictionContext context, ThreatTimeline timeline) {
+        var baseline = timelineSimulator.simulate(context.player(), timeline);
+        return !baseline.survived() && baseline.consumedDeathProtectionCount() > 0;
     }
 
     private static void addProtectionCandidate(
