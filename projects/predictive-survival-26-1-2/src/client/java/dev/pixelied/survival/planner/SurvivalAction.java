@@ -15,6 +15,7 @@ import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.inventory.DeathProtectionRoute;
 import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatKind;
@@ -75,6 +76,27 @@ public interface SurvivalAction {
         }
     }
 
+    /** Exact physical protection stack and server-valid route selected by production planning. */
+    record DeathProtectionSourceRef(
+        int sourceInventoryIndex,
+        String itemKey,
+        int componentFingerprint,
+        DeathProtectionRoute route
+    ) {
+        public DeathProtectionSourceRef {
+            if (sourceInventoryIndex < 0 || sourceInventoryIndex > 40) {
+                throw new IllegalArgumentException("sourceInventoryIndex must be in [0, 40]");
+            }
+            itemKey = Objects.requireNonNull(itemKey, "itemKey");
+            route = Objects.requireNonNull(route, "route");
+            if (itemKey.isBlank()) throw new IllegalArgumentException("itemKey must not be blank");
+            if (route instanceof DeathProtectionRoute.HotbarSelect hotbar
+                && hotbar.hotbarIndex() != sourceInventoryIndex) {
+                throw new IllegalArgumentException("hotbar protection route must preserve its exact source index");
+            }
+        }
+    }
+
     record BlockTarget(int x, int y, int z, String itemKey) {
         public BlockTarget {
             itemKey = Objects.requireNonNull(itemKey, "itemKey");
@@ -90,11 +112,30 @@ public interface SurvivalAction {
         boolean authoritativePrerequisitesSatisfied,
         double reliability,
         int consumableCost,
-        int disruptionCost
+        int disruptionCost,
+        Optional<DeathProtectionSourceRef> sourceItem
     ) implements SurvivalAction {
+        public EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem item,
+            Hand hand,
+            int requiredServerTicks,
+            boolean legal,
+            boolean authoritativePrerequisitesSatisfied,
+            double reliability,
+            int consumableCost,
+            int disruptionCost
+        ) {
+            this(item, hand, requiredServerTicks, legal, authoritativePrerequisitesSatisfied,
+                reliability, consumableCost, disruptionCost, Optional.empty());
+        }
+
         public EquipDeathProtection {
             item = Objects.requireNonNull(item, "item");
             hand = Objects.requireNonNull(hand, "hand");
+            sourceItem = Objects.requireNonNull(sourceItem, "sourceItem");
+            if (sourceItem.isPresent() && routeDestination(sourceItem.get().route()) != hand) {
+                throw new IllegalArgumentException("death-protection route destination must match action hand");
+            }
             validateCommon(requiredServerTicks, reliability, consumableCost, disruptionCost);
         }
 
@@ -112,10 +153,8 @@ public interface SurvivalAction {
                 nextBlocking = BlockingSnapshot.none();
             }
             LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
-            // EquipDeathProtection intentionally has no registry-key field because generic
-            // DEATH_PROTECTION items are supported. What is certain is that the previous hand item
-            // has been displaced, so never carry its key (especially a shield) into later steps.
-            equipment.remove(targetSlot);
+            if (sourceItem.isPresent()) equipment.put(targetSlot, sourceItem.get().itemKey());
+            else equipment.remove(targetSlot);
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),
                 nextBlocking, next, equipment
@@ -396,10 +435,6 @@ public interface SurvivalAction {
             LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
             if (sourceItem.isPresent()) {
                 HeldItemRef source = sourceItem.get();
-                // A concrete consumable use owns the single vanilla use-item state, so it cannot
-                // leave an earlier shield block active. The consumed/used stack also replaces any
-                // protection previously occupying that hand. If a custom stack would remain after
-                // use, dropping the hand identity here is conservative rather than false-safe.
                 blocking = BlockingSnapshot.none();
                 protection = withoutDeathProtection(protection, source.hand());
                 equipment.remove(handSlot(source.hand()));
@@ -538,6 +573,15 @@ public interface SurvivalAction {
             throw new IllegalArgumentException("reliability must be finite and in [0,1]");
         }
         if (consumableCost < 0 || disruptionCost < 0) throw new IllegalArgumentException("costs must be non-negative");
+    }
+
+    private static Hand routeDestination(DeathProtectionRoute route) {
+        if (route instanceof DeathProtectionRoute.HotbarSelect) return Hand.MAIN_HAND;
+        if (route instanceof DeathProtectionRoute.AlreadyInHand already) {
+            return already.destination() == DeathProtectionRoute.Destination.MAIN_HAND ? Hand.MAIN_HAND : Hand.OFF_HAND;
+        }
+        DeathProtectionRoute.ContainerSwap swap = (DeathProtectionRoute.ContainerSwap) route;
+        return swap.destination() == DeathProtectionRoute.Destination.MAIN_HAND ? Hand.MAIN_HAND : Hand.OFF_HAND;
     }
 
     private static String handSlot(Hand hand) {
