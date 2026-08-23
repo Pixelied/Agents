@@ -38,6 +38,7 @@ public final class ActionArbiter {
             actions,
             0,
             null,
+            null,
             Set.of(),
             view,
             pendingItems,
@@ -60,7 +61,33 @@ public final class ActionArbiter {
             actions,
             startIndex,
             null,
+            null,
             Set.of(),
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    public ArbitrationResult evaluateFromContinuation(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        long acceptedInventoryRevision,
+        Set<ContinuationDependency> consumedDependencies,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
+        return evaluateInternal(
+            approval,
+            actions,
+            startIndex,
+            null,
+            acceptedInventoryRevision,
+            Objects.requireNonNull(consumedDependencies, "consumedDependencies"),
             view,
             pendingItems,
             config,
@@ -110,6 +137,36 @@ public final class ActionArbiter {
             actions,
             startIndex,
             ownedReservationId,
+            null,
+            Objects.requireNonNull(consumedDependencies, "consumedDependencies"),
+            view,
+            pendingItems,
+            config,
+            nowNanos
+        );
+    }
+
+    public ArbitrationResult evaluateContinuation(
+        ActionApproval approval,
+        List<CombatAction> actions,
+        int startIndex,
+        long ownedReservationId,
+        long acceptedInventoryRevision,
+        Set<ContinuationDependency> consumedDependencies,
+        LiveCombatView view,
+        PendingItemLedger pendingItems,
+        OptimizerConfig config,
+        long nowNanos
+    ) {
+        if (ownedReservationId < 0L) {
+            return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
+        }
+        return evaluateInternal(
+            approval,
+            actions,
+            startIndex,
+            ownedReservationId,
+            acceptedInventoryRevision,
             Objects.requireNonNull(consumedDependencies, "consumedDependencies"),
             view,
             pendingItems,
@@ -123,6 +180,7 @@ public final class ActionArbiter {
         List<CombatAction> actions,
         int startIndex,
         Long ownedReservationId,
+        Long acceptedInventoryRevision,
         Set<ContinuationDependency> consumedDependencies,
         LiveCombatView view,
         PendingItemLedger pendingItems,
@@ -145,13 +203,17 @@ public final class ActionArbiter {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.MANUAL_OVERRIDE);
         }
 
-        if (!approval.isCurrent(
-            view.worldRevision(),
-            view.targetRevision(approval.targetId()),
-            view.inventoryRevision(),
-            view.configRevision(),
-            nowNanos
-        )) {
+        long expectedInventoryRevision = acceptedInventoryRevision == null
+            ? approval.inventoryRevision()
+            : acceptedInventoryRevision;
+        if (expectedInventoryRevision < approval.inventoryRevision()) {
+            return ArbitrationResult.rejected(ArbitrationResult.Reason.ILLEGAL_TRANSITION);
+        }
+        if (approval.worldRevision() != view.worldRevision()
+            || approval.targetRevision() != view.targetRevision(approval.targetId())
+            || expectedInventoryRevision != view.inventoryRevision()
+            || approval.configRevision() != view.configRevision()
+            || nowNanos > approval.expiresAtNanos()) {
             return ArbitrationResult.rejected(ArbitrationResult.Reason.STALE_APPROVAL);
         }
         if (!view.targetValid(approval.targetId())) {
