@@ -102,6 +102,30 @@ final class ReactiveCombatEngineTest {
 
     @Test
     void inventoryMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertInvalidationDoesNotTrigger(new CombatEvent.InventoryChanged(12L, 3_000L));
+    }
+
+    @Test
+    void configMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertInvalidationDoesNotTrigger(new CombatEvent.ConfigChanged(14L, 3_100L));
+    }
+
+    @Test
+    void targetMovementInvalidatesWithoutTriggeringFixedAction() {
+        assertInvalidationDoesNotTrigger(new CombatEvent.TargetMoved(target, 10L, 3_200L));
+    }
+
+    @Test
+    void equipmentMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertInvalidationDoesNotTrigger(new CombatEvent.EquipmentChanged(target, 3_300L));
+    }
+
+    @Test
+    void blockMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertInvalidationDoesNotTrigger(new CombatEvent.BlockChanged(base, 3_400L));
+    }
+
+    private void assertInvalidationDoesNotTrigger(CombatEvent event) {
         ReactiveCombatEngine engine = new ReactiveCombatEngine();
         ActionApproval place = approval(
             30L,
@@ -111,26 +135,9 @@ final class ReactiveCombatEngineTest {
         CombatBlackboardSnapshot snapshot = snapshot(Map.of(ApprovalSlot.PLACE, place));
 
         assertTrue(engine.decide(
-            new CombatEvent.InventoryChanged(12L, 3_000L),
+            event,
             snapshot,
-            3_010L
-        ).isEmpty());
-    }
-
-    @Test
-    void configMutationInvalidatesWithoutTriggeringFixedAction() {
-        ReactiveCombatEngine engine = new ReactiveCombatEngine();
-        ActionApproval place = approval(
-            31L,
-            ApprovalSlot.PLACE,
-            new FixedActionSequence(java.util.List.of(new PlaceCrystal(base)))
-        );
-        CombatBlackboardSnapshot snapshot = snapshot(Map.of(ApprovalSlot.PLACE, place));
-
-        assertTrue(engine.decide(
-            new CombatEvent.ConfigChanged(14L, 3_100L),
-            snapshot,
-            3_110L
+            event.timestampNanos() + 10L
         ).isEmpty());
     }
 
