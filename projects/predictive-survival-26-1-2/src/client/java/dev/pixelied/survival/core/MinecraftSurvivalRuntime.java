@@ -344,6 +344,9 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         if (authority != null) authority.reset();
         authority = null;
         liveState = null;
+        timingEstimator.reset();
+        cloudAttributions.reset();
+        splashStatusMemory.reset();
         protectionExecutor.reset();
         restorationController.abort();
         shieldExecutor.reset();
