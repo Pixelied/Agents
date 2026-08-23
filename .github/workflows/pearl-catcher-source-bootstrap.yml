@@ -88,6 +88,13 @@ jobs:
               raise SystemExit('expected exactly one ABI target declaration')
           text = text.replace(needle, needle + 'if [[ "$TARGET" != /* ]]; then TARGET="$(pwd)/$TARGET"; fi\n', 1)
           abi.write_text(text)
+
+          manual = Path('projects/pearl-catcher-26-1-2/scripts/verify-manual-abi.sh')
+          text = manual.read_text()
+          stale = "need '// net/minecraft/client/Minecraft.getOverlay:()Lnet/minecraft/client/gui/Overlay;'\n"
+          if text.count(stale) != 1:
+              raise SystemExit('expected exactly one stale Minecraft.getOverlay ABI requirement')
+          manual.write_text(text.replace(stale, '', 1))
           PY
           grep -F 'compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"' projects/pearl-catcher-26-1-2/build.gradle
           ! grep -F 'modCompileOnly' projects/pearl-catcher-26-1-2/build.gradle
@@ -95,6 +102,7 @@ jobs:
           grep -F 'static Result allow()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
           ! grep -F 'static Result safe()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
           grep -F 'if [[ "$TARGET" != /* ]]; then TARGET="$(pwd)/$TARGET"; fi' projects/pearl-catcher-26-1-2/scripts/test-event-class-abi.sh
+          ! grep -F 'Minecraft.getOverlay' projects/pearl-catcher-26-1-2/scripts/verify-manual-abi.sh
 
       - name: Source and core regressions
         shell: bash
