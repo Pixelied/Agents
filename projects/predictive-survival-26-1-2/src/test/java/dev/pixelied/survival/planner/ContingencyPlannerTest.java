@@ -51,7 +51,7 @@ class ContingencyPlannerTest {
             context, timeline, List.of(shield, totem), SafetyMode.SAFE, RescueProfile.CONSERVATIVE_SMART
         );
 
-        assertTrue(plan.guaranteed());
+        assertTrue(plan.guaranteed(), plan::toString);
         assertFalse(plan.truncated());
         assertEquals(2, plan.steps().size());
         assertInstanceOf(SurvivalAction.RaiseShield.class, plan.steps().get(0).action());
