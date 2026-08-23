@@ -1,0 +1,121 @@
+name: Finalize Pearl Catcher hardening
+
+on:
+  push:
+    branches:
+      - fix/pearl-catcher-26-1-2-hardening
+    paths:
+      - .github/workflows/pearl-catcher-finalize.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  verify-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/pearl-catcher-26-1-2-hardening
+
+      - name: Wait for atomic hardened tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            git fetch origin refs/heads/fix/pearl-catcher-26-1-2-hardening
+            if git cat-file -e FETCH_HEAD:projects/pearl-catcher-26-1-2/build.gradle 2>/dev/null \
+               && git cat-file -e FETCH_HEAD:projects/pearl-catcher-26-1-2/src/main/java/studio/pixelied/pearlcatch/core/GeneralCatchSolver.java 2>/dev/null \
+               && git cat-file -e FETCH_HEAD:.github/workflows/pearl-catcher-26-1-2-ci.yml 2>/dev/null; then
+              git checkout --detach FETCH_HEAD
+              echo "TARGET_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Timed out waiting for hardened tree' >&2
+          exit 1
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle 9.6.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.1'
+
+      - name: Source regressions
+        working-directory: projects/pearl-catcher-26-1-2
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/*.sh
+          ./scripts/run-core-tests.sh
+          for script in scripts/test-*.sh; do
+            case "$script" in
+              *test-event-class-abi.sh) continue ;;
+            esac
+            bash "$script"
+          done
+
+      - name: Build production mod
+        working-directory: projects/pearl-catcher-26-1-2
+        run: gradle clean build --stacktrace
+
+      - name: Post-build ABI and artifact audit
+        working-directory: projects/pearl-catcher-26-1-2
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar='build/libs/Pixelied-Studio-Pearl-Catcher-2.5.2.jar'
+          test -f "$jar"
+          bash scripts/test-event-class-abi.sh "$jar"
+          bash scripts/verify-manual-abi.sh build/classes/java/client
+          jar tf "$jar" > build/production-jar-contents.txt
+          grep -F 'studio/pixelied/pearlcatch/CatchCoordinator.class' build/production-jar-contents.txt >/dev/null
+          grep -F 'studio/pixelied/pearlcatch/VanillaInputExecutor.class' build/production-jar-contents.txt >/dev/null
+          grep -F 'studio/pixelied/pearlcatch/ProjectileTracker.class' build/production-jar-contents.txt >/dev/null
+          grep -F 'studio/pixelied/pearlcatch/RuntimePathSafety.class' build/production-jar-contents.txt >/dev/null
+          if grep -F 'studio/pixelied/pearlcatch/CatchExecutor.class' build/production-jar-contents.txt >/dev/null; then
+            echo 'Legacy CatchExecutor survived refactor' >&2; exit 1
+          fi
+          if grep -E '\.(java|zip)$|GeneralCatchSolverSelfTest' build/production-jar-contents.txt >/dev/null; then
+            echo 'Source/test junk found in production jar' >&2; exit 1
+          fi
+
+      - name: Workspace verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -v
+          python agentctl.py validate
+
+      - name: Verify implementation PR scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(gh pr view 29 --repo "$GITHUB_REPOSITORY" --json files --jq '.files[].path')
+          while IFS= read -r path; do
+            case "$path" in
+              projects/pearl-catcher-26-1-2/*|.github/workflows/pearl-catcher-26-1-2-ci.yml|docs/superpowers/specs/2026-08-22-pearl-catcher-26-1-2-hardening-design.md|docs/superpowers/plans/2026-08-22-pearl-catcher-26-1-2-hardening.md|.github/workflows/pearl-catcher-bootstrap.yml|.github/workflows/pearl-catcher-finalize.yml) ;;
+              *) echo "Unexpected PR path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$files"
+
+      - name: Mark ready and merge PR 29
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr ready 29 --repo "$GITHUB_REPOSITORY" || true
+          gh pr merge 29 --repo "$GITHUB_REPOSITORY" --squash --delete-branch=false
