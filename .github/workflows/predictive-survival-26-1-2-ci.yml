@@ -34,21 +34,6 @@ jobs:
         with:
           gradle-version: '9.5.1'
 
-      - name: Generate pinned Gradle wrapper
-        working-directory: projects/predictive-survival-26-1-2
-        run: gradle --no-daemon wrapper --gradle-version 9.5.1 --distribution-type bin
-
-      - name: Upload wrapper import artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: predictive-survival-gradle-wrapper-import
-          if-no-files-found: error
-          path: |
-            projects/predictive-survival-26-1-2/gradlew
-            projects/predictive-survival-26-1-2/gradlew.bat
-            projects/predictive-survival-26-1-2/gradle/wrapper/gradle-wrapper.jar
-            projects/predictive-survival-26-1-2/gradle/wrapper/gradle-wrapper.properties
-
       - name: Test and build
         working-directory: projects/predictive-survival-26-1-2
         run: ./gradlew --no-daemon clean test build
