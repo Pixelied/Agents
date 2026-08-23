@@ -40,7 +40,7 @@ public final class ThreatTimelineSimulator {
     }
 
     public TimelineResult simulate(PlayerSnapshot start, ThreatTimeline timeline) {
-        return simulateInternal(start, timeline, -1L, null);
+        return simulateInternal(start, timeline, List.of());
     }
 
     public TimelineResult simulateWithActivation(
@@ -49,30 +49,35 @@ public final class ThreatTimelineSimulator {
         long activationTick,
         UnaryOperator<PlayerSnapshot> activation
     ) {
-        if (activationTick < 0L) throw new IllegalArgumentException("activationTick must be non-negative");
-        return simulateInternal(start, timeline, activationTick, java.util.Objects.requireNonNull(activation, "activation"));
+        return simulateWithActivations(
+            start,
+            timeline,
+            List.of(new TimedActivation(activationTick, activation))
+        );
+    }
+
+    public TimelineResult simulateWithActivations(
+        PlayerSnapshot start,
+        ThreatTimeline timeline,
+        List<TimedActivation> activations
+    ) {
+        java.util.Objects.requireNonNull(activations, "activations");
+        List<TimedActivation> sortedActivations = new ArrayList<>(activations.size());
+        for (TimedActivation activation : activations) {
+            sortedActivations.add(java.util.Objects.requireNonNull(activation, "activation"));
+        }
+        sortedActivations.sort(Comparator.comparingLong(TimedActivation::tick));
+        return simulateInternal(start, timeline, List.copyOf(sortedActivations));
     }
 
     private TimelineResult simulateInternal(
         PlayerSnapshot start,
         ThreatTimeline timeline,
-        long activationTick,
-        UnaryOperator<PlayerSnapshot> activation
+        List<TimedActivation> activations
     ) {
         java.util.Objects.requireNonNull(start, "start");
         java.util.Objects.requireNonNull(timeline, "timeline");
-        List<ThreatEvent> sorted = new ArrayList<>(timeline.events());
-        if (activation != null && activationTick > 0L) {
-            List<ThreatEvent> conservative = new ArrayList<>(sorted.size());
-            for (ThreatEvent event : sorted) {
-                if (event.impact().earliest() < activationTick && event.impact().latest() >= activationTick) {
-                    conservative.add(withImpact(event, new dev.pixelied.survival.core.TickWindow(event.impact().earliest(), activationTick - 1L)));
-                } else {
-                    conservative.add(event);
-                }
-            }
-            sorted = conservative;
-        }
+        List<ThreatEvent> sorted = conservativeBeforeActivations(timeline.events(), activations);
         sorted.sort(BASE_ORDER);
         Set<String> timelineEventIds = new HashSet<>();
         for (ThreatEvent event : sorted) {
@@ -87,20 +92,20 @@ public final class ThreatTimelineSimulator {
         boolean survivalGuaranteed = true;
         Set<String> acceptedEventIds = new HashSet<>();
         Set<String> processedEventIds = new HashSet<>();
-        boolean activated = activation == null;
-
-        if (!activated && activationTick == 0L) {
-            working = activation.apply(working);
-            activated = true;
-        }
+        int activationIndex = 0;
 
         for (List<ThreatEvent> group : overlapGroups(sorted)) {
-            if (!activated && group.getFirst().impact().earliest() >= activationTick) {
-                working = agePlayerState(working, activationTick - previousTick);
-                previousTick = activationTick;
-                working = activation.apply(working);
-                activated = true;
+            long groupEarliest = group.getFirst().impact().earliest();
+            while (activationIndex < activations.size() && activations.get(activationIndex).tick() <= groupEarliest) {
+                TimedActivation activation = activations.get(activationIndex++);
+                if (activation.tick() < previousTick) {
+                    throw new IllegalStateException("activation ordering crossed an already-simulated threat schedule");
+                }
+                working = agePlayerState(working, activation.tick() - previousTick);
+                previousTick = activation.tick();
+                working = activation.activation().apply(working);
             }
+
             GroupOutcome outcome = worstGroupOutcome(working, previousTick, group, acceptedEventIds, processedEventIds, timelineEventIds);
             working = outcome.player();
             previousTick = outcome.lastTick();
@@ -115,13 +120,45 @@ public final class ThreatTimelineSimulator {
             }
         }
 
-        if (!activated && survivalGuaranteed) {
-            working = agePlayerState(working, activationTick - previousTick);
-            working = activation.apply(working);
+        while (activationIndex < activations.size() && survivalGuaranteed) {
+            TimedActivation activation = activations.get(activationIndex++);
+            if (activation.tick() < previousTick) {
+                throw new IllegalStateException("activation ordering crossed an already-simulated threat schedule");
+            }
+            working = agePlayerState(working, activation.tick() - previousTick);
+            previousTick = activation.tick();
+            working = activation.activation().apply(working);
         }
 
         return new TimelineResult(allResults, working.health(), working.absorption(),
             survivalGuaranteed && working.health() > 0f && firstLethal.isEmpty(), consumed, firstLethal);
+    }
+
+    private static List<ThreatEvent> conservativeBeforeActivations(
+        List<ThreatEvent> events,
+        List<TimedActivation> activations
+    ) {
+        List<ThreatEvent> conservative = new ArrayList<>(events.size());
+        for (ThreatEvent event : events) {
+            long latest = event.impact().latest();
+            for (TimedActivation activation : activations) {
+                if (event.impact().earliest() < activation.tick() && latest >= activation.tick()) {
+                    latest = activation.tick() - 1L;
+                    break;
+                }
+            }
+            conservative.add(latest == event.impact().latest()
+                ? event
+                : withImpact(event, new dev.pixelied.survival.core.TickWindow(event.impact().earliest(), latest)));
+        }
+        return conservative;
+    }
+
+    public record TimedActivation(long tick, UnaryOperator<PlayerSnapshot> activation) {
+        public TimedActivation {
+            if (tick < 0L) throw new IllegalArgumentException("activation tick must be non-negative");
+            activation = java.util.Objects.requireNonNull(activation, "activation");
+        }
     }
 
     private static ThreatEvent withImpact(ThreatEvent event, dev.pixelied.survival.core.TickWindow impact) {
