@@ -17,6 +17,7 @@
     "github-coordination"
   ],
   "registered_at": "2026-08-23T10:07:00+00:00",
-  "state": "available",
-  "state_reason": "Implementing the approved Predictive Survival contingency-planning and customization upgrade."
+  "state": "offline",
+  "state_updated_at": "2026-08-23T22:10:30+00:00",
+  "state_reason": "Predictive Survival contingency-planner work is merged, verified, packaged, and released from coordination."
 }

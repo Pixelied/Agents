@@ -4,10 +4,12 @@
   "task_id": "build-predictive-survival-26-1-2",
   "scope": "projects/predictive-survival-26-1-2",
   "owner": "openai-survival-contingency-a84f",
-  "state": "active",
+  "state": "released",
   "intent": "Implement approved multi-action contingency planning, stacked lethal protection, richer Mod Menu rescue policy controls, inventory routing improvements, and continuous threat revalidation without weakening vanilla-faithful fail-closed guarantees.",
   "claimed_at": "2026-08-23T10:07:00+00:00",
   "heartbeat_at": "2026-08-23T10:07:00+00:00",
   "expires_at": "2026-08-24T10:07:00+00:00",
-  "generation": 4
+  "generation": 4,
+  "released_at": "2026-08-23T22:10:30+00:00",
+  "release_reason": "Implementation merged to main at 195b2c2cae6ba1697ba792c0603c240b739de293 after full unit/build, exact-runtime GameTest, production JAR isolation, packaging, artifact, and workspace verification."
 }
