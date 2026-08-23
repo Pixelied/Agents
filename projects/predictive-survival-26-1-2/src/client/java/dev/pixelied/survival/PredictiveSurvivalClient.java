@@ -9,6 +9,7 @@ import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.core.SurvivalEngine;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.SurvivalDebugHud;
+import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -60,6 +61,7 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
                 engine.tick();
             } else {
                 THREAT_DIRTY.reset();
+                MinecraftServerStateEvidence.reset();
                 runtime.reset();
                 engine.reset();
             }
