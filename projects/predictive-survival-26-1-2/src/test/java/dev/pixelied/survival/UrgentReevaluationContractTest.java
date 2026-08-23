@@ -31,6 +31,12 @@ class UrgentReevaluationContractTest {
         assertTrue(mixin.contains("handleTeleportEntity"));
         assertTrue(mixin.contains("handleMoveEntity"));
         assertTrue(mixin.contains("handleRemoveEntities"));
+        assertTrue(mixin.contains("handleSetHealth"),
+            "a server health update can change whether the existing contingency still guarantees survival");
+        assertTrue(mixin.contains("handleBlockUpdate"),
+            "single-block world changes can alter projectile, explosion, fall, and contact-hazard predictions");
+        assertTrue(mixin.contains("handleChunkBlocksUpdate"),
+            "batched section block updates must also trigger a same-tick reanalysis");
         assertTrue(mixin.contains("@At(\"TAIL\")"),
             "packet handlers must finish vanilla state mutation before marking prediction dirty");
     }
