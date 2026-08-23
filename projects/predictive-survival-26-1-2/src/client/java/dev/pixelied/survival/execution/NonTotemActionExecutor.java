@@ -3,6 +3,7 @@ package dev.pixelied.survival.execution;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
+import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
 import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.inventory.InventorySnapshot;
@@ -51,14 +52,15 @@ public final class NonTotemActionExecutor {
             if (itemKey == null) {
                 return new ExecutionStatus.Failed("equipment action must describe one concrete item swap", true);
             }
-            if (equipmentSatisfied(equipment, context.player())) {
+            PlayerSnapshot expected = equipment.apply(context.player());
+            if (equipmentSatisfied(equipment, expected, context.player())) {
                 return new ExecutionStatus.Confirmed("equipment state is already observed");
             }
             return beginStateAction(
                 action,
                 equipment.sourceItem(),
                 itemKey,
-                action.apply(context.player()),
+                expected,
                 context
             );
         }
@@ -67,14 +69,15 @@ public final class NonTotemActionExecutor {
             if (effects.itemKey().isBlank()) {
                 return new ExecutionStatus.Failed("effect action has no executable item key", true);
             }
-            if (effectsSatisfied(effects, context.player(), context.player(), 0L)) {
+            PlayerSnapshot expected = effects.apply(context.player());
+            if (effectsSatisfied(effects, expected, context.player(), 0L)) {
                 return new ExecutionStatus.Confirmed("effect state is already observed");
             }
             return beginStateAction(
                 action,
                 effects.sourceItem(),
                 effects.itemKey(),
-                effects.apply(context.player()),
+                expected,
                 context
             );
         }
@@ -480,7 +483,7 @@ public final class NonTotemActionExecutor {
         NonTotemExecutionContext context,
         Pending pending
     ) {
-        if (!equipmentSatisfied(action, context.player())) return false;
+        if (!equipmentSatisfied(action, pending.expectedPlayer(), context.player())) return false;
         ServerStateEvidenceSnapshot evidence = context.base().serverStateEvidence();
         if (!evidence.known()) return true;
 
@@ -573,11 +576,36 @@ public final class NonTotemActionExecutor {
         return item == null || item.isBlank() ? null : item;
     }
 
-    private static boolean equipmentSatisfied(SurvivalAction.SwapEquipment action, PlayerSnapshot player) {
+    private static boolean equipmentSatisfied(
+        SurvivalAction.SwapEquipment action,
+        PlayerSnapshot expected,
+        PlayerSnapshot current
+    ) {
         for (Map.Entry<String, String> update : action.equipmentUpdates().entrySet()) {
-            if (!update.getValue().equals(player.equipmentItemKeys().get(update.getKey()))) return false;
+            if (!update.getValue().equals(current.equipmentItemKeys().get(update.getKey()))) return false;
         }
-        return !action.equipmentUpdates().isEmpty();
+        if (action.equipmentUpdates().isEmpty()) return false;
+        return mitigationMatches(current.mitigation(), expected.mitigation());
+    }
+
+    private static boolean mitigationMatches(MitigationSnapshot actual, MitigationSnapshot expected) {
+        if (Math.abs(actual.armor() - expected.armor()) > VALUE_EPSILON) return false;
+        if (Math.abs(actual.toughness() - expected.toughness()) > VALUE_EPSILON) return false;
+        if (Math.abs(actual.armorEffectivenessMultiplier() - expected.armorEffectivenessMultiplier()) > VALUE_EPSILON) {
+            return false;
+        }
+        if (actual.enchantmentProtection() != expected.enchantmentProtection()) return false;
+        if (actual.helmetPresent() != expected.helmetPresent()) return false;
+        if (actual.helmetDurability() != expected.helmetDurability()) return false;
+        if (actual.armorPieces().size() != expected.armorPieces().size()) return false;
+        for (var expectedPiece : expected.armorPieces()) {
+            var actualPiece = actual.armorPieces().stream()
+                .filter(piece -> piece.slot() == expectedPiece.slot())
+                .findFirst()
+                .orElse(null);
+            if (!expectedPiece.equals(actualPiece)) return false;
+        }
+        return true;
     }
 
     private static boolean effectsSatisfied(
