@@ -25,6 +25,11 @@ public final class AreaEffectCloudAttributionTracker {
     private final Map<String, PendingAttribution> pendingByProjectile = new HashMap<>();
     private final Map<String, CloudAttributions> activeByCloud = new HashMap<>();
 
+    public void reset() {
+        pendingByProjectile.clear();
+        activeByCloud.clear();
+    }
+
     public void observePredictedThreats(long clientTick, List<ThreatEvent> threats) {
         if (threats == null) throw new NullPointerException("threats");
         expirePending(clientTick);
@@ -115,7 +120,6 @@ public final class AreaEffectCloudAttributionTracker {
                 writeHazardProperties(properties, "cloud_hazard_" + i + "_", attributions.hazards().get(i), clientTick);
             }
 
-            // Keep the legacy single-hazard view for older snapshot/tests and external diagnostics.
             writeHazardProperties(properties, "cloud_", attributions.hazards().getFirst(), clientTick);
             annotated.add(new WorldSnapshot.EntitySnapshot(
                 entity.id(),
