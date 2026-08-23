@@ -60,17 +60,18 @@ public interface SurvivalAction {
         }
 
         public HeldItemRef {
-            hand = Objects.requireNonNull(hand, "hand");
-            itemKey = Objects.requireNonNull(itemKey, "itemKey");
+            Objects.requireNonNull(hand, "hand");
+            Objects.requireNonNull(itemKey, "itemKey");
             route = Objects.requireNonNull(route, "route");
             if (itemKey.isBlank()) throw new IllegalArgumentException("itemKey must not be blank");
-            route.ifPresent(value -> {
+            if (route.isPresent()) {
+                SurvivalItemRoute value = route.get();
                 if (value.destinationHand() != hand
                     || !value.itemKey().equals(itemKey)
                     || value.componentFingerprint() != componentFingerprint) {
                     throw new IllegalArgumentException("route must preserve exact held-item identity and destination hand");
                 }
-            });
+            }
         }
     }
 
