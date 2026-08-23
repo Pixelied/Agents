@@ -193,8 +193,8 @@ class ThreatTimelineSimulatorTest {
             new ThreatTimeline(List.of(event("phase-marker", 0f, 26)))
         );
 
-        assertEquals(3f, result.finalHealth(), 0.0001f,
-            "Regeneration II at duration 900 must heal at remaining durations 900 and 875 before tick 26");
+        assertEquals(2f, result.finalHealth(), 0.0001f,
+            "Regeneration II at remaining duration 900 heals before tick 26, but the tick-26 heal is not guaranteed before a same-tick threat");
     }
 
     @Test
