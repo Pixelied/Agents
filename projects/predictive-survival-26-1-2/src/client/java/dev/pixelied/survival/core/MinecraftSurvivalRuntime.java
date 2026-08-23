@@ -65,6 +65,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final NonTotemActionExecutor nonTotemExecutor;
     private final MinecraftCommandDispatcher dispatcher;
 
+    private final CaptureTickClock captureTickClock = new CaptureTickClock();
     private ServerAuthorityTracker authority;
     private LiveState liveState;
     private LocalPlayer lastPlayer;
@@ -122,8 +123,9 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             lastPlayer = player;
         }
 
-        clientTick++;
-        observeTiming(player);
+        boolean logicalTickAdvanced = captureTickClock.observe(player.tickCount);
+        clientTick = captureTickClock.clientTick();
+        observeTiming(player, logicalTickAdvanced);
         TimingSnapshot timing = timingEstimator.snapshot(clientTick);
 
         InventorySnapshot rawInventory = inventorySnapshots.captureInventory(player);
@@ -239,12 +241,14 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         return liveState == null ? Optional.empty() : Optional.of(liveState.frame());
     }
 
-    private void observeTiming(LocalPlayer player) {
-        long now = System.nanoTime();
-        if (previousCaptureNanos != 0L && now > previousCaptureNanos) {
-            timingEstimator.observeClientTickNanos(now - previousCaptureNanos);
+    private void observeTiming(LocalPlayer player, boolean logicalTickAdvanced) {
+        if (logicalTickAdvanced) {
+            long now = System.nanoTime();
+            if (previousCaptureNanos != 0L && now > previousCaptureNanos) {
+                timingEstimator.observeClientTickNanos(now - previousCaptureNanos);
+            }
+            previousCaptureNanos = now;
         }
-        previousCaptureNanos = now;
 
         if (minecraft.getConnection() == null) return;
         PlayerInfo info = minecraft.getConnection().getPlayerInfo(player.getUUID());
@@ -360,6 +364,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         restorationController.abort();
         shieldExecutor.reset();
         nonTotemExecutor.reset();
+        captureTickClock.resetObservation();
         previousCaptureNanos = 0L;
     }
 
