@@ -14,6 +14,7 @@ import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.BlockingProfileSnapshot;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
+import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
@@ -37,6 +38,20 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContingencyPlannerTest {
+    @Test
+    void raiseShieldApplyProducesActiveBlockingState() {
+        PlayerSnapshot after = shield().apply(context().player());
+        assertTrue(after.blocking().active());
+    }
+
+    @Test
+    void damageSimulatorFullyBlocksArrowAfterRaiseShieldApply() {
+        PlayerSnapshot after = shield().apply(context().player());
+        var damage = new DamageSimulator().simulate(after, arrowEvent().damage());
+        assertTrue(damage.rejected());
+        assertEquals(20f, damage.after().health(), 0.0001f);
+    }
+
     @Test
     void shieldActivationSurvivesArrowStageByItself() {
         PredictionContext context = context();
