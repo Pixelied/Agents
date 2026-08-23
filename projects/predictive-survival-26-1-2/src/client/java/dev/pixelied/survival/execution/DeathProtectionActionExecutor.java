@@ -273,7 +273,7 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             long latestServerEffectTick,
             ContainerPredictionAuthority authority
         ) implements Pending {
-            private ContainerSwap {
+            public ContainerSwap {
                 authority = Objects.requireNonNull(authority, "authority");
             }
         }
