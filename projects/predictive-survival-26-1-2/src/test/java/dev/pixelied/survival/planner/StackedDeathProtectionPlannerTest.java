@@ -109,6 +109,31 @@ class StackedDeathProtectionPlannerTest {
         assertEquals(2, plan.result().consumedDeathProtectionCount());
     }
 
+    @Test
+    void doesNotPretendOneStackCanBeSplitAcrossBothHands() {
+        PredictionContext context = context(DeathProtectionSnapshot.none());
+        InventorySnapshot inventory = new InventorySnapshot(
+            0,
+            Map.of(
+                0, new InventorySlotSnapshot(0, "minecraft:diamond_sword", 1, false),
+                1, new InventorySlotSnapshot(1, "test:stackable_protection", 2, true),
+                40, new InventorySlotSnapshot(40, "minecraft:air", 0, false)
+            ),
+            false
+        );
+        MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36, 1, 37, 40, 45));
+
+        List<SurvivalAction.EquipDeathProtection> protection = new SurvivalCandidateGenerator().generate(
+                context, spacedStackedLethalTimeline(), inventory, menu, RescuePolicy.smartDefaults()
+            ).stream()
+            .filter(SurvivalAction.EquipDeathProtection.class::isInstance)
+            .map(SurvivalAction.EquipDeathProtection.class::cast)
+            .toList();
+
+        assertEquals(1, protection.size(),
+            "whole-stack routing cannot arm both hands from one source slot without a split-stack executor");
+    }
+
     private static PredictionContext context(DeathProtectionSnapshot protection) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
