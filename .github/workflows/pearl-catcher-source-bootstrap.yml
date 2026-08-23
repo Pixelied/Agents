@@ -91,10 +91,15 @@ jobs:
 
           manual = Path('projects/pearl-catcher-26-1-2/scripts/verify-manual-abi.sh')
           text = manual.read_text()
-          stale = "need '// net/minecraft/client/Minecraft.getOverlay:()Lnet/minecraft/client/gui/Overlay;'\n"
-          if text.count(stale) != 1:
+          stale_overlay = "need '// net/minecraft/client/Minecraft.getOverlay:()Lnet/minecraft/client/gui/Overlay;'\n"
+          if text.count(stale_overlay) != 1:
               raise SystemExit('expected exactly one stale Minecraft.getOverlay ABI requirement')
-          manual.write_text(text.replace(stale, '', 1))
+          text = text.replace(stale_overlay, '', 1)
+          stale_use = "need '// net/minecraft/client/multiplayer/MultiPlayerGameMode.useItem:(Lnet/minecraft/client/player/LocalPlayer;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;'\n"
+          current_use = "need '// net/minecraft/client/multiplayer/MultiPlayerGameMode.useItem:(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;'\n"
+          if text.count(stale_use) != 1:
+              raise SystemExit('expected exactly one stale LocalPlayer useItem ABI descriptor')
+          manual.write_text(text.replace(stale_use, current_use, 1))
           PY
           grep -F 'compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"' projects/pearl-catcher-26-1-2/build.gradle
           ! grep -F 'modCompileOnly' projects/pearl-catcher-26-1-2/build.gradle
@@ -103,6 +108,7 @@ jobs:
           ! grep -F 'static Result safe()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
           grep -F 'if [[ "$TARGET" != /* ]]; then TARGET="$(pwd)/$TARGET"; fi' projects/pearl-catcher-26-1-2/scripts/test-event-class-abi.sh
           ! grep -F 'Minecraft.getOverlay' projects/pearl-catcher-26-1-2/scripts/verify-manual-abi.sh
+          grep -F 'MultiPlayerGameMode.useItem:(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;' projects/pearl-catcher-26-1-2/scripts/verify-manual-abi.sh
 
       - name: Source and core regressions
         shell: bash
