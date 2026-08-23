@@ -35,7 +35,12 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             return new ExecutionStatus.Failed("death-protection action is no longer legal", true);
         }
 
-        DeathProtectionRoute route = routePlanner.choose(context.inventory(), context.menu()).orElse(null);
+        DeathProtectionRoute.Destination requestedDestination = action.hand() == SurvivalAction.Hand.OFF_HAND
+            ? DeathProtectionRoute.Destination.OFF_HAND
+            : DeathProtectionRoute.Destination.MAIN_HAND;
+        DeathProtectionRoute route = routePlanner.choose(
+            context.inventory(), context.menu(), requestedDestination
+        ).orElse(null);
         if (route == null) {
             return new ExecutionStatus.Failed("no server-valid death-protection route remains", true);
         }
@@ -224,7 +229,7 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
     ) {
         int inventoryIndex = destination == DeathProtectionRoute.Destination.OFF_HAND ? 40 : selectedHotbarIndex;
         return context.inventory().slot(inventoryIndex)
-            .map(slot -> slot.deathProtection())
+            .map(InventorySlotSnapshot::deathProtection)
             .orElse(false);
     }
 
