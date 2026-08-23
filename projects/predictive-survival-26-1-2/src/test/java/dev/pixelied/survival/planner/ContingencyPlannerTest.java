@@ -166,7 +166,8 @@ class ContingencyPlannerTest {
             MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
             DeathProtectionSnapshot.none(),
             new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
-            new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of("max_health", "20", "head_yaw", "0")
+            new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0),
+            Map.of(), Map.of("max_health", "20", "head_yaw", "0")
         );
         return new PredictionContext(
             player,
