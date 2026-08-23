@@ -151,6 +151,8 @@ public final class ReactiveCombatEngine {
             case CombatEvent.TotemPopped pop -> pop.targetId().equals(targetId);
             case CombatEvent.EquipmentChanged equipment -> equipment.targetId().equals(targetId);
             case CombatEvent.TargetMoved moved -> moved.targetId().equals(targetId);
+            case CombatEvent.InventoryChanged ignored -> false;
+            case CombatEvent.ConfigChanged ignored -> false;
             default -> true;
         };
     }
