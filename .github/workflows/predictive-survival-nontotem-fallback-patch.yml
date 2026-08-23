@@ -1,0 +1,56 @@
+name: Predictive Survival one-use fallback patch
+
+on:
+  push:
+    branches:
+      - feat/predictive-survival-contingency-planner
+    paths:
+      - .github/workflows/predictive-survival-nontotem-fallback-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/predictive-survival-contingency-planner
+      - name: Apply exact fallback patch and remove one-use workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/execution/NonTotemActionExecutor.java')
+          text = path.read_text()
+          old = '''        ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
+          return evidence.inventoryMatchesAfter(
+                  swap.sourceInventoryIndex(), candidate.originalDestinationBefore(), candidate.authorityRevisionBeforeSwap()
+              )
+              && evidence.inventoryMatchesAfter(
+                  swap.destinationInventoryIndex(), candidate.sourceBefore(), candidate.authorityRevisionBeforeSwap()
+              );
+          '''
+          new = '''        ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
+          if (!evidence.known()) {
+              return context.menu().stateId() != pending.containerStateId();
+          }
+          return evidence.inventoryMatchesAfter(
+                  swap.sourceInventoryIndex(), candidate.originalDestinationBefore(), candidate.authorityRevisionBeforeSwap()
+              )
+              && evidence.inventoryMatchesAfter(
+                  swap.destinationInventoryIndex(), candidate.sourceBefore(), candidate.authorityRevisionBeforeSwap()
+              );
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one fallback block, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/predictive-survival-nontotem-fallback-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/execution/NonTotemActionExecutor.java .github/workflows/predictive-survival-nontotem-fallback-patch.yml
+          git commit -m 'fix: require fallback menu revision for routed rescue swap'
+          git push origin HEAD:feat/predictive-survival-contingency-planner
