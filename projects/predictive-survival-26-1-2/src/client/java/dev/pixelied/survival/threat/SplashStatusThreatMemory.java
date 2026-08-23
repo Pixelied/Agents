@@ -33,6 +33,10 @@ public final class SplashStatusThreatMemory implements ThreatPredictor {
 
     private final Map<String, SourceMemory> bySource = new LinkedHashMap<>();
 
+    public void reset() {
+        bySource.clear();
+    }
+
     @Override
     public List<ThreatEvent> predict(PredictionContext context) {
         if (context == null) throw new NullPointerException("context");
@@ -150,7 +154,9 @@ public final class SplashStatusThreatMemory implements ThreatPredictor {
             damage.piercingProjectile(),
             Optional.empty(),
             damage.sourceKey(),
-            damage.applicationHealthThresholdExclusive()
+            damage.applicationHealthThresholdExclusive(),
+            damage.armorEffectivenessAdjustment(),
+            damage.blockingDisableSeconds()
         );
         Confidence confidence = confirmed
             ? original.confidence()
