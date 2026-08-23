@@ -34,7 +34,7 @@ class V2CoordinatorArchitectureTest {
             "reactive dispatch helper must stay bounded and reusable by continuation retries");
         String dispatchPath = source.substring(dispatchStart, dispatchEnd);
         assertTrue(dispatchPath.contains("arbiter.evaluate("));
-        assertTrue(dispatchPath.contains("arbiter.evaluateFrom("));
+        assertTrue(dispatchPath.contains("arbiter.evaluateFromContinuation("));
         assertTrue(dispatchPath.contains("burstDispatcher.dispatch("));
         assertTrue(dispatchPath.contains("burstDispatcher.dispatchFrom("));
         assertFalse(dispatchPath.contains("ClientCombatSnapshotBuilder"));
