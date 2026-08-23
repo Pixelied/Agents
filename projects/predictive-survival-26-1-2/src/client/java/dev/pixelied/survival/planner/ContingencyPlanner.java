@@ -2,6 +2,7 @@ package dev.pixelied.survival.planner;
 
 import dev.pixelied.survival.config.RescueProfile;
 import dev.pixelied.survival.core.PredictionContext;
+import dev.pixelied.survival.inventory.DeathProtectionRoute;
 import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
@@ -249,11 +250,102 @@ public final class ContingencyPlanner {
 
     private static boolean conflictsWithPrefix(List<PlannedStep> prefix, SurvivalAction action) {
         Optional<SourceResource> candidateSource = sourceResource(action);
+        Optional<SurvivalAction.Hand> candidateHeldDependency = requiredHeldHand(action);
+        boolean candidateNeedsStableMainSelection = requiresStableMainSelection(action);
+
         for (PlannedStep step : prefix) {
-            if (step.action().equals(action)) return true;
-            if (candidateSource.isPresent() && candidateSource.equals(sourceResource(step.action()))) return true;
+            SurvivalAction previous = step.action();
+            if (previous.equals(action)) return true;
+
+            Optional<SourceResource> previousSource = sourceResource(previous);
+            if (candidateSource.isPresent()
+                && previousSource.isPresent()
+                && candidateSource.get().samePhysicalLocation(previousSource.get())) {
+                return true;
+            }
+
+            if (candidateHeldDependency.isPresent()
+                && invalidatesHeldHand(previous, candidateHeldDependency.get())) {
+                return true;
+            }
+
+            if (candidateNeedsStableMainSelection && changesSelectedMainHand(previous)) {
+                return true;
+            }
         }
         return false;
+    }
+
+    private static Optional<SurvivalAction.Hand> requiredHeldHand(SurvivalAction action) {
+        if (action instanceof SurvivalAction.EquipDeathProtection protection) {
+            SurvivalAction.DeathProtectionSourceRef source = protection.sourceItem().orElse(null);
+            if (source == null) return Optional.empty();
+            if (source.route() instanceof DeathProtectionRoute.AlreadyInHand already) {
+                return Optional.of(already.destination() == DeathProtectionRoute.Destination.MAIN_HAND
+                    ? SurvivalAction.Hand.MAIN_HAND
+                    : SurvivalAction.Hand.OFF_HAND);
+            }
+            return Optional.empty();
+        }
+
+        SurvivalAction.HeldItemRef source = heldItemSource(action).orElse(null);
+        if (source == null) return Optional.empty();
+        SurvivalItemRoute route = source.route().orElse(null);
+        return route == null || route instanceof SurvivalItemRoute.AlreadyHeld
+            ? Optional.of(source.hand())
+            : Optional.empty();
+    }
+
+    private static boolean requiresStableMainSelection(SurvivalAction action) {
+        if (action instanceof SurvivalAction.EquipDeathProtection protection) {
+            SurvivalAction.DeathProtectionSourceRef source = protection.sourceItem().orElse(null);
+            return source != null
+                && source.route() instanceof DeathProtectionRoute.ContainerSwap swap
+                && swap.destination() == DeathProtectionRoute.Destination.MAIN_HAND;
+        }
+
+        SurvivalAction.HeldItemRef source = heldItemSource(action).orElse(null);
+        return source != null
+            && source.route().orElse(null) instanceof SurvivalItemRoute.ContainerSwap swap
+            && swap.destinationHand() == SurvivalAction.Hand.MAIN_HAND;
+    }
+
+    private static boolean invalidatesHeldHand(SurvivalAction action, SurvivalAction.Hand hand) {
+        if (action instanceof SurvivalAction.EquipDeathProtection protection) {
+            return protection.hand() == hand;
+        }
+
+        SurvivalAction.HeldItemRef source = heldItemSource(action).orElse(null);
+        if (source == null || source.hand() != hand) return false;
+
+        if (action instanceof SurvivalAction.RaiseShield) {
+            SurvivalItemRoute route = source.route().orElse(null);
+            return route != null && !(route instanceof SurvivalItemRoute.AlreadyHeld);
+        }
+
+        return action instanceof SurvivalAction.ApplyEffects
+            || action instanceof SurvivalAction.SwapEquipment;
+    }
+
+    private static boolean changesSelectedMainHand(SurvivalAction action) {
+        if (action instanceof SurvivalAction.EquipDeathProtection protection) {
+            return protection.sourceItem()
+                .map(SurvivalAction.DeathProtectionSourceRef::route)
+                .filter(DeathProtectionRoute.HotbarSelect.class::isInstance)
+                .isPresent();
+        }
+
+        return heldItemSource(action)
+            .flatMap(SurvivalAction.HeldItemRef::route)
+            .filter(SurvivalItemRoute.HotbarSelect.class::isInstance)
+            .isPresent();
+    }
+
+    private static Optional<SurvivalAction.HeldItemRef> heldItemSource(SurvivalAction action) {
+        if (action instanceof SurvivalAction.RaiseShield shield) return shield.sourceItem();
+        if (action instanceof SurvivalAction.SwapEquipment equipment) return equipment.sourceItem();
+        if (action instanceof SurvivalAction.ApplyEffects effects) return effects.sourceItem();
+        return Optional.empty();
     }
 
     private static Optional<SourceResource> sourceResource(SurvivalAction action) {
@@ -265,17 +357,7 @@ public final class ContingencyPlanner {
             ));
         }
 
-        Optional<SurvivalAction.HeldItemRef> source;
-        if (action instanceof SurvivalAction.RaiseShield shield) {
-            source = shield.sourceItem();
-        } else if (action instanceof SurvivalAction.SwapEquipment equipment) {
-            source = equipment.sourceItem();
-        } else if (action instanceof SurvivalAction.ApplyEffects effects) {
-            source = effects.sourceItem();
-        } else {
-            return Optional.empty();
-        }
-        return source.map(ContingencyPlanner::sourceResource);
+        return heldItemSource(action).map(ContingencyPlanner::sourceResource);
     }
 
     private static SourceResource sourceResource(SurvivalAction.HeldItemRef source) {
@@ -355,6 +437,10 @@ public final class ContingencyPlanner {
         private SourceResource {
             location = Objects.requireNonNull(location, "location");
             itemKey = Objects.requireNonNull(itemKey, "itemKey");
+        }
+
+        private boolean samePhysicalLocation(SourceResource other) {
+            return location.equals(other.location);
         }
     }
 
