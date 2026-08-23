@@ -275,9 +275,12 @@ class NonTotemActionExecutorTest {
     }
 
     private static PlayerSnapshot player(Map<String, String> equipment, StatusEffectsSnapshot effects, Vec3Snapshot position) {
+        MitigationSnapshot mitigation = "minecraft:netherite_chestplate".equals(equipment.get("chest"))
+            ? new MitigationSnapshot(20f, 8f, 1f, 0, false, 0)
+            : MitigationSnapshot.none();
         return new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
-            MitigationSnapshot.none(), effects, BlockingSnapshot.none(), HurtState.unknown(),
+            mitigation, effects, BlockingSnapshot.none(), HurtState.unknown(),
             DeathProtectionSnapshot.none(), new AabbSnapshot(position.x(), position.y(), position.z(), position.x() + 0.6, position.y() + 1.8, position.z() + 0.6),
             position, new Vec3Snapshot(0, 0, 0), equipment
         );

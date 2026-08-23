@@ -40,6 +40,27 @@ class DeathProtectionRestorationControllerTest {
     }
 
     @Test
+    void chainedHotbarEmergencyRoutesComposeBackToOriginalSelection() {
+        DeathProtectionRestorationController controller = new DeathProtectionRestorationController();
+        InventorySlotSnapshot sword = slot(0, "minecraft:diamond_sword", 11, 1, false);
+        InventorySlotSnapshot shield = slot(2, "minecraft:shield", 22, 1, false);
+        InventorySlotSnapshot potion = slot(3, "minecraft:potion", 33, 1, false);
+
+        controller.arm(new RestorationCheckpoint.Hotbar(0, 2, sword, shield, 100));
+        controller.arm(new RestorationCheckpoint.Hotbar(2, 3, shield, potion, 101));
+
+        InventorySnapshot chained = inventory(3, Map.of(0, sword, 2, shield, 3, potion));
+        assertTrue(controller.update(true, false, false, context(chained, 102, false)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(chained, 103, false)).isEmpty());
+        ExecutionCommand.SelectHotbar restore = assertInstanceOf(
+            ExecutionCommand.SelectHotbar.class,
+            controller.update(true, false, false, context(chained, 104, false)).orElseThrow()
+        );
+        assertEquals(0, restore.hotbarIndex(),
+            "a shield -> potion -> totem style rescue chain must restore the player's original slot, not an intermediate rescue slot");
+    }
+
+    @Test
     void activeUseAndSurvivalWorkPreventRestoration() {
         DeathProtectionRestorationController controller = new DeathProtectionRestorationController();
         InventorySlotSnapshot original = slot(0, "minecraft:diamond_sword", 11, 1, false);
@@ -146,6 +167,12 @@ class DeathProtectionRestorationControllerTest {
         slots.put(0, original);
         slots.put(1, protection);
         slots.put(40, slot(40, "minecraft:air", 0, 0, false));
+        return new InventorySnapshot(selected, slots, false);
+    }
+
+    private static InventorySnapshot inventory(int selected, Map<Integer, InventorySlotSnapshot> supplied) {
+        Map<Integer, InventorySlotSnapshot> slots = new HashMap<>(supplied);
+        slots.putIfAbsent(40, slot(40, "minecraft:air", 0, 0, false));
         return new InventorySnapshot(selected, slots, false);
     }
 

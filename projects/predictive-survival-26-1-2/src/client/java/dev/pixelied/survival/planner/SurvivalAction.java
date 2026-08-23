@@ -15,6 +15,8 @@ import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.inventory.DeathProtectionRoute;
+import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
@@ -47,12 +49,51 @@ public interface SurvivalAction {
         OFF_HAND
     }
 
-    /** Exact identity of a held stack that produced an executable candidate. */
-    record HeldItemRef(Hand hand, String itemKey, int componentFingerprint) {
+    /** Exact identity and optional server-valid route of the stack that produced a candidate. */
+    record HeldItemRef(
+        Hand hand,
+        String itemKey,
+        int componentFingerprint,
+        Optional<SurvivalItemRoute> route
+    ) {
+        public HeldItemRef(Hand hand, String itemKey, int componentFingerprint) {
+            this(hand, itemKey, componentFingerprint, Optional.empty());
+        }
+
         public HeldItemRef {
-            hand = Objects.requireNonNull(hand, "hand");
-            itemKey = Objects.requireNonNull(itemKey, "itemKey");
+            Objects.requireNonNull(hand, "hand");
+            Objects.requireNonNull(itemKey, "itemKey");
+            route = Objects.requireNonNull(route, "route");
             if (itemKey.isBlank()) throw new IllegalArgumentException("itemKey must not be blank");
+            if (route.isPresent()) {
+                SurvivalItemRoute value = route.get();
+                if (value.destinationHand() != hand
+                    || !value.itemKey().equals(itemKey)
+                    || value.componentFingerprint() != componentFingerprint) {
+                    throw new IllegalArgumentException("route must preserve exact held-item identity and destination hand");
+                }
+            }
+        }
+    }
+
+    /** Exact physical protection stack and server-valid route selected by production planning. */
+    record DeathProtectionSourceRef(
+        int sourceInventoryIndex,
+        String itemKey,
+        int componentFingerprint,
+        DeathProtectionRoute route
+    ) {
+        public DeathProtectionSourceRef {
+            if (sourceInventoryIndex < 0 || sourceInventoryIndex > 40) {
+                throw new IllegalArgumentException("sourceInventoryIndex must be in [0, 40]");
+            }
+            itemKey = Objects.requireNonNull(itemKey, "itemKey");
+            route = Objects.requireNonNull(route, "route");
+            if (itemKey.isBlank()) throw new IllegalArgumentException("itemKey must not be blank");
+            if (route instanceof DeathProtectionRoute.HotbarSelect hotbar
+                && hotbar.hotbarIndex() != sourceInventoryIndex) {
+                throw new IllegalArgumentException("hotbar protection route must preserve its exact source index");
+            }
         }
     }
 
@@ -71,11 +112,30 @@ public interface SurvivalAction {
         boolean authoritativePrerequisitesSatisfied,
         double reliability,
         int consumableCost,
-        int disruptionCost
+        int disruptionCost,
+        Optional<DeathProtectionSourceRef> sourceItem
     ) implements SurvivalAction {
+        public EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem item,
+            Hand hand,
+            int requiredServerTicks,
+            boolean legal,
+            boolean authoritativePrerequisitesSatisfied,
+            double reliability,
+            int consumableCost,
+            int disruptionCost
+        ) {
+            this(item, hand, requiredServerTicks, legal, authoritativePrerequisitesSatisfied,
+                reliability, consumableCost, disruptionCost, Optional.empty());
+        }
+
         public EquipDeathProtection {
             item = Objects.requireNonNull(item, "item");
             hand = Objects.requireNonNull(hand, "hand");
+            sourceItem = Objects.requireNonNull(sourceItem, "sourceItem");
+            if (sourceItem.isPresent() && routeDestination(sourceItem.get().route()) != hand) {
+                throw new IllegalArgumentException("death-protection route destination must match action hand");
+            }
             validateCommon(requiredServerTicks, reliability, consumableCost, disruptionCost);
         }
 
@@ -87,9 +147,17 @@ public interface SurvivalAction {
             DeathProtectionSnapshot next = hand == Hand.MAIN_HAND
                 ? new DeathProtectionSnapshot(Optional.of(item), current.offHand())
                 : new DeathProtectionSnapshot(current.mainHand(), Optional.of(item));
+            BlockingSnapshot nextBlocking = player.blocking();
+            String targetSlot = handSlot(hand);
+            if ("minecraft:shield".equals(player.equipmentItemKeys().get(targetSlot))) {
+                nextBlocking = BlockingSnapshot.none();
+            }
+            LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            if (sourceItem.isPresent()) equipment.put(targetSlot, sourceItem.get().itemKey());
+            else equipment.remove(targetSlot);
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),
-                player.blocking(), next, player.equipmentItemKeys()
+                nextBlocking, next, equipment
             );
         }
     }
@@ -104,7 +172,8 @@ public interface SurvivalAction {
         int elapsedUseTicks,
         int requiredUseTicks,
         int disruptionCost,
-        Optional<BlockingProfileSnapshot> blockingProfile
+        Optional<BlockingProfileSnapshot> blockingProfile,
+        Optional<HeldItemRef> sourceItem
     ) implements SurvivalAction {
         public RaiseShield(
             int requiredServerTicks,
@@ -118,7 +187,23 @@ public interface SurvivalAction {
             int disruptionCost
         ) {
             this(requiredServerTicks, legal, authoritativePrerequisitesSatisfied, guaranteedBlock, reliability,
-                blockedFraction, elapsedUseTicks, requiredUseTicks, disruptionCost, Optional.empty());
+                blockedFraction, elapsedUseTicks, requiredUseTicks, disruptionCost, Optional.empty(), Optional.empty());
+        }
+
+        public RaiseShield(
+            int requiredServerTicks,
+            boolean legal,
+            boolean authoritativePrerequisitesSatisfied,
+            boolean guaranteedBlock,
+            double reliability,
+            float blockedFraction,
+            int elapsedUseTicks,
+            int requiredUseTicks,
+            int disruptionCost,
+            Optional<BlockingProfileSnapshot> blockingProfile
+        ) {
+            this(requiredServerTicks, legal, authoritativePrerequisitesSatisfied, guaranteedBlock, reliability,
+                blockedFraction, elapsedUseTicks, requiredUseTicks, disruptionCost, blockingProfile, Optional.empty());
         }
 
         public RaiseShield {
@@ -130,6 +215,7 @@ public interface SurvivalAction {
                 throw new IllegalArgumentException("shield use ticks must be non-negative");
             }
             blockingProfile = Objects.requireNonNull(blockingProfile, "blockingProfile");
+            sourceItem = Objects.requireNonNull(sourceItem, "sourceItem");
         }
 
         @Override public int consumableCost() { return 0; }
@@ -143,9 +229,18 @@ public interface SurvivalAction {
             BlockingSnapshot blocking = new BlockingSnapshot(
                 guaranteedBlock, blockedFraction, Math.max(elapsedUseTicks, requiredUseTicks), requiredUseTicks, profile, 0
             );
+            DeathProtectionSnapshot protection = player.deathProtection();
+            LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            if (sourceItem.isPresent()) {
+                HeldItemRef source = sourceItem.get();
+                if (source.route().map(route -> !(route instanceof SurvivalItemRoute.AlreadyHeld)).orElse(false)) {
+                    protection = withoutDeathProtection(protection, source.hand());
+                }
+                equipment.put(handSlot(source.hand()), source.itemKey());
+            }
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),
-                blocking, player.deathProtection(), player.equipmentItemKeys()
+                blocking, protection, equipment
             );
         }
     }
@@ -238,13 +333,26 @@ public interface SurvivalAction {
         @Override
         public PlayerSnapshot apply(PlayerSnapshot player) {
             LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            String displacedEquipmentItem = equipmentUpdates.size() == 1
+                ? player.equipmentItemKeys().get(equipmentUpdates.keySet().iterator().next())
+                : null;
             equipment.putAll(equipmentUpdates);
             MitigationSnapshot mitigation = replacementPiece
                 .map(piece -> replaceArmorPiece(player.mitigation(), piece))
                 .orElse(mitigationAfter);
+            BlockingSnapshot blocking = player.blocking();
+            DeathProtectionSnapshot protection = player.deathProtection();
+            if (sourceItem.isPresent()) {
+                HeldItemRef source = sourceItem.get();
+                blocking = BlockingSnapshot.none();
+                protection = withoutDeathProtection(protection, source.hand());
+                String handSlot = handSlot(source.hand());
+                if (displacedEquipmentItem == null) equipment.remove(handSlot);
+                else equipment.put(handSlot, displacedEquipmentItem);
+            }
             return copy(
                 player, player.health(), player.absorption(), mitigation, player.statusEffects(),
-                player.blocking(), player.deathProtection(), equipment
+                blocking, protection, equipment
             );
         }
     }
@@ -322,9 +430,18 @@ public interface SurvivalAction {
             StatusEffectsSnapshot effects = appliedEffects.isEmpty()
                 ? statusEffectsAfter
                 : player.statusEffects().apply(appliedEffects);
+            BlockingSnapshot blocking = player.blocking();
+            DeathProtectionSnapshot protection = player.deathProtection();
+            LinkedHashMap<String, String> equipment = new LinkedHashMap<>(player.equipmentItemKeys());
+            if (sourceItem.isPresent()) {
+                HeldItemRef source = sourceItem.get();
+                blocking = BlockingSnapshot.none();
+                protection = withoutDeathProtection(protection, source.hand());
+                equipment.remove(handSlot(source.hand()));
+            }
             return copy(
                 player, health, absorption, player.mitigation(), effects,
-                player.blocking(), player.deathProtection(), player.equipmentItemKeys()
+                blocking, protection, equipment
             );
         }
     }
@@ -456,6 +573,29 @@ public interface SurvivalAction {
             throw new IllegalArgumentException("reliability must be finite and in [0,1]");
         }
         if (consumableCost < 0 || disruptionCost < 0) throw new IllegalArgumentException("costs must be non-negative");
+    }
+
+    private static Hand routeDestination(DeathProtectionRoute route) {
+        if (route instanceof DeathProtectionRoute.HotbarSelect) return Hand.MAIN_HAND;
+        if (route instanceof DeathProtectionRoute.AlreadyInHand already) {
+            return already.destination() == DeathProtectionRoute.Destination.MAIN_HAND ? Hand.MAIN_HAND : Hand.OFF_HAND;
+        }
+        DeathProtectionRoute.ContainerSwap swap = (DeathProtectionRoute.ContainerSwap) route;
+        return swap.destination() == DeathProtectionRoute.Destination.MAIN_HAND ? Hand.MAIN_HAND : Hand.OFF_HAND;
+    }
+
+    private static String handSlot(Hand hand) {
+        return hand == Hand.MAIN_HAND ? "mainhand" : "offhand";
+    }
+
+    private static DeathProtectionSnapshot withoutDeathProtection(
+        DeathProtectionSnapshot current,
+        Hand hand
+    ) {
+        Objects.requireNonNull(current, "current");
+        return hand == Hand.MAIN_HAND
+            ? new DeathProtectionSnapshot(Optional.empty(), current.offHand())
+            : new DeathProtectionSnapshot(current.mainHand(), Optional.empty());
     }
 
     private static PlayerSnapshot copy(

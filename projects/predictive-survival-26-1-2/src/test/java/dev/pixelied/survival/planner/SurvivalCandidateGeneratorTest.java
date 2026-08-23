@@ -54,15 +54,16 @@ class SurvivalCandidateGeneratorTest {
             false
         );
         MenuSlotMap menu = new MenuSlotMap(0, 4, Map.of(0, 36, 10, 10, 40, 45));
+        PredictionContext context = context(DeathProtectionSnapshot.none(), BlockingSnapshot.none());
 
-        List<SurvivalAction> candidates = generator.generate(context(DeathProtectionSnapshot.none(), BlockingSnapshot.none()), timeline(true), inventory, menu);
+        List<SurvivalAction> candidates = generator.generate(context, timeline(true), inventory, menu);
 
         SurvivalAction.EquipDeathProtection action = assertInstanceOf(
             SurvivalAction.EquipDeathProtection.class,
             candidates.stream().filter(SurvivalAction.EquipDeathProtection.class::isInstance).findFirst().orElseThrow()
         );
         assertEquals(SurvivalAction.Hand.OFF_HAND, action.hand());
-        assertEquals(0, action.requiredServerTicks());
+        assertEquals(context.timing().serverCorrectionReturnTicks(), action.requiredServerTicks());
     }
 
     @Test
@@ -286,6 +287,12 @@ class SurvivalCandidateGeneratorTest {
     }
 
     private static InventorySlotSnapshot slot(int index, String key, boolean protection) {
-        return new InventorySlotSnapshot(index, key, 1, protection);
+        Optional<BlockingProfileSnapshot> blocking = "minecraft:shield".equals(key)
+            ? Optional.of(BlockingProfileSnapshot.fullBlock(336))
+            : Optional.empty();
+        return new InventorySlotSnapshot(
+            index, key, key.hashCode(), 1, protection,
+            Optional.empty(), Optional.empty(), blocking
+        );
     }
 }

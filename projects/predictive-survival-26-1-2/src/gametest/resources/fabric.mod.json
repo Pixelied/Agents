@@ -6,7 +6,8 @@
   "environment": "client",
   "entrypoints": {
     "fabric-client-gametest": [
-      "dev.pixelied.survival.validation.SurvivalValidationClientGameTest"
+      "dev.pixelied.survival.validation.SurvivalValidationClientGameTest",
+      "dev.pixelied.survival.validation.SurvivalItemRoutingClientGameTest"
     ]
   },
   "depends": {

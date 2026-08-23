@@ -10,6 +10,8 @@ public record TimingSnapshot(
     double jitterMs,
     TickWindow nextPacketProcessingWindow
 ) {
+    private static final double SERVER_TICK_MS = 50d;
+
     public TimingSnapshot {
         if (clientTick < 0) throw new IllegalArgumentException("clientTick must be non-negative");
         if (!Double.isFinite(rttMs) || rttMs < 0d) throw new IllegalArgumentException("rttMs must be finite and non-negative");
@@ -34,12 +36,42 @@ public record TimingSnapshot(
         ));
     }
 
+    /**
+     * Conservative server-to-client return time used when a vanilla optimistic container click can
+     * succeed silently. Minecraft 26.1.2 sends corrections on disagreement but no ACK for an exact
+     * client prediction, so silence is meaningful only after the correction path could have arrived.
+     */
+    public int serverCorrectionReturnTicks() {
+        double latestReturnMs = rttMs / 2d + jitterMs;
+        long ticks = ceilServerTicks(latestReturnMs) + 1L;
+        return ticks >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) ticks;
+    }
+
+    /** Latest client tick at which a correction for a click sent from this snapshot should arrive. */
+    public long containerPredictionSettleTick() {
+        return saturatingAdd(nextPacketProcessingWindow.latest(), serverCorrectionReturnTicks());
+    }
+
+    /**
+     * Extra server ticks charged after TimingSnapshot's initial outbound packet window when a
+     * container-routed item must wait for the correction window and then send a follow-up packet.
+     */
+    public int containerFollowupRouteTicks() {
+        long outboundTicks = Math.max(0L, nextPacketProcessingWindow.latest() - clientTick);
+        long total = saturatingAdd(outboundTicks, serverCorrectionReturnTicks());
+        return total >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+    }
+
     private TickWindow validateImpact(TickWindow impact) {
         Objects.requireNonNull(impact, "impact");
         if (impact.latest() < clientTick) {
             throw new IllegalArgumentException("impact window precedes timing snapshot");
         }
         return impact;
+    }
+
+    private static long ceilServerTicks(double millis) {
+        return Math.max(0L, (long) Math.ceil(millis / SERVER_TICK_MS));
     }
 
     private static long saturatingAdd(long value, long increment) {

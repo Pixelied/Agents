@@ -1,5 +1,6 @@
 package dev.pixelied.survival.core;
 
+import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.execution.DeathProtectionActionExecutor;
 import dev.pixelied.survival.execution.DeathProtectionRestorationController;
@@ -64,6 +65,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final NonTotemActionExecutor nonTotemExecutor;
     private final MinecraftCommandDispatcher dispatcher;
 
+    private final CaptureTickClock captureTickClock = new CaptureTickClock();
     private ServerAuthorityTracker authority;
     private LiveState liveState;
     private LocalPlayer lastPlayer;
@@ -106,6 +108,12 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
     @Override
     public SurvivalEngine.EngineFrame capture() {
+        return capture(RescuePolicy.smartDefaults());
+    }
+
+    @Override
+    public SurvivalEngine.EngineFrame capture(RescuePolicy policy) {
+        Objects.requireNonNull(policy, "policy");
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.level == null) {
             throw new IllegalStateException("Minecraft player/level are not available");
@@ -115,8 +123,9 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             lastPlayer = player;
         }
 
-        clientTick++;
-        observeTiming(player);
+        boolean logicalTickAdvanced = captureTickClock.observe(player.tickCount);
+        clientTick = captureTickClock.clientTick();
+        observeTiming(player, logicalTickAdvanced);
         TimingSnapshot timing = timingEstimator.snapshot(clientTick);
 
         InventorySnapshot rawInventory = inventorySnapshots.captureInventory(player);
@@ -146,7 +155,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         cloudAttributions.observePredictedThreats(clientTick, predicted);
         splashStatusMemory.observePredictedThreats(context, predicted);
         ThreatTimeline timeline = new ThreatTimeline(predicted);
-        List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu);
+        List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu, policy);
 
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, timeline, candidates);
         liveState = new LiveState(frame, inventory, menu, timing, reactive.player());
@@ -162,6 +171,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     ) {
         LiveState state = requireLiveState(frame);
         protectionExecutor.takeRestorationCheckpoint().ifPresent(restorationController::arm);
+        shieldExecutor.takeRestorationCheckpoint().ifPresent(restorationController::arm);
+        nonTotemExecutor.takeRestorationCheckpoint().ifPresent(restorationController::arm);
         Optional<ExecutionCommand> restore = restorationController.update(
             restorationEnabled,
             lethalWithoutProtection,
@@ -199,13 +210,15 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     public ExecutionStatus observe(SurvivalAction action, SurvivalEngine.EngineFrame frame) {
         Objects.requireNonNull(action, "action");
         LiveState state = requireLiveState(frame);
+        ExecutionStatus status;
         if (action instanceof SurvivalAction.EquipDeathProtection) {
-            return protectionExecutor.observe(executionContext(state));
+            status = protectionExecutor.observe(executionContext(state));
+        } else if (action instanceof SurvivalAction.RaiseShield) {
+            status = shieldExecutor.observe(executionContext(state));
+        } else {
+            status = nonTotemExecutor.observe(nonTotemContext(state));
         }
-        if (action instanceof SurvivalAction.RaiseShield) {
-            return shieldExecutor.observe(executionContext(state));
-        }
-        return nonTotemExecutor.observe(nonTotemContext(state));
+        return dispatchIfNeeded(status, state.timing());
     }
 
     @Override
@@ -230,12 +243,14 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         return liveState == null ? Optional.empty() : Optional.of(liveState.frame());
     }
 
-    private void observeTiming(LocalPlayer player) {
-        long now = System.nanoTime();
-        if (previousCaptureNanos != 0L && now > previousCaptureNanos) {
-            timingEstimator.observeClientTickNanos(now - previousCaptureNanos);
+    private void observeTiming(LocalPlayer player, boolean logicalTickAdvanced) {
+        if (logicalTickAdvanced) {
+            long now = System.nanoTime();
+            if (previousCaptureNanos != 0L && now > previousCaptureNanos) {
+                timingEstimator.observeClientTickNanos(now - previousCaptureNanos);
+            }
+            previousCaptureNanos = now;
         }
-        previousCaptureNanos = now;
 
         if (minecraft.getConnection() == null) return;
         PlayerInfo info = minecraft.getConnection().getPlayerInfo(player.getUUID());
@@ -351,6 +366,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         restorationController.abort();
         shieldExecutor.reset();
         nonTotemExecutor.reset();
+        captureTickClock.resetObservation();
         previousCaptureNanos = 0L;
     }
 

@@ -6,7 +6,8 @@
     "FallingBlockEntityAccessor",
     "FireworkRocketAccessor",
     "FoodDataAccessor",
-    "PrimedTntAccessor"
+    "PrimedTntAccessor",
+    "ClientPacketListenerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

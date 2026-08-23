@@ -12,6 +12,8 @@ The dedicated Fabric client GameTest source set launches Minecraft Java 26.1.2 w
 - Shield activation at the real client/server boundary: four use ticks are not active and five use ticks are active. The test drives the actual client use input and samples the integrated server rather than synthesizing server-only use state.
 - Mainhand and offhand Totem of Undying activation independently.
 - A repeated lethal sequence with a Totem in each hand, including consumption of the first protection, carried hurt-cooldown/effect state, and consumption of the second protection on the follow-up.
+- Exact survival-item hotbar routing through the production runtime: the planned stack is selected, the real client dispatches its dependent item use, authoritative equipment state is observed, and the original selected slot is restored only after the rescue is confirmed.
+- Exact survival-item container routing through a real integrated-server menu `SWAP`: the client performs vanilla optimistic prediction, the executor waits through the modeled correction-return window when the accepted click is silent, then dispatches the dependent item use. The authoritative server equips the routed chestplate and the inverse container restoration returns the displaced item only after the rescue is confirmed. This exercises the same silent-success path that previously deadlocked while waiting for an ACK vanilla does not send.
 - Explosion exposure and final-health parity for radius-4 TNT-scale and radius-6 crystal-scale explosions, both unobstructed and behind real obsidian cover. The test compares `ExplosionExposure.seenPercent` directly with vanilla `ServerExplosion.getSeenPercent` before applying the explosion.
 - A live Hard-difficulty TNT case through the production client world snapshot and `ExplosionPredictor`. The test synchronizes client/server player position, requires the predictor's pre-difficulty raw blast damage to equal the server's vanilla exposure calculation, and then requires exact final-health parity after vanilla Hard difficulty scaling.
 - Live TNT, End Crystal, and explosive respawn-anchor snapshot metadata for difficulty-scaled explosion damage. Crystal and bad-respawn metadata are compared at the production snapshot boundary rather than inferred only from unit fixtures.
@@ -65,6 +67,14 @@ The following behavior is derived from the supplied Minecraft 26.1.2 source and 
 - When the client knows an exact remaining fire countdown, on-fire damage uses that exact phase. When only the synchronized burning flag is observable, the predictor emits 20-tick bounded `POTENTIAL` windows instead of inventing a server countdown or dropping the threat.
 - Reactive Thorns bounds are modeled independently per visible enchanted armor piece, and the guaranteed 5 raw self-damage from a locally owned Ender Pearl is modeled separately. If an exact pearl collision tick is unavailable, the live predictor uses a bounded projectile-horizon window instead of dropping the damage.
 - Death-protection routing across selected main hand, offhand, alternate hotbar selection, and server-valid menu `SWAP` routes. Active offhand shielding can force a mainhand protection route instead of destroying shield state.
+- Production death-protection candidates bind to the exact physical source stack: source inventory index, registry key, component fingerprint, destination route, and modeled protection payload stay together from planning through execution. If the planned stack changes, execution fails closed and replans instead of substituting another protection item. Proactive dual-hand protection reserves distinct source slots, and the contingency search rejects reusing one exact protection stack twice.
+- Bounded contingency planning searches only modeled rescue actions to depth 1–3, stops at the shortest guaranteed sequence, stays within a fixed evaluation budget, and fails closed if no guarantee is established. Candidate source resources are reserved across a sequence so one physical stack is not credited twice.
+- Physical hand replacement is carried through multi-action simulation. Replacing a shield hand stops its blocking state, replacing a Totem/protection hand removes that protection capability, and routed shield/consumable/equipment actions cannot leave an impossible displaced rescue item active in the same hand.
+- In-flight contingency replanning preserves already-completed server work and uses the executor's remaining authoritative work rather than restarting the action from zero. A changed trajectory can keep a still-safe active prefix or switch immediately to a shorter guaranteed alternative.
+- Optimistic container-click reconciliation matches Minecraft 26.1.2's protocol behavior: exact post-state plus explicit inbound evidence can confirm early; any contradictory routed-slot/menu correction fails immediately; an accepted but silent prediction is trusted only after the conservative correction-return window. Dependent item use is not sent before that window, and the same delay is charged by the planner.
+- Shield warmup, routed consumable use, equipment routing, and death-protection routing all separate route latency from the action's actual use/warmup time so the planner and executor do not double-count or hide network work.
+- Same-tick urgent reevaluation coalesces relevant post-vanilla packet updates into at most one extra end-of-tick analysis pass while retaining the mandatory fresh start-of-tick capture. Entity position/motion/lifecycle, health, block/section state, inventory, equipment, and effect changes can therefore invalidate a trajectory or rescue plan before the next normal tick.
+- Rescue profiles and Custom Mod Menu policy controls are enforced in candidate generation and again at the engine boundary for death protection, shields, consumables, equipment, inventory routing, main-hand takeover, and proactive dual protection; unimplemented movement/clutch action families remain nondispatchable.
 - Conservative server-authority timing for held-slot changes, inventory/equipment mutations, item use, cover placement, movement/rescue actions, and item-use warmup. A zero additional-warmup action still pays the next packet-processing window unless it is a true no-op/already-active state.
 - Pending multi-tick actions retain execution progress across a normal threat countdown. If the same threat's absolute impact schedule unexpectedly tightens, the engine revalidates the active action and can immediately replace it with another survival-producing plan instead of waiting on a now-impossible deadline.
 - Safe and Balanced planning are bounded by `EngineLimits.maxPlannerCandidates()` and compare complete simulated timelines instead of using a fixed "Totem first" priority.
@@ -78,14 +88,14 @@ The production client runtime currently wires:
 2. player/inventory/menu/world snapshots,
 3. explosion, projectile, melee, fall, reactive, and environmental predictors,
 4. chronological threat-timeline construction,
-5. protection/shield candidate generation,
-6. bounded survival planning,
-7. authoritative action executors,
-8. client interaction / packet dispatch,
-9. server-state reconciliation and replanning,
-10. bounded optional debug HUD/history.
+5. policy-aware rescue candidate generation,
+6. bounded 1–3 action contingency planning with progress-preserving replanning,
+7. authoritative death-protection, shield, consumable, and equipment executors,
+8. exact hotbar/container routing plus client interaction / packet dispatch,
+9. server-state reconciliation, restoration, urgent same-tick reevaluation, and replanning,
+10. bounded optional contingency/debug HUD history.
 
-The production runtime never marks an inventory/use action successful merely because local client state changed. It waits for conservative observed authority state. A failed or contradicted execution route is removed for the current danger window and the engine replans within its candidate bound.
+The production runtime never marks an inventory/use action successful merely because local client state changed. For vanilla optimistic container clicks, it accepts exact explicit server evidence early, fails immediately on a contradictory correction, or waits through the modeled correction-return window before treating exact silent prediction as accepted. A failed or contradicted execution route is removed for the current danger window and the engine replans within its candidate bound.
 
 ## Explicit limitations
 
@@ -111,9 +121,9 @@ These are intentional limitations, not silent assumptions:
 Project verification:
 
 ```bash
-gradle --no-daemon clean test build
-gradle --no-daemon compileGametestJava processGametestResources
-xvfb-run -a gradle --no-daemon runClientGameTest
+./gradlew --no-daemon clean test build
+./gradlew --no-daemon compileGametestJava processGametestResources
+xvfb-run -a ./gradlew --no-daemon --console=plain runClientGameTest
 ```
 
 Repository/workspace verification:

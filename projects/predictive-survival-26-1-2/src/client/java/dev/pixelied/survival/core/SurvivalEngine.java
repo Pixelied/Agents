@@ -1,16 +1,20 @@
 package dev.pixelied.survival.core;
 
+import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.config.SurvivalConfig;
+import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.DecisionRecord;
 import dev.pixelied.survival.execution.ExecutionStatus;
+import dev.pixelied.survival.planner.ActionSimulation;
+import dev.pixelied.survival.planner.ContingencyPlan;
+import dev.pixelied.survival.planner.ContingencyPlanner;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalPlan;
 import dev.pixelied.survival.planner.SurvivalPlanner;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
-import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -25,17 +29,18 @@ public final class SurvivalEngine {
     private final RuntimeAdapter runtime;
     private final DecisionHistory history;
     private final SurvivalPlanner planner;
+    private final ContingencyPlanner contingencyPlanner;
     private final ThreatTimelineSimulator restorationSafetySimulator = new ThreatTimelineSimulator();
     private final Set<SurvivalAction> failedActions = new LinkedHashSet<>();
 
     private Optional<SurvivalPlan> currentPlan = Optional.empty();
+    private Optional<ContingencyPlan> currentContingency = Optional.empty();
     private Optional<ExecutionStatus> executionStatus = Optional.empty();
     private String dangerFingerprint = "";
     private String dangerSafetyFingerprint = "";
-    private String activeThreatScheduleFingerprint = "";
 
     public SurvivalEngine(SurvivalConfig config, RuntimeAdapter runtime, DecisionHistory history) {
-        this(config, runtime, history, new SurvivalPlanner());
+        this(config, runtime, history, new SurvivalPlanner(), new ContingencyPlanner());
     }
 
     SurvivalEngine(
@@ -44,18 +49,30 @@ public final class SurvivalEngine {
         DecisionHistory history,
         SurvivalPlanner planner
     ) {
+        this(config, runtime, history, planner, new ContingencyPlanner());
+    }
+
+    SurvivalEngine(
+        SurvivalConfig config,
+        RuntimeAdapter runtime,
+        DecisionHistory history,
+        SurvivalPlanner planner,
+        ContingencyPlanner contingencyPlanner
+    ) {
         this.config = new AtomicReference<>(Objects.requireNonNull(config, "config"));
         this.runtime = Objects.requireNonNull(runtime, "runtime");
         this.history = Objects.requireNonNull(history, "history");
         this.planner = Objects.requireNonNull(planner, "planner");
+        this.contingencyPlanner = Objects.requireNonNull(contingencyPlanner, "contingencyPlanner");
     }
 
     public void tick() {
-        EngineFrame frame = Objects.requireNonNull(runtime.capture(), "runtime frame");
+        SurvivalConfig liveConfig = config();
+        EngineFrame frame = Objects.requireNonNull(runtime.capture(liveConfig.rescuePolicy()), "runtime frame");
         updateDangerWindow(frame.timeline());
         runtime.maintainRestoration(
             frame,
-            config().restoreHandState(),
+            liveConfig.restoreHandState(),
             lethalWithoutDeathProtection(frame),
             currentPlan.isPresent()
         );
@@ -71,10 +88,10 @@ public final class SurvivalEngine {
 
                 if (observed instanceof ExecutionStatus.WaitingForServer) return;
                 if (observed instanceof ExecutionStatus.Confirmed) {
+                    // This frame already contains the authoritative state that made observe() confirm.
+                    // Replan immediately from that state so a second lethal threat does not lose a tick.
                     clearCurrentPlan();
-                    return;
-                }
-                if (observed instanceof ExecutionStatus.Failed failed) {
+                } else if (observed instanceof ExecutionStatus.Failed failed) {
                     clearCurrentPlan();
                     if (!failed.replanRequired()) return;
                     failedActions.add(active);
@@ -82,25 +99,46 @@ public final class SurvivalEngine {
             }
         }
 
+        planAndStart(frame);
+    }
+
+    private void planAndStart(EngineFrame frame) {
         int maxAttempts = Math.max(1, frame.context().limits().maxPlannerCandidates());
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             List<SurvivalAction> candidates = filteredCandidates(frame.candidates());
-            SurvivalPlan plan = planner.plan(frame.context(), frame.timeline(), candidates, config().safetyMode());
+            ContingencyPlan contingency = contingencyPlanner.plan(
+                frame.context(), frame.timeline(), candidates, config().safetyMode(), config().rescueProfile()
+            );
 
-            if (plan.action() instanceof SurvivalAction.NoAction) {
-                clearCurrentPlan();
-                record(frame, plan.action(), null, plan.simulation().reason());
-                return;
+            SurvivalAction selected;
+            SurvivalPlan selectedPlan;
+            if (contingency.guaranteed()) {
+                currentContingency = Optional.of(contingency);
+                if (contingency.steps().isEmpty()) {
+                    clearCurrentPlan();
+                    record(frame, new SurvivalAction.NoAction(), null, contingency.reason());
+                    return;
+                }
+                selected = contingency.steps().getFirst().action();
+                selectedPlan = activeStepPlan(frame, selected);
+            } else {
+                currentContingency = Optional.empty();
+                selectedPlan = planner.plan(frame.context(), frame.timeline(), candidates, config().safetyMode());
+                selected = selectedPlan.action();
+                if (selected instanceof SurvivalAction.NoAction) {
+                    clearCurrentPlan();
+                    record(frame, selected, null, selectedPlan.simulation().reason());
+                    return;
+                }
             }
 
-            currentPlan = Optional.of(plan);
-            activeThreatScheduleFingerprint = scheduleFingerprint(frame);
-            ExecutionStatus started = Objects.requireNonNull(runtime.begin(plan.action(), frame), "execution status");
+            currentPlan = Optional.of(selectedPlan);
+            ExecutionStatus started = Objects.requireNonNull(runtime.begin(selected, frame), "execution status");
             executionStatus = Optional.of(started);
-            record(frame, plan.action(), started, statusReason(started));
+            record(frame, selected, started, statusReason(started));
 
             if (started instanceof ExecutionStatus.Failed failed && failed.replanRequired()) {
-                failedActions.add(plan.action());
+                failedActions.add(selected);
                 clearCurrentPlan();
                 continue;
             }
@@ -112,8 +150,19 @@ public final class SurvivalEngine {
         record(frame, new SurvivalAction.NoAction(), executionStatus.get(), "all bounded candidates failed execution");
     }
 
+    private SurvivalPlan activeStepPlan(EngineFrame frame, SurvivalAction action) {
+        ActionSimulation simulation = planner.simulate(
+            frame.context(), frame.timeline(), action, config().safetyMode()
+        );
+        return new SurvivalPlan(action, simulation, 1, List.of(simulation));
+    }
+
     public Optional<SurvivalPlan> currentPlan() {
         return currentPlan;
+    }
+
+    public Optional<ContingencyPlan> currentContingency() {
+        return currentContingency;
     }
 
     public Optional<ExecutionStatus> executionStatus() {
@@ -153,39 +202,75 @@ public final class SurvivalEngine {
     }
 
     private boolean shouldReplaceActivePlan(SurvivalAction active, EngineFrame frame) {
-        String refreshedScheduleFingerprint = scheduleFingerprint(frame);
-        boolean sameAbsoluteSchedule = refreshedScheduleFingerprint.equals(activeThreatScheduleFingerprint);
-
+        List<SurvivalAction> candidates = filteredCandidates(frame.candidates());
         int remainingServerTicks = Math.max(0, runtime.remainingServerTicks(active, frame));
-        var refreshed = sameAbsoluteSchedule
-            ? planner.simulateInFlight(
-                frame.context(), frame.timeline(), active, config().safetyMode(), remainingServerTicks
-            )
-            : planner.simulate(frame.context(), frame.timeline(), active, config().safetyMode());
-        if (refreshed.feasible() && refreshed.result().survived()) {
-            activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
+
+        ContingencyPlan inFlight = contingencyPlanner.planInFlight(
+            frame.context(), frame.timeline(), candidates, config().safetyMode(), config().rescueProfile(),
+            active, remainingServerTicks
+        );
+        ContingencyPlan replacement = contingencyPlanner.plan(
+            frame.context(), frame.timeline(), candidates, config().safetyMode(), config().rescueProfile()
+        );
+
+        boolean inFlightKeepsActive = startsWith(inFlight, active);
+        boolean replacementStartsElsewhere = replacement.guaranteed()
+            && !replacement.steps().isEmpty()
+            && !replacement.steps().getFirst().action().equals(active);
+        boolean shorterGuaranteedReplacement = replacementStartsElsewhere
+            && (!inFlight.guaranteed()
+                || !inFlightKeepsActive
+                || replacement.steps().size() < inFlight.steps().size());
+
+        if (shorterGuaranteedReplacement) {
+            currentContingency = Optional.of(replacement);
+            return true;
+        }
+        if (inFlight.guaranteed() && inFlightKeepsActive) {
+            currentContingency = Optional.of(inFlight);
+            return false;
+        }
+        if (replacement.guaranteed() && replacement.steps().isEmpty()) {
+            // The danger moved away while an action was already dispatched. There is no generic,
+            // server-safe cancellation route for every action, so reconcile the in-flight action.
+            currentContingency = Optional.of(replacement);
             return false;
         }
 
-        SurvivalPlan replacement = planner.plan(
-            frame.context(),
-            frame.timeline(),
-            filteredCandidates(frame.candidates()),
-            config().safetyMode()
+        var refreshedSingle = planner.simulateInFlight(
+            frame.context(), frame.timeline(), active, config().safetyMode(), remainingServerTicks
         );
-        boolean replace = !(replacement.action() instanceof SurvivalAction.NoAction)
-            && !replacement.action().equals(active);
-        if (!replace) activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
+        if (refreshedSingle.feasible() && refreshedSingle.result().survived()) {
+            currentContingency = Optional.empty();
+            return false;
+        }
+
+        SurvivalPlan singleReplacement = planner.plan(
+            frame.context(), frame.timeline(), candidates, config().safetyMode()
+        );
+        boolean replace = !(singleReplacement.action() instanceof SurvivalAction.NoAction)
+            && !singleReplacement.action().equals(active);
+        if (replace) currentContingency = Optional.empty();
         return replace;
     }
 
+    private static boolean startsWith(ContingencyPlan plan, SurvivalAction action) {
+        return plan.guaranteed()
+            && !plan.steps().isEmpty()
+            && plan.steps().getFirst().action().equals(action);
+    }
+
     private List<SurvivalAction> filteredCandidates(List<SurvivalAction> candidates) {
+        RescuePolicy policy = config().rescuePolicy();
         List<SurvivalAction> filtered = new ArrayList<>();
         for (SurvivalAction candidate : candidates) {
             if (candidate == null || failedActions.contains(candidate)) continue;
+            if (candidate instanceof SurvivalAction.EquipDeathProtection && !policy.deathProtection()) continue;
+            if (candidate instanceof SurvivalAction.RaiseShield && !policy.shields()) continue;
+            if (candidate instanceof SurvivalAction.ApplyEffects && !policy.consumables()) continue;
+            if (candidate instanceof SurvivalAction.SwapEquipment && !policy.equipment()) continue;
             // These action types have models for future development but no production-safe route
-            // generation/dispatcher yet. Legacy config files may still contain the old booleans;
-            // never let those stale flags make an unsupported action dispatchable.
+            // generation/dispatcher yet. Never let stale flags make them dispatchable.
             if (candidate instanceof SurvivalAction.Relocate
                 || candidate instanceof SurvivalAction.PlaceCover
                 || candidate instanceof SurvivalAction.PearlRescue) {
@@ -203,7 +288,8 @@ public final class SurvivalEngine {
             dangerFingerprint = nextIdentity;
             dangerSafetyFingerprint = nextSafety;
             failedActions.clear();
-            clearCurrentPlan();
+            // Do not clear a dispatched action here. The fresh in-flight contingency planner uses
+            // its actual remaining server work to decide whether it remains part of the safest plan.
             return;
         }
         if (!nextSafety.equals(dangerSafetyFingerprint)) {
@@ -214,8 +300,8 @@ public final class SurvivalEngine {
 
     private void clearCurrentPlan() {
         currentPlan = Optional.empty();
+        currentContingency = Optional.empty();
         executionStatus = Optional.empty();
-        activeThreatScheduleFingerprint = "";
     }
 
     private void record(
@@ -281,48 +367,6 @@ public final class SurvivalEngine {
             + '|' + event.requiresAcceptedEventId();
     }
 
-    private static String scheduleFingerprint(EngineFrame frame) {
-        long clientTick = frame.context().timing().clientTick();
-        List<String> schedule = frame.timeline().events().stream()
-            .map(event -> safetyFingerprint(event)
-                + '|' + saturatingAdd(clientTick, event.impact().earliest())
-                + ':' + saturatingAdd(clientTick, event.impact().latest()))
-            .sorted()
-            .toList();
-        return String.join(";", schedule);
-    }
-
-    private static String safetyFingerprint(ThreatEvent event) {
-        var damage = event.damage();
-        List<String> flags = damage.flags().stream()
-            .map(Enum::name)
-            .sorted()
-            .toList();
-        return event.id()
-            + '|' + event.kind()
-            + '|' + damage.sourceKey()
-            + '|' + damage.rawDamage().min() + ':' + damage.rawDamage().max()
-            + '|' + flags
-            + '|' + damage.scalesWithDifficulty()
-            + '|' + damage.freezingMultiplier()
-            + '|' + damage.piercingProjectile()
-            + '|' + damage.applicationHealthThresholdExclusive()
-            + '|' + damage.sourcePosition()
-            + '|' + event.confidence()
-            + '|' + event.sourcePosition()
-            + '|' + event.impactPosition()
-            + '|' + event.avoidable()
-            + '|' + event.blockable()
-            + '|' + event.relocatable()
-            + '|' + event.canDisableBlocking();
-    }
-
-    private static long saturatingAdd(long value, long increment) {
-        if (increment > 0 && value > Long.MAX_VALUE - increment) return Long.MAX_VALUE;
-        if (increment < 0 && value < Long.MIN_VALUE - increment) return Long.MIN_VALUE;
-        return value + increment;
-    }
-
     private static String threatSummary(ThreatTimeline timeline) {
         if (timeline.events().isEmpty()) return "none";
         StringBuilder builder = new StringBuilder();
@@ -349,6 +393,12 @@ public final class SurvivalEngine {
 
     public interface RuntimeAdapter {
         EngineFrame capture();
+
+        default EngineFrame capture(RescuePolicy policy) {
+            Objects.requireNonNull(policy, "policy");
+            return capture();
+        }
+
         ExecutionStatus begin(SurvivalAction action, EngineFrame frame);
         ExecutionStatus observe(SurvivalAction action, EngineFrame frame);
 

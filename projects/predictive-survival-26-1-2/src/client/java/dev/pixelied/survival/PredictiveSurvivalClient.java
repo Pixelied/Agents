@@ -9,6 +9,7 @@ import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.core.SurvivalEngine;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.SurvivalDebugHud;
+import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -28,6 +29,7 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
     private static final Identifier DEBUG_HUD_ID = Identifier.fromNamespaceAndPath("predictive_survival", "debug");
     private static final String CLIENT_GAMETEST_MOD_ID = "predictive_survival_gametest";
 
+    private static final ThreatDirtyTracker THREAT_DIRTY = new ThreatDirtyTracker();
     private static PredictiveSurvivalClient instance;
 
     private SurvivalEngine engine;
@@ -54,10 +56,20 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
 
         ClientTickEvents.START_CLIENT_TICK.register(client -> {
             if (client.player != null && client.level != null) {
+                // Everything received before START is already represented by this mandatory fresh capture.
+                consumeThreatDirty();
                 engine.tick();
             } else {
+                THREAT_DIRTY.reset();
+                MinecraftServerStateEvidence.reset();
                 runtime.reset();
                 engine.reset();
+            }
+        });
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player != null && client.level != null && consumeThreatDirty()) {
+                engine.tick();
             }
         });
 
@@ -66,6 +78,14 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
             DEBUG_HUD_ID,
             this::extractDebugHud
         );
+    }
+
+    public static void markThreatDirty() {
+        THREAT_DIRTY.markDirty();
+    }
+
+    static boolean consumeThreatDirty() {
+        return THREAT_DIRTY.consumeDirty();
     }
 
     static boolean shouldStartAutomation(Predicate<String> isModLoaded) {
@@ -80,6 +100,7 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
                 engine.config(),
                 frame,
                 engine.currentPlan(),
+                engine.currentContingency(),
                 engine.executionStatus()
             );
             int y = 6;
