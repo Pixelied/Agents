@@ -64,7 +64,12 @@ jobs:
           new = '    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"'
           if text.count(old) != 1:
               raise SystemExit('expected exactly one legacy modCompileOnly dependency')
-          build.write_text(text.replace(old, new, 1))
+          text = text.replace(old, new, 1)
+          if 'failOnNoDiscoveredTests' in text:
+              raise SystemExit('unexpected pre-existing failOnNoDiscoveredTests configuration')
+          text += "\n// Core regressions use the explicit self-test harness in scripts/run-core-tests.sh.\n"
+          text += "tasks.named('test') {\n    failOnNoDiscoveredTests = false\n}\n"
+          build.write_text(text)
 
           runtime = Path('projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java')
           text = runtime.read_text()
@@ -78,6 +83,7 @@ jobs:
           PY
           grep -F 'compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"' projects/pearl-catcher-26-1-2/build.gradle
           ! grep -F 'modCompileOnly' projects/pearl-catcher-26-1-2/build.gradle
+          grep -F 'failOnNoDiscoveredTests = false' projects/pearl-catcher-26-1-2/build.gradle
           grep -F 'static Result allow()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
           ! grep -F 'static Result safe()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
 
