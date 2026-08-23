@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-contingency-a84f",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Implements Predictive Survival 26.1.2 contingency planning, live replanning, robust Mod Menu policy controls, and stacked-lethal survival behavior with regression-first verification.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "minecraft-damage-simulation",
+    "combat-prediction",
+    "configuration-ux",
+    "planning",
+    "testing",
+    "github-actions",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-23T10:07:00+00:00",
+  "state": "available",
+  "state_reason": "Implementing the approved Predictive Survival contingency-planning and customization upgrade."
+}

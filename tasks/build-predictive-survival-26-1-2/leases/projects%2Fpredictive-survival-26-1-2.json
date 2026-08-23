@@ -3,13 +3,11 @@
   "protocol_version": "1.0",
   "task_id": "build-predictive-survival-26-1-2",
   "scope": "projects/predictive-survival-26-1-2",
-  "owner": "openai-survival-review-7c4d",
-  "state": "released",
-  "intent": "Fix every post-PR-22 code-review finding with regression-first validation, conservative temporal/action modeling, exact item execution identity, authority lifecycle cleanup, and hot-path optimization without unrelated rewrites.",
-  "claimed_at": "2026-08-22T14:08:00+00:00",
-  "heartbeat_at": "2026-08-22T14:08:00+00:00",
-  "expires_at": "2026-08-23T14:08:00+00:00",
-  "generation": 3,
-  "released_at": "2026-08-23T09:27:34+00:00",
-  "release_reason": "completed: PR #25 merged to main as cd1cf985fe5199be95935f306f3af5c4c5694737 after all final CI gates passed"
+  "owner": "openai-survival-contingency-a84f",
+  "state": "active",
+  "intent": "Implement approved multi-action contingency planning, stacked lethal protection, richer Mod Menu rescue policy controls, inventory routing improvements, and continuous threat revalidation without weakening vanilla-faithful fail-closed guarantees.",
+  "claimed_at": "2026-08-23T10:07:00+00:00",
+  "heartbeat_at": "2026-08-23T10:07:00+00:00",
+  "expires_at": "2026-08-24T10:07:00+00:00",
+  "generation": 4
 }
