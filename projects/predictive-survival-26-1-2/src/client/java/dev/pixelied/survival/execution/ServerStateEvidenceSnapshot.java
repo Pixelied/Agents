@@ -8,8 +8,8 @@ import java.util.Objects;
 
 /**
  * Immutable evidence derived only from inbound server packets after vanilla has applied them.
- * Unit-only contexts may use {@link #unknown()}, but the production runtime always supplies a
- * known snapshot so optimistic local prediction can never by itself confirm a rescue action.
+ * Unit-only contexts use an unknown snapshot until real packet evidence exists, so deterministic
+ * tests retain their synthetic semantics while production never credits optimistic local state.
  */
 public record ServerStateEvidenceSnapshot(
     boolean known,
@@ -40,6 +40,19 @@ public record ServerStateEvidenceSnapshot(
         return evidence != null
             && evidence.revision() > exclusiveRevision
             && evidence.matches(expected.stackKey(), expected.componentFingerprint(), expected.count());
+    }
+
+    public boolean inventoryChangedAfter(
+        int inventoryIndex,
+        InventorySlotSnapshot before,
+        long exclusiveRevision
+    ) {
+        Objects.requireNonNull(before, "before");
+        if (!known) return true;
+        StackEvidence evidence = inventorySlots.get(inventoryIndex);
+        return evidence != null
+            && evidence.revision() > exclusiveRevision
+            && !evidence.matches(before.stackKey(), before.componentFingerprint(), before.count());
     }
 
     public boolean equipmentMatchesAfter(
