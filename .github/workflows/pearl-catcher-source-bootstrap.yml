@@ -57,16 +57,29 @@ jobs:
           sha256sum -c .pearl-source-manifest.sha256
           python - <<'PY'
           from pathlib import Path
-          path = Path('projects/pearl-catcher-26-1-2/build.gradle')
-          text = path.read_text()
+
+          build = Path('projects/pearl-catcher-26-1-2/build.gradle')
+          text = build.read_text()
           old = '    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"'
           new = '    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"'
           if text.count(old) != 1:
               raise SystemExit('expected exactly one legacy modCompileOnly dependency')
-          path.write_text(text.replace(old, new, 1))
+          build.write_text(text.replace(old, new, 1))
+
+          runtime = Path('projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java')
+          text = runtime.read_text()
+          if text.count('static Result safe()') != 1:
+              raise SystemExit('expected exactly one Result.safe factory')
+          if text.count('Result.safe()') != 2:
+              raise SystemExit('expected exactly two Result.safe factory calls')
+          text = text.replace('static Result safe()', 'static Result allow()', 1)
+          text = text.replace('Result.safe()', 'Result.allow()')
+          runtime.write_text(text)
           PY
           grep -F 'compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"' projects/pearl-catcher-26-1-2/build.gradle
           ! grep -F 'modCompileOnly' projects/pearl-catcher-26-1-2/build.gradle
+          grep -F 'static Result allow()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
+          ! grep -F 'static Result safe()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
 
       - name: Source and core regressions
         shell: bash
