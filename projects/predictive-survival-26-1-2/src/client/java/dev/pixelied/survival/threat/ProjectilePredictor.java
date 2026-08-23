@@ -659,27 +659,60 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 for (int z = minZ; z <= maxZ; z++) {
                     WorldSnapshot.BlockSnapshot block = blocks.block(x, y, z);
                     if (block == null) continue;
-                    AabbSnapshot cube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
-                    double bodyT = segmentAabbEntry(from, to, bounds.expand(cube));
+                    AabbSnapshot collisionBounds = collisionBounds(block, x, y, z);
+                    double bodyT = segmentAabbEntry(from, to, bounds.expand(collisionBounds));
                     if (Double.isFinite(bodyT) && (best == null || bodyT < best.t())) {
-                        double centerT = segmentAabbEntry(from, to, cube);
+                        double centerT = segmentAabbEntry(from, to, collisionBounds);
                         Vec3Snapshot impact;
                         if (Double.isFinite(centerT)) {
                             impact = interpolate(from, to, centerT);
                         } else {
                             Vec3Snapshot center = interpolate(from, to, bodyT);
                             impact = new Vec3Snapshot(
-                                Math.max(cube.minX(), Math.min(center.x(), cube.maxX())),
-                                Math.max(cube.minY(), Math.min(center.y(), cube.maxY())),
-                                Math.max(cube.minZ(), Math.min(center.z(), cube.maxZ()))
+                                Math.max(collisionBounds.minX(), Math.min(center.x(), collisionBounds.maxX())),
+                                Math.max(collisionBounds.minY(), Math.min(center.y(), collisionBounds.maxY())),
+                                Math.max(collisionBounds.minZ(), Math.min(center.z(), collisionBounds.maxZ()))
                             );
                         }
-                        best = new Collision(bodyT, impact, cube);
+                        best = new Collision(bodyT, impact, collisionBounds);
                     }
                 }
             }
         }
         return best;
+    }
+
+    private static AabbSnapshot collisionBounds(WorldSnapshot.BlockSnapshot block, int x, int y, int z) {
+        AabbSnapshot fullCube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
+        if (Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
+            return fullCube;
+        }
+
+        Double minX = finiteUnitBound(block.properties().get("collision_min_x"));
+        Double minY = finiteUnitBound(block.properties().get("collision_min_y"));
+        Double minZ = finiteUnitBound(block.properties().get("collision_min_z"));
+        Double maxX = finiteUnitBound(block.properties().get("collision_max_x"));
+        Double maxY = finiteUnitBound(block.properties().get("collision_max_y"));
+        Double maxZ = finiteUnitBound(block.properties().get("collision_max_z"));
+        if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
+            || maxX <= minX || maxY <= minY || maxZ <= minZ) {
+            // Unknown or malformed partial collision data must not make a real obstacle disappear.
+            return fullCube;
+        }
+        return new AabbSnapshot(
+            x + minX, y + minY, z + minZ,
+            x + maxX, y + maxY, z + maxZ
+        );
+    }
+
+    private static Double finiteUnitBound(String value) {
+        if (value == null) return null;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) && parsed >= 0d && parsed <= 1d ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static int floorToInt(double value) {
