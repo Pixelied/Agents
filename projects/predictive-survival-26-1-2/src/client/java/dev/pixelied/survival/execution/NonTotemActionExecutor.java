@@ -180,12 +180,22 @@ public final class NonTotemActionExecutor {
         if (context.base().menu().menuSlotForInventoryIndex(swap.sourceInventoryIndex()).orElse(-1) != swap.sourceMenuSlot()) {
             return new ExecutionStatus.Failed("routed container slot mapping changed before swap", true);
         }
+        ContainerPredictionAuthority authority = new ContainerPredictionAuthority(
+            context.base().menu().containerId(),
+            context.base().menu().stateId(),
+            swap.sourceInventoryIndex(),
+            destinationBefore,
+            swap.destinationInventoryIndex(),
+            sourceSlot,
+            context.base().serverStateEvidence().revision(),
+            context.base().timing().containerPredictionSettleTick()
+        );
         containerRestorationCandidate = new ContainerRestorationCandidate(
             context.base().menu().containerId(),
             swap,
             sourceSlot,
             destinationBefore,
-            context.base().serverStateEvidence().revision()
+            authority
         );
         pending = routingPending(action, context, expected, route, useTicks(action, route));
         return new ExecutionStatus.WaitingForServer(
@@ -205,6 +215,21 @@ public final class NonTotemActionExecutor {
 
         long currentTick = context.base().currentServerTick();
         if (pending.stage() == Stage.ROUTING) {
+            if (pending.route() instanceof SurvivalItemRoute.ContainerSwap swap) {
+                ContainerPredictionAuthority.Verdict verdict = containerRouteVerdict(context.base(), swap);
+                if (verdict == ContainerPredictionAuthority.Verdict.ACCEPTED) {
+                    return pending.useRequiredServerTicks();
+                }
+                if (verdict == ContainerPredictionAuthority.Verdict.CONTRADICTED) {
+                    return Integer.MAX_VALUE;
+                }
+                ContainerRestorationCandidate candidate = containerRestorationCandidate;
+                if (candidate == null) return Integer.MAX_VALUE;
+                int waiting = ticksUntilOrUnknown(currentTick, candidate.authority().settleAtServerTick());
+                if (waiting == Integer.MAX_VALUE) return Integer.MAX_VALUE;
+                long remaining = (long) waiting + pending.useRequiredServerTicks();
+                return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
+            }
             if (routeAuthoritativelyObserved(pending, context)) return pending.useRequiredServerTicks();
             if (currentTick <= pending.latestServerStartTick()) {
                 long remaining = pending.latestServerStartTick() - currentTick + pending.useRequiredServerTicks();
@@ -318,13 +343,14 @@ public final class NonTotemActionExecutor {
             }
             validateHotbarRestorationCandidate(context.base(), hotbar);
         } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
-            if (context.base().menu().containerId() != pending.containerId()) {
+            ContainerPredictionAuthority.Verdict verdict = containerRouteVerdict(context.base(), swap);
+            if (verdict == ContainerPredictionAuthority.Verdict.WAITING) {
+                return new ExecutionStatus.WaitingForServer("waiting for survival stack swap correction window to settle");
+            }
+            if (verdict == ContainerPredictionAuthority.Verdict.CONTRADICTED) {
                 pending = null;
                 containerRestorationCandidate = null;
-                return new ExecutionStatus.Failed("container changed before survival stack route confirmed", true);
-            }
-            if (!containerRouteAuthoritativelyObserved(context.base(), swap)) {
-                return new ExecutionStatus.WaitingForServer("waiting for exact inbound container swap confirmation");
+                return new ExecutionStatus.Failed("server state contradicted the exact planned survival stack swap", true);
             }
         } else {
             pending = null;
@@ -372,7 +398,7 @@ public final class NonTotemActionExecutor {
         }
     }
 
-    private boolean containerRouteAuthoritativelyObserved(
+    private ContainerPredictionAuthority.Verdict containerRouteVerdict(
         ExecutionContext context,
         SurvivalItemRoute.ContainerSwap swap
     ) {
@@ -380,31 +406,13 @@ public final class NonTotemActionExecutor {
         if (candidate == null
             || candidate.containerId() != context.menu().containerId()
             || !candidate.route().equals(swap)) {
-            return false;
+            return ContainerPredictionAuthority.Verdict.CONTRADICTED;
         }
         if (swap.destinationInventoryIndex() >= 0 && swap.destinationInventoryIndex() <= 8
             && context.inventory().selectedHotbarIndex() != swap.destinationInventoryIndex()) {
-            return false;
+            return ContainerPredictionAuthority.Verdict.CONTRADICTED;
         }
-
-        InventorySlotSnapshot sourceNow = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
-        InventorySlotSnapshot destinationNow = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
-        if (sourceNow == null || destinationNow == null
-            || !sourceNow.sameContents(candidate.originalDestinationBefore())
-            || !destinationNow.sameContents(candidate.sourceBefore())) {
-            return false;
-        }
-
-        ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
-        if (!evidence.known()) {
-            return context.menu().stateId() != pending.containerStateId();
-        }
-        return evidence.inventoryMatchesAfter(
-                swap.sourceInventoryIndex(), candidate.originalDestinationBefore(), candidate.authorityRevisionBeforeSwap()
-            )
-            && evidence.inventoryMatchesAfter(
-                swap.destinationInventoryIndex(), candidate.sourceBefore(), candidate.authorityRevisionBeforeSwap()
-            );
+        return candidate.authority().evaluate(context);
     }
 
     private static boolean routeAuthoritativelyObserved(Pending pending, NonTotemExecutionContext context) {
@@ -413,12 +421,7 @@ public final class NonTotemActionExecutor {
             return context.base().inventory().selectedHotbarIndex() == hotbar.hotbarIndex()
                 && exact(context.base().inventory().slot(hotbar.hotbarIndex()).orElse(null), route);
         }
-        if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
-            // remainingServerTicks is intentionally conservative until observeRoute has consumed
-            // exact two-sided inbound evidence and moved the pending action to USING.
-            return false;
-        }
-        return true;
+        return !(route instanceof SurvivalItemRoute.ContainerSwap);
     }
 
     private void capturePostActionRestoration(ExecutionContext context) {
@@ -772,16 +775,14 @@ public final class NonTotemActionExecutor {
         SurvivalItemRoute.ContainerSwap route,
         InventorySlotSnapshot sourceBefore,
         InventorySlotSnapshot originalDestinationBefore,
-        long authorityRevisionBeforeSwap
+        ContainerPredictionAuthority authority
     ) {
         private ContainerRestorationCandidate {
             if (containerId < 0) throw new IllegalArgumentException("containerId must be non-negative");
             route = Objects.requireNonNull(route, "route");
             sourceBefore = Objects.requireNonNull(sourceBefore, "sourceBefore");
             originalDestinationBefore = Objects.requireNonNull(originalDestinationBefore, "originalDestinationBefore");
-            if (authorityRevisionBeforeSwap < 0L) {
-                throw new IllegalArgumentException("authorityRevisionBeforeSwap must be non-negative");
-            }
+            authority = Objects.requireNonNull(authority, "authority");
         }
     }
 }
