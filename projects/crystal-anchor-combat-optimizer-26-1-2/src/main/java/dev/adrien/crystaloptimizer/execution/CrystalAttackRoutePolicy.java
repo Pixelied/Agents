@@ -32,6 +32,7 @@ public final class CrystalAttackRoutePolicy {
             return Optional.of(InteractionRoute.selectedMainhand());
         }
 
+        int selectedSlot = inventory.selectedHotbarSlot();
         return inventory.hotbarItems().entrySet().stream()
             .filter(entry -> inventory.hotbarCount(entry.getKey()) > 0)
             .filter(entry -> capability.canDamageCrystal(
@@ -39,8 +40,8 @@ public final class CrystalAttackRoutePolicy {
                 effects
             ))
             .sorted(Comparator
-                .comparingDouble((Map.Entry<Integer, Item> entry) ->
-                    -AttackItemProfile.fromVanillaItem(entry.getValue()).totalAttackDamage())
+                .comparingInt((Map.Entry<Integer, Item> entry) ->
+                    Math.abs(entry.getKey() - selectedSlot))
                 .thenComparingInt(Map.Entry::getKey))
             .findFirst()
             .map(entry -> InteractionRoute.selectMainhand(entry.getKey(), 0.0));
