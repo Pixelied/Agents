@@ -80,7 +80,7 @@ class NonTotemInventoryRoutingTest {
     }
 
     @Test
-    void containerRouteWithUnknownPacketEvidenceStillRequiresMenuRevisionBeforeUse() {
+    void silentExactContainerPredictionAdvancesOnlyAfterCorrectionWindowSettles() {
         SurvivalItemRoute.ContainerSwap route = new SurvivalItemRoute.ContainerSwap(
             10, 10, 0, 0, SurvivalAction.Hand.MAIN_HAND, "minecraft:potion", 222
         );
@@ -99,30 +99,56 @@ class NonTotemInventoryRoutingTest {
         );
         assertInstanceOf(ExecutionCommand.SwapMenuSlot.class, swapping.command().orElseThrow());
 
-        ExecutionStatus.WaitingForServer sameState = assertInstanceOf(
+        for (long tick : new long[] {21L, 22L}) {
+            ExecutionStatus.WaitingForServer waiting = assertInstanceOf(
+                ExecutionStatus.WaitingForServer.class,
+                executor.observe(containerContext(
+                    4,
+                    potion(0),
+                    sword(10),
+                    basePlayer(),
+                    tick
+                ))
+            );
+            assertTrue(waiting.command().isEmpty(),
+                "a dependent use must not be sent before the silent-click correction window settles");
+        }
+
+        ExecutionStatus.WaitingForServer settled = assertInstanceOf(
             ExecutionStatus.WaitingForServer.class,
             executor.observe(containerContext(
                 4,
                 potion(0),
                 sword(10),
                 basePlayer(),
+                23
+            ))
+        );
+        assertInstanceOf(ExecutionCommand.UseItem.class, settled.command().orElseThrow(),
+            "an exact silent prediction must advance once every modeled correction could already have returned");
+    }
+
+    @Test
+    void correctiveContainerRevisionFailsClosedInsteadOfWaitingForTimeout() {
+        SurvivalItemRoute.ContainerSwap route = new SurvivalItemRoute.ContainerSwap(
+            10, 10, 0, 0, SurvivalAction.Hand.MAIN_HAND, "minecraft:potion", 222
+        );
+        NonTotemActionExecutor executor = new NonTotemActionExecutor();
+        executor.begin(action(route), containerContext(
+            4, sword(0), potion(10), basePlayer(), 20
+        ));
+
+        ExecutionStatus.Failed failed = assertInstanceOf(
+            ExecutionStatus.Failed.class,
+            executor.observe(containerContext(
+                5,
+                sword(0),
+                potion(10),
+                basePlayer(),
                 21
             ))
         );
-        assertTrue(sameState.command().isEmpty(),
-            "locally predicted swapped contents must not trigger item use before an inbound menu revision");
-
-        ExecutionStatus.WaitingForServer revised = assertInstanceOf(
-            ExecutionStatus.WaitingForServer.class,
-            executor.observe(containerContext(
-                5,
-                potion(0),
-                sword(10),
-                basePlayer(),
-                22
-            ))
-        );
-        assertInstanceOf(ExecutionCommand.UseItem.class, revised.command().orElseThrow());
+        assertTrue(failed.replanRequired());
     }
 
     private static SurvivalAction.ApplyEffects action(SurvivalItemRoute route) {
