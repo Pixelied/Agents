@@ -15,6 +15,8 @@ import dev.pixelied.survival.inventory.EquippableSurvivalSnapshot;
 import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
+import dev.pixelied.survival.inventory.SurvivalItemRoute;
+import dev.pixelied.survival.inventory.SurvivalItemRoutePlanner;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
@@ -29,18 +31,28 @@ public final class SurvivalCandidateGenerator {
     private static final int SHIELD_WARMUP_TICKS = 5;
 
     private final DeathProtectionRoutePlanner routePlanner;
+    private final SurvivalItemRoutePlanner itemRoutePlanner;
     private final ThreatTimelineSimulator timelineSimulator;
 
     public SurvivalCandidateGenerator() {
-        this(new DeathProtectionRoutePlanner(), new ThreatTimelineSimulator());
+        this(new DeathProtectionRoutePlanner(), new SurvivalItemRoutePlanner(), new ThreatTimelineSimulator());
     }
 
     SurvivalCandidateGenerator(DeathProtectionRoutePlanner routePlanner) {
-        this(routePlanner, new ThreatTimelineSimulator());
+        this(routePlanner, new SurvivalItemRoutePlanner(), new ThreatTimelineSimulator());
     }
 
     SurvivalCandidateGenerator(DeathProtectionRoutePlanner routePlanner, ThreatTimelineSimulator timelineSimulator) {
+        this(routePlanner, new SurvivalItemRoutePlanner(), timelineSimulator);
+    }
+
+    SurvivalCandidateGenerator(
+        DeathProtectionRoutePlanner routePlanner,
+        SurvivalItemRoutePlanner itemRoutePlanner,
+        ThreatTimelineSimulator timelineSimulator
+    ) {
         this.routePlanner = Objects.requireNonNull(routePlanner, "routePlanner");
+        this.itemRoutePlanner = Objects.requireNonNull(itemRoutePlanner, "itemRoutePlanner");
         this.timelineSimulator = Objects.requireNonNull(timelineSimulator, "timelineSimulator");
     }
 
@@ -86,7 +98,7 @@ public final class SurvivalCandidateGenerator {
         }
 
         if (policy.shields()) addShieldCandidate(candidates, context, timeline, inventory);
-        addHeldNonTotemCandidates(candidates, context, inventory, policy);
+        addNonTotemCandidates(candidates, context, inventory, menu, policy);
         return List.copyOf(candidates);
     }
 
@@ -194,30 +206,38 @@ public final class SurvivalCandidateGenerator {
         ));
     }
 
-    private static void addHeldNonTotemCandidates(
+    private void addNonTotemCandidates(
         List<SurvivalAction> candidates,
         PredictionContext context,
         InventorySnapshot inventory,
+        MenuSlotMap menu,
         RescuePolicy policy
     ) {
-        inventory.slot(inventory.selectedHotbarIndex()).ifPresent(slot ->
-            addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.MAIN_HAND, policy));
-        inventory.slot(40).ifPresent(slot ->
-            addHeldItemCandidates(candidates, context, slot, SurvivalAction.Hand.OFF_HAND, policy));
+        List<InventorySlotSnapshot> slots = inventory.slots().values().stream()
+            .filter(slot -> slot.count() > 0)
+            .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
+            .toList();
+        for (InventorySlotSnapshot slot : slots) {
+            itemRoutePlanner.route(
+                inventory, menu, slot, policy.inventoryRouting(), policy.mainHandTakeover()
+            ).ifPresent(route -> addRoutedItemCandidates(candidates, context, slot, route, policy));
+        }
     }
 
-    private static void addHeldItemCandidates(
+    private static void addRoutedItemCandidates(
         List<SurvivalAction> candidates,
         PredictionContext context,
         InventorySlotSnapshot slot,
-        SurvivalAction.Hand hand,
+        SurvivalItemRoute route,
         RescuePolicy policy
     ) {
         if (policy.consumables()) {
-            slot.consumable().ifPresent(consumable -> addConsumableCandidate(candidates, context, slot, hand, consumable));
+            slot.consumable().ifPresent(consumable ->
+                addConsumableCandidate(candidates, context, slot, route, consumable));
         }
         if (policy.equipment()) {
-            slot.equippable().ifPresent(equippable -> addEquipmentCandidate(candidates, context, slot, hand, equippable));
+            slot.equippable().ifPresent(equippable ->
+                addEquipmentCandidate(candidates, context, slot, route, equippable));
         }
     }
 
@@ -225,7 +245,7 @@ public final class SurvivalCandidateGenerator {
         List<SurvivalAction> candidates,
         PredictionContext context,
         InventorySlotSnapshot slot,
-        SurvivalAction.Hand hand,
+        SurvivalItemRoute route,
         ConsumableSurvivalSnapshot consumable
     ) {
         if (!consumable.usable() || consumable.guaranteedEffects().isEmpty()) return;
@@ -238,20 +258,21 @@ public final class SurvivalCandidateGenerator {
             }
         }
         float absorptionGain = Math.max(0f, absorptionFloor - context.player().absorption());
+        int requiredServerTicks = saturatingTickAdd(consumable.consumeTicks(), route.requiredServerTicks());
 
         candidates.add(new SurvivalAction.ApplyEffects(
             effectsAfter,
             0f,
             absorptionGain,
             slot.stackKey(),
-            consumable.consumeTicks(),
+            requiredServerTicks,
             true,
             true,
             1d,
             1,
-            1,
+            1 + route.requiredServerTicks(),
             java.util.Optional.of(new SurvivalAction.HeldItemRef(
-                hand, slot.stackKey(), slot.componentFingerprint()
+                route.destinationHand(), slot.stackKey(), slot.componentFingerprint(), java.util.Optional.of(route)
             )),
             consumable.guaranteedEffects(),
             absorptionFloor
@@ -262,7 +283,7 @@ public final class SurvivalCandidateGenerator {
         List<SurvivalAction> candidates,
         PredictionContext context,
         InventorySlotSnapshot slot,
-        SurvivalAction.Hand hand,
+        SurvivalItemRoute route,
         EquippableSurvivalSnapshot equippable
     ) {
         if (!equippable.usable() || !equippable.armorPiece().present()) return;
@@ -273,17 +294,22 @@ public final class SurvivalCandidateGenerator {
         candidates.add(new SurvivalAction.SwapEquipment(
             mitigationAfter,
             Map.of(equipmentSlot, slot.stackKey()),
-            0,
+            route.requiredServerTicks(),
             true,
             true,
             1d,
             0,
-            2,
+            2 + route.requiredServerTicks(),
             java.util.Optional.of(new SurvivalAction.HeldItemRef(
-                hand, slot.stackKey(), slot.componentFingerprint()
+                route.destinationHand(), slot.stackKey(), slot.componentFingerprint(), java.util.Optional.of(route)
             )),
             java.util.Optional.of(piece)
         ));
+    }
+
+    private static int saturatingTickAdd(int left, int right) {
+        long total = (long) left + right;
+        return total >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
     }
 
     private static MitigationSnapshot replaceArmorPiece(
