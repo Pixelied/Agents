@@ -84,16 +84,19 @@ class StackedDeathProtectionPlannerTest {
     }
 
     private static ThreatTimeline stackedLethalTimeline() {
-        DamageSourceSnapshot lethal = new DamageSourceSnapshot(
-            DamageRange.exact(100f), Set.of(), false, 1f, false, Optional.empty(), "test:stacked_lethal"
+        DamageSourceSnapshot arrow = new DamageSourceSnapshot(
+            DamageRange.exact(100f), Set.of(), false, 1f, false, Optional.empty(), "test:arrow"
+        );
+        DamageSourceSnapshot mace = new DamageSourceSnapshot(
+            DamageRange.exact(220f), Set.of(), false, 1f, false, Optional.empty(), "test:mace"
         );
         return new ThreatTimeline(List.of(
             new ThreatEvent(
-                "first", ThreatKind.PROJECTILE, new TickWindow(2, 2), lethal, Confidence.EXACT,
+                "first", ThreatKind.PROJECTILE, new TickWindow(2, 2), arrow, Confidence.EXACT,
                 Optional.empty(), Optional.empty(), false, false, false, false
             ),
             new ThreatEvent(
-                "second", ThreatKind.MELEE, new TickWindow(3, 3), lethal, Confidence.EXACT,
+                "second", ThreatKind.MELEE, new TickWindow(3, 3), mace, Confidence.EXACT,
                 Optional.empty(), Optional.empty(), false, false, false, false
             )
         ));
