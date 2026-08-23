@@ -23,6 +23,7 @@ import dev.pixelied.survival.timing.TimingSnapshot;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
+import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
@@ -36,6 +37,24 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContingencyPlannerTest {
+    @Test
+    void directShieldThenTotemSequenceSurvivesSimulator() {
+        PredictionContext context = context();
+        SurvivalAction.RaiseShield shield = shield();
+        SurvivalAction.EquipDeathProtection totem = totem();
+
+        var result = new ThreatTimelineSimulator().simulateWithActivations(
+            context.player(),
+            arrowThenMace(),
+            List.of(
+                new ThreatTimelineSimulator.TimedActivation(4, shield::apply),
+                new ThreatTimelineSimulator.TimedActivation(8, totem::apply)
+            )
+        );
+
+        assertTrue(result.survived());
+    }
+
     @Test
     void plansShieldThenTotemForArrowFollowedByMace() {
         PredictionContext context = context();
@@ -51,7 +70,7 @@ class ContingencyPlannerTest {
             context, timeline, List.of(shield, totem), SafetyMode.SAFE, RescueProfile.CONSERVATIVE_SMART
         );
 
-        assertTrue(plan.guaranteed(), plan::toString);
+        assertTrue(plan.guaranteed());
         assertFalse(plan.truncated());
         assertEquals(2, plan.steps().size());
         assertInstanceOf(SurvivalAction.RaiseShield.class, plan.steps().get(0).action());
