@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NonTotemInventoryRoutingTest {
     @Test
@@ -78,6 +79,52 @@ class NonTotemInventoryRoutingTest {
         assertEquals(true, failed.replanRequired());
     }
 
+    @Test
+    void containerRouteWithUnknownPacketEvidenceStillRequiresMenuRevisionBeforeUse() {
+        SurvivalItemRoute.ContainerSwap route = new SurvivalItemRoute.ContainerSwap(
+            10, 10, 0, 0, SurvivalAction.Hand.MAIN_HAND, "minecraft:potion", 222
+        );
+        NonTotemActionExecutor executor = new NonTotemActionExecutor();
+        SurvivalAction.ApplyEffects action = action(route);
+
+        ExecutionStatus.WaitingForServer swapping = assertInstanceOf(
+            ExecutionStatus.WaitingForServer.class,
+            executor.begin(action, containerContext(
+                4,
+                sword(0),
+                potion(10),
+                basePlayer(),
+                20
+            ))
+        );
+        assertInstanceOf(ExecutionCommand.SwapMenuSlot.class, swapping.command().orElseThrow());
+
+        ExecutionStatus.WaitingForServer sameState = assertInstanceOf(
+            ExecutionStatus.WaitingForServer.class,
+            executor.observe(containerContext(
+                4,
+                potion(0),
+                sword(10),
+                basePlayer(),
+                21
+            ))
+        );
+        assertTrue(sameState.command().isEmpty(),
+            "locally predicted swapped contents must not trigger item use before an inbound menu revision");
+
+        ExecutionStatus.WaitingForServer revised = assertInstanceOf(
+            ExecutionStatus.WaitingForServer.class,
+            executor.observe(containerContext(
+                5,
+                potion(0),
+                sword(10),
+                basePlayer(),
+                22
+            ))
+        );
+        assertInstanceOf(ExecutionCommand.UseItem.class, revised.command().orElseThrow());
+    }
+
     private static SurvivalAction.ApplyEffects action(SurvivalItemRoute route) {
         EffectInstanceSnapshot resistance = new EffectInstanceSnapshot("minecraft:resistance", 200, 0);
         return new SurvivalAction.ApplyEffects(
@@ -116,7 +163,30 @@ class NonTotemInventoryRoutingTest {
             false,
             null,
             0,
-            true
+            true,
+            ServerStateEvidenceSnapshot.unknown()
+        );
+        return new NonTotemExecutionContext(base, player, Set.of());
+    }
+
+    private static NonTotemExecutionContext containerContext(
+        int stateId,
+        InventorySlotSnapshot slot0,
+        InventorySlotSnapshot slot10,
+        PlayerSnapshot player,
+        long tick
+    ) {
+        InventorySnapshot inventory = new InventorySnapshot(0, Map.of(0, slot0, 10, slot10), false);
+        ExecutionContext base = new ExecutionContext(
+            inventory,
+            new MenuSlotMap(0, stateId, Map.of(0, 36, 10, 10, 40, 45)),
+            new TimingSnapshot(tick, 50, 0, new TickWindow(tick + 1, tick + 1)),
+            tick,
+            false,
+            null,
+            0,
+            true,
+            ServerStateEvidenceSnapshot.unknown()
         );
         return new NonTotemExecutionContext(base, player, Set.of());
     }
