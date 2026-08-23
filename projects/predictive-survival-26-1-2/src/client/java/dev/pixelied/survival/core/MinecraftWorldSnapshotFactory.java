@@ -92,7 +92,14 @@ public final class MinecraftWorldSnapshotFactory {
             entities.add(observationOverflowMarker(player, relevantCount - realEntityLimit));
         }
 
-        return new WorldSnapshot(entities, captureBlocks(level, player.blockPosition()));
+        List<WorldSnapshot.BlockSnapshot> nearbyBlocks = captureBlocks(level, player.blockPosition());
+        List<WorldSnapshot.BlockSnapshot> blocks = MinecraftFallCorridorSnapshotFactory.augment(
+            level,
+            player,
+            limits,
+            nearbyBlocks
+        );
+        return new WorldSnapshot(entities, blocks);
     }
 
     private static int threatPriority(Entity entity) {
