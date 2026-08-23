@@ -171,6 +171,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     ) {
         LiveState state = requireLiveState(frame);
         protectionExecutor.takeRestorationCheckpoint().ifPresent(restorationController::arm);
+        shieldExecutor.takeRestorationCheckpoint().ifPresent(restorationController::arm);
+        nonTotemExecutor.takeRestorationCheckpoint().ifPresent(restorationController::arm);
         Optional<ExecutionCommand> restore = restorationController.update(
             restorationEnabled,
             lethalWithoutProtection,
