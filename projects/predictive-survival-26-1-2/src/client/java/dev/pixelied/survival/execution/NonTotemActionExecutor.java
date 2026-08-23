@@ -181,7 +181,11 @@ public final class NonTotemActionExecutor {
             return new ExecutionStatus.Failed("routed container slot mapping changed before swap", true);
         }
         containerRestorationCandidate = new ContainerRestorationCandidate(
-            context.base().menu().containerId(), swap, destinationBefore
+            context.base().menu().containerId(),
+            swap,
+            sourceSlot,
+            destinationBefore,
+            context.base().serverStateEvidence().revision()
         );
         pending = routingPending(action, context, expected, route, useTicks(action, route));
         return new ExecutionStatus.WaitingForServer(
@@ -201,7 +205,7 @@ public final class NonTotemActionExecutor {
 
         long currentTick = context.base().currentServerTick();
         if (pending.stage() == Stage.ROUTING) {
-            if (routeObserved(pending.route(), context)) return pending.useRequiredServerTicks();
+            if (routeAuthoritativelyObserved(pending, context)) return pending.useRequiredServerTicks();
             if (currentTick <= pending.latestServerStartTick()) {
                 long remaining = pending.latestServerStartTick() - currentTick + pending.useRequiredServerTicks();
                 return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
@@ -211,13 +215,13 @@ public final class NonTotemActionExecutor {
 
         SurvivalAction action = pending.action();
         if (action instanceof SurvivalAction.SwapEquipment equipment) {
-            if (equipmentSatisfied(equipment, context.player())) return 0;
+            if (equipmentAuthoritativelySatisfied(equipment, context, pending)) return 0;
             return ticksUntilOrUnknown(currentTick, pending.latestServerStartTick());
         }
 
         if (action instanceof SurvivalAction.ApplyEffects effects) {
             long elapsed = Math.max(0L, currentTick - pending.useStartedAtServerTick());
-            if (effectsSatisfied(effects, pending.expectedPlayer(), context.player(), elapsed)) return 0;
+            if (effectsAuthoritativelySatisfied(effects, context, pending, elapsed)) return 0;
 
             ExecutionContext base = context.base();
             if (base.serverUsingItem() && base.usingHand() == pending.hand()) {
@@ -267,12 +271,12 @@ public final class NonTotemActionExecutor {
         if (action instanceof SurvivalAction.PlaceCover cover) {
             confirmed = cover.target().map(context.confirmedBlocks()::contains).orElse(false);
         } else if (action instanceof SurvivalAction.SwapEquipment equipment) {
-            confirmed = equipmentSatisfied(equipment, context.player());
+            confirmed = equipmentAuthoritativelySatisfied(equipment, context, pending);
         } else if (action instanceof SurvivalAction.ApplyEffects effects) {
-            confirmed = effectsSatisfied(
+            confirmed = effectsAuthoritativelySatisfied(
                 effects,
-                pending.expectedPlayer(),
-                context.player(),
+                context,
+                pending,
                 Math.max(0L, context.base().currentServerTick() - pending.useStartedAtServerTick())
             );
         } else if (action instanceof SurvivalAction.PearlRescue pearl) {
@@ -289,7 +293,7 @@ public final class NonTotemActionExecutor {
         if (!confirmed) return new ExecutionStatus.WaitingForServer("waiting for authoritative action confirmation");
         capturePostActionRestoration(context.base());
         pending = null;
-        return new ExecutionStatus.Confirmed("non-totem action confirmed by observed state");
+        return new ExecutionStatus.Confirmed("non-totem action confirmed by inbound server state");
     }
 
     /** Returns null when routing is complete and normal action observation should continue. */
@@ -319,18 +323,8 @@ public final class NonTotemActionExecutor {
                 containerRestorationCandidate = null;
                 return new ExecutionStatus.Failed("container changed before survival stack route confirmed", true);
             }
-            if (context.base().menu().stateId() == pending.containerStateId()) {
-                return new ExecutionStatus.WaitingForServer("waiting for authoritative container revision");
-            }
-            InventorySlotSnapshot destination = context.base().inventory().slot(swap.destinationInventoryIndex()).orElse(null);
-            if (!exact(destination, route)) {
-                pending = null;
-                containerRestorationCandidate = null;
-                return new ExecutionStatus.Failed("container revised without exact planned survival stack destination", true);
-            }
-            if (!validateContainerRestorationCandidate(context.base(), swap)) {
-                pending = null;
-                return new ExecutionStatus.Failed("container survival route did not preserve the displaced destination stack", true);
+            if (!containerRouteAuthoritativelyObserved(context.base(), swap)) {
+                return new ExecutionStatus.WaitingForServer("waiting for exact inbound container swap confirmation");
             }
         } else {
             pending = null;
@@ -340,6 +334,10 @@ public final class NonTotemActionExecutor {
         }
 
         Pending routed = pending;
+        int useInventoryIndex = inventoryIndexForUse(routed.route(), routed.hand(), context.base().inventory());
+        InventorySlotSnapshot useBefore = useInventoryIndex < 0
+            ? null
+            : context.base().inventory().slot(useInventoryIndex).orElse(null);
         pending = new Pending(
             routed.action(),
             routed.startedAtServerTick(),
@@ -351,7 +349,10 @@ public final class NonTotemActionExecutor {
             Stage.USING,
             routed.route(),
             routed.containerId(),
-            routed.containerStateId()
+            routed.containerStateId(),
+            context.base().serverStateEvidence().revision(),
+            useInventoryIndex,
+            useBefore
         );
         return new ExecutionStatus.WaitingForServer(
             "survival stack route confirmed; waiting for server-observed item use",
@@ -371,7 +372,7 @@ public final class NonTotemActionExecutor {
         }
     }
 
-    private boolean validateContainerRestorationCandidate(
+    private boolean containerRouteAuthoritativelyObserved(
         ExecutionContext context,
         SurvivalItemRoute.ContainerSwap swap
     ) {
@@ -379,17 +380,39 @@ public final class NonTotemActionExecutor {
         if (candidate == null
             || candidate.containerId() != context.menu().containerId()
             || !candidate.route().equals(swap)) {
-            containerRestorationCandidate = null;
             return false;
         }
         if (swap.destinationInventoryIndex() >= 0 && swap.destinationInventoryIndex() <= 8
             && context.inventory().selectedHotbarIndex() != swap.destinationInventoryIndex()) {
-            containerRestorationCandidate = null;
             return false;
         }
+
         InventorySlotSnapshot sourceNow = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
-        if (sourceNow == null || !sourceNow.sameContents(candidate.originalDestinationBefore())) {
-            containerRestorationCandidate = null;
+        InventorySlotSnapshot destinationNow = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
+        if (sourceNow == null || destinationNow == null
+            || !sourceNow.sameContents(candidate.originalDestinationBefore())
+            || !destinationNow.sameContents(candidate.sourceBefore())) {
+            return false;
+        }
+
+        ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
+        return evidence.inventoryMatchesAfter(
+                swap.sourceInventoryIndex(), candidate.originalDestinationBefore(), candidate.authorityRevisionBeforeSwap()
+            )
+            && evidence.inventoryMatchesAfter(
+                swap.destinationInventoryIndex(), candidate.sourceBefore(), candidate.authorityRevisionBeforeSwap()
+            );
+    }
+
+    private static boolean routeAuthoritativelyObserved(Pending pending, NonTotemExecutionContext context) {
+        SurvivalItemRoute route = pending.route();
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            return context.base().inventory().selectedHotbarIndex() == hotbar.hotbarIndex()
+                && exact(context.base().inventory().slot(hotbar.hotbarIndex()).orElse(null), route);
+        }
+        if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
+            // remainingServerTicks is intentionally conservative until observeRoute has consumed
+            // exact two-sided inbound evidence and moved the pending action to USING.
             return false;
         }
         return true;
@@ -446,13 +469,47 @@ public final class NonTotemActionExecutor {
         );
     }
 
-    private static boolean routeObserved(SurvivalItemRoute route, NonTotemExecutionContext context) {
-        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
-            return context.base().inventory().selectedHotbarIndex() == hotbar.hotbarIndex()
-                && exact(context.base().inventory().slot(hotbar.hotbarIndex()).orElse(null), route);
+    private static boolean equipmentAuthoritativelySatisfied(
+        SurvivalAction.SwapEquipment action,
+        NonTotemExecutionContext context,
+        Pending pending
+    ) {
+        if (!equipmentSatisfied(action, context.player())) return false;
+        ServerStateEvidenceSnapshot evidence = context.base().serverStateEvidence();
+        if (!evidence.known()) return true;
+
+        SurvivalAction.HeldItemRef source = action.sourceItem().orElse(null);
+        if (source == null || action.equipmentUpdates().size() != 1) return false;
+        Map.Entry<String, String> update = action.equipmentUpdates().entrySet().iterator().next();
+        return evidence.equipmentMatchesAfter(
+            update.getKey(),
+            update.getValue(),
+            source.componentFingerprint(),
+            pending.actionAuthorityRevision()
+        );
+    }
+
+    private static boolean effectsAuthoritativelySatisfied(
+        SurvivalAction.ApplyEffects action,
+        NonTotemExecutionContext context,
+        Pending pending,
+        long elapsedTicks
+    ) {
+        if (!effectsSatisfied(action, pending.expectedPlayer(), context.player(), elapsedTicks)) return false;
+        ServerStateEvidenceSnapshot evidence = context.base().serverStateEvidence();
+        if (!evidence.known()) return true;
+        if (action.appliedEffects().isEmpty()
+            || pending.useInventoryIndex() < 0
+            || pending.useItemBefore() == null) {
+            return false;
         }
-        if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
-            return exact(context.base().inventory().slot(swap.destinationInventoryIndex()).orElse(null), route);
+        if (!evidence.inventoryChangedAfter(
+            pending.useInventoryIndex(), pending.useItemBefore(), pending.actionAuthorityRevision()
+        )) {
+            return false;
+        }
+        for (EffectInstanceSnapshot effect : action.appliedEffects()) {
+            if (!evidence.effectObservedAfter(effect, pending.actionAuthorityRevision())) return false;
         }
         return true;
     }
@@ -578,7 +635,10 @@ public final class NonTotemActionExecutor {
             Stage.USING,
             null,
             context.base().menu().containerId(),
-            context.base().menu().stateId()
+            context.base().menu().stateId(),
+            context.base().serverStateEvidence().revision(),
+            inventoryIndexForUse(null, hand, context.base().inventory()),
+            inventorySlotForUse(null, hand, context.base().inventory())
         );
     }
 
@@ -590,6 +650,10 @@ public final class NonTotemActionExecutor {
         SurvivalItemRoute route,
         int useRequiredServerTicks
     ) {
+        int useInventoryIndex = inventoryIndexForUse(route, hand, context.base().inventory());
+        InventorySlotSnapshot useBefore = useInventoryIndex < 0
+            ? null
+            : context.base().inventory().slot(useInventoryIndex).orElse(null);
         return new Pending(
             action,
             context.base().currentServerTick(),
@@ -601,7 +665,10 @@ public final class NonTotemActionExecutor {
             Stage.USING,
             route,
             context.base().menu().containerId(),
-            context.base().menu().stateId()
+            context.base().menu().stateId(),
+            context.base().serverStateEvidence().revision(),
+            useInventoryIndex,
+            useBefore
         );
     }
 
@@ -623,8 +690,32 @@ public final class NonTotemActionExecutor {
             Stage.ROUTING,
             route,
             context.base().menu().containerId(),
-            context.base().menu().stateId()
+            context.base().menu().stateId(),
+            -1L,
+            -1,
+            null
         );
+    }
+
+    private static int inventoryIndexForUse(
+        SurvivalItemRoute route,
+        SurvivalAction.Hand hand,
+        InventorySnapshot inventory
+    ) {
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) return hotbar.hotbarIndex();
+        if (route instanceof SurvivalItemRoute.ContainerSwap swap) return swap.destinationInventoryIndex();
+        if (hand == SurvivalAction.Hand.OFF_HAND) return 40;
+        if (hand == SurvivalAction.Hand.MAIN_HAND) return inventory.selectedHotbarIndex();
+        return -1;
+    }
+
+    private static InventorySlotSnapshot inventorySlotForUse(
+        SurvivalItemRoute route,
+        SurvivalAction.Hand hand,
+        InventorySnapshot inventory
+    ) {
+        int index = inventoryIndexForUse(route, hand, inventory);
+        return index < 0 ? null : inventory.slot(index).orElse(null);
     }
 
     private static int ticksUntilOrUnknown(long currentTick, long latestEffectTick) {
@@ -646,7 +737,10 @@ public final class NonTotemActionExecutor {
         Stage stage,
         SurvivalItemRoute route,
         int containerId,
-        int containerStateId
+        int containerStateId,
+        long actionAuthorityRevision,
+        int useInventoryIndex,
+        InventorySlotSnapshot useItemBefore
     ) {
         private Pending {
             action = Objects.requireNonNull(action, "action");
@@ -673,12 +767,18 @@ public final class NonTotemActionExecutor {
     private record ContainerRestorationCandidate(
         int containerId,
         SurvivalItemRoute.ContainerSwap route,
-        InventorySlotSnapshot originalDestinationBefore
+        InventorySlotSnapshot sourceBefore,
+        InventorySlotSnapshot originalDestinationBefore,
+        long authorityRevisionBeforeSwap
     ) {
         private ContainerRestorationCandidate {
             if (containerId < 0) throw new IllegalArgumentException("containerId must be non-negative");
             route = Objects.requireNonNull(route, "route");
+            sourceBefore = Objects.requireNonNull(sourceBefore, "sourceBefore");
             originalDestinationBefore = Objects.requireNonNull(originalDestinationBefore, "originalDestinationBefore");
+            if (authorityRevisionBeforeSwap < 0L) {
+                throw new IllegalArgumentException("authorityRevisionBeforeSwap must be non-negative");
+            }
         }
     }
 }
