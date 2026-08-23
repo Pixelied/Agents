@@ -33,6 +33,9 @@ class NonTotemEquipmentStateConfirmationTest {
     private static final ArmorPieceSnapshot STRONG = new ArmorPieceSnapshot(
         ArmorPieceSnapshot.Slot.CHEST, 8f, 3f, 4, 500, true
     );
+    private static final ArmorPieceSnapshot STRONG_WITH_LIVE_DURABILITY_DRIFT = new ArmorPieceSnapshot(
+        ArmorPieceSnapshot.Slot.CHEST, 8f, 3f, 4, 499, true
+    );
 
     @Test
     void sameRegistryKeyDoesNotSkipAPlannedStrongerArmorSwap() {
@@ -59,6 +62,19 @@ class NonTotemEquipmentStateConfirmationTest {
         assertInstanceOf(
             ExecutionStatus.Confirmed.class,
             executor.observe(context(player(STRONG), 22))
+        );
+    }
+
+    @Test
+    void matchingPlannedArmorCapabilityConfirmsDespiteLiveDurabilityDrift() {
+        NonTotemActionExecutor executor = new NonTotemActionExecutor();
+        SurvivalAction.SwapEquipment action = action();
+        executor.begin(action, context(player(WEAK), 20));
+
+        assertInstanceOf(
+            ExecutionStatus.Confirmed.class,
+            executor.observe(context(player(STRONG_WITH_LIVE_DURABILITY_DRIFT), 21)),
+            "durability can change while the action is in flight; completion identity must use the armor capability, then replan from live durability"
         );
     }
 
