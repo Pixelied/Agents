@@ -38,6 +38,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContingencyPlannerTest {
     @Test
+    void shieldActivationSurvivesArrowStageByItself() {
+        PredictionContext context = context();
+        var result = new ThreatTimelineSimulator().simulateWithActivations(
+            context.player(),
+            new ThreatTimeline(List.of(arrowEvent())),
+            List.of(new ThreatTimelineSimulator.TimedActivation(4, shield()::apply))
+        );
+
+        assertTrue(result.survived());
+    }
+
+    @Test
+    void totemActivationSurvivesMaceStageByItself() {
+        PredictionContext context = context();
+        var result = new ThreatTimelineSimulator().simulateWithActivations(
+            context.player(),
+            new ThreatTimeline(List.of(maceEvent())),
+            List.of(new ThreatTimelineSimulator.TimedActivation(8, totem()::apply))
+        );
+
+        assertTrue(result.survived());
+    }
+
+    @Test
     void directShieldThenTotemSequenceSurvivesSimulator() {
         PredictionContext context = context();
         SurvivalAction.RaiseShield shield = shield();
@@ -133,6 +157,10 @@ class ContingencyPlannerTest {
     }
 
     private static ThreatTimeline arrowThenMace() {
+        return new ThreatTimeline(List.of(arrowEvent(), maceEvent()));
+    }
+
+    private static ThreatEvent arrowEvent() {
         DamageSourceSnapshot arrow = new DamageSourceSnapshot(
             DamageRange.exact(100f),
             EnumSet.of(DamageFlag.IS_PROJECTILE),
@@ -142,6 +170,13 @@ class ContingencyPlannerTest {
             Optional.of(new Vec3Snapshot(0, 0, 5)),
             "minecraft:arrow"
         );
+        return new ThreatEvent(
+            "arrow", ThreatKind.PROJECTILE, new TickWindow(6, 6), arrow, Confidence.EXACT,
+            Optional.of(new Vec3Snapshot(0, 0, 5)), Optional.empty(), false, true, false, false
+        );
+    }
+
+    private static ThreatEvent maceEvent() {
         DamageSourceSnapshot mace = new DamageSourceSnapshot(
             DamageRange.exact(220f),
             EnumSet.of(DamageFlag.BYPASSES_SHIELD),
@@ -151,15 +186,9 @@ class ContingencyPlannerTest {
             Optional.of(new Vec3Snapshot(0, 0, 5)),
             "minecraft:mace_smash"
         );
-        return new ThreatTimeline(List.of(
-            new ThreatEvent(
-                "arrow", ThreatKind.PROJECTILE, new TickWindow(6, 6), arrow, Confidence.EXACT,
-                Optional.of(new Vec3Snapshot(0, 0, 5)), Optional.empty(), false, true, false, false
-            ),
-            new ThreatEvent(
-                "mace", ThreatKind.MELEE, new TickWindow(10, 10), mace, Confidence.EXACT,
-                Optional.of(new Vec3Snapshot(0, 0, 5)), Optional.empty(), false, false, false, false
-            )
-        ));
+        return new ThreatEvent(
+            "mace", ThreatKind.MELEE, new TickWindow(10, 10), mace, Confidence.EXACT,
+            Optional.of(new Vec3Snapshot(0, 0, 5)), Optional.empty(), false, false, false, false
+        );
     }
 }
