@@ -86,6 +86,24 @@ public final class DeathProtectionRestorationController {
             return Optional.of(new ExecutionCommand.SelectHotbar(hotbar.originalSelectedIndex()));
         }
 
+        if (checkpoint instanceof RestorationCheckpoint.RoutedContainer routed) {
+            if (context.menu().containerId() != routed.containerId()
+                || context.menu().menuSlotForInventoryIndex(routed.sourceInventoryIndex()).orElse(-1) != routed.sourceMenuSlot()) {
+                clear();
+                return Optional.empty();
+            }
+            pendingRestore = new PendingRestore.RoutedContainer(
+                context.menu().stateId(),
+                Math.max(context.currentServerTick(), context.timing().nextPacketProcessingWindow().latest())
+            );
+            return Optional.of(new ExecutionCommand.SwapMenuSlot(
+                routed.containerId(),
+                context.menu().stateId(),
+                routed.sourceMenuSlot(),
+                routed.button()
+            ));
+        }
+
         RestorationCheckpoint.Container container = (RestorationCheckpoint.Container) checkpoint;
         EmergencyInventoryTransaction restoring = container.transaction().attemptRestore(false);
         if (restoring.state() != EmergencyInventoryTransaction.State.RESTORING) {
@@ -115,6 +133,19 @@ public final class DeathProtectionRestorationController {
                 && same(context, hotbar.protectionHotbarIndex(), hotbar.protectionAfter());
         }
 
+        if (checkpoint instanceof RestorationCheckpoint.RoutedContainer routed) {
+            if (context.menu().containerId() != routed.containerId()) return false;
+            if (context.menu().menuSlotForInventoryIndex(routed.sourceInventoryIndex()).orElse(-1) != routed.sourceMenuSlot()) {
+                return false;
+            }
+            if (routed.destinationInventoryIndex() >= 0 && routed.destinationInventoryIndex() <= 8
+                && context.inventory().selectedHotbarIndex() != routed.destinationInventoryIndex()) {
+                return false;
+            }
+            return same(context, routed.sourceInventoryIndex(), routed.sourceAfter())
+                && same(context, routed.destinationInventoryIndex(), routed.destinationAfter());
+        }
+
         RestorationCheckpoint.Container container = (RestorationCheckpoint.Container) checkpoint;
         if (context.menu().containerId() != container.transaction().containerId()) return false;
         if (container.transaction().state() != EmergencyInventoryTransaction.State.CONFIRMED
@@ -141,6 +172,22 @@ public final class DeathProtectionRestorationController {
             if (selected != hotbar.protectionHotbarIndex() || context.currentServerTick() > pending.confirmByServerTick()) {
                 clear();
             }
+            return;
+        }
+
+        if (checkpoint instanceof RestorationCheckpoint.RoutedContainer routed
+            && pendingRestore instanceof PendingRestore.RoutedContainer pending) {
+            if (context.menu().containerId() != routed.containerId()) {
+                clear();
+                return;
+            }
+            if (context.menu().stateId() != pending.sentStateId()) {
+                boolean restored = same(context, routed.sourceInventoryIndex(), routed.destinationAfter())
+                    && same(context, routed.destinationInventoryIndex(), routed.originalDestinationBefore());
+                clear();
+                return;
+            }
+            if (context.currentServerTick() > pending.confirmByServerTick()) clear();
             return;
         }
 
@@ -174,6 +221,7 @@ public final class DeathProtectionRestorationController {
 
     private sealed interface PendingRestore {
         record Hotbar(long confirmByServerTick) implements PendingRestore {}
+        record RoutedContainer(int sentStateId, long confirmByServerTick) implements PendingRestore {}
         record Container(int sentStateId, long confirmByServerTick) implements PendingRestore {}
     }
 }
