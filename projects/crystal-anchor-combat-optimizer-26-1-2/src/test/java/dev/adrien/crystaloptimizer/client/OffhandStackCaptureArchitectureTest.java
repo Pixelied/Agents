@@ -16,9 +16,21 @@ final class OffhandStackCaptureArchitectureTest {
             "src/client/java/dev/adrien/crystaloptimizer/client/execution/VanillaInteractionDispatcher.java"
         ));
 
-        assertTrue(snapshotBuilder.contains("offhand.getCount()"),
-            "strategic snapshots must preserve the real offhand stack quantity");
-        assertTrue(dispatcher.contains("offhand.getCount()"),
-            "live interaction routing must preserve the same offhand stack quantity model");
+        assertConstructorCarriesOffhandCount(snapshotBuilder, "strategic snapshot");
+        assertConstructorCarriesOffhandCount(dispatcher, "live dispatcher");
+    }
+
+    private static void assertConstructorCarriesOffhandCount(String source, String label) {
+        int constructor = source.indexOf("return new InventoryState(");
+        int offhandItem = source.indexOf("offhand.isEmpty()", constructor);
+        int offhandCount = source.indexOf("offhand.getCount()", offhandItem);
+        int constructorEnd = source.indexOf(");", constructor);
+        assertTrue(
+            constructor >= 0
+                && offhandItem > constructor
+                && offhandCount > offhandItem
+                && offhandCount < constructorEnd,
+            label + " must pass the real offhand stack count into InventoryState"
+        );
     }
 }
