@@ -1,7 +1,12 @@
 package dev.adrien.crystaloptimizer.v2.debug;
 
+import dev.adrien.crystaloptimizer.sim.model.InventoryState;
+import dev.adrien.crystaloptimizer.v2.state.StrategicSnapshot;
+import dev.adrien.crystaloptimizer.world.CombatSnapshot;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -40,5 +45,57 @@ final class ReplayResourceTest {
             assertFalse(first.chosenDecisionKey().isBlank(), name + " produced a blank decision key");
             assertFalse(first.decisionClass().isBlank(), name + " produced a blank decision class");
         }
+    }
+
+    @Test
+    void replayRoundTripPreservesExactOffhandStackCountApartFromReserveInventory() {
+        ReplayFixture base = V3ReplayFixtures.checkedInFixtures().values().iterator().next();
+        InventoryState exactInventory = new InventoryState(
+            0,
+            Map.of(Items.END_CRYSTAL, 7),
+            Map.of(),
+            Map.of(),
+            Optional.of(Items.END_CRYSTAL),
+            2
+        );
+        CombatSnapshot combat = base.snapshot().combat();
+        CombatSnapshot exactCombat = new CombatSnapshot(
+            combat.worldRevision(),
+            combat.selfId(),
+            combat.region(),
+            combat.combatants(),
+            combat.crystals(),
+            combat.anchors(),
+            exactInventory,
+            combat.timing(),
+            combat.legality(),
+            combat.spatial(),
+            combat.difficulty()
+        );
+        StrategicSnapshot snapshot = base.snapshot();
+        StrategicSnapshot exactSnapshot = new StrategicSnapshot(
+            snapshot.snapshotId(),
+            snapshot.worldRevision(),
+            snapshot.inventoryRevision(),
+            snapshot.configRevision(),
+            snapshot.capturedAtNanos(),
+            snapshot.selfId(),
+            snapshot.targetRevisions(),
+            exactCombat,
+            snapshot.movementHistory(),
+            snapshot.protectedPlayerIds(),
+            snapshot.targetProtection(),
+            snapshot.timing()
+        );
+
+        ReplayFixture roundTrip = new ReplayCodec().decode(new ReplayCodec().encode(
+            new ReplayFixture(exactSnapshot, base.config(), base.events())
+        ));
+
+        InventoryState decoded = roundTrip.snapshot().combat().inventory();
+        assertEquals(2, decoded.offhandCount(),
+            "replay must not infer reserve inventory as extra offhand items");
+        assertEquals(Items.END_CRYSTAL, decoded.offhandItem().orElseThrow());
+        assertEquals(7, decoded.count(Items.END_CRYSTAL));
     }
 }
