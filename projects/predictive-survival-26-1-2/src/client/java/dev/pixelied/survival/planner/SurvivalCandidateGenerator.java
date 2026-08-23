@@ -248,15 +248,21 @@ public final class SurvivalCandidateGenerator {
         boolean hasBlockableThreat = timeline.events().stream().anyMatch(ThreatEvent::blockable);
         if (!hasBlockableThreat) return;
 
-        boolean activeOffhand = inventory.activeOffhandShield()
-            && inventory.slot(40).map(slot -> !slot.blockingOnCooldown()).orElse(false);
-        boolean selectedMainhandShield = inventory.slot(inventory.selectedHotbarIndex())
-            .map(slot -> slot.count() > 0
-                && "minecraft:shield".equals(slot.stackKey())
-                && !slot.blockingOnCooldown())
-            .orElse(false);
+        InventorySlotSnapshot offhand = inventory.slot(40).orElse(null);
+        boolean heldOffhandShield = offhand != null
+            && offhand.count() > 0
+            && "minecraft:shield".equals(offhand.stackKey())
+            && offhand.blockingProfile().isPresent()
+            && !offhand.blockingOnCooldown();
+        boolean activeOffhand = inventory.activeOffhandShield() && heldOffhandShield;
+        InventorySlotSnapshot selected = inventory.slot(inventory.selectedHotbarIndex()).orElse(null);
+        boolean selectedMainhandShield = selected != null
+            && selected.count() > 0
+            && "minecraft:shield".equals(selected.stackKey())
+            && selected.blockingProfile().isPresent()
+            && !selected.blockingOnCooldown();
 
-        if (activeOffhand || selectedMainhandShield) {
+        if (heldOffhandShield || selectedMainhandShield) {
             BlockingSnapshot blocking = context.player().blocking();
             int elapsed = activeOffhand ? blocking.elapsedUseTicks() : 0;
             int required = activeOffhand
@@ -264,9 +270,16 @@ public final class SurvivalCandidateGenerator {
                 : SHIELD_WARMUP_TICKS;
             int requiredServerTicks = activeOffhand && elapsed >= required ? 0 : Math.max(0, required - elapsed);
 
+            InventorySlotSnapshot shieldSlot = heldOffhandShield ? offhand : selected;
+            SurvivalAction.Hand shieldHand = heldOffhandShield
+                ? SurvivalAction.Hand.OFF_HAND
+                : SurvivalAction.Hand.MAIN_HAND;
             java.util.Optional<dev.pixelied.survival.damage.BlockingProfileSnapshot> profile = activeOffhand
-                ? context.player().blocking().profile().or(() -> inventory.slot(40).flatMap(InventorySlotSnapshot::blockingProfile))
-                : inventory.slot(inventory.selectedHotbarIndex()).flatMap(InventorySlotSnapshot::blockingProfile);
+                ? context.player().blocking().profile().or(shieldSlot::blockingProfile)
+                : shieldSlot.blockingProfile();
+            SurvivalItemRoute heldRoute = new SurvivalItemRoute.AlreadyHeld(
+                shieldHand, shieldSlot.stackKey(), shieldSlot.componentFingerprint()
+            );
 
             candidates.add(new SurvivalAction.RaiseShield(
                 requiredServerTicks,
@@ -278,7 +291,10 @@ public final class SurvivalCandidateGenerator {
                 elapsed,
                 required,
                 0,
-                profile
+                profile,
+                java.util.Optional.of(new SurvivalAction.HeldItemRef(
+                    shieldHand, shieldSlot.stackKey(), shieldSlot.componentFingerprint(), java.util.Optional.of(heldRoute)
+                ))
             ));
             return;
         }

@@ -106,9 +106,14 @@ public interface SurvivalAction {
             DeathProtectionSnapshot next = hand == Hand.MAIN_HAND
                 ? new DeathProtectionSnapshot(Optional.of(item), current.offHand())
                 : new DeathProtectionSnapshot(current.mainHand(), Optional.of(item));
+            BlockingSnapshot nextBlocking = player.blocking();
+            String targetSlot = hand == Hand.MAIN_HAND ? "mainhand" : "offhand";
+            if ("minecraft:shield".equals(player.equipmentItemKeys().get(targetSlot))) {
+                nextBlocking = BlockingSnapshot.none();
+            }
             return copy(
                 player, player.health(), player.absorption(), player.mitigation(), player.statusEffects(),
-                player.blocking(), next, player.equipmentItemKeys()
+                nextBlocking, next, player.equipmentItemKeys()
             );
         }
     }
