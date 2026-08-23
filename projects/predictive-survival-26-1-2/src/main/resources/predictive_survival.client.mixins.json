@@ -6,6 +6,7 @@
     "FallingBlockEntityAccessor",
     "FireworkRocketAccessor",
     "FoodDataAccessor",
+    "MobEffectInstanceAccessor",
     "PrimedTntAccessor"
   ],
   "injectors": {
