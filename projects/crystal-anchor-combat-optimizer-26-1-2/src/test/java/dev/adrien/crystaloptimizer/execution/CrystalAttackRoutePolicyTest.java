@@ -88,4 +88,59 @@ final class CrystalAttackRoutePolicyTest {
             StatusEffectSnapshot.weakness(0)
         ));
     }
+
+    @Test
+    void weaknessFallbackUsesNearestSufficientSlotInsteadOfStrongestWeapon() {
+        InventoryState inventory = new InventoryState(
+            4,
+            Map.of(
+                Items.END_CRYSTAL, 1,
+                Items.IRON_SWORD, 1,
+                Items.NETHERITE_AXE, 1
+            ),
+            Map.of(
+                3, Items.IRON_SWORD,
+                4, Items.END_CRYSTAL,
+                8, Items.NETHERITE_AXE
+            ),
+            Map.of(3, 1, 4, 1, 8, 1),
+            Optional.empty()
+        );
+
+        InteractionRoute route = new CrystalAttackRoutePolicy().route(
+            inventory,
+            StatusEffectSnapshot.weakness(0),
+            CrystalAttackCapability.vanilla26_1_2()
+        ).orElseThrow();
+
+        assertEquals(3, route.selectedSlot().orElseThrow(),
+            "any positive hit breaks a 26.1.2 crystal, so fallback should minimize hotbar disruption rather than chase attack damage");
+    }
+
+    @Test
+    void equallyNearSufficientSlotsUseStableLowerSlotTieBreak() {
+        InventoryState inventory = new InventoryState(
+            4,
+            Map.of(
+                Items.END_CRYSTAL, 1,
+                Items.IRON_SWORD, 1,
+                Items.DIAMOND_SWORD, 1
+            ),
+            Map.of(
+                3, Items.IRON_SWORD,
+                4, Items.END_CRYSTAL,
+                5, Items.DIAMOND_SWORD
+            ),
+            Map.of(3, 1, 4, 1, 5, 1),
+            Optional.empty()
+        );
+
+        InteractionRoute route = new CrystalAttackRoutePolicy().route(
+            inventory,
+            StatusEffectSnapshot.weakness(0),
+            CrystalAttackCapability.vanilla26_1_2()
+        ).orElseThrow();
+
+        assertEquals(3, route.selectedSlot().orElseThrow());
+    }
 }
