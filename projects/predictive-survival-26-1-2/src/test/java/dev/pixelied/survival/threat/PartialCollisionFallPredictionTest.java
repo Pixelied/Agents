@@ -35,13 +35,17 @@ class PartialCollisionFallPredictionTest {
     }
 
     @Test
-    void missingShapeMetadataCannotUnderstateKnownPartialCollisionDamage() {
+    void missingShapeMetadataCannotInventHigherSaferLandingSurface() {
         LandingPrediction exactSlab = new FallLandingSolver().solve(context(slab(true))).orElseThrow();
         LandingPrediction unknownShape = new FallLandingSolver().solve(context(slab(false))).orElseThrow();
 
         assertTrue(
+            unknownShape.position().y() <= exactSlab.position().y(),
+            "unknown collidable geometry must never invent a higher landing surface than a known partial block"
+        );
+        assertTrue(
             unknownShape.rawFallDamage().max() >= exactSlab.rawFallDamage().max(),
-            "unknown collidable geometry must fall back toward more damage, never a higher fake landing surface"
+            "unknown collidable geometry must never understate known partial-block fall damage"
         );
     }
 
