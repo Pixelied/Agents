@@ -199,13 +199,15 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     public ExecutionStatus observe(SurvivalAction action, SurvivalEngine.EngineFrame frame) {
         Objects.requireNonNull(action, "action");
         LiveState state = requireLiveState(frame);
+        ExecutionStatus status;
         if (action instanceof SurvivalAction.EquipDeathProtection) {
-            return protectionExecutor.observe(executionContext(state));
+            status = protectionExecutor.observe(executionContext(state));
+        } else if (action instanceof SurvivalAction.RaiseShield) {
+            status = shieldExecutor.observe(executionContext(state));
+        } else {
+            status = nonTotemExecutor.observe(nonTotemContext(state));
         }
-        if (action instanceof SurvivalAction.RaiseShield) {
-            return shieldExecutor.observe(executionContext(state));
-        }
-        return nonTotemExecutor.observe(nonTotemContext(state));
+        return dispatchIfNeeded(status, state.timing());
     }
 
     @Override
