@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public final class SurvivalCandidateGenerator {
     private static final int SHIELD_WARMUP_TICKS = 5;
@@ -89,10 +90,22 @@ public final class SurvivalCandidateGenerator {
                     && dualProtectionRoutesAvailable(inventory, menu)
                     && needsMultipleProtectionsFromEmpty(context, timeline, inventory);
                 if (dualFromEmpty) {
-                    routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND)
-                        .ifPresent(route -> addProtectionCandidate(candidates, context, inventory, menu, route));
-                    routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND)
-                        .ifPresent(route -> addProtectionCandidate(candidates, context, inventory, menu, route));
+                    var mainRoute = routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND);
+                    if (mainRoute.isPresent()) {
+                        DeathProtectionRoute route = mainRoute.orElseThrow();
+                        InventorySlotSnapshot mainSource = routedProtectionSlot(inventory, menu, route).orElse(null);
+                        if (mainSource != null) {
+                            addProtectionCandidate(candidates, context, inventory, menu, route);
+                            routePlanner.choose(
+                                inventory,
+                                menu,
+                                DeathProtectionRoute.Destination.OFF_HAND,
+                                Set.of(mainSource.inventoryIndex())
+                            ).ifPresent(offRoute -> addProtectionCandidate(
+                                candidates, context, inventory, menu, offRoute
+                            ));
+                        }
+                    }
                 } else {
                     var route = policy.mainHandTakeover()
                         ? routePlanner.choose(inventory, menu)
@@ -211,7 +224,13 @@ public final class SurvivalCandidateGenerator {
             true,
             1d,
             1,
-            hand == SurvivalAction.Hand.OFF_HAND ? 1 : 2
+            hand == SurvivalAction.Hand.OFF_HAND ? 1 : 2,
+            java.util.Optional.of(new SurvivalAction.DeathProtectionSourceRef(
+                routedSlot.inventoryIndex(),
+                routedSlot.stackKey(),
+                routedSlot.componentFingerprint(),
+                route
+            ))
         ));
     }
 
