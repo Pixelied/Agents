@@ -396,6 +396,9 @@ public final class NonTotemActionExecutor {
         }
 
         ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
+        if (!evidence.known()) {
+            return context.menu().stateId() != pending.containerStateId();
+        }
         return evidence.inventoryMatchesAfter(
                 swap.sourceInventoryIndex(), candidate.originalDestinationBefore(), candidate.authorityRevisionBeforeSwap()
             )
