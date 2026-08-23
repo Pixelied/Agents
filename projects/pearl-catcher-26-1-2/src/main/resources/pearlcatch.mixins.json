@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "studio.pixelied.pearlcatch.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "MinecraftUseMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
