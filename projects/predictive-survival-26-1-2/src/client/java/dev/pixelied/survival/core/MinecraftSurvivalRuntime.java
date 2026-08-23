@@ -1,5 +1,6 @@
 package dev.pixelied.survival.core;
 
+import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.execution.DeathProtectionActionExecutor;
 import dev.pixelied.survival.execution.DeathProtectionRestorationController;
@@ -106,6 +107,12 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
     @Override
     public SurvivalEngine.EngineFrame capture() {
+        return capture(RescuePolicy.smartDefaults());
+    }
+
+    @Override
+    public SurvivalEngine.EngineFrame capture(RescuePolicy policy) {
+        Objects.requireNonNull(policy, "policy");
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.level == null) {
             throw new IllegalStateException("Minecraft player/level are not available");
@@ -146,7 +153,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         cloudAttributions.observePredictedThreats(clientTick, predicted);
         splashStatusMemory.observePredictedThreats(context, predicted);
         ThreatTimeline timeline = new ThreatTimeline(predicted);
-        List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu);
+        List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu, policy);
 
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, timeline, candidates);
         liveState = new LiveState(frame, inventory, menu, timing, reactive.player());
