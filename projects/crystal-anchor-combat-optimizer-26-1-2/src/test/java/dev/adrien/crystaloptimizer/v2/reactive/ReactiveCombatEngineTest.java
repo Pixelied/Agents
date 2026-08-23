@@ -102,30 +102,35 @@ final class ReactiveCombatEngineTest {
 
     @Test
     void inventoryMutationInvalidatesWithoutTriggeringFixedAction() {
-        assertInvalidationDoesNotTrigger(new CombatEvent.InventoryChanged(12L, 3_000L));
+        assertNonTriggerEvent(new CombatEvent.InventoryChanged(12L, 3_000L));
     }
 
     @Test
     void configMutationInvalidatesWithoutTriggeringFixedAction() {
-        assertInvalidationDoesNotTrigger(new CombatEvent.ConfigChanged(14L, 3_100L));
+        assertNonTriggerEvent(new CombatEvent.ConfigChanged(14L, 3_100L));
     }
 
     @Test
     void targetMovementInvalidatesWithoutTriggeringFixedAction() {
-        assertInvalidationDoesNotTrigger(new CombatEvent.TargetMoved(target, 10L, 3_200L));
+        assertNonTriggerEvent(new CombatEvent.TargetMoved(target, 10L, 3_200L));
     }
 
     @Test
     void equipmentMutationInvalidatesWithoutTriggeringFixedAction() {
-        assertInvalidationDoesNotTrigger(new CombatEvent.EquipmentChanged(target, 3_300L));
+        assertNonTriggerEvent(new CombatEvent.EquipmentChanged(target, 3_300L));
     }
 
     @Test
     void blockMutationInvalidatesWithoutTriggeringFixedAction() {
-        assertInvalidationDoesNotTrigger(new CombatEvent.BlockChanged(base, 3_400L));
+        assertNonTriggerEvent(new CombatEvent.BlockChanged(base, 3_400L));
     }
 
-    private void assertInvalidationDoesNotTrigger(CombatEvent event) {
+    @Test
+    void blockAckIsObservationOnlyAndDoesNotTriggerFixedAction() {
+        assertNonTriggerEvent(new CombatEvent.BlockAcked(91, 3_500L));
+    }
+
+    private void assertNonTriggerEvent(CombatEvent event) {
         ReactiveCombatEngine engine = new ReactiveCombatEngine();
         ActionApproval place = approval(
             30L,
