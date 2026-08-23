@@ -93,11 +93,16 @@ public final class MinecraftWorldSnapshotFactory {
         }
 
         List<WorldSnapshot.BlockSnapshot> nearbyBlocks = captureBlocks(level, player.blockPosition());
-        List<WorldSnapshot.BlockSnapshot> blocks = MinecraftFallCorridorSnapshotFactory.augment(
+        List<WorldSnapshot.BlockSnapshot> fallAwareBlocks = MinecraftFallCorridorSnapshotFactory.augment(
             level,
             player,
             limits,
             nearbyBlocks
+        );
+        List<WorldSnapshot.BlockSnapshot> blocks = MinecraftTriggerableExplosionSnapshotFactory.augment(
+            level,
+            player,
+            fallAwareBlocks
         );
         return new WorldSnapshot(entities, blocks);
     }
