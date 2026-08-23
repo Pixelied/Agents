@@ -100,6 +100,52 @@ final class ReactiveCombatEngineTest {
         assertEquals(java.util.List.of(new DetonateAnchor(base)), decision.actions());
     }
 
+    @Test
+    void inventoryMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertNonTriggerEvent(new CombatEvent.InventoryChanged(12L, 3_000L));
+    }
+
+    @Test
+    void configMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertNonTriggerEvent(new CombatEvent.ConfigChanged(14L, 3_100L));
+    }
+
+    @Test
+    void targetMovementInvalidatesWithoutTriggeringFixedAction() {
+        assertNonTriggerEvent(new CombatEvent.TargetMoved(target, 10L, 3_200L));
+    }
+
+    @Test
+    void equipmentMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertNonTriggerEvent(new CombatEvent.EquipmentChanged(target, 3_300L));
+    }
+
+    @Test
+    void blockMutationInvalidatesWithoutTriggeringFixedAction() {
+        assertNonTriggerEvent(new CombatEvent.BlockChanged(base, 3_400L));
+    }
+
+    @Test
+    void blockAckIsObservationOnlyAndDoesNotTriggerFixedAction() {
+        assertNonTriggerEvent(new CombatEvent.BlockAcked(91, 3_500L));
+    }
+
+    private void assertNonTriggerEvent(CombatEvent event) {
+        ReactiveCombatEngine engine = new ReactiveCombatEngine();
+        ActionApproval place = approval(
+            30L,
+            ApprovalSlot.PLACE,
+            new FixedActionSequence(java.util.List.of(new PlaceCrystal(base)))
+        );
+        CombatBlackboardSnapshot snapshot = snapshot(Map.of(ApprovalSlot.PLACE, place));
+
+        assertTrue(engine.decide(
+            event,
+            snapshot,
+            event.timestampNanos() + 10L
+        ).isEmpty());
+    }
+
     private ActionApproval approval(
         long id,
         ApprovalSlot slot,

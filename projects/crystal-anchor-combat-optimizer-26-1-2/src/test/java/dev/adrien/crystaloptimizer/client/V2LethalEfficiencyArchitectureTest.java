@@ -11,7 +11,7 @@ final class V2LethalEfficiencyArchitectureTest {
     @Test
     void damageMapBuilderAdmitsThroughSafetyAndSpendPolicyBeforePublishing() throws IOException {
         String source = Files.readString(Path.of(
-            "src/client/java/dev/adrien/crystaloptimizer/client/v2/ClientDamageMapBuilder.java"
+            "src/main/java/dev/adrien/crystaloptimizer/v2/strategy/StrategicDamageMapBuilder.java"
         ));
 
         assertTrue(source.contains("SelfDamageEstimate"));

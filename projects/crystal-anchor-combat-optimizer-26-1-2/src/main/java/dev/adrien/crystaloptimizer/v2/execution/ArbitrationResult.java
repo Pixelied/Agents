@@ -31,6 +31,7 @@ public record ArbitrationResult(
 
     public enum Reason {
         NONE,
+        MANUAL_OVERRIDE,
         STALE_APPROVAL,
         INVALID_TARGET,
         SELF_LETHAL,

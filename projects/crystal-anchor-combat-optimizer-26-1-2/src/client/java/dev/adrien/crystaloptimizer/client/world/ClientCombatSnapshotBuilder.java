@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -60,9 +61,28 @@ public final class ClientCombatSnapshotBuilder {
     }
 
     public Optional<CombatSnapshot> build(AbstractClientPlayer target) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        return build(List.of(target));
+    }
+
+    public Optional<CombatSnapshot> build(List<? extends AbstractClientPlayer> targets) {
+        Objects.requireNonNull(targets, "targets");
         LocalPlayer self = minecraft.player;
         ClientLevel level = minecraft.level;
-        if (self == null || level == null || target == null || target == self || target.isRemoved()) {
+        if (self == null || level == null) {
+            return Optional.empty();
+        }
+
+        ArrayList<AbstractClientPlayer> validTargets = new ArrayList<>(targets.size());
+        for (AbstractClientPlayer target : targets) {
+            if (target == null || target == self || target.isRemoved() || validTargets.contains(target)) {
+                continue;
+            }
+            validTargets.add(target);
+        }
+        if (validTargets.isEmpty()) {
             return Optional.empty();
         }
 
@@ -71,17 +91,23 @@ public final class ClientCombatSnapshotBuilder {
             (int)Math.ceil(Math.max(self.blockInteractionRange(), self.entityInteractionRange())) + 2
         );
         BlockPos selfPos = self.blockPosition();
-        BlockPos targetPos = target.blockPosition();
-        BlockPos min = new BlockPos(
-            Math.min(selfPos.getX(), targetPos.getX()) - margin,
-            Math.min(selfPos.getY(), targetPos.getY()) - margin,
-            Math.min(selfPos.getZ(), targetPos.getZ()) - margin
-        );
-        BlockPos max = new BlockPos(
-            Math.max(selfPos.getX(), targetPos.getX()) + margin,
-            Math.max(selfPos.getY(), targetPos.getY()) + margin,
-            Math.max(selfPos.getZ(), targetPos.getZ()) + margin
-        );
+        int minX = selfPos.getX();
+        int minY = selfPos.getY();
+        int minZ = selfPos.getZ();
+        int maxX = selfPos.getX();
+        int maxY = selfPos.getY();
+        int maxZ = selfPos.getZ();
+        for (AbstractClientPlayer target : validTargets) {
+            BlockPos targetPos = target.blockPosition();
+            minX = Math.min(minX, targetPos.getX());
+            minY = Math.min(minY, targetPos.getY());
+            minZ = Math.min(minZ, targetPos.getZ());
+            maxX = Math.max(maxX, targetPos.getX());
+            maxY = Math.max(maxY, targetPos.getY());
+            maxZ = Math.max(maxZ, targetPos.getZ());
+        }
+        BlockPos min = new BlockPos(minX - margin, minY - margin, minZ - margin);
+        BlockPos max = new BlockPos(maxX + margin, maxY + margin, maxZ + margin);
         AABB scanBox = new AABB(
             min.getX(), min.getY(), min.getZ(),
             max.getX() + 1.0, max.getY() + 1.0, max.getZ() + 1.0
@@ -120,9 +146,9 @@ public final class ClientCombatSnapshotBuilder {
         }
 
         EffectState selfEffects = effects(self);
-        EffectState targetEffects = effects(target);
         SimCombatant selfState = ObservedCombatantAssembler.self(
             self.getHealth(),
+            self.getAbsorptionAmount(),
             equipment(self),
             selfEffects,
             blocking(self),
@@ -131,26 +157,40 @@ public final class ClientCombatSnapshotBuilder {
             self.getOffhandItem().is(Items.TOTEM_OF_UNDYING),
             self.isDeadOrDying()
         );
-        SimCombatant targetState = ObservedCombatantAssembler.target(
-            target.getHealth(),
-            equipment(target),
-            targetEffects,
-            blocking(target),
-            target.invulnerableTime,
-            target.getMainHandItem().is(Items.TOTEM_OF_UNDYING),
-            target.getOffhandItem().is(Items.TOTEM_OF_UNDYING),
-            target.isDeadOrDying()
-        );
 
         UUID selfId = self.getUUID();
-        UUID targetId = target.getUUID();
-        Map<UUID, SimCombatant> combatants = Map.of(selfId, selfState, targetId, targetState);
-        Map<UUID, CombatantSpatialState> spatial = Map.of(
+        LinkedHashMap<UUID, SimCombatant> combatants = new LinkedHashMap<>();
+        LinkedHashMap<UUID, CombatantSpatialState> spatial = new LinkedHashMap<>();
+        combatants.put(selfId, selfState);
+        spatial.put(
             selfId,
-            new CombatantSpatialState(self.position(), self.getBoundingBox(), self.getDeltaMovement()),
-            targetId,
-            new CombatantSpatialState(target.position(), target.getBoundingBox(), target.getDeltaMovement())
+            new CombatantSpatialState(self.position(), self.getBoundingBox(), self.getDeltaMovement())
         );
+        for (AbstractClientPlayer target : validTargets) {
+            combatants.put(target.getUUID(), observedRemote(target, effects(target)));
+            spatial.put(
+                target.getUUID(),
+                new CombatantSpatialState(
+                    target.position(),
+                    target.getBoundingBox(),
+                    target.getDeltaMovement()
+                )
+            );
+        }
+        for (AbstractClientPlayer player : level.players()) {
+            if (player == self || player.isRemoved() || combatants.containsKey(player.getUUID())) {
+                continue;
+            }
+            combatants.put(player.getUUID(), observedRemote(player, effects(player)));
+            spatial.put(
+                player.getUUID(),
+                new CombatantSpatialState(
+                    player.position(),
+                    player.getBoundingBox(),
+                    player.getDeltaMovement()
+                )
+            );
+        }
 
         boolean respawnAnchorWorks = level.environmentAttributes()
             .getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, selfPos);
@@ -185,6 +225,22 @@ public final class ClientCombatSnapshotBuilder {
         ));
     }
 
+    private static SimCombatant observedRemote(
+        AbstractClientPlayer player,
+        EffectState effects
+    ) {
+        return ObservedCombatantAssembler.target(
+            player.getHealth(),
+            equipment(player),
+            effects,
+            blocking(player),
+            player.invulnerableTime,
+            player.getMainHandItem().is(Items.TOTEM_OF_UNDYING),
+            player.getOffhandItem().is(Items.TOTEM_OF_UNDYING),
+            player.isDeadOrDying()
+        );
+    }
+
     private static InventoryState inventory(LocalPlayer self) {
         LinkedHashMap<Item, Integer> counts = new LinkedHashMap<>();
         LinkedHashMap<Integer, Item> hotbar = new LinkedHashMap<>();
@@ -211,7 +267,8 @@ public final class ClientCombatSnapshotBuilder {
             counts,
             hotbar,
             hotbarCounts,
-            offhand.isEmpty() ? Optional.empty() : Optional.of(offhand.getItem())
+            offhand.isEmpty() ? Optional.empty() : Optional.of(offhand.getItem()),
+            offhand.isEmpty() ? 0 : offhand.getCount()
         );
     }
 

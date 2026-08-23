@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "crystalbot-v3-combat-core",
+  "scope": "projects/crystal-anchor-combat-optimizer-26-1-2",
+  "owner": "openai-crystalbot-v3-6c91",
+  "state": "active",
+  "intent": "Implement the approved CrystalBot V3 Combat Core plan with TDD and full Java 25 CI/GameTest verification",
+  "claimed_at": "2026-08-21T23:18:37+00:00",
+  "heartbeat_at": "2026-08-21T23:18:37+00:00",
+  "expires_at": "2026-08-22T23:18:37+00:00",
+  "generation": 1
+}

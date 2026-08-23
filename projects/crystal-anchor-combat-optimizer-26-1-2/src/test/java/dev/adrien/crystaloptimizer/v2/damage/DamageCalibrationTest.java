@@ -17,7 +17,11 @@ class DamageCalibrationTest {
     void outOfIntervalObservedDamageProducesMismatchWithoutCorrectionState() {
         DamageCalibration calibration = new DamageCalibration();
         DamageEstimate estimate = new DamageEstimate(
-            14.0f, 16.0f, 18.0f, 0.9, Set.of(), 7L, 9L
+            14.0f, 16.0f, 18.0f,
+            14.0f, 16.0f, 18.0f,
+            14.0f, 16.0f, 18.0f,
+            0.0, 0.0, 0.9,
+            Set.of(), 7L, 9L
         );
         calibration.observePrediction(
             44L,
@@ -42,10 +46,10 @@ class DamageCalibrationTest {
     void knownUncertaintyDrivesMismatchTaxonomy() {
         DamageCalibration calibration = new DamageCalibration();
         DamageEstimate estimate = new DamageEstimate(
-            10.0f,
-            14.0f,
-            18.0f,
-            0.5,
+            10.0f, 14.0f, 18.0f,
+            10.0f, 14.0f, 18.0f,
+            10.0f, 14.0f, 18.0f,
+            0.0, 0.0, 0.5,
             Set.of(DamageUncertainty.HURT_THRESHOLD_UNKNOWN),
             3L,
             4L
