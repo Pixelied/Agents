@@ -42,8 +42,11 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
         int duration = effect.durationTicks();
         long visibleHorizon = Math.min(totalHorizon, duration);
         for (long tick = 1; tick <= visibleHorizon; tick++) {
-            int remainingDuration = duration - (int) tick;
-            boolean applies = interval <= 0 || remainingDuration % interval == 0;
+            // MobEffectInstance.tickServer tests the current remaining duration before decrementing
+            // it. A START_CLIENT_TICK snapshot with duration D therefore tests D on future tick 1,
+            // D-1 on future tick 2, and so on.
+            int testedDuration = duration - (int) tick + 1;
+            boolean applies = interval <= 0 || testedDuration % interval == 0;
             if (!applies) continue;
 
             if (poison) {
