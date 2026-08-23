@@ -16,6 +16,7 @@ import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
+import dev.pixelied.survival.damage.DamageStage;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
@@ -47,8 +48,12 @@ class ContingencyPlannerTest {
     @Test
     void damageSimulatorFullyBlocksArrowAfterRaiseShieldApply() {
         PlayerSnapshot after = shield().apply(context().player());
-        var damage = new DamageSimulator().simulate(after, arrowEvent().damage());
-        assertTrue(damage.rejected());
+        DamageSourceSnapshot arrow = arrowEvent().damage();
+        assertEquals(100f, after.blocking().profile().orElseThrow().resolveBlockedDamage(arrow, 100f, 0d), 0.0001f);
+
+        var damage = new DamageSimulator().simulate(after, arrow);
+        assertEquals(0f, damage.trace().after(DamageStage.BLOCKING), 0.0001f, damage.trace()::toString);
+        assertTrue(damage.rejected(), damage.trace()::toString);
         assertEquals(20f, damage.after().health(), 0.0001f);
     }
 
