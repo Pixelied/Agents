@@ -76,6 +76,44 @@ class ShieldInventoryRoutingTest {
             "shield route latency and warmup must both be included in the deadline");
     }
 
+    @Test
+    void idleOffhandShieldDoesNotRequireMainHandTakeoverOrInventoryRouting() {
+        BlockingProfileSnapshot profile = BlockingProfileSnapshot.fullBlock(336);
+        InventorySnapshot inventory = new InventorySnapshot(
+            0,
+            Map.of(
+                0, new InventorySlotSnapshot(0, "minecraft:diamond_sword", 101, 1, false,
+                    Optional.empty(), Optional.empty(), Optional.empty()),
+                40, new InventorySlotSnapshot(40, "minecraft:shield", 444, 1, false,
+                    Optional.empty(), Optional.empty(), Optional.of(profile))
+            ),
+            false
+        );
+        RescuePolicy policy = new RescuePolicy(false, true, false, false, false, false, false);
+
+        SurvivalAction.RaiseShield action = assertInstanceOf(
+            SurvivalAction.RaiseShield.class,
+            new SurvivalCandidateGenerator().generate(context(), timeline(), inventory, menu(), policy)
+                .stream()
+                .filter(SurvivalAction.RaiseShield.class::isInstance)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                    "an already-held offhand shield must remain usable when main-hand takeover is disabled"))
+        );
+
+        SurvivalAction.HeldItemRef ref = action.sourceItem().orElseThrow();
+        assertEquals(SurvivalAction.Hand.OFF_HAND, ref.hand());
+        SurvivalItemRoute.AlreadyHeld route = assertInstanceOf(
+            SurvivalItemRoute.AlreadyHeld.class,
+            ref.route().orElseThrow()
+        );
+        assertEquals(SurvivalAction.Hand.OFF_HAND, route.destinationHand());
+        assertEquals("minecraft:shield", route.itemKey());
+        assertEquals(444, route.componentFingerprint());
+        assertEquals(5, action.requiredServerTicks());
+        assertEquals(5, action.requiredUseTicks());
+    }
+
     private static MenuSlotMap menu() {
         return new MenuSlotMap(0, 4, Map.of(0, 36, 2, 38, 40, 45));
     }
