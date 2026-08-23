@@ -93,16 +93,26 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             context.currentServerTick(),
             saturatingAdd(context.currentServerTick(), CONFIRMATION_TIMEOUT_TICKS)
         ).markSent();
+        ContainerPredictionAuthority authority = new ContainerPredictionAuthority(
+            context.menu().containerId(),
+            context.menu().stateId(),
+            sourceInventoryIndex,
+            destinationBefore,
+            destinationInventoryIndex,
+            sourceBefore,
+            context.serverStateEvidence().revision(),
+            context.timing().containerPredictionSettleTick()
+        );
         pending = new Pending.ContainerSwap(
             transaction,
             sourceInventoryIndex,
             destinationInventoryIndex,
             context.currentServerTick(),
             context.timing().nextPacketProcessingWindow().latest(),
-            context.serverStateEvidence().revision()
+            authority
         );
         return new ExecutionStatus.WaitingForServer(
-            "waiting for exact inbound container swap and destination contents",
+            "waiting for server reconciliation of optimistic Totem swap",
             new ExecutionCommand.SwapMenuSlot(
                 context.menu().containerId(),
                 context.menu().stateId(),
@@ -150,9 +160,13 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
 
         Pending.ContainerSwap swap = (Pending.ContainerSwap) pending;
         EmergencyInventoryTransaction transaction = swap.transaction();
-        if (context.menu().containerId() != transaction.containerId()) {
+        ContainerPredictionAuthority.Verdict verdict = swap.authority().evaluate(context);
+        if (verdict == ContainerPredictionAuthority.Verdict.WAITING) {
+            return new ExecutionStatus.WaitingForServer("waiting for Totem swap correction window to settle");
+        }
+        if (verdict == ContainerPredictionAuthority.Verdict.CONTRADICTED) {
             pending = null;
-            return new ExecutionStatus.Failed("container changed before swap confirmation", true);
+            return new ExecutionStatus.Failed("server state contradicted the exact planned Totem swap", true);
         }
 
         InventorySlotSnapshot source = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
@@ -160,10 +174,6 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         if (source == null || destination == null) {
             pending = null;
             return new ExecutionStatus.Failed("inventory slots disappeared during Totem reconciliation", true);
-        }
-
-        if (!containerEvidenceMatches(context, swap, source, destination)) {
-            return new ExecutionStatus.WaitingForServer("waiting for exact inbound Totem swap confirmation");
         }
 
         transaction = transaction.reconcile(source, destination);
@@ -176,7 +186,7 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
                 context.menu().stateId(),
                 context.currentServerTick()
             );
-            return new ExecutionStatus.Confirmed("Totem swap confirmed by exact inbound server state");
+            return new ExecutionStatus.Confirmed("Totem swap accepted after exact server reconciliation");
         }
         return new ExecutionStatus.Failed("server state contradicted the exact planned Totem swap", true);
     }
@@ -196,12 +206,10 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         }
 
         Pending.ContainerSwap swap = (Pending.ContainerSwap) pending;
-        InventorySlotSnapshot source = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
-        InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
-        if (source != null && destination != null && containerEvidenceMatches(context, swap, source, destination)) {
-            return 0;
-        }
-        return ticksUntilOrUnknown(context.currentServerTick(), swap.latestServerEffectTick());
+        ContainerPredictionAuthority.Verdict verdict = swap.authority().evaluate(context);
+        if (verdict == ContainerPredictionAuthority.Verdict.ACCEPTED) return 0;
+        if (verdict == ContainerPredictionAuthority.Verdict.CONTRADICTED) return Integer.MAX_VALUE;
+        return ticksUntilOrUnknown(context.currentServerTick(), swap.authority().settleAtServerTick());
     }
 
     public void reset() {
@@ -213,29 +221,6 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         RestorationCheckpoint result = confirmedRestoration;
         confirmedRestoration = null;
         return Optional.ofNullable(result);
-    }
-
-    private static boolean containerEvidenceMatches(
-        ExecutionContext context,
-        Pending.ContainerSwap pending,
-        InventorySlotSnapshot source,
-        InventorySlotSnapshot destination
-    ) {
-        EmergencyInventoryTransaction transaction = pending.transaction();
-        if (!source.sameContents(transaction.destinationBefore())
-            || !destination.sameContents(transaction.sourceBefore())) {
-            return false;
-        }
-        ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
-        if (!evidence.known()) {
-            return context.menu().stateId() != transaction.stateId();
-        }
-        return evidence.inventoryMatchesAfter(
-                pending.sourceInventoryIndex(), transaction.destinationBefore(), pending.authorityRevisionBeforeSwap()
-            )
-            && evidence.inventoryMatchesAfter(
-                pending.destinationInventoryIndex(), transaction.sourceBefore(), pending.authorityRevisionBeforeSwap()
-            );
     }
 
     private static int sourceInventoryIndex(ExecutionContext context, int sourceMenuSlot) {
@@ -286,8 +271,11 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             int destinationInventoryIndex,
             long startedAtServerTick,
             long latestServerEffectTick,
-            long authorityRevisionBeforeSwap
+            ContainerPredictionAuthority authority
         ) implements Pending {
+            private ContainerSwap {
+                authority = Objects.requireNonNull(authority, "authority");
+            }
         }
     }
 }
