@@ -91,7 +91,7 @@ class DeathProtectionSourceReuseTest {
             DamageRange.exact(100f), Set.of(), false, 1f, false, Optional.empty(), "test:first"
         );
         DamageSourceSnapshot second = new DamageSourceSnapshot(
-            DamageRange.exact(100f), Set.of(), false, 1f, false, Optional.empty(), "test:second"
+            DamageRange.exact(220f), Set.of(), false, 1f, false, Optional.empty(), "test:second"
         );
         return new ThreatTimeline(List.of(
             new ThreatEvent(
