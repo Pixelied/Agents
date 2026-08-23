@@ -80,12 +80,21 @@ jobs:
           text = text.replace('static Result safe()', 'static Result allow()', 1)
           text = text.replace('Result.safe()', 'Result.allow()')
           runtime.write_text(text)
+
+          abi = Path('projects/pearl-catcher-26-1-2/scripts/test-event-class-abi.sh')
+          text = abi.read_text()
+          needle = 'TARGET="${1:?jar or classes path}"\n'
+          if text.count(needle) != 1:
+              raise SystemExit('expected exactly one ABI target declaration')
+          text = text.replace(needle, needle + 'if [[ "$TARGET" != /* ]]; then TARGET="$(pwd)/$TARGET"; fi\n', 1)
+          abi.write_text(text)
           PY
           grep -F 'compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"' projects/pearl-catcher-26-1-2/build.gradle
           ! grep -F 'modCompileOnly' projects/pearl-catcher-26-1-2/build.gradle
           grep -F 'failOnNoDiscoveredTests = false' projects/pearl-catcher-26-1-2/build.gradle
           grep -F 'static Result allow()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
           ! grep -F 'static Result safe()' projects/pearl-catcher-26-1-2/src/client/java/studio/pixelied/pearlcatch/RuntimePathSafety.java
+          grep -F 'if [[ "$TARGET" != /* ]]; then TARGET="$(pwd)/$TARGET"; fi' projects/pearl-catcher-26-1-2/scripts/test-event-class-abi.sh
 
       - name: Source and core regressions
         shell: bash
