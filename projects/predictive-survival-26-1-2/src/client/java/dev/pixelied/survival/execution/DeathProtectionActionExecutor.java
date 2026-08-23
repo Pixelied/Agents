@@ -98,10 +98,11 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             sourceInventoryIndex,
             destinationInventoryIndex,
             context.currentServerTick(),
-            context.timing().nextPacketProcessingWindow().latest()
+            context.timing().nextPacketProcessingWindow().latest(),
+            context.serverStateEvidence().revision()
         );
         return new ExecutionStatus.WaitingForServer(
-            "waiting for server-observed container revision and destination contents",
+            "waiting for exact inbound container swap and destination contents",
             new ExecutionCommand.SwapMenuSlot(
                 context.menu().containerId(),
                 context.menu().stateId(),
@@ -153,18 +154,19 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             pending = null;
             return new ExecutionStatus.Failed("container changed before swap confirmation", true);
         }
-        if (context.menu().stateId() == transaction.stateId()) {
-            return new ExecutionStatus.WaitingForServer("waiting for authoritative container revision");
-        }
 
         InventorySlotSnapshot source = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
         InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
         if (source == null || destination == null) {
             pending = null;
-            return new ExecutionStatus.Failed("authoritative inventory slots disappeared during reconciliation", true);
+            return new ExecutionStatus.Failed("inventory slots disappeared during Totem reconciliation", true);
         }
 
-        transaction = transaction.observeStateIdMismatch().reconcile(source, destination);
+        if (!containerEvidenceMatches(context, swap, source, destination)) {
+            return new ExecutionStatus.WaitingForServer("waiting for exact inbound Totem swap confirmation");
+        }
+
+        transaction = transaction.reconcile(source, destination);
         pending = null;
         if (transaction.state() == EmergencyInventoryTransaction.State.CONFIRMED) {
             confirmedRestoration = new RestorationCheckpoint.Container(
@@ -174,9 +176,9 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
                 context.menu().stateId(),
                 context.currentServerTick()
             );
-            return new ExecutionStatus.Confirmed("container revision and destination contents confirmed by server state");
+            return new ExecutionStatus.Confirmed("Totem swap confirmed by exact inbound server state");
         }
-        return new ExecutionStatus.Failed("server revised container without the exact planned swap", true);
+        return new ExecutionStatus.Failed("server state contradicted the exact planned Totem swap", true);
     }
 
     public int remainingServerTicks(ExecutionContext context) {
@@ -194,11 +196,10 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         }
 
         Pending.ContainerSwap swap = (Pending.ContainerSwap) pending;
-        EmergencyInventoryTransaction transaction = swap.transaction();
-        if (context.menu().containerId() == transaction.containerId()
-            && context.menu().stateId() != transaction.stateId()) {
-            InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
-            if (destination != null && destination.deathProtection()) return 0;
+        InventorySlotSnapshot source = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
+        if (source != null && destination != null && containerEvidenceMatches(context, swap, source, destination)) {
+            return 0;
         }
         return ticksUntilOrUnknown(context.currentServerTick(), swap.latestServerEffectTick());
     }
@@ -212,6 +213,26 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         RestorationCheckpoint result = confirmedRestoration;
         confirmedRestoration = null;
         return Optional.ofNullable(result);
+    }
+
+    private static boolean containerEvidenceMatches(
+        ExecutionContext context,
+        Pending.ContainerSwap pending,
+        InventorySlotSnapshot source,
+        InventorySlotSnapshot destination
+    ) {
+        EmergencyInventoryTransaction transaction = pending.transaction();
+        if (!source.sameContents(transaction.destinationBefore())
+            || !destination.sameContents(transaction.sourceBefore())) {
+            return false;
+        }
+        ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
+        return evidence.inventoryMatchesAfter(
+                pending.sourceInventoryIndex(), transaction.destinationBefore(), pending.authorityRevisionBeforeSwap()
+            )
+            && evidence.inventoryMatchesAfter(
+                pending.destinationInventoryIndex(), transaction.sourceBefore(), pending.authorityRevisionBeforeSwap()
+            );
     }
 
     private static int sourceInventoryIndex(ExecutionContext context, int sourceMenuSlot) {
@@ -261,7 +282,8 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             int sourceInventoryIndex,
             int destinationInventoryIndex,
             long startedAtServerTick,
-            long latestServerEffectTick
+            long latestServerEffectTick,
+            long authorityRevisionBeforeSwap
         ) implements Pending {
         }
     }
