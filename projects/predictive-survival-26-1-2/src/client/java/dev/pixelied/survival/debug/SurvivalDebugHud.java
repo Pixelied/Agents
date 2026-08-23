@@ -3,6 +3,8 @@ package dev.pixelied.survival.debug;
 import dev.pixelied.survival.config.SurvivalConfig;
 import dev.pixelied.survival.core.SurvivalEngine;
 import dev.pixelied.survival.execution.ExecutionStatus;
+import dev.pixelied.survival.planner.ContingencyPlan;
+import dev.pixelied.survival.planner.PlannedStep;
 import dev.pixelied.survival.planner.SurvivalPlan;
 import dev.pixelied.survival.timeline.ThreatEvent;
 
@@ -24,14 +26,25 @@ public final class SurvivalDebugHud {
         Optional<SurvivalPlan> plan,
         Optional<ExecutionStatus> executionStatus
     ) {
+        return lines(config, frame, plan, Optional.empty(), executionStatus);
+    }
+
+    public static List<String> lines(
+        SurvivalConfig config,
+        SurvivalEngine.EngineFrame frame,
+        Optional<SurvivalPlan> plan,
+        Optional<ContingencyPlan> contingency,
+        Optional<ExecutionStatus> executionStatus
+    ) {
         Objects.requireNonNull(config, "config");
         Objects.requireNonNull(frame, "frame");
         Objects.requireNonNull(plan, "plan");
+        Objects.requireNonNull(contingency, "contingency");
         Objects.requireNonNull(executionStatus, "executionStatus");
         if (!config.debugEnabled()) return List.of();
 
         List<String> lines = new ArrayList<>();
-        lines.add("Predictive Survival [" + config.safetyMode() + "]");
+        lines.add("Predictive Survival [" + config.safetyMode() + " | " + config.rescueProfile() + "]");
         lines.add(String.format(
             Locale.ROOT,
             "HP %.2f + %.2f | Hurt %s | RTT %.0fms +/- %.0f",
@@ -60,6 +73,16 @@ public final class SurvivalDebugHud {
             lines.add("+" + (frame.timeline().events().size() - count) + " more threats");
         }
 
+        contingency.ifPresent(current -> {
+            String state = current.guaranteed() ? "guaranteed" : "not guaranteed";
+            String bounded = current.truncated() ? "truncated" : "complete";
+            lines.add("Contingency " + state + " | sequences " + current.evaluatedSequenceCount() + " | " + bounded);
+            if (!current.steps().isEmpty()) {
+                lines.add("Sequence " + sequence(current.steps()));
+            }
+            lines.add("Plan " + current.reason());
+        });
+
         if (plan.isPresent()) {
             SurvivalPlan current = plan.get();
             lines.add(String.format(
@@ -76,6 +99,17 @@ public final class SurvivalDebugHud {
 
         executionStatus.ifPresent(status -> lines.add("Execution " + status.getClass().getSimpleName() + ": " + reason(status)));
         return List.copyOf(lines);
+    }
+
+    private static String sequence(List<PlannedStep> steps) {
+        StringBuilder builder = new StringBuilder();
+        for (PlannedStep step : steps) {
+            if (!builder.isEmpty()) builder.append(" -> ");
+            builder.append(step.action().getClass().getSimpleName())
+                .append('@')
+                .append(step.activationTick());
+        }
+        return builder.toString();
     }
 
     private static String reason(ExecutionStatus status) {
