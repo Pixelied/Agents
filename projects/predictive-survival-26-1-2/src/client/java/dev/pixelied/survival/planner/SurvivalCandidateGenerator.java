@@ -84,10 +84,21 @@ public final class SurvivalCandidateGenerator {
         if (policy.deathProtection() && policy.inventoryRouting()) {
             DeathProtectionSnapshot protection = context.player().deathProtection();
             if (!protection.anyHandAvailable()) {
-                var route = policy.mainHandTakeover()
-                    ? routePlanner.choose(inventory, menu)
-                    : routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND);
-                route.ifPresent(value -> addProtectionCandidate(candidates, inventory, menu, value));
+                boolean dualFromEmpty = policy.proactiveDualProtection()
+                    && policy.mainHandTakeover()
+                    && dualProtectionRoutesAvailable(inventory, menu)
+                    && needsMultipleProtectionsFromEmpty(context, timeline, inventory);
+                if (dualFromEmpty) {
+                    routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND)
+                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                    routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND)
+                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                } else {
+                    var route = policy.mainHandTakeover()
+                        ? routePlanner.choose(inventory, menu)
+                        : routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND);
+                    route.ifPresent(value -> addProtectionCandidate(candidates, inventory, menu, value));
+                }
             } else if (policy.proactiveDualProtection() && needsAdditionalProtection(context, timeline)) {
                 if (protection.offHand().isPresent() && protection.mainHand().isEmpty() && policy.mainHandTakeover()) {
                     routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND)
@@ -107,6 +118,65 @@ public final class SurvivalCandidateGenerator {
     private boolean needsAdditionalProtection(PredictionContext context, ThreatTimeline timeline) {
         var baseline = timelineSimulator.simulate(context.player(), timeline);
         return !baseline.survived() && baseline.consumedDeathProtectionCount() > 0;
+    }
+
+    private boolean needsMultipleProtectionsFromEmpty(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        InventorySnapshot inventory
+    ) {
+        InventorySlotSnapshot source = inventory.slots().values().stream()
+            .filter(slot -> slot.count() > 0 && slot.deathProtection())
+            .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
+            .findFirst()
+            .orElse(null);
+        if (source == null) return false;
+
+        DeathProtectionSnapshot.ProtectionItem item = protectionItem(source);
+        SurvivalAction.EquipDeathProtection hypothetical = new SurvivalAction.EquipDeathProtection(
+            item, SurvivalAction.Hand.MAIN_HAND, 0, true, true, 1d, 1, 0
+        );
+        var withOneProtection = timelineSimulator.simulate(hypothetical.apply(context.player()), timeline);
+        return !withOneProtection.survived() && withOneProtection.consumedDeathProtectionCount() > 0;
+    }
+
+    private static boolean dualProtectionRoutesAvailable(InventorySnapshot inventory, MenuSlotMap menu) {
+        List<InventorySlotSnapshot> sources = inventory.slots().values().stream()
+            .filter(slot -> slot.count() > 0 && slot.deathProtection())
+            .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
+            .toList();
+        if (sources.isEmpty()) return false;
+
+        for (InventorySlotSnapshot mainSource : sources) {
+            if (!canRouteToMainHand(mainSource, inventory, menu)) continue;
+            for (InventorySlotSnapshot offSource : sources) {
+                if (!canRouteToOffHand(offSource, menu)) continue;
+                if (mainSource.inventoryIndex() != offSource.inventoryIndex() || mainSource.count() >= 2) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean canRouteToMainHand(
+        InventorySlotSnapshot source,
+        InventorySnapshot inventory,
+        MenuSlotMap menu
+    ) {
+        int index = source.inventoryIndex();
+        if (index >= 0 && index <= 8 && index != inventory.selectedHotbarIndex()) return true;
+        if (index == inventory.selectedHotbarIndex()) return true;
+        return index != 40
+            && menu.menuSlotForInventoryIndex(index).isPresent()
+            && menu.menuSlotForInventoryIndex(inventory.selectedHotbarIndex()).isPresent();
+    }
+
+    private static boolean canRouteToOffHand(InventorySlotSnapshot source, MenuSlotMap menu) {
+        int index = source.inventoryIndex();
+        if (index == 40) return true;
+        return menu.menuSlotForInventoryIndex(index).isPresent()
+            && menu.menuSlotForInventoryIndex(40).isPresent();
     }
 
     private static void addProtectionCandidate(
@@ -129,11 +199,7 @@ public final class SurvivalCandidateGenerator {
 
         InventorySlotSnapshot routedSlot = routedProtectionSlot(inventory, menu, route)
             .orElseThrow(() -> new IllegalStateException("death-protection route has no source inventory slot"));
-        DeathProtectionSnapshot.ProtectionItem item = routedSlot.deathProtectionItem().orElseGet(() ->
-            "minecraft:totem_of_undying".equals(routedSlot.stackKey())
-                ? DeathProtectionSnapshot.ProtectionItem.vanillaTotem()
-                : DeathProtectionSnapshot.ProtectionItem.generic()
-        );
+        DeathProtectionSnapshot.ProtectionItem item = protectionItem(routedSlot);
 
         candidates.add(new SurvivalAction.EquipDeathProtection(
             item,
@@ -145,6 +211,14 @@ public final class SurvivalCandidateGenerator {
             1,
             hand == SurvivalAction.Hand.OFF_HAND ? 1 : 2
         ));
+    }
+
+    private static DeathProtectionSnapshot.ProtectionItem protectionItem(InventorySlotSnapshot slot) {
+        return slot.deathProtectionItem().orElseGet(() ->
+            "minecraft:totem_of_undying".equals(slot.stackKey())
+                ? DeathProtectionSnapshot.ProtectionItem.vanillaTotem()
+                : DeathProtectionSnapshot.ProtectionItem.generic()
+        );
     }
 
     private static java.util.Optional<InventorySlotSnapshot> routedProtectionSlot(
