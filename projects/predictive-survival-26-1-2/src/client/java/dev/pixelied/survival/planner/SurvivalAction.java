@@ -123,7 +123,8 @@ public interface SurvivalAction {
         int elapsedUseTicks,
         int requiredUseTicks,
         int disruptionCost,
-        Optional<BlockingProfileSnapshot> blockingProfile
+        Optional<BlockingProfileSnapshot> blockingProfile,
+        Optional<HeldItemRef> sourceItem
     ) implements SurvivalAction {
         public RaiseShield(
             int requiredServerTicks,
@@ -137,7 +138,23 @@ public interface SurvivalAction {
             int disruptionCost
         ) {
             this(requiredServerTicks, legal, authoritativePrerequisitesSatisfied, guaranteedBlock, reliability,
-                blockedFraction, elapsedUseTicks, requiredUseTicks, disruptionCost, Optional.empty());
+                blockedFraction, elapsedUseTicks, requiredUseTicks, disruptionCost, Optional.empty(), Optional.empty());
+        }
+
+        public RaiseShield(
+            int requiredServerTicks,
+            boolean legal,
+            boolean authoritativePrerequisitesSatisfied,
+            boolean guaranteedBlock,
+            double reliability,
+            float blockedFraction,
+            int elapsedUseTicks,
+            int requiredUseTicks,
+            int disruptionCost,
+            Optional<BlockingProfileSnapshot> blockingProfile
+        ) {
+            this(requiredServerTicks, legal, authoritativePrerequisitesSatisfied, guaranteedBlock, reliability,
+                blockedFraction, elapsedUseTicks, requiredUseTicks, disruptionCost, blockingProfile, Optional.empty());
         }
 
         public RaiseShield {
@@ -149,6 +166,7 @@ public interface SurvivalAction {
                 throw new IllegalArgumentException("shield use ticks must be non-negative");
             }
             blockingProfile = Objects.requireNonNull(blockingProfile, "blockingProfile");
+            sourceItem = Objects.requireNonNull(sourceItem, "sourceItem");
         }
 
         @Override public int consumableCost() { return 0; }
