@@ -5,13 +5,16 @@ import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundMoveEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
+import net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
+import net.minecraft.network.protocol.game.ClientboundSetHealthPacket;
 import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateMobEffectPacket;
 import org.spongepowered.asm.mixin.Mixin;
@@ -49,6 +52,21 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "handleRemoveEntities", at = @At("TAIL"))
     private void predictiveSurvival$afterRemoveEntities(ClientboundRemoveEntitiesPacket packet, CallbackInfo ci) {
+        PredictiveSurvivalClient.markThreatDirty();
+    }
+
+    @Inject(method = "handleSetHealth", at = @At("TAIL"))
+    private void predictiveSurvival$afterSetHealth(ClientboundSetHealthPacket packet, CallbackInfo ci) {
+        PredictiveSurvivalClient.markThreatDirty();
+    }
+
+    @Inject(method = "handleBlockUpdate", at = @At("TAIL"))
+    private void predictiveSurvival$afterBlockUpdate(ClientboundBlockUpdatePacket packet, CallbackInfo ci) {
+        PredictiveSurvivalClient.markThreatDirty();
+    }
+
+    @Inject(method = "handleChunkBlocksUpdate", at = @At("TAIL"))
+    private void predictiveSurvival$afterChunkBlocksUpdate(ClientboundSectionBlocksUpdatePacket packet, CallbackInfo ci) {
         PredictiveSurvivalClient.markThreatDirty();
     }
 
