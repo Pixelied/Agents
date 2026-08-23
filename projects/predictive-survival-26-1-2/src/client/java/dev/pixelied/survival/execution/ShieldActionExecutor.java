@@ -82,12 +82,22 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         if (context.menu().menuSlotForInventoryIndex(swap.sourceInventoryIndex()).orElse(-1) != swap.sourceMenuSlot()) {
             return new ExecutionStatus.Failed("routed shield container mapping changed before swap", true);
         }
+        ContainerPredictionAuthority authority = new ContainerPredictionAuthority(
+            context.menu().containerId(),
+            context.menu().stateId(),
+            swap.sourceInventoryIndex(),
+            destinationBefore,
+            swap.destinationInventoryIndex(),
+            sourceSlot,
+            context.serverStateEvidence().revision(),
+            context.timing().containerPredictionSettleTick()
+        );
         containerRestorationCandidate = new ContainerRestorationCandidate(
             context.menu().containerId(),
             swap,
             sourceSlot,
             destinationBefore,
-            context.serverStateEvidence().revision()
+            authority
         );
         pending = routingPending(action, context, route, action.requiredUseTicks());
         return new ExecutionStatus.WaitingForServer(
@@ -126,6 +136,21 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
 
         long currentTick = context.currentServerTick();
         if (pending.stage() == Stage.ROUTING) {
+            if (pending.route() instanceof SurvivalItemRoute.ContainerSwap swap) {
+                ContainerPredictionAuthority.Verdict verdict = containerRouteVerdict(swap, context);
+                if (verdict == ContainerPredictionAuthority.Verdict.ACCEPTED) {
+                    return pending.useRequiredServerTicks();
+                }
+                if (verdict == ContainerPredictionAuthority.Verdict.CONTRADICTED) {
+                    return Integer.MAX_VALUE;
+                }
+                ContainerRestorationCandidate candidate = containerRestorationCandidate;
+                if (candidate == null) return Integer.MAX_VALUE;
+                int waiting = ticksUntilOrUnknown(currentTick, candidate.authority().settleAtServerTick());
+                if (waiting == Integer.MAX_VALUE) return Integer.MAX_VALUE;
+                long total = (long) waiting + pending.useRequiredServerTicks();
+                return total >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+            }
             if (routeAuthoritativelyObserved(pending.route(), context)) return pending.useRequiredServerTicks();
             if (currentTick <= pending.latestServerStartTick()) {
                 long total = pending.latestServerStartTick() - currentTick + pending.useRequiredServerTicks();
@@ -179,13 +204,14 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             }
             captureHotbarRestoration(pending, hotbar, context);
         } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
-            if (context.menu().containerId() != pending.containerId()) {
+            ContainerPredictionAuthority.Verdict verdict = containerRouteVerdict(swap, context);
+            if (verdict == ContainerPredictionAuthority.Verdict.WAITING) {
+                return new ExecutionStatus.WaitingForServer("waiting for shield swap correction window to settle");
+            }
+            if (verdict == ContainerPredictionAuthority.Verdict.CONTRADICTED) {
                 pending = null;
                 containerRestorationCandidate = null;
-                return new ExecutionStatus.Failed("container changed before shield route confirmed", true);
-            }
-            if (!containerRouteAuthoritativelyObserved(swap, context)) {
-                return new ExecutionStatus.WaitingForServer("waiting for exact inbound shield container swap");
+                return new ExecutionStatus.Failed("server state contradicted the exact planned shield swap", true);
             }
             InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
             if (destination == null || !captureContainerRestoration(swap, destination, context)) {
@@ -235,7 +261,7 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         );
     }
 
-    private boolean containerRouteAuthoritativelyObserved(
+    private ContainerPredictionAuthority.Verdict containerRouteVerdict(
         SurvivalItemRoute.ContainerSwap swap,
         ExecutionContext context
     ) {
@@ -243,22 +269,13 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         if (candidate == null
             || candidate.containerId() != context.menu().containerId()
             || !candidate.route().equals(swap)) {
-            return false;
+            return ContainerPredictionAuthority.Verdict.CONTRADICTED;
         }
-        InventorySlotSnapshot sourceAfter = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
-        InventorySlotSnapshot destinationAfter = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
-        if (sourceAfter == null || destinationAfter == null
-            || !sourceAfter.sameContents(candidate.originalDestinationBefore())
-            || !destinationAfter.sameContents(candidate.sourceBefore())) {
-            return false;
+        if (swap.destinationInventoryIndex() >= 0 && swap.destinationInventoryIndex() <= 8
+            && context.inventory().selectedHotbarIndex() != swap.destinationInventoryIndex()) {
+            return ContainerPredictionAuthority.Verdict.CONTRADICTED;
         }
-        ServerStateEvidenceSnapshot evidence = context.serverStateEvidence();
-        return evidence.inventoryMatchesAfter(
-                swap.sourceInventoryIndex(), candidate.originalDestinationBefore(), candidate.authorityRevisionBeforeSwap()
-            )
-            && evidence.inventoryMatchesAfter(
-                swap.destinationInventoryIndex(), candidate.sourceBefore(), candidate.authorityRevisionBeforeSwap()
-            );
+        return candidate.authority().evaluate(context);
     }
 
     private boolean captureContainerRestoration(
@@ -368,10 +385,7 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             return context.inventory().selectedHotbarIndex() == hotbar.hotbarIndex()
                 && exact(context.inventory().slot(hotbar.hotbarIndex()).orElse(null), route);
         }
-        if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
-            return containerRouteAuthoritativelyObserved(swap, context);
-        }
-        return true;
+        return !(route instanceof SurvivalItemRoute.ContainerSwap);
     }
 
     private static boolean routeMatchesSource(SurvivalItemRoute route, SurvivalAction.HeldItemRef source) {
@@ -396,6 +410,12 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         if (!slot.stackKey().equals(source.itemKey())) return null;
         if (slot.componentFingerprint() != source.componentFingerprint()) return null;
         return source.hand();
+    }
+
+    private static int ticksUntilOrUnknown(long currentTick, long latestEffectTick) {
+        if (currentTick > latestEffectTick) return Integer.MAX_VALUE;
+        long remaining = latestEffectTick - currentTick;
+        return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
     }
 
     private enum Stage { ROUTING, USING }
@@ -428,16 +448,14 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         SurvivalItemRoute.ContainerSwap route,
         InventorySlotSnapshot sourceBefore,
         InventorySlotSnapshot originalDestinationBefore,
-        long authorityRevisionBeforeSwap
+        ContainerPredictionAuthority authority
     ) {
         private ContainerRestorationCandidate {
             if (containerId < 0) throw new IllegalArgumentException("containerId must be non-negative");
             route = Objects.requireNonNull(route, "route");
             sourceBefore = Objects.requireNonNull(sourceBefore, "sourceBefore");
             originalDestinationBefore = Objects.requireNonNull(originalDestinationBefore, "originalDestinationBefore");
-            if (authorityRevisionBeforeSwap < 0L) {
-                throw new IllegalArgumentException("authorityRevisionBeforeSwap must be non-negative");
-            }
+            authority = Objects.requireNonNull(authority, "authority");
         }
     }
 }
