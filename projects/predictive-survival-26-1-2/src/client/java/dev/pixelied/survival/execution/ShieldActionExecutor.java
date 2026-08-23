@@ -13,12 +13,14 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
 
     private Pending pending;
     private RestorationCheckpoint restorationCheckpoint;
+    private ContainerRestorationCandidate containerRestorationCandidate;
 
     @Override
     public ExecutionStatus begin(SurvivalAction.RaiseShield action, ExecutionContext context) {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(context, "context");
         pending = null;
+        containerRestorationCandidate = null;
 
         if (!action.legal() || !action.authoritativePrerequisitesSatisfied()) {
             return new ExecutionStatus.Failed("shield action is no longer legal", true);
@@ -70,12 +72,19 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
 
         SurvivalItemRoute.ContainerSwap swap = (SurvivalItemRoute.ContainerSwap) route;
         InventorySlotSnapshot sourceSlot = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        InventorySlotSnapshot destinationBefore = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
         if (!exact(sourceSlot, route)) {
             return new ExecutionStatus.Failed("routed container shield changed before swap", true);
+        }
+        if (destinationBefore == null) {
+            return new ExecutionStatus.Failed("shield route destination disappeared before swap", true);
         }
         if (context.menu().menuSlotForInventoryIndex(swap.sourceInventoryIndex()).orElse(-1) != swap.sourceMenuSlot()) {
             return new ExecutionStatus.Failed("routed shield container mapping changed before swap", true);
         }
+        containerRestorationCandidate = new ContainerRestorationCandidate(
+            context.menu().containerId(), swap, destinationBefore
+        );
         pending = routingPending(action, context, route, action.requiredUseTicks());
         return new ExecutionStatus.WaitingForServer(
             "waiting for exact shield container swap",
@@ -96,6 +105,7 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         }
         if (context.currentServerTick() - pending.startedAtServerTick() > CONFIRMATION_TIMEOUT_TICKS) {
             pending = null;
+            containerRestorationCandidate = null;
             return new ExecutionStatus.Failed("shield server confirmation timed out", true);
         }
 
@@ -142,6 +152,7 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
     public void reset() {
         pending = null;
         restorationCheckpoint = null;
+        containerRestorationCandidate = null;
     }
 
     /** Returns null only when routing finished and normal shield observation can continue immediately. */
@@ -149,6 +160,7 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         SurvivalItemRoute route = pending.route();
         if (route == null) {
             pending = null;
+            containerRestorationCandidate = null;
             return new ExecutionStatus.Failed("routed shield lost its route", true);
         }
 
@@ -165,6 +177,7 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
             if (context.menu().containerId() != pending.containerId()) {
                 pending = null;
+                containerRestorationCandidate = null;
                 return new ExecutionStatus.Failed("container changed before shield route confirmed", true);
             }
             if (context.menu().stateId() == pending.containerStateId()) {
@@ -173,10 +186,17 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
             if (!exact(destination, route)) {
                 pending = null;
+                containerRestorationCandidate = null;
                 return new ExecutionStatus.Failed("container revised without exact planned shield destination", true);
+            }
+            if (!captureContainerRestoration(swap, destination, context)) {
+                pending = null;
+                containerRestorationCandidate = null;
+                return new ExecutionStatus.Failed("container shield route did not preserve the displaced destination stack", true);
             }
         } else {
             pending = null;
+            containerRestorationCandidate = null;
             return new ExecutionStatus.Failed("unexpected shield route stage", true);
         }
 
@@ -214,6 +234,35 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             routedNow,
             context.currentServerTick()
         );
+    }
+
+    private boolean captureContainerRestoration(
+        SurvivalItemRoute.ContainerSwap swap,
+        InventorySlotSnapshot destinationAfter,
+        ExecutionContext context
+    ) {
+        ContainerRestorationCandidate candidate = containerRestorationCandidate;
+        containerRestorationCandidate = null;
+        if (candidate == null
+            || candidate.containerId() != context.menu().containerId()
+            || !candidate.route().equals(swap)) {
+            return false;
+        }
+        InventorySlotSnapshot sourceAfter = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        if (sourceAfter == null || !sourceAfter.sameContents(candidate.originalDestinationBefore())) return false;
+        restorationCheckpoint = new RestorationCheckpoint.RoutedContainer(
+            candidate.containerId(),
+            swap.sourceInventoryIndex(),
+            swap.sourceMenuSlot(),
+            swap.destinationInventoryIndex(),
+            swap.button(),
+            candidate.originalDestinationBefore(),
+            sourceAfter,
+            destinationAfter,
+            context.menu().stateId(),
+            context.currentServerTick()
+        );
+        return true;
     }
 
     private ExecutionStatus statusForUsing(ExecutionContext context, boolean mayEmitUseCommand) {
@@ -346,6 +395,18 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
             if (useRequiredServerTicks < 0) {
                 throw new IllegalArgumentException("useRequiredServerTicks must be non-negative");
             }
+        }
+    }
+
+    private record ContainerRestorationCandidate(
+        int containerId,
+        SurvivalItemRoute.ContainerSwap route,
+        InventorySlotSnapshot originalDestinationBefore
+    ) {
+        private ContainerRestorationCandidate {
+            if (containerId < 0) throw new IllegalArgumentException("containerId must be non-negative");
+            route = Objects.requireNonNull(route, "route");
+            originalDestinationBefore = Objects.requireNonNull(originalDestinationBefore, "originalDestinationBefore");
         }
     }
 }
