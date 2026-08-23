@@ -21,12 +21,14 @@ public final class NonTotemActionExecutor {
     private Pending pending;
     private RestorationCheckpoint restorationCheckpoint;
     private HotbarRestorationCandidate hotbarRestorationCandidate;
+    private ContainerRestorationCandidate containerRestorationCandidate;
 
     public ExecutionStatus begin(SurvivalAction action, NonTotemExecutionContext context) {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(context, "context");
         pending = null;
         hotbarRestorationCandidate = null;
+        containerRestorationCandidate = null;
 
         if (!action.legal() || !action.authoritativePrerequisitesSatisfied()) {
             return new ExecutionStatus.Failed("non-totem action is no longer legal", true);
@@ -168,12 +170,19 @@ public final class NonTotemActionExecutor {
 
         SurvivalItemRoute.ContainerSwap swap = (SurvivalItemRoute.ContainerSwap) route;
         InventorySlotSnapshot sourceSlot = context.base().inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        InventorySlotSnapshot destinationBefore = context.base().inventory().slot(swap.destinationInventoryIndex()).orElse(null);
         if (!exact(sourceSlot, route)) {
             return new ExecutionStatus.Failed("routed container survival stack changed before swap", true);
+        }
+        if (destinationBefore == null) {
+            return new ExecutionStatus.Failed("routed survival destination disappeared before swap", true);
         }
         if (context.base().menu().menuSlotForInventoryIndex(swap.sourceInventoryIndex()).orElse(-1) != swap.sourceMenuSlot()) {
             return new ExecutionStatus.Failed("routed container slot mapping changed before swap", true);
         }
+        containerRestorationCandidate = new ContainerRestorationCandidate(
+            context.base().menu().containerId(), swap, destinationBefore
+        );
         pending = routingPending(action, context, expected, route, useTicks(action, route));
         return new ExecutionStatus.WaitingForServer(
             "waiting for exact survival stack container swap",
@@ -234,6 +243,7 @@ public final class NonTotemActionExecutor {
         pending = null;
         restorationCheckpoint = null;
         hotbarRestorationCandidate = null;
+        containerRestorationCandidate = null;
     }
 
     public ExecutionStatus observe(NonTotemExecutionContext context) {
@@ -243,6 +253,7 @@ public final class NonTotemActionExecutor {
         if (context.base().currentServerTick() - pending.startedAtServerTick() > CONFIRMATION_TIMEOUT_TICKS) {
             pending = null;
             hotbarRestorationCandidate = null;
+            containerRestorationCandidate = null;
             return new ExecutionStatus.Failed("server confirmation timed out", true);
         }
 
@@ -271,11 +282,12 @@ public final class NonTotemActionExecutor {
         } else {
             pending = null;
             hotbarRestorationCandidate = null;
+            containerRestorationCandidate = null;
             return new ExecutionStatus.Failed("pending action type became unsupported", true);
         }
 
         if (!confirmed) return new ExecutionStatus.WaitingForServer("waiting for authoritative action confirmation");
-        capturePostActionHotbarRestoration(context.base());
+        capturePostActionRestoration(context.base());
         pending = null;
         return new ExecutionStatus.Confirmed("non-totem action confirmed by observed state");
     }
@@ -286,6 +298,7 @@ public final class NonTotemActionExecutor {
         if (route == null) {
             pending = null;
             hotbarRestorationCandidate = null;
+            containerRestorationCandidate = null;
             return new ExecutionStatus.Failed("routed action lost its route", true);
         }
 
@@ -303,7 +316,7 @@ public final class NonTotemActionExecutor {
         } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
             if (context.base().menu().containerId() != pending.containerId()) {
                 pending = null;
-                hotbarRestorationCandidate = null;
+                containerRestorationCandidate = null;
                 return new ExecutionStatus.Failed("container changed before survival stack route confirmed", true);
             }
             if (context.base().menu().stateId() == pending.containerStateId()) {
@@ -312,12 +325,17 @@ public final class NonTotemActionExecutor {
             InventorySlotSnapshot destination = context.base().inventory().slot(swap.destinationInventoryIndex()).orElse(null);
             if (!exact(destination, route)) {
                 pending = null;
-                hotbarRestorationCandidate = null;
+                containerRestorationCandidate = null;
                 return new ExecutionStatus.Failed("container revised without exact planned survival stack destination", true);
+            }
+            if (!validateContainerRestorationCandidate(context.base(), swap)) {
+                pending = null;
+                return new ExecutionStatus.Failed("container survival route did not preserve the displaced destination stack", true);
             }
         } else {
             pending = null;
             hotbarRestorationCandidate = null;
+            containerRestorationCandidate = null;
             return new ExecutionStatus.Failed("unexpected route stage for already-held survival stack", true);
         }
 
@@ -353,20 +371,77 @@ public final class NonTotemActionExecutor {
         }
     }
 
-    private void capturePostActionHotbarRestoration(ExecutionContext context) {
-        HotbarRestorationCandidate candidate = hotbarRestorationCandidate;
-        hotbarRestorationCandidate = null;
-        if (candidate == null || context.inventory().selectedHotbarIndex() != candidate.routedHotbarIndex()) return;
+    private boolean validateContainerRestorationCandidate(
+        ExecutionContext context,
+        SurvivalItemRoute.ContainerSwap swap
+    ) {
+        ContainerRestorationCandidate candidate = containerRestorationCandidate;
+        if (candidate == null
+            || candidate.containerId() != context.menu().containerId()
+            || !candidate.route().equals(swap)) {
+            containerRestorationCandidate = null;
+            return false;
+        }
+        if (swap.destinationInventoryIndex() >= 0 && swap.destinationInventoryIndex() <= 8
+            && context.inventory().selectedHotbarIndex() != swap.destinationInventoryIndex()) {
+            containerRestorationCandidate = null;
+            return false;
+        }
+        InventorySlotSnapshot sourceNow = context.inventory().slot(swap.sourceInventoryIndex()).orElse(null);
+        if (sourceNow == null || !sourceNow.sameContents(candidate.originalDestinationBefore())) {
+            containerRestorationCandidate = null;
+            return false;
+        }
+        return true;
+    }
 
-        InventorySlotSnapshot originalNow = context.inventory().slot(candidate.originalSelectedIndex()).orElse(null);
-        InventorySlotSnapshot routedNow = context.inventory().slot(candidate.routedHotbarIndex()).orElse(null);
-        if (originalNow == null || routedNow == null || !originalNow.sameContents(candidate.originalSelectedBefore())) return;
+    private void capturePostActionRestoration(ExecutionContext context) {
+        HotbarRestorationCandidate hotbar = hotbarRestorationCandidate;
+        if (hotbar != null) {
+            hotbarRestorationCandidate = null;
+            containerRestorationCandidate = null;
+            if (context.inventory().selectedHotbarIndex() != hotbar.routedHotbarIndex()) return;
+            InventorySlotSnapshot originalNow = context.inventory().slot(hotbar.originalSelectedIndex()).orElse(null);
+            InventorySlotSnapshot routedNow = context.inventory().slot(hotbar.routedHotbarIndex()).orElse(null);
+            if (originalNow == null || routedNow == null || !originalNow.sameContents(hotbar.originalSelectedBefore())) return;
+            restorationCheckpoint = new RestorationCheckpoint.Hotbar(
+                hotbar.originalSelectedIndex(),
+                hotbar.routedHotbarIndex(),
+                hotbar.originalSelectedBefore(),
+                routedNow,
+                context.currentServerTick()
+            );
+            return;
+        }
 
-        restorationCheckpoint = new RestorationCheckpoint.Hotbar(
-            candidate.originalSelectedIndex(),
-            candidate.routedHotbarIndex(),
-            candidate.originalSelectedBefore(),
-            routedNow,
+        ContainerRestorationCandidate container = containerRestorationCandidate;
+        containerRestorationCandidate = null;
+        if (container == null) return;
+        SurvivalItemRoute.ContainerSwap route = container.route();
+        if (context.menu().containerId() != container.containerId()
+            || context.menu().menuSlotForInventoryIndex(route.sourceInventoryIndex()).orElse(-1) != route.sourceMenuSlot()) {
+            return;
+        }
+        if (route.destinationInventoryIndex() >= 0 && route.destinationInventoryIndex() <= 8
+            && context.inventory().selectedHotbarIndex() != route.destinationInventoryIndex()) {
+            return;
+        }
+        InventorySlotSnapshot sourceAfter = context.inventory().slot(route.sourceInventoryIndex()).orElse(null);
+        InventorySlotSnapshot destinationAfter = context.inventory().slot(route.destinationInventoryIndex()).orElse(null);
+        if (sourceAfter == null || destinationAfter == null
+            || !sourceAfter.sameContents(container.originalDestinationBefore())) {
+            return;
+        }
+        restorationCheckpoint = new RestorationCheckpoint.RoutedContainer(
+            container.containerId(),
+            route.sourceInventoryIndex(),
+            route.sourceMenuSlot(),
+            route.destinationInventoryIndex(),
+            route.button(),
+            container.originalDestinationBefore(),
+            sourceAfter,
+            destinationAfter,
+            context.menu().stateId(),
             context.currentServerTick()
         );
     }
@@ -592,6 +667,18 @@ public final class NonTotemActionExecutor {
                 throw new IllegalArgumentException("hotbar indices must be in [0, 8]");
             }
             originalSelectedBefore = Objects.requireNonNull(originalSelectedBefore, "originalSelectedBefore");
+        }
+    }
+
+    private record ContainerRestorationCandidate(
+        int containerId,
+        SurvivalItemRoute.ContainerSwap route,
+        InventorySlotSnapshot originalDestinationBefore
+    ) {
+        private ContainerRestorationCandidate {
+            if (containerId < 0) throw new IllegalArgumentException("containerId must be non-negative");
+            route = Objects.requireNonNull(route, "route");
+            originalDestinationBefore = Objects.requireNonNull(originalDestinationBefore, "originalDestinationBefore");
         }
     }
 }
