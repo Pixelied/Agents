@@ -1,5 +1,7 @@
 package dev.adrien.crystaloptimizer.sim.model;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.world.item.Items;
@@ -63,6 +65,38 @@ class InventoryStackTruthfulnessTest {
             "consuming the only held offhand glowstone must not leave a phantom hand stack");
         assertEquals(4, next.hotbarCount(1),
             "reserve copies in another slot must remain untouched");
+    }
+
+    @Test
+    void exactMultiCountOffhandDepletesOneItemAtATime() throws Exception {
+        Constructor<InventoryState> constructor = InventoryState.class.getConstructor(
+            int.class,
+            Map.class,
+            Map.class,
+            Map.class,
+            Optional.class,
+            int.class
+        );
+        Method offhandCount = InventoryState.class.getMethod("offhandCount");
+        InventoryState inventory = constructor.newInstance(
+            0,
+            Map.of(Items.END_CRYSTAL, 5),
+            Map.of(1, Items.END_CRYSTAL),
+            Map.of(1, 3),
+            Optional.of(Items.END_CRYSTAL),
+            2
+        );
+
+        InventoryState once = inventory.consume(Items.END_CRYSTAL, 1);
+        assertEquals(1, offhandCount.invoke(once));
+        assertEquals(Items.END_CRYSTAL, once.offhandItem().orElseThrow());
+        assertEquals(3, once.hotbarCount(1));
+
+        InventoryState twice = once.consume(Items.END_CRYSTAL, 1);
+        assertEquals(0, offhandCount.invoke(twice));
+        assertTrue(twice.offhandItem().isEmpty());
+        assertEquals(3, twice.hotbarCount(1),
+            "offhand consumption must not silently decrement reserve hotbar copies");
     }
 
     @Test
