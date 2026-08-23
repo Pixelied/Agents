@@ -29,7 +29,8 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - name: Set up Gradle 9.5.1
+      # setup-gradle validates the checked-in wrapper before any project task executes.
+      - name: Validate Gradle 9.5.1 wrapper
         uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '9.5.1'
