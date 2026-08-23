@@ -55,6 +55,18 @@ jobs:
           rm -f .github/workflows/pearl-catcher-26-1-2-ci.yml
           tar -xJf /tmp/pearl-catcher-source.tar.xz
           sha256sum -c .pearl-source-manifest.sha256
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('projects/pearl-catcher-26-1-2/build.gradle')
+          text = path.read_text()
+          old = '    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"'
+          new = '    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"'
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one legacy modCompileOnly dependency')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          grep -F 'compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"' projects/pearl-catcher-26-1-2/build.gradle
+          ! grep -F 'modCompileOnly' projects/pearl-catcher-26-1-2/build.gradle
 
       - name: Source and core regressions
         shell: bash
