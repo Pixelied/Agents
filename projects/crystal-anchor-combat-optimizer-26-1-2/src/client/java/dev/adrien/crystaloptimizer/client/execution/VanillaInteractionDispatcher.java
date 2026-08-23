@@ -225,7 +225,8 @@ public final class VanillaInteractionDispatcher {
             counts,
             hotbar,
             hotbarCounts,
-            offhand.isEmpty() ? Optional.empty() : Optional.of(offhand.getItem())
+            offhand.isEmpty() ? Optional.empty() : Optional.of(offhand.getItem()),
+            offhand.isEmpty() ? 0 : offhand.getCount()
         );
     }
 
