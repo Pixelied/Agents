@@ -275,6 +275,7 @@ public final class NonTotemActionExecutor {
         }
 
         if (!confirmed) return new ExecutionStatus.WaitingForServer("waiting for authoritative action confirmation");
+        capturePostActionHotbarRestoration(context.base());
         pending = null;
         return new ExecutionStatus.Confirmed("non-totem action confirmed by observed state");
     }
@@ -298,7 +299,7 @@ public final class NonTotemActionExecutor {
             if (context.base().inventory().selectedHotbarIndex() != hotbar.hotbarIndex()) {
                 return new ExecutionStatus.WaitingForServer("waiting for exact survival stack hotbar selection");
             }
-            captureHotbarRestoration(context.base(), hotbar);
+            validateHotbarRestorationCandidate(context.base(), hotbar);
         } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
             if (context.base().menu().containerId() != pending.containerId()) {
                 pending = null;
@@ -340,16 +341,30 @@ public final class NonTotemActionExecutor {
         );
     }
 
-    private void captureHotbarRestoration(ExecutionContext context, SurvivalItemRoute.HotbarSelect hotbar) {
+    private void validateHotbarRestorationCandidate(ExecutionContext context, SurvivalItemRoute.HotbarSelect hotbar) {
+        HotbarRestorationCandidate candidate = hotbarRestorationCandidate;
+        if (candidate == null || candidate.routedHotbarIndex() != hotbar.hotbarIndex()) {
+            hotbarRestorationCandidate = null;
+            return;
+        }
+        InventorySlotSnapshot originalNow = context.inventory().slot(candidate.originalSelectedIndex()).orElse(null);
+        if (originalNow == null || !originalNow.sameContents(candidate.originalSelectedBefore())) {
+            hotbarRestorationCandidate = null;
+        }
+    }
+
+    private void capturePostActionHotbarRestoration(ExecutionContext context) {
         HotbarRestorationCandidate candidate = hotbarRestorationCandidate;
         hotbarRestorationCandidate = null;
-        if (candidate == null || candidate.routedHotbarIndex() != hotbar.hotbarIndex()) return;
+        if (candidate == null || context.inventory().selectedHotbarIndex() != candidate.routedHotbarIndex()) return;
+
         InventorySlotSnapshot originalNow = context.inventory().slot(candidate.originalSelectedIndex()).orElse(null);
-        InventorySlotSnapshot routedNow = context.inventory().slot(hotbar.hotbarIndex()).orElse(null);
+        InventorySlotSnapshot routedNow = context.inventory().slot(candidate.routedHotbarIndex()).orElse(null);
         if (originalNow == null || routedNow == null || !originalNow.sameContents(candidate.originalSelectedBefore())) return;
+
         restorationCheckpoint = new RestorationCheckpoint.Hotbar(
             candidate.originalSelectedIndex(),
-            hotbar.hotbarIndex(),
+            candidate.routedHotbarIndex(),
             candidate.originalSelectedBefore(),
             routedNow,
             context.currentServerTick()
