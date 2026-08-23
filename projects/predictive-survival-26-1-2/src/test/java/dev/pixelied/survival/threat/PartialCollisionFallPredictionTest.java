@@ -25,6 +25,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PartialCollisionFallPredictionTest {
     @Test
     void slabCollisionSurfaceStillProducesLandingDamage() {
+        WorldSnapshot.BlockSnapshot slab = slab(true);
+
+        LandingPrediction landing = new FallLandingSolver().solve(context(slab))
+            .orElseThrow(() -> new AssertionError("collidable partial-height surface must stop the projected fall"));
+
+        assertEquals("minecraft:stone_slab", landing.surfaceBlockId());
+        assertTrue(landing.rawFallDamage().max() > 0f);
+    }
+
+    @Test
+    void missingShapeMetadataCannotUnderstateKnownPartialCollisionDamage() {
+        LandingPrediction exactSlab = new FallLandingSolver().solve(context(slab(true))).orElseThrow();
+        LandingPrediction unknownShape = new FallLandingSolver().solve(context(slab(false))).orElseThrow();
+
+        assertTrue(
+            unknownShape.rawFallDamage().max() >= exactSlab.rawFallDamage().max(),
+            "unknown collidable geometry must fall back toward more damage, never a higher fake landing surface"
+        );
+    }
+
+    private static PredictionContext context(WorldSnapshot.BlockSnapshot block) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f,
             0f,
@@ -53,11 +74,17 @@ class PartialCollisionFallPredictionTest {
                 "suppressing_bounce", "false"
             )
         );
-        WorldSnapshot.BlockSnapshot slab = new WorldSnapshot.BlockSnapshot(
-            new Vec3Snapshot(0.5, 0.5, 0.5),
-            "minecraft:stone_slab",
-            true,
-            Map.of(
+        return new PredictionContext(
+            player,
+            new WorldSnapshot(List.of(), List.of(block)),
+            new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
+            EngineLimits.defaults()
+        );
+    }
+
+    private static WorldSnapshot.BlockSnapshot slab(boolean includeShapeBounds) {
+        Map<String, String> properties = includeShapeBounds
+            ? Map.of(
                 "full_collision_cube", "false",
                 "collision_min_x", "0.0",
                 "collision_min_y", "0.0",
@@ -66,18 +93,12 @@ class PartialCollisionFallPredictionTest {
                 "collision_max_y", "0.5",
                 "collision_max_z", "1.0"
             )
+            : Map.of("full_collision_cube", "false");
+        return new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(0.5, 0.5, 0.5),
+            "minecraft:stone_slab",
+            true,
+            properties
         );
-        PredictionContext context = new PredictionContext(
-            player,
-            new WorldSnapshot(List.of(), List.of(slab)),
-            new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
-            EngineLimits.defaults()
-        );
-
-        LandingPrediction landing = new FallLandingSolver().solve(context)
-            .orElseThrow(() -> new AssertionError("collidable partial-height surface must stop the projected fall"));
-
-        assertEquals("minecraft:stone_slab", landing.surfaceBlockId());
-        assertTrue(landing.rawFallDamage().max() > 0f);
     }
 }
