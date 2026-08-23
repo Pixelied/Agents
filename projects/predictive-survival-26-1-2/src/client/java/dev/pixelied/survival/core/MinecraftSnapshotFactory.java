@@ -104,6 +104,17 @@ public final class MinecraftSnapshotFactory {
             Double.toString(border.getDistanceToBorder(player) + border.getSafeZone())
         );
         state.put("border_damage_per_block", Double.toString(border.getDamagePerBlock()));
+        state.put("border_safe_zone", Double.toString(border.getSafeZone()));
+        state.put("border_min_x", Double.toString(border.getMinX()));
+        state.put("border_max_x", Double.toString(border.getMaxX()));
+        state.put("border_min_z", Double.toString(border.getMinZ()));
+        state.put("border_max_z", Double.toString(border.getMaxZ()));
+        state.put("border_center_x", Double.toString(border.getCenterX()));
+        state.put("border_center_z", Double.toString(border.getCenterZ()));
+        state.put("border_size", Double.toString(border.getSize()));
+        state.put("border_lerp_ticks", Long.toString(Math.max(0L, border.getLerpTime())));
+        state.put("border_lerp_target_size", Double.toString(border.getLerpTarget()));
+        state.put("border_absolute_max_size", Integer.toString(border.getAbsoluteMaxSize()));
 
         return new PlayerSnapshot(
             player.getHealth(),
