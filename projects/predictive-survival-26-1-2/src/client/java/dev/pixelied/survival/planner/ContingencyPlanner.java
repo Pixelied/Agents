@@ -2,6 +2,7 @@ package dev.pixelied.survival.planner;
 
 import dev.pixelied.survival.config.RescueProfile;
 import dev.pixelied.survival.core.PredictionContext;
+import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 import dev.pixelied.survival.timeline.TimelineResult;
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Bounded short-horizon rescue sequence planner. It deliberately searches only production-modeled
@@ -197,7 +199,7 @@ public final class ContingencyPlanner {
         }
 
         for (SurvivalAction action : candidates) {
-            if (containsAction(prefix, action)) continue;
+            if (conflictsWithPrefix(prefix, action)) continue;
             long activationTick = saturatingAdd(previousActivationTick, activationDelay(context, action));
             prefix.add(new PlannedStep(action, activationTick));
             enumerateInFlight(
@@ -236,7 +238,7 @@ public final class ContingencyPlanner {
         }
 
         for (SurvivalAction action : candidates) {
-            if (containsAction(prefix, action)) continue;
+            if (conflictsWithPrefix(prefix, action)) continue;
             long activationTick = saturatingAdd(previousActivationTick, activationDelay(context, action));
             prefix.add(new PlannedStep(action, activationTick));
             enumerate(context, timeline, candidates, profile, targetDepth, prefix, activationTick, budget, survivors);
@@ -245,9 +247,40 @@ public final class ContingencyPlanner {
         }
     }
 
-    private static boolean containsAction(List<PlannedStep> prefix, SurvivalAction action) {
-        for (PlannedStep step : prefix) if (step.action().equals(action)) return true;
+    private static boolean conflictsWithPrefix(List<PlannedStep> prefix, SurvivalAction action) {
+        Optional<SourceResource> candidateSource = sourceResource(action);
+        for (PlannedStep step : prefix) {
+            if (step.action().equals(action)) return true;
+            if (candidateSource.isPresent() && candidateSource.equals(sourceResource(step.action()))) return true;
+        }
         return false;
+    }
+
+    private static Optional<SourceResource> sourceResource(SurvivalAction action) {
+        Optional<SurvivalAction.HeldItemRef> source;
+        if (action instanceof SurvivalAction.RaiseShield shield) {
+            source = shield.sourceItem();
+        } else if (action instanceof SurvivalAction.SwapEquipment equipment) {
+            source = equipment.sourceItem();
+        } else if (action instanceof SurvivalAction.ApplyEffects effects) {
+            source = effects.sourceItem();
+        } else {
+            return Optional.empty();
+        }
+        return source.map(ContingencyPlanner::sourceResource);
+    }
+
+    private static SourceResource sourceResource(SurvivalAction.HeldItemRef source) {
+        SurvivalItemRoute route = source.route().orElse(null);
+        String location;
+        if (route instanceof SurvivalItemRoute.HotbarSelect hotbar) {
+            location = "inventory:" + hotbar.hotbarIndex();
+        } else if (route instanceof SurvivalItemRoute.ContainerSwap swap) {
+            location = "inventory:" + swap.sourceInventoryIndex();
+        } else {
+            location = "hand:" + source.hand().name();
+        }
+        return new SourceResource(location, source.itemKey(), source.componentFingerprint());
     }
 
     private static long activationDelay(PredictionContext context, SurvivalAction action) {
@@ -308,6 +341,13 @@ public final class ContingencyPlanner {
     private static long saturatingAdd(long value, long increment) {
         if (increment > 0L && value > Long.MAX_VALUE - increment) return Long.MAX_VALUE;
         return value + increment;
+    }
+
+    private record SourceResource(String location, String itemKey, int componentFingerprint) {
+        private SourceResource {
+            location = Objects.requireNonNull(location, "location");
+            itemKey = Objects.requireNonNull(itemKey, "itemKey");
+        }
     }
 
     private record SequenceEvaluation(List<PlannedStep> steps, TimelineResult result) {
