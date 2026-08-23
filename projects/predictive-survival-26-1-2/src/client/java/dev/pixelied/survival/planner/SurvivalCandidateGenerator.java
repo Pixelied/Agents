@@ -145,15 +145,13 @@ public final class SurvivalCandidateGenerator {
             .filter(slot -> slot.count() > 0 && slot.deathProtection())
             .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
             .toList();
-        if (sources.isEmpty()) return false;
+        if (sources.size() < 2) return false;
 
         for (InventorySlotSnapshot mainSource : sources) {
             if (!canRouteToMainHand(mainSource, inventory, menu)) continue;
             for (InventorySlotSnapshot offSource : sources) {
-                if (!canRouteToOffHand(offSource, menu)) continue;
-                if (mainSource.inventoryIndex() != offSource.inventoryIndex() || mainSource.count() >= 2) {
-                    return true;
-                }
+                if (mainSource.inventoryIndex() == offSource.inventoryIndex()) continue;
+                if (canRouteToOffHand(offSource, menu)) return true;
             }
         }
         return false;
