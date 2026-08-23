@@ -3,7 +3,11 @@ package dev.pixelied.survival.validation;
 import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.core.SurvivalEngine;
+import dev.pixelied.survival.damage.ArmorPieceSnapshot;
+import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.execution.ExecutionStatus;
+import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
+import dev.pixelied.survival.execution.ServerStateEvidenceSnapshot;
 import dev.pixelied.survival.inventory.MinecraftInventorySnapshotFactory;
 import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.inventory.SurvivalItemRoutePlanner;
@@ -142,11 +146,12 @@ final class SurvivalItemRoutingValidationScenarios {
             )),
             Optional.of(equippable.armorPiece())
         );
+        MitigationSnapshot expectedMitigation = action.apply(frame.context().player()).mitigation();
         ExecutionStatus initial = runtime.begin(action, frame);
         if (!(initial instanceof ExecutionStatus.WaitingForServer)) {
             throw new AssertionError("routed equipment action did not begin asynchronously: " + initial);
         }
-        return new EquipmentHarness(runtime, action);
+        return new EquipmentHarness(runtime, action, expectedMitigation, equippable.armorPiece());
     }
 
     private static void observeUntilConfirmed(
@@ -169,6 +174,7 @@ final class SurvivalItemRoutingValidationScenarios {
                     phase + " failed: " + failed.reason()
                         + "; server=" + serverState(singleplayer, sourceIndex)
                         + "; client=" + clientState(context, sourceIndex)
+                        + "; runtime=" + clientRuntimeState(context, harness)
                 );
             }
             context.waitTick();
@@ -177,6 +183,7 @@ final class SurvivalItemRoutingValidationScenarios {
             phase + " was never authoritatively confirmed; last=" + last
                 + "; server=" + serverState(singleplayer, sourceIndex)
                 + "; client=" + clientState(context, sourceIndex)
+                + "; runtime=" + clientRuntimeState(context, harness)
         );
     }
 
@@ -284,6 +291,22 @@ final class SurvivalItemRoutingValidationScenarios {
         });
     }
 
+    private static ClientRuntimeState clientRuntimeState(
+        ClientGameTestContext context,
+        EquipmentHarness harness
+    ) {
+        return context.computeOnClient(minecraft -> {
+            SurvivalEngine.EngineFrame frame = harness.runtime().capture(POLICY);
+            return new ClientRuntimeState(
+                harness.expectedMitigation(),
+                frame.context().player().mitigation(),
+                harness.plannedPiece(),
+                frame.context().player().equipmentItemKeys(),
+                MinecraftServerStateEvidence.snapshot()
+            );
+        });
+    }
+
     private static void cleanup(TestSingleplayerContext singleplayer) {
         singleplayer.getServer().runOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
@@ -302,7 +325,12 @@ final class SurvivalItemRoutingValidationScenarios {
         player.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
     }
 
-    private record EquipmentHarness(MinecraftSurvivalRuntime runtime, SurvivalAction.SwapEquipment action) {
+    private record EquipmentHarness(
+        MinecraftSurvivalRuntime runtime,
+        SurvivalAction.SwapEquipment action,
+        MitigationSnapshot expectedMitigation,
+        ArmorPieceSnapshot plannedPiece
+    ) {
     }
 
     private record ServerState(
@@ -320,6 +348,15 @@ final class SurvivalItemRoutingValidationScenarios {
         ItemStack sourceStack,
         ItemStack chestStack,
         int menuStateId
+    ) {
+    }
+
+    private record ClientRuntimeState(
+        MitigationSnapshot expectedMitigation,
+        MitigationSnapshot observedMitigation,
+        ArmorPieceSnapshot plannedPiece,
+        Map<String, String> equipmentItemKeys,
+        ServerStateEvidenceSnapshot evidence
     ) {
     }
 }
