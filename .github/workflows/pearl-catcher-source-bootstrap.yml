@@ -110,7 +110,6 @@ jobs:
           python agentctl.py validate
 
       - name: Commit verified clean source tree
-        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
