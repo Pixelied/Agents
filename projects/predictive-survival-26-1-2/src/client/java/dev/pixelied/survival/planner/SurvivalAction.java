@@ -15,6 +15,7 @@ import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
@@ -47,12 +48,29 @@ public interface SurvivalAction {
         OFF_HAND
     }
 
-    /** Exact identity of a held stack that produced an executable candidate. */
-    record HeldItemRef(Hand hand, String itemKey, int componentFingerprint) {
+    /** Exact identity and optional server-valid route of the stack that produced a candidate. */
+    record HeldItemRef(
+        Hand hand,
+        String itemKey,
+        int componentFingerprint,
+        Optional<SurvivalItemRoute> route
+    ) {
+        public HeldItemRef(Hand hand, String itemKey, int componentFingerprint) {
+            this(hand, itemKey, componentFingerprint, Optional.empty());
+        }
+
         public HeldItemRef {
             hand = Objects.requireNonNull(hand, "hand");
             itemKey = Objects.requireNonNull(itemKey, "itemKey");
+            route = Objects.requireNonNull(route, "route");
             if (itemKey.isBlank()) throw new IllegalArgumentException("itemKey must not be blank");
+            route.ifPresent(value -> {
+                if (value.destinationHand() != hand
+                    || !value.itemKey().equals(itemKey)
+                    || value.componentFingerprint() != componentFingerprint) {
+                    throw new IllegalArgumentException("route must preserve exact held-item identity and destination hand");
+                }
+            });
         }
     }
 
