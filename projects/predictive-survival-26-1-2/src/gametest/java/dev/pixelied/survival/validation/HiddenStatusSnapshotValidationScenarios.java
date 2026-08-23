@@ -68,36 +68,49 @@ final class HiddenStatusSnapshotValidationScenarios {
                 SurvivalValidationClientGameTest.onlyPlayer(server).getHealth()
             );
             int downgradeTick = -1;
-            DamageSample firstHiddenDamage = null;
-            for (int tick = 1; tick <= 80; tick++) {
+            int hiddenDamageCount = 0;
+            DamageSample secondHiddenDamage = null;
+            for (int tick = 1; tick <= 100; tick++) {
                 anchor(singleplayer, anchor);
                 context.waitTick();
                 Observation observation = singleplayer.getServer().computeOnServer(HiddenStatusSnapshotValidationScenarios::observe);
                 if (downgradeTick < 0 && observation.amplifier() == 0) {
                     downgradeTick = tick;
                 }
-                if (downgradeTick >= 0 && observation.health() < previousHealth - EPSILON) {
-                    firstHiddenDamage = new DamageSample(tick, observation);
-                    break;
+                if (observation.health() < previousHealth - EPSILON) {
+                    if (downgradeTick >= 0) {
+                        hiddenDamageCount++;
+                        if (hiddenDamageCount == 2) {
+                            secondHiddenDamage = new DamageSample(tick, observation);
+                            break;
+                        }
+                    }
+                    previousHealth = observation.health();
                 }
-                previousHealth = observation.health();
             }
 
-            if (downgradeTick < 0 || firstHiddenDamage == null) {
+            if (downgradeTick < 0 || secondHiddenDamage == null) {
                 throw new AssertionError(
-                    "direct stacked Wither fixture did not promote and damage from the hidden tail; "
+                    "direct stacked Wither fixture did not produce the second hidden-tail pulse; "
                         + "downgradeTick=" + downgradeTick
-                        + " firstHiddenDamage=" + firstHiddenDamage
+                        + " hiddenDamageCount=" + hiddenDamageCount
+                        + " secondHiddenDamage=" + secondHiddenDamage
                         + " prediction=" + prediction
                 );
             }
-            if (prediction.latestPredictedTick() < firstHiddenDamage.tick()) {
+            if (secondHiddenDamage.tick() > 80) {
+                throw new AssertionError(
+                    "fixture second hidden Wither pulse escaped the configured 80-tick horizon: "
+                        + secondHiddenDamage
+                );
+            }
+            if (prediction.latestPredictedTick() < secondHiddenDamage.tick()) {
                 throw new AssertionError(
                     "client-synchronized hidden Wither tail was dropped from the production snapshot; "
                         + "visibleDuration=" + prediction.visibleDuration()
                         + " latestPredictedTick=" + prediction.latestPredictedTick()
                         + " downgradeTick=" + downgradeTick
-                        + " firstHiddenDamage=" + firstHiddenDamage
+                        + " secondHiddenDamage=" + secondHiddenDamage
                         + " predicted=" + prediction.events()
                 );
             }
