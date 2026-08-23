@@ -56,12 +56,12 @@ final class SurvivalItemRoutingValidationScenarios {
         });
 
         waitForServerSelection(context, singleplayer, sourceIndex, "routed equipment hotbar selection");
-        observeUntilConfirmed(context, harness, "routed hotbar equipment use");
+        observeUntilConfirmed(context, singleplayer, harness, sourceIndex, "routed hotbar equipment use");
         assertServerEquipped(singleplayer, "hotbar routed equipment");
 
-        maintainUntil(context, singleplayer, harness, () -> serverState(singleplayer).selectedSlot() == 0,
+        maintainUntil(context, singleplayer, harness, () -> serverState(singleplayer, sourceIndex).selectedSlot() == 0,
             "hotbar route hand restoration");
-        ServerState restored = serverState(singleplayer);
+        ServerState restored = serverState(singleplayer, sourceIndex);
         if (!restored.selectedStack().is(Items.DIAMOND_SWORD)
             || !restored.chestStack().is(Items.NETHERITE_CHESTPLATE)
             || !restored.sourceStack().isEmpty()) {
@@ -99,15 +99,15 @@ final class SurvivalItemRoutingValidationScenarios {
         });
 
         waitForServerSwap(context, singleplayer, sourceIndex);
-        observeUntilConfirmed(context, harness, "routed container equipment use");
+        observeUntilConfirmed(context, singleplayer, harness, sourceIndex, "routed container equipment use");
         assertServerEquipped(singleplayer, "container routed equipment");
 
         maintainUntil(context, singleplayer, harness, () -> {
-            ServerState state = serverState(singleplayer);
+            ServerState state = serverState(singleplayer, sourceIndex);
             return state.selectedStack().is(Items.DIAMOND_SWORD) && state.sourceStack().isEmpty();
         }, "container route inverse restoration");
 
-        ServerState restored = serverState(singleplayer);
+        ServerState restored = serverState(singleplayer, sourceIndex);
         if (restored.selectedSlot() != 0
             || !restored.selectedStack().is(Items.DIAMOND_SWORD)
             || !restored.sourceStack().isEmpty()
@@ -151,21 +151,33 @@ final class SurvivalItemRoutingValidationScenarios {
 
     private static void observeUntilConfirmed(
         ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
         EquipmentHarness harness,
+        int sourceIndex,
         String phase
     ) {
+        ExecutionStatus last = null;
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
             ExecutionStatus status = context.computeOnClient(minecraft -> {
                 SurvivalEngine.EngineFrame frame = harness.runtime().capture(POLICY);
                 return harness.runtime().observe(harness.action(), frame);
             });
+            last = status;
             if (status instanceof ExecutionStatus.Confirmed) return;
             if (status instanceof ExecutionStatus.Failed failed) {
-                throw new AssertionError(phase + " failed: " + failed.reason());
+                throw new AssertionError(
+                    phase + " failed: " + failed.reason()
+                        + "; server=" + serverState(singleplayer, sourceIndex)
+                        + "; client=" + clientState(context, sourceIndex)
+                );
             }
             context.waitTick();
         }
-        throw new AssertionError(phase + " was never authoritatively confirmed");
+        throw new AssertionError(
+            phase + " was never authoritatively confirmed; last=" + last
+                + "; server=" + serverState(singleplayer, sourceIndex)
+                + "; client=" + clientState(context, sourceIndex)
+        );
     }
 
     private static void maintainUntil(
@@ -183,7 +195,7 @@ final class SurvivalItemRoutingValidationScenarios {
             });
             context.waitTick();
         }
-        throw new AssertionError(phase + " did not complete before timeout; server=" + serverState(singleplayer));
+        throw new AssertionError(phase + " did not complete before timeout");
     }
 
     private static void prepareEquipmentRoute(TestSingleplayerContext singleplayer, int sourceIndex) {
@@ -214,7 +226,7 @@ final class SurvivalItemRoutingValidationScenarios {
         String phase
     ) {
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
-            if (serverState(singleplayer).selectedSlot() == expected) return;
+            if (serverState(singleplayer, expected).selectedSlot() == expected) return;
             context.waitTick();
         }
         throw new AssertionError(phase + " never reached server-selected slot " + expected);
@@ -226,7 +238,7 @@ final class SurvivalItemRoutingValidationScenarios {
         int sourceIndex
     ) {
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
-            ServerState state = serverState(singleplayer);
+            ServerState state = serverState(singleplayer, sourceIndex);
             if (state.selectedStack().is(Items.NETHERITE_CHESTPLATE)
                 && state.sourceStack().is(Items.DIAMOND_SWORD)) {
                 return;
@@ -237,25 +249,37 @@ final class SurvivalItemRoutingValidationScenarios {
     }
 
     private static void assertServerEquipped(TestSingleplayerContext singleplayer, String phase) {
-        ServerState state = serverState(singleplayer);
+        ServerState state = serverState(singleplayer, 10);
         if (!state.chestStack().is(Items.NETHERITE_CHESTPLATE)) {
             throw new AssertionError(phase + " did not equip netherite chestplate on authoritative server: " + state);
         }
     }
 
-    private static ServerState serverState(TestSingleplayerContext singleplayer) {
+    private static ServerState serverState(TestSingleplayerContext singleplayer, int sourceIndex) {
         return singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             int selected = player.getInventory().getSelectedSlot();
-            int sourceIndex = player.getInventory().getItem(10).is(Items.DIAMOND_SWORD)
-                || player.getInventory().getItem(10).is(Items.NETHERITE_CHESTPLATE)
-                ? 10
-                : 2;
             return new ServerState(
                 selected,
                 player.getInventory().getItem(selected).copy(),
                 player.getInventory().getItem(sourceIndex).copy(),
-                player.getItemBySlot(EquipmentSlot.CHEST).copy()
+                player.getItemBySlot(EquipmentSlot.CHEST).copy(),
+                player.containerMenu.getStateId()
+            );
+        });
+    }
+
+    private static ClientState clientState(ClientGameTestContext context, int sourceIndex) {
+        return context.computeOnClient(minecraft -> {
+            if (minecraft.player == null) return new ClientState(-1, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, -1);
+            var player = minecraft.player;
+            int selected = player.getInventory().getSelectedSlot();
+            return new ClientState(
+                selected,
+                player.getInventory().getItem(selected).copy(),
+                player.getInventory().getItem(sourceIndex).copy(),
+                player.getItemBySlot(EquipmentSlot.CHEST).copy(),
+                player.containerMenu.getStateId()
             );
         });
     }
@@ -285,7 +309,17 @@ final class SurvivalItemRoutingValidationScenarios {
         int selectedSlot,
         ItemStack selectedStack,
         ItemStack sourceStack,
-        ItemStack chestStack
+        ItemStack chestStack,
+        int menuStateId
+    ) {
+    }
+
+    private record ClientState(
+        int selectedSlot,
+        ItemStack selectedStack,
+        ItemStack sourceStack,
+        ItemStack chestStack,
+        int menuStateId
     ) {
     }
 }
