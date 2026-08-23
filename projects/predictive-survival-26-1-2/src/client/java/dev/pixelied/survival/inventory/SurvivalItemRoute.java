@@ -53,8 +53,22 @@ public sealed interface SurvivalItemRoute {
         int button,
         SurvivalAction.Hand destinationHand,
         String itemKey,
-        int componentFingerprint
+        int componentFingerprint,
+        int requiredServerTicks
     ) implements SurvivalItemRoute {
+        public ContainerSwap(
+            int sourceInventoryIndex,
+            int sourceMenuSlot,
+            int destinationInventoryIndex,
+            int button,
+            SurvivalAction.Hand destinationHand,
+            String itemKey,
+            int componentFingerprint
+        ) {
+            this(sourceInventoryIndex, sourceMenuSlot, destinationInventoryIndex, button, destinationHand,
+                itemKey, componentFingerprint, 1);
+        }
+
         public ContainerSwap {
             if (sourceInventoryIndex < 0 || sourceInventoryIndex > 40 || sourceMenuSlot < 0) {
                 throw new IllegalArgumentException("source inventory/menu slot must be valid");
@@ -65,11 +79,10 @@ public sealed interface SurvivalItemRoute {
             if (!((button >= 0 && button <= 8) || button == 40)) {
                 throw new IllegalArgumentException("swap button must be hotbar 0..8 or offhand 40");
             }
+            if (requiredServerTicks < 0) throw new IllegalArgumentException("requiredServerTicks must be non-negative");
             destinationHand = Objects.requireNonNull(destinationHand, "destinationHand");
             itemKey = requireItemKey(itemKey);
         }
-
-        @Override public int requiredServerTicks() { return 1; }
     }
 
     private static String requireItemKey(String itemKey) {

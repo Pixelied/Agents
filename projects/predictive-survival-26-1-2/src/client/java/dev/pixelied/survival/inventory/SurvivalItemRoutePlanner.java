@@ -14,9 +14,21 @@ public final class SurvivalItemRoutePlanner {
         boolean inventoryRouting,
         boolean mainHandTakeover
     ) {
+        return route(inventory, menu, source, inventoryRouting, mainHandTakeover, 1);
+    }
+
+    public Optional<SurvivalItemRoute> route(
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        InventorySlotSnapshot source,
+        boolean inventoryRouting,
+        boolean mainHandTakeover,
+        int containerSwapTicks
+    ) {
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(menu, "menu");
         Objects.requireNonNull(source, "source");
+        if (containerSwapTicks < 0) throw new IllegalArgumentException("containerSwapTicks must be non-negative");
         if (source.count() <= 0) return Optional.empty();
 
         if (source.inventoryIndex() == inventory.selectedHotbarIndex()) {
@@ -48,7 +60,8 @@ public final class SurvivalItemRoutePlanner {
             inventory.selectedHotbarIndex(),
             SurvivalAction.Hand.MAIN_HAND,
             source.stackKey(),
-            source.componentFingerprint()
+            source.componentFingerprint(),
+            containerSwapTicks
         ));
     }
 }

@@ -90,22 +90,22 @@ public final class SurvivalCandidateGenerator {
                     && needsMultipleProtectionsFromEmpty(context, timeline, inventory);
                 if (dualFromEmpty) {
                     routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND)
-                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                        .ifPresent(route -> addProtectionCandidate(candidates, context, inventory, menu, route));
                     routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND)
-                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                        .ifPresent(route -> addProtectionCandidate(candidates, context, inventory, menu, route));
                 } else {
                     var route = policy.mainHandTakeover()
                         ? routePlanner.choose(inventory, menu)
                         : routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND);
-                    route.ifPresent(value -> addProtectionCandidate(candidates, inventory, menu, value));
+                    route.ifPresent(value -> addProtectionCandidate(candidates, context, inventory, menu, value));
                 }
             } else if (policy.proactiveDualProtection() && needsAdditionalProtection(context, timeline)) {
                 if (protection.offHand().isPresent() && protection.mainHand().isEmpty() && policy.mainHandTakeover()) {
                     routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.MAIN_HAND)
-                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                        .ifPresent(route -> addProtectionCandidate(candidates, context, inventory, menu, route));
                 } else if (protection.mainHand().isPresent() && protection.offHand().isEmpty()) {
                     routePlanner.choose(inventory, menu, DeathProtectionRoute.Destination.OFF_HAND)
-                        .ifPresent(route -> addProtectionCandidate(candidates, inventory, menu, route));
+                        .ifPresent(route -> addProtectionCandidate(candidates, context, inventory, menu, route));
                 }
             }
         }
@@ -179,6 +179,7 @@ public final class SurvivalCandidateGenerator {
 
     private static void addProtectionCandidate(
         List<SurvivalAction> candidates,
+        PredictionContext context,
         InventorySnapshot inventory,
         MenuSlotMap menu,
         DeathProtectionRoute route
@@ -199,10 +200,13 @@ public final class SurvivalCandidateGenerator {
             .orElseThrow(() -> new IllegalStateException("death-protection route has no source inventory slot"));
         DeathProtectionSnapshot.ProtectionItem item = protectionItem(routedSlot);
 
+        int requiredServerTicks = route instanceof DeathProtectionRoute.HotbarSelect
+            ? 1
+            : context.timing().serverCorrectionReturnTicks();
         candidates.add(new SurvivalAction.EquipDeathProtection(
             item,
             hand,
-            0,
+            requiredServerTicks,
             true,
             true,
             1d,
@@ -307,7 +311,7 @@ public final class SurvivalCandidateGenerator {
             .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
             .map(slot -> new java.util.AbstractMap.SimpleImmutableEntry<>(
                 slot,
-                itemRoutePlanner.route(inventory, menu, slot, true, true)
+                itemRoutePlanner.route(inventory, menu, slot, true, true, context.timing().containerFollowupRouteTicks())
             ))
             .filter(entry -> entry.getValue().isPresent())
             .findFirst()
@@ -346,7 +350,8 @@ public final class SurvivalCandidateGenerator {
             .toList();
         for (InventorySlotSnapshot slot : slots) {
             itemRoutePlanner.route(
-                inventory, menu, slot, policy.inventoryRouting(), policy.mainHandTakeover()
+                inventory, menu, slot, policy.inventoryRouting(), policy.mainHandTakeover(),
+                context.timing().containerFollowupRouteTicks()
             ).ifPresent(route -> addRoutedItemCandidates(candidates, context, slot, route, policy));
         }
     }
