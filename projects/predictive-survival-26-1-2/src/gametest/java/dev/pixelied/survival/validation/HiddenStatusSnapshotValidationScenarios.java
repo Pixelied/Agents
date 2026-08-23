@@ -2,6 +2,7 @@ package dev.pixelied.survival.validation;
 
 import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.damage.EffectInstanceSnapshot;
+import dev.pixelied.survival.mixin.MobEffectInstanceAccessor;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -46,6 +47,12 @@ final class HiddenStatusSnapshotValidationScenarios {
 
             MinecraftSurvivalRuntime runtime = context.computeOnClient(MinecraftSurvivalRuntime::new);
             SnapshotPrediction prediction = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null) throw new AssertionError("client player unavailable");
+                MobEffectInstance clientWither = minecraft.player.getEffect(MobEffects.WITHER);
+                if (clientWither == null) throw new AssertionError("client lost active Wither II before capture");
+                MobEffectInstance directHidden = ((MobEffectInstanceAccessor) (Object) clientWither)
+                    .predictiveSurvival$getHiddenEffect();
+
                 var frame = runtime.capture();
                 EffectInstanceSnapshot visible = frame.context().player().statusEffects()
                     .effect("minecraft:wither")
@@ -61,7 +68,14 @@ final class HiddenStatusSnapshotValidationScenarios {
                     .mapToLong(event -> event.impact().latest())
                     .max()
                     .orElse(-1L);
-                return new SnapshotPrediction(visible.durationTicks(), latest, predictedWither);
+                return new SnapshotPrediction(
+                    visible.durationTicks(),
+                    latest,
+                    directHidden == null ? -1 : directHidden.getDuration(),
+                    directHidden == null ? -1 : directHidden.getAmplifier(),
+                    visible.hiddenEffect().orElse(null),
+                    predictedWither
+                );
             });
 
             float previousHealth = singleplayer.getServer().computeOnServer(server ->
@@ -106,12 +120,10 @@ final class HiddenStatusSnapshotValidationScenarios {
             }
             if (prediction.latestPredictedTick() < secondHiddenDamage.tick()) {
                 throw new AssertionError(
-                    "client-synchronized hidden Wither tail was dropped from the production snapshot; "
-                        + "visibleDuration=" + prediction.visibleDuration()
-                        + " latestPredictedTick=" + prediction.latestPredictedTick()
+                    "client hidden Wither tail was dropped before production prediction; "
+                        + "prediction=" + prediction
                         + " downgradeTick=" + downgradeTick
                         + " secondHiddenDamage=" + secondHiddenDamage
-                        + " predicted=" + prediction.events()
                 );
             }
         } finally {
@@ -147,6 +159,9 @@ final class HiddenStatusSnapshotValidationScenarios {
     private record SnapshotPrediction(
         int visibleDuration,
         long latestPredictedTick,
+        int directHiddenDuration,
+        int directHiddenAmplifier,
+        EffectInstanceSnapshot snapshotHidden,
         List<ThreatEvent> events
     ) {
     }
