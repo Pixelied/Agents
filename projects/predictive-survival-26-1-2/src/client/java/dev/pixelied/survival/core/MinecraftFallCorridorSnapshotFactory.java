@@ -117,10 +117,12 @@ final class MinecraftFallCorridorSnapshotFactory {
                     seen.add(key);
 
                     Map<String, String> properties = new LinkedHashMap<>();
-                    boolean collision = !state.getCollisionShape(level, pos).isEmpty();
-                    properties.put(
-                        "full_collision_cube",
-                        Boolean.toString(state.isCollisionShapeFullBlock(level, pos))
+                    var collisionShape = state.getCollisionShape(level, pos);
+                    boolean collision = !collisionShape.isEmpty();
+                    MinecraftCollisionShapeSnapshot.write(
+                        properties,
+                        collisionShape,
+                        state.isCollisionShapeFullBlock(level, pos)
                     );
 
                     Vec3 center = pos.getCenter();
