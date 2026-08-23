@@ -47,7 +47,7 @@ public final class ContactHazardPredictor implements ThreatPredictor {
         // while the server may process the corresponding contact callback on the current or next
         // tick. Future continued contact is only potential because the player can still move away.
         output.add(event(id, rawDamage, sourceKey, fire, new TickWindow(0, 1), Confidence.MATCHED));
-        long horizon = context.limits().maxProjectileHorizonTicks();
+        long horizon = context.limits().maxDecisionHistory();
         for (long tick = 2L; tick <= horizon; tick++) {
             output.add(event(
                 id + ":future:" + tick,
