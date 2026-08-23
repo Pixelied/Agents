@@ -118,16 +118,20 @@ public final class FallLandingSolver {
 
         LandingHit best = null;
         for (WorldSnapshot.BlockSnapshot block : blocks) {
-            CollisionBounds collision = collisionBounds(block);
-            if (collision == null) continue;
+            if (!block.collision()) continue;
+            CollisionBounds known = knownCollisionBounds(block);
             double cellX = Math.floor(block.position().x());
             double cellY = Math.floor(block.position().y());
             double cellZ = Math.floor(block.position().z());
-            double blockMinX = cellX + collision.minX();
-            double blockTop = cellY + collision.maxY();
-            double blockMinZ = cellZ + collision.minZ();
-            double blockMaxX = cellX + collision.maxX();
-            double blockMaxZ = cellZ + collision.maxZ();
+
+            double blockMinX = known == null ? cellX : cellX + known.minX();
+            double blockMaxX = known == null ? cellX + 1d : cellX + known.maxX();
+            double blockMinZ = known == null ? cellZ : cellZ + known.minZ();
+            double blockMaxZ = known == null ? cellZ + 1d : cellZ + known.maxZ();
+            // A collidable legacy snapshot without shape bounds proves that some collision exists
+            // inside this cell but not where its top is. Using the cell floor maximizes possible
+            // fall distance; inventing the cell ceiling can make a slab/stair landing look safer.
+            double blockTop = known == null ? cellY : cellY + known.maxY();
             if (fromBottom < blockTop - EPSILON || toBottom > blockTop + EPSILON) continue;
 
             double t = (blockTop - fromBottom) / (toBottom - fromBottom);
@@ -153,12 +157,26 @@ public final class FallLandingSolver {
     }
 
     /**
-     * Returns a conservative local-space collision AABB for landing checks. Production snapshots
-     * capture the bounds of the block's VoxelShape. Full cubes remain the fast path, while legacy
-     * collidable snapshots without bounds fall back to the whole cell so missing metadata cannot
-     * turn a real landing into a false-safe.
+     * Conservative collision envelope used by non-landing collision checks such as Elytra impact.
+     * Exact production VoxelShape bounds are used when present. Legacy/unknown collidable geometry
+     * falls back to the whole cell so a real obstacle cannot disappear from prediction.
      */
-    private static CollisionBounds collisionBounds(WorldSnapshot.BlockSnapshot block) {
+    static AabbSnapshot conservativeCollisionBox(WorldSnapshot.BlockSnapshot block) {
+        if (!block.collision()) return null;
+        double cellX = Math.floor(block.position().x());
+        double cellY = Math.floor(block.position().y());
+        double cellZ = Math.floor(block.position().z());
+        CollisionBounds known = knownCollisionBounds(block);
+        if (known == null) {
+            return new AabbSnapshot(cellX, cellY, cellZ, cellX + 1d, cellY + 1d, cellZ + 1d);
+        }
+        return new AabbSnapshot(
+            cellX + known.minX(), cellY + known.minY(), cellZ + known.minZ(),
+            cellX + known.maxX(), cellY + known.maxY(), cellZ + known.maxZ()
+        );
+    }
+
+    private static CollisionBounds knownCollisionBounds(WorldSnapshot.BlockSnapshot block) {
         if (!block.collision()) return null;
         if (confirmedFullCollisionCube(block)) return CollisionBounds.FULL_BLOCK;
 
@@ -170,7 +188,7 @@ public final class FallLandingSolver {
         Double maxZ = finiteDouble(block.properties().get("collision_max_z"));
         if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
             || maxX <= minX || maxY <= minY || maxZ <= minZ) {
-            return CollisionBounds.FULL_BLOCK;
+            return null;
         }
         return new CollisionBounds(minX, minY, minZ, maxX, maxY, maxZ);
     }
