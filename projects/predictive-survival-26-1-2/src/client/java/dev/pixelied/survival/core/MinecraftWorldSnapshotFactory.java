@@ -92,7 +92,10 @@ public final class MinecraftWorldSnapshotFactory {
             entities.add(observationOverflowMarker(player, relevantCount - realEntityLimit));
         }
 
-        List<WorldSnapshot.BlockSnapshot> nearbyBlocks = captureBlocks(level, player.blockPosition());
+        List<WorldSnapshot.BlockSnapshot> nearbyBlocks = MinecraftNearbyBlockSnapshotFactory.capture(
+            level,
+            player.blockPosition()
+        );
         List<WorldSnapshot.BlockSnapshot> fallAwareBlocks = MinecraftFallCorridorSnapshotFactory.augment(
             level,
             player,
