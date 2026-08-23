@@ -107,6 +107,107 @@ public final class ContingencyPlanner {
         );
     }
 
+    /**
+     * Replans around an action that is already in flight. The first activation uses the executor's
+     * conservative remaining server ticks from the current frame, so elapsed work and packet
+     * transit are never charged a second time when the threat schedule changes.
+     */
+    public ContingencyPlan planInFlight(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        List<SurvivalAction> candidates,
+        SafetyMode safetyMode,
+        RescueProfile profile,
+        SurvivalAction active,
+        int remainingServerTicks
+    ) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(timeline, "timeline");
+        Objects.requireNonNull(candidates, "candidates");
+        Objects.requireNonNull(safetyMode, "safetyMode");
+        Objects.requireNonNull(profile, "profile");
+        Objects.requireNonNull(active, "active");
+        if (remainingServerTicks < 0) throw new IllegalArgumentException("remainingServerTicks must be non-negative");
+
+        TimelineResult baseline = timelineSimulator.simulate(context.player(), timeline);
+        if (baseline.survived()) return ContingencyPlan.baseline(baseline);
+        if (!isSequenceAction(active) || hardConstraintFailure(active, safetyMode) != null) {
+            return new ContingencyPlan(List.of(), baseline, false, 0, false,
+                "active action is not eligible for bounded in-flight planning");
+        }
+
+        int candidateCap = Math.min(context.limits().maxPlannerCandidates(), candidates.size());
+        List<SurvivalAction> legal = new ArrayList<>(candidateCap);
+        for (int i = 0; i < candidateCap; i++) {
+            SurvivalAction action = Objects.requireNonNull(candidates.get(i), "candidate");
+            if (action.equals(active)) continue;
+            if (isSequenceAction(action) && hardConstraintFailure(action, safetyMode) == null) legal.add(action);
+        }
+
+        SearchBudget budget = new SearchBudget(maxEvaluations);
+        List<SequenceEvaluation> survivors = new ArrayList<>();
+        List<PlannedStep> prefix = new ArrayList<>();
+        prefix.add(new PlannedStep(active, remainingServerTicks));
+
+        for (int totalDepth = 1; totalDepth <= maxDepth; totalDepth++) {
+            enumerateInFlight(
+                context, timeline, legal, profile, totalDepth, prefix, remainingServerTicks, budget, survivors
+            );
+            if (!survivors.isEmpty()) {
+                SequenceEvaluation best = survivors.stream().min(preference(profile)).orElseThrow();
+                return new ContingencyPlan(
+                    best.steps(), best.result(), true, budget.evaluations(), budget.truncated(),
+                    budget.truncated()
+                        ? "guaranteed in-flight sequence found before bounded search truncation"
+                        : "guaranteed progress-aware in-flight rescue sequence"
+                );
+            }
+            if (budget.truncated()) break;
+        }
+
+        return new ContingencyPlan(
+            List.of(), baseline, false, budget.evaluations(), budget.truncated(),
+            budget.truncated()
+                ? "in-flight sequence search truncated before any guarantee was found"
+                : "no guaranteed in-flight rescue sequence"
+        );
+    }
+
+    private void enumerateInFlight(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        List<SurvivalAction> candidates,
+        RescueProfile profile,
+        int targetDepth,
+        List<PlannedStep> prefix,
+        long previousActivationTick,
+        SearchBudget budget,
+        List<SequenceEvaluation> survivors
+    ) {
+        if (budget.truncated()) return;
+        if (prefix.size() == targetDepth) {
+            if (!budget.tryEvaluate()) return;
+            TimelineResult result = timelineSimulator.simulateWithActivations(
+                context.player(), timeline, prefix.stream()
+                    .map(step -> new ThreatTimelineSimulator.TimedActivation(step.activationTick(), step.action()::apply))
+                    .toList()
+            );
+            if (result.survived()) survivors.add(new SequenceEvaluation(List.copyOf(prefix), result));
+            return;
+        }
+
+        for (SurvivalAction action : candidates) {
+            if (containsAction(prefix, action)) continue;
+            long activationTick = saturatingAdd(previousActivationTick, activationDelay(context, action));
+            prefix.add(new PlannedStep(action, activationTick));
+            enumerateInFlight(
+                context, timeline, candidates, profile, targetDepth, prefix, activationTick, budget, survivors
+            );
+            prefix.removeLast();
+            if (budget.truncated()) return;
+        }
+    }
+
     private void enumerate(
         PredictionContext context,
         ThreatTimeline timeline,
