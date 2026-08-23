@@ -37,7 +37,7 @@ public record ExecutionContext(
             usingHand,
             serverUseTicks,
             shieldAngleValid,
-            ServerStateEvidenceSnapshot.unknown()
+            MinecraftServerStateEvidence.snapshot()
         );
     }
 
