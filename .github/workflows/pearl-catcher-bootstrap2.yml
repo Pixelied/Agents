@@ -1,0 +1,54 @@
+name: Republish Pearl Catcher hardened tree
+
+on:
+  push:
+    branches:
+      - fix/pearl-catcher-26-1-2-hardening
+    paths:
+      - .github/workflows/pearl-catcher-bootstrap2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assemble final tree from verified Git objects
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const built = await github.rest.git.createTree({
+              owner,
+              repo,
+              base_tree: 'ee73fe9377b60e7761c550b072c4998aa5e79028',
+              tree: [
+                {path:'projects/pearl-catcher-26-1-2/src/main/java/studio/pixelied/pearlcatch/core/GeneralCatchSolver.java',mode:'100644',type:'blob',sha:'ec89cd7a60777d9c67c4fff583d84536598a91ca'},
+                {path:'projects/pearl-catcher-26-1-2/src/test/java/studio/pixelied/pearlcatch/core/GeneralCatchSolverSelfTest.java',mode:'100644',type:'blob',sha:'7f88fa94a372e76f4ad0a6837fb2f7c03c3eb0b4'},
+                {path:'projects/pearl-catcher-26-1-2/src/main/resources/assets/pearlcatch/lang/en_us.json',mode:'100644',type:'blob',sha:'251eb1f50fbed7cd70338498cb358861f03c2a5f'},
+                {path:'projects/pearl-catcher-26-1-2/src/main/resources/fabric.mod.json',mode:'100644',type:'blob',sha:'9d68607b9ed7d5b184255956d54143479251123a'},
+                {path:'projects/pearl-catcher-26-1-2/src/main/resources/pearlcatch.mixins.json',mode:'100644',type:'blob',sha:'569e4e2b37761b92e65d38c29610c832fb6e37bb'},
+                {path:'projects/pearl-catcher-26-1-2/docs/IMPLEMENTATION_CHECKLIST.md',mode:'100644',type:'blob',sha:'239b08a306375e8056f19e14e7dbdc91bf968209'},
+                {path:'projects/pearl-catcher-26-1-2/docs/MATHEMATICS.md',mode:'100644',type:'blob',sha:'5cb0192297328ee2bdef2cb207669545629108d0'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_2_IMPLEMENTATION_HANDOFF.md',mode:'100644',type:'blob',sha:'1db34b0300919123b972697331fa9fc60f2b8b2e'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_2_REDESIGN_SPEC.md',mode:'100644',type:'blob',sha:'0ef233b33eb3f647df2ad74353c36a08c2f1e02d'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_2_SPEC.md',mode:'100644',type:'blob',sha:'f7699b90ed5465b61b08ca65cb4771790385023a'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_4_ARCHITECTURE_DECISION.md',mode:'100644',type:'blob',sha:'cf77d72bd28f6b6e82d47e998543d71096e9553c'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_4_IMPLEMENTATION_PLAN.md',mode:'100644',type:'blob',sha:'54147334161ff911bce4b89fd66f66d8b9c9b766'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_4_SPEC.md',mode:'100644',type:'blob',sha:'1284dd5632d974b3c3830eb864876446139d7ad7'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_5_IMPLEMENTATION_PLAN.md',mode:'100644',type:'blob',sha:'2bba28de68820402e3bf3150a79b24d90615c2ec'},
+                {path:'projects/pearl-catcher-26-1-2/docs/PEARL_CATCH_2_5_SPEC.md',mode:'100644',type:'blob',sha:'507e36a73fa6961d4e5367e9e421150e4cc12b12'},
+                {path:'.github/workflows/pearl-catcher-26-1-2-ci.yml',mode:'100644',type:'blob',sha:'3e7dc0a00a8413ebfffc48b3f28725155c527625'}
+              ]
+            });
+            const commit = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: 'fix: harden Pearl Catcher 2.5.2 runtime',
+              tree: built.data.sha,
+              parents: [context.sha]
+            });
+            await github.rest.git.updateRef({owner, repo, ref:'heads/fix/pearl-catcher-26-1-2-hardening', sha:commit.data.sha, force:false});
+            core.info(`Published ${commit.data.sha}`);
