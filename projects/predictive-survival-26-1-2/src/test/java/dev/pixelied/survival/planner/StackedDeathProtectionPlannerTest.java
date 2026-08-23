@@ -34,6 +34,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StackedDeathProtectionPlannerTest {
@@ -62,6 +63,7 @@ class StackedDeathProtectionPlannerTest {
             candidates.stream().filter(SurvivalAction.EquipDeathProtection.class::isInstance).findFirst().orElseThrow()
         );
         assertEquals(SurvivalAction.Hand.MAIN_HAND, prearm.hand());
+        assertTrue(prearm.sourceItem().isPresent());
 
         SurvivalPlan plan = new SurvivalPlanner().plan(context, timeline, candidates, SafetyMode.SAFE);
         SurvivalAction.EquipDeathProtection chosen = assertInstanceOf(
@@ -99,6 +101,10 @@ class StackedDeathProtectionPlannerTest {
         assertEquals(2, protection.size(), "stacked lethal window should expose one equip action per hand");
         assertTrue(protection.stream().anyMatch(action -> action.hand() == SurvivalAction.Hand.MAIN_HAND));
         assertTrue(protection.stream().anyMatch(action -> action.hand() == SurvivalAction.Hand.OFF_HAND));
+        int firstSource = protection.get(0).sourceItem().orElseThrow().sourceInventoryIndex();
+        int secondSource = protection.get(1).sourceItem().orElseThrow().sourceInventoryIndex();
+        assertNotEquals(firstSource, secondSource,
+            "dual prearm must reserve two distinct physical protection stacks");
 
         ContingencyPlan plan = new ContingencyPlanner().plan(
             context, timeline, candidates, SafetyMode.SAFE, RescueProfile.SMART
