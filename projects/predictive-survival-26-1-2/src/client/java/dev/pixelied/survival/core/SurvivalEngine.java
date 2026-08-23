@@ -31,6 +31,7 @@ public final class SurvivalEngine {
     private Optional<SurvivalPlan> currentPlan = Optional.empty();
     private Optional<ExecutionStatus> executionStatus = Optional.empty();
     private String dangerFingerprint = "";
+    private String dangerSafetyFingerprint = "";
     private String activeThreatScheduleFingerprint = "";
 
     public SurvivalEngine(SurvivalConfig config, RuntimeAdapter runtime, DecisionHistory history) {
@@ -133,6 +134,13 @@ public final class SurvivalEngine {
         clearCurrentPlan();
     }
 
+    public void reset() {
+        failedActions.clear();
+        dangerFingerprint = "";
+        dangerSafetyFingerprint = "";
+        clearCurrentPlan();
+    }
+
     private boolean lethalWithoutDeathProtection(EngineFrame frame) {
         PlayerSnapshot player = frame.context().player();
         PlayerSnapshot withoutProtection = new PlayerSnapshot(
@@ -148,8 +156,11 @@ public final class SurvivalEngine {
         String refreshedScheduleFingerprint = scheduleFingerprint(frame);
         boolean sameAbsoluteSchedule = refreshedScheduleFingerprint.equals(activeThreatScheduleFingerprint);
 
+        int remainingServerTicks = Math.max(0, runtime.remainingServerTicks(active, frame));
         var refreshed = sameAbsoluteSchedule
-            ? planner.simulateInFlight(frame.context(), frame.timeline(), active, config().safetyMode())
+            ? planner.simulateInFlight(
+                frame.context(), frame.timeline(), active, config().safetyMode(), remainingServerTicks
+            )
             : planner.simulate(frame.context(), frame.timeline(), active, config().safetyMode());
         if (refreshed.feasible() && refreshed.result().survived()) {
             activeThreatScheduleFingerprint = refreshedScheduleFingerprint;
@@ -172,9 +183,12 @@ public final class SurvivalEngine {
         List<SurvivalAction> filtered = new ArrayList<>();
         for (SurvivalAction candidate : candidates) {
             if (candidate == null || failedActions.contains(candidate)) continue;
-            if (!config().automaticMovement() && candidate instanceof SurvivalAction.Relocate) continue;
-            if (!config().blockPlacementAndClutches()
-                && (candidate instanceof SurvivalAction.PlaceCover || candidate instanceof SurvivalAction.PearlRescue)) {
+            // These action types have models for future development but no production-safe route
+            // generation/dispatcher yet. Legacy config files may still contain the old booleans;
+            // never let those stale flags make an unsupported action dispatchable.
+            if (candidate instanceof SurvivalAction.Relocate
+                || candidate instanceof SurvivalAction.PlaceCover
+                || candidate instanceof SurvivalAction.PearlRescue) {
                 continue;
             }
             filtered.add(candidate);
@@ -183,11 +197,18 @@ public final class SurvivalEngine {
     }
 
     private void updateDangerWindow(ThreatTimeline timeline) {
-        String next = fingerprint(timeline);
-        if (!next.equals(dangerFingerprint)) {
-            dangerFingerprint = next;
+        String nextIdentity = identityFingerprint(timeline);
+        String nextSafety = failureSafetyFingerprint(timeline);
+        if (!nextIdentity.equals(dangerFingerprint)) {
+            dangerFingerprint = nextIdentity;
+            dangerSafetyFingerprint = nextSafety;
             failedActions.clear();
             clearCurrentPlan();
+            return;
+        }
+        if (!nextSafety.equals(dangerSafetyFingerprint)) {
+            dangerSafetyFingerprint = nextSafety;
+            failedActions.clear();
         }
     }
 
@@ -219,12 +240,45 @@ public final class SurvivalEngine {
         return status.getClass().getSimpleName();
     }
 
-    private static String fingerprint(ThreatTimeline timeline) {
+    private static String identityFingerprint(ThreatTimeline timeline) {
         List<String> identities = timeline.events().stream()
             .map(event -> event.id() + '|' + event.kind() + '|' + event.damage().sourceKey())
             .sorted()
             .toList();
         return String.join(";", identities);
+    }
+
+    private static String failureSafetyFingerprint(ThreatTimeline timeline) {
+        List<String> states = timeline.events().stream()
+            .map(SurvivalEngine::failureSafetyFingerprint)
+            .sorted()
+            .toList();
+        return String.join(";", states);
+    }
+
+    private static String failureSafetyFingerprint(ThreatEvent event) {
+        var damage = event.damage();
+        List<String> flags = damage.flags().stream()
+            .map(Enum::name)
+            .sorted()
+            .toList();
+        return event.id()
+            + '|' + event.kind()
+            + '|' + damage.sourceKey()
+            + '|' + damage.rawDamage().min() + ':' + damage.rawDamage().max()
+            + '|' + flags
+            + '|' + damage.scalesWithDifficulty()
+            + '|' + damage.freezingMultiplier()
+            + '|' + damage.piercingProjectile()
+            + '|' + damage.applicationHealthThresholdExclusive()
+            + '|' + damage.armorEffectivenessAdjustment()
+            + '|' + damage.blockingDisableSeconds()
+            + '|' + event.confidence()
+            + '|' + event.avoidable()
+            + '|' + event.blockable()
+            + '|' + event.relocatable()
+            + '|' + event.canDisableBlocking()
+            + '|' + event.requiresAcceptedEventId();
     }
 
     private static String scheduleFingerprint(EngineFrame frame) {
@@ -297,6 +351,12 @@ public final class SurvivalEngine {
         EngineFrame capture();
         ExecutionStatus begin(SurvivalAction action, EngineFrame frame);
         ExecutionStatus observe(SurvivalAction action, EngineFrame frame);
+
+        default int remainingServerTicks(SurvivalAction action, EngineFrame frame) {
+            Objects.requireNonNull(action, "action");
+            Objects.requireNonNull(frame, "frame");
+            return action.requiredServerTicks();
+        }
 
         default void maintainRestoration(
             EngineFrame frame,

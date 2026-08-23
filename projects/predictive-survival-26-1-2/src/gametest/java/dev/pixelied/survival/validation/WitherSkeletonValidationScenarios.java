@@ -8,7 +8,10 @@ import dev.pixelied.survival.damage.DamageSimulator;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.execution.ExecutionCommand;
 import dev.pixelied.survival.execution.MinecraftCommandDispatcher;
+import dev.pixelied.survival.planner.SafetyMode;
+import dev.pixelied.survival.planner.SurvivalPlanner;
 import dev.pixelied.survival.timeline.ThreatEvent;
+import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.server.level.ServerLevel;
@@ -121,6 +124,8 @@ final class WitherSkeletonValidationScenarios {
                 ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
                 SurvivalValidationClientGameTest.reset(player, 4f);
                 player.setDeltaMovement(Vec3.ZERO);
+                player.getFoodData().setFoodLevel(6);
+                player.getFoodData().setSaturation(0f);
                 player.getInventory().setSelectedSlot(0);
                 player.getInventory().setItem(0, new ItemStack(Items.STICK));
                 player.getInventory().setItem(1, new ItemStack(Items.TOTEM_OF_UNDYING));
@@ -134,6 +139,17 @@ final class WitherSkeletonValidationScenarios {
                 && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING)
                 && minecraft.level != null
                 && minecraft.level.getEntity(skeletonId) instanceof WitherSkeleton);
+
+            // Keep the controlled lethal state stable while the real production engine is exercised.
+            // Vanilla natural regeneration can otherwise turn this into a non-lethal scenario while
+            // the test is still polling for server-authoritative inventory confirmation.
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                player.invulnerableTime = 0;
+                player.setHealth(4f);
+            });
+            context.waitFor(minecraft -> minecraft.player != null
+                && Math.abs(minecraft.player.getHealth() - 4f) <= EPSILON);
 
             RuntimeHarness harness = context.computeOnClient(minecraft -> {
                 MinecraftSurvivalRuntime runtime = new MinecraftSurvivalRuntime(minecraft);
@@ -156,7 +172,61 @@ final class WitherSkeletonValidationScenarios {
                 if (protectedOnServer) break;
             }
             if (!protectedOnServer) {
-                throw new AssertionError("production engine did not make a Totem server-authoritative before preventable Wither Skeleton melee");
+                String clientDiagnostic = context.computeOnClient(minecraft -> {
+                    var frame = harness.runtime().lastFrame().orElse(null);
+                    var snapshot = frame == null ? null : frame.context().player();
+                    var timelineSimulator = new ThreatTimelineSimulator();
+                    var baseline = frame == null ? null : timelineSimulator.simulate(snapshot, frame.timeline());
+                    ThreatEvent direct = frame == null ? null : frame.timeline().events().stream()
+                        .filter(event -> event.id().equals("melee:" + skeletonId))
+                        .findFirst()
+                        .orElse(null);
+                    var directDamage = snapshot == null || direct == null
+                        ? null
+                        : new DamageSimulator().simulate(snapshot, direct.damage());
+                    var candidate = frame == null || frame.candidates().isEmpty() ? null : frame.candidates().getFirst();
+                    var candidateSimulation = frame == null || candidate == null
+                        ? null
+                        : new SurvivalPlanner().simulate(frame.context(), frame.timeline(), candidate, SafetyMode.SAFE);
+                    var immediateCandidateResult = snapshot == null || frame == null || candidate == null
+                        ? null
+                        : timelineSimulator.simulate(candidate.apply(snapshot), frame.timeline());
+                    return "clientSelected=" + (minecraft.player == null ? -1 : minecraft.player.getInventory().getSelectedSlot())
+                        + ", clientHealth=" + (minecraft.player == null ? -1f : minecraft.player.getHealth())
+                        + ", snapshotHealth=" + (snapshot == null ? "none" : Float.toString(snapshot.health()))
+                        + ", snapshotAbsorption=" + (snapshot == null ? "none" : Float.toString(snapshot.absorption()))
+                        + ", snapshotDifficulty=" + (snapshot == null ? "none" : snapshot.difficulty())
+                        + ", snapshotPlayerInvulnerable=" + (snapshot == null ? "none" : snapshot.playerInvulnerable())
+                        + ", snapshotAbilityInvulnerable=" + (snapshot == null ? "none" : snapshot.abilityInvulnerable())
+                        + ", snapshotDeadOrDying=" + (snapshot == null ? "none" : snapshot.deadOrDying())
+                        + ", snapshotMitigation=" + (snapshot == null ? "none" : snapshot.mitigation())
+                        + ", snapshotEffects=" + (snapshot == null ? "none" : snapshot.statusEffects())
+                        + ", snapshotBlocking=" + (snapshot == null ? "none" : snapshot.blocking())
+                        + ", snapshotHurtState=" + (snapshot == null ? "none" : snapshot.hurtState())
+                        + ", snapshotDeathProtection=" + (snapshot == null ? "none" : snapshot.deathProtection())
+                        + ", directDamage=" + directDamage
+                        + ", baseline=" + baseline
+                        + ", candidateSimulation=" + candidateSimulation
+                        + ", immediateCandidateResult=" + immediateCandidateResult
+                        + ", currentPlan=" + harness.engine().currentPlan()
+                        + ", executionStatus=" + harness.engine().executionStatus()
+                        + ", history=" + harness.engine().history().snapshot()
+                        + ", timeline=" + (frame == null ? "none" : frame.timeline().events())
+                        + ", candidates=" + (frame == null ? "none" : frame.candidates());
+                });
+                String serverDiagnostic = singleplayer.getServer().computeOnServer(server -> {
+                    ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
+                    return "serverSelected=" + player.getInventory().getSelectedSlot()
+                        + ", serverHealth=" + player.getHealth()
+                        + ", serverAbsorption=" + player.getAbsorptionAmount()
+                        + ", serverInvulnerableTime=" + player.invulnerableTime
+                        + ", serverMain=" + player.getMainHandItem()
+                        + ", serverOffhand=" + player.getOffhandItem();
+                });
+                throw new AssertionError(
+                    "production engine did not make a Totem server-authoritative before preventable Wither Skeleton melee; "
+                        + clientDiagnostic + "; " + serverDiagnostic
+                );
             }
 
             ProtectedHit protectedHit = singleplayer.getServer().computeOnServer(server -> {
@@ -187,6 +257,8 @@ final class WitherSkeletonValidationScenarios {
                 Entity skeleton = player.level().getEntity(skeletonId);
                 if (skeleton != null) skeleton.discard();
                 SurvivalValidationClientGameTest.reset(player, 20f);
+                player.getFoodData().setFoodLevel(20);
+                player.getFoodData().setSaturation(5f);
                 player.getInventory().setSelectedSlot(0);
                 player.getInventory().setItem(0, ItemStack.EMPTY);
                 player.getInventory().setItem(1, ItemStack.EMPTY);

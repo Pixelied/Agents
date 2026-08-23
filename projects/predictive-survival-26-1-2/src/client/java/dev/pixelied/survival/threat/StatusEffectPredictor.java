@@ -32,18 +32,21 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
         boolean poison,
         List<ThreatEvent> output
     ) {
-        int intervalBase = poison ? 25 : 40;
-        int interval = effect.amplifier() >= 31 ? 0 : intervalBase >> Math.max(0, effect.amplifier());
+        long totalHorizon = horizon(context);
+        int interval = interval(poison, effect.amplifier());
         if (effect.infiniteDuration()) {
             addInfiniteEffectTicks(context, poison, interval, output);
             return;
         }
 
         int duration = effect.durationTicks();
-        long horizon = Math.min(horizon(context), duration);
-        for (long tick = 1; tick <= horizon; tick++) {
-            int remainingDuration = duration - (int) tick;
-            boolean applies = interval <= 0 || remainingDuration % interval == 0;
+        long visibleHorizon = Math.min(totalHorizon, duration);
+        for (long tick = 1; tick <= visibleHorizon; tick++) {
+            // MobEffectInstance.tickServer tests the current remaining duration before decrementing
+            // it. A START_CLIENT_TICK snapshot with duration D therefore tests D on future tick 1,
+            // D-1 on future tick 2, and so on.
+            int testedDuration = duration - (int) tick + 1;
+            boolean applies = interval <= 0 || testedDuration % interval == 0;
             if (!applies) continue;
 
             if (poison) {
@@ -68,8 +71,66 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
                 ));
             }
         }
+
+        if (effect.hiddenTailUnknown() && effect.amplifier() > 0 && duration < totalHorizon) {
+            // ClientboundUpdateMobEffectPacket in 26.1.2 does not serialize hiddenEffect. A live
+            // amplifier-N effect can therefore conceal an arbitrarily longer lower-amplifier tail
+            // that the client cannot distinguish until the server later sends the promotion update.
+            // Amplifier 0 cannot hide a weaker effect, so only N>0 needs this fail-closed branch.
+            addUnknownHiddenTail(
+                context,
+                poison,
+                interval(poison, effect.amplifier() - 1),
+                duration,
+                output
+            );
+        }
     }
 
+    private static void addUnknownHiddenTail(
+        PredictionContext context,
+        boolean poison,
+        int interval,
+        long visibleDuration,
+        List<ThreatEvent> output
+    ) {
+        long remainingHorizon = horizon(context) - visibleDuration;
+        if (remainingHorizon <= 0L) return;
+
+        String idPrefix = poison ? "env:poison:hidden-unknown:" : "env:wither:hidden-unknown:";
+        String sourceKey = poison ? "minecraft:magic" : "minecraft:wither";
+        float healthFloor = poison ? 1f : 0f;
+
+        if (interval <= 0) {
+            for (long relativeTick = 1; relativeTick <= remainingHorizon; relativeTick++) {
+                long absoluteTick = visibleDuration + relativeTick;
+                output.add(windowEvent(
+                    idPrefix + absoluteTick,
+                    new TickWindow(absoluteTick, absoluteTick),
+                    new DamageRange(0f, 1f),
+                    sourceKey,
+                    healthFloor,
+                    Confidence.POTENTIAL
+                ));
+            }
+            return;
+        }
+
+        int application = 0;
+        for (long start = 1L; start <= remainingHorizon; start += interval) {
+            long end = Math.min(remainingHorizon, start + interval - 1L);
+            output.add(windowEvent(
+                idPrefix + application++,
+                new TickWindow(visibleDuration + start, visibleDuration + end),
+                new DamageRange(0f, 1f),
+                sourceKey,
+                healthFloor,
+                Confidence.POTENTIAL
+            ));
+        }
+    }
+
+    /** Preserves the established phase-bounded model for effects whose client duration is infinite. */
     private static void addInfiniteEffectTicks(
         PredictionContext context,
         boolean poison,
@@ -111,6 +172,11 @@ public final class StatusEffectPredictor extends PeriodicDamagePredictor {
                 fullCadenceWindow ? Confidence.BOUNDED : Confidence.POTENTIAL
             ));
         }
+    }
+
+    private static int interval(boolean poison, int amplifier) {
+        int intervalBase = poison ? 25 : 40;
+        return amplifier >= 31 ? 0 : intervalBase >> Math.max(0, amplifier);
     }
 
     private static ThreatEvent windowEvent(

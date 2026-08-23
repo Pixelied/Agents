@@ -24,6 +24,11 @@ public final class ServerTimingEstimator {
         addBounded(tickSamplesMs, nanos / 1_000_000d);
     }
 
+    public void reset() {
+        rttSamplesMs.clear();
+        tickSamplesMs.clear();
+    }
+
     public TimingSnapshot snapshot(long clientTick) {
         if (clientTick < 0) throw new IllegalArgumentException("clientTick must be non-negative");
 

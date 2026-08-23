@@ -12,6 +12,7 @@ import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
@@ -131,6 +132,108 @@ class ThreatTimelineSimulatorTest {
     }
 
     @Test
+    void finiteFireResistanceExpiresBeforeDelayedThreat() {
+        StatusEffectsSnapshot effects = new StatusEffectsSnapshot(
+            true,
+            -1,
+            Map.of("minecraft:fire_resistance", new EffectInstanceSnapshot("minecraft:fire_resistance", 1, 0))
+        );
+        PlayerSnapshot start = player(20f, MitigationSnapshot.none(), DeathProtectionSnapshot.none(), effects, 0f);
+        DamageSourceSnapshot fire = new DamageSourceSnapshot(
+            DamageRange.exact(5f), Set.of(DamageFlag.IS_FIRE, DamageFlag.BYPASSES_COOLDOWN),
+            false, 1f, false, Optional.empty(), "test:fire"
+        );
+
+        TimelineResult result = simulator.simulate(
+            start,
+            new ThreatTimeline(List.of(new ThreatEvent(
+                "fire", ThreatKind.OTHER, new TickWindow(5, 5), fire, Confidence.EXACT,
+                Optional.empty(), Optional.empty(), true, false, true, false
+            )))
+        );
+
+        assertEquals(15f, result.finalHealth(), 0.0001f, "expired fire resistance must not protect a later hit");
+    }
+
+    @Test
+    void absorptionFromExpiredEffectDoesNotPersistForever() {
+        StatusEffectsSnapshot effects = new StatusEffectsSnapshot(
+            false,
+            -1,
+            Map.of("minecraft:absorption", new EffectInstanceSnapshot("minecraft:absorption", 1, 0))
+        );
+        PlayerSnapshot start = player(20f, MitigationSnapshot.none(), DeathProtectionSnapshot.none(), effects, 4f);
+
+        TimelineResult result = simulator.simulate(
+            start,
+            new ThreatTimeline(List.of(event("delayed", 5f, 5)))
+        );
+
+        assertEquals(15f, result.finalHealth(), 0.0001f, "expired absorption hearts must be removed before damage");
+        assertEquals(0f, result.finalAbsorption(), 0.0001f);
+    }
+
+    @Test
+    void regenerationUsesVanillaRemainingDurationPhase() {
+        StatusEffectsSnapshot effects = new StatusEffectsSnapshot(
+            false,
+            -1,
+            Map.of("minecraft:regeneration", new EffectInstanceSnapshot("minecraft:regeneration", 900, 1))
+        );
+        PlayerSnapshot start = new PlayerSnapshot(
+            1f, 0f, false, false, false, DifficultySnapshot.NORMAL,
+            MitigationSnapshot.none(), effects, BlockingSnapshot.none(), HurtState.unknown(),
+            DeathProtectionSnapshot.none(), new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
+            new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of(),
+            Map.of("max_health", "20.0")
+        );
+
+        TimelineResult result = simulator.simulate(
+            start,
+            new ThreatTimeline(List.of(event("phase-marker", 0f, 26)))
+        );
+
+        assertEquals(2f, result.finalHealth(), 0.0001f,
+            "Regeneration II at remaining duration 900 heals before tick 26, but the tick-26 heal is not guaranteed before a same-tick threat");
+    }
+
+    @Test
+    void vanillaTotemRegenerationPreventsFalseDeathOnLateWitherTail() {
+        PlayerSnapshot start = new PlayerSnapshot(
+            4f, 0f, false, false, false, DifficultySnapshot.EASY,
+            MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
+            DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.vanillaTotem()),
+            new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
+            new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of(),
+            Map.of("max_health", "20.0")
+        );
+        DamageSourceSnapshot directDamage = new DamageSourceSnapshot(
+            DamageRange.exact(8f), Set.of(), true, 1f, false, Optional.empty(), "minecraft:mob_attack"
+        );
+        ThreatEvent direct = new ThreatEvent(
+            "melee", ThreatKind.MELEE, new TickWindow(0, 0), directDamage, Confidence.POTENTIAL,
+            Optional.empty(), Optional.empty(), true, true, true, false
+        );
+        DamageSourceSnapshot witherDamage = new DamageSourceSnapshot(
+            DamageRange.exact(1f), Set.of(DamageFlag.BYPASSES_ARMOR), false, 1f, false,
+            Optional.empty(), "minecraft:wither"
+        );
+        ThreatTimeline timeline = new ThreatTimeline(List.of(
+            direct,
+            dependent("wither-0", witherDamage, 1, "melee"),
+            dependent("wither-1", witherDamage, 41, "melee"),
+            dependent("wither-2", witherDamage, 81, "melee"),
+            dependent("wither-3", witherDamage, 121, "melee")
+        ));
+
+        TimelineResult result = simulator.simulate(start, timeline);
+
+        assertTrue(result.survived(), "vanilla Totem Regeneration II must be modeled before the late Wither tail");
+        assertEquals(1, result.consumedDeathProtectionCount());
+        assertTrue(result.finalHealth() > 0f);
+    }
+
+    @Test
     void elapsedTimelineTicksPreservePlayerStateProperties() {
         PlayerSnapshot start = new PlayerSnapshot(
             20f, 0f, false, false, false, DifficultySnapshot.NORMAL,
@@ -163,6 +266,10 @@ class ThreatTimelineSimulatorTest {
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             DamageRange.exact(raw), Set.of(DamageFlag.BYPASSES_COOLDOWN), false, 1f, false, Optional.empty(), "test:" + id
         );
+        return dependent(id, source, tick, prerequisiteId);
+    }
+
+    private static ThreatEvent dependent(String id, DamageSourceSnapshot source, long tick, String prerequisiteId) {
         return new ThreatEvent(
             id, ThreatKind.OTHER, new TickWindow(tick, tick), source, Confidence.EXACT,
             Optional.empty(), Optional.empty(), true, true, true, false, Optional.of(prerequisiteId)
@@ -170,9 +277,19 @@ class ThreatTimelineSimulatorTest {
     }
 
     private static PlayerSnapshot player(float health, MitigationSnapshot mitigation, DeathProtectionSnapshot protection) {
+        return player(health, mitigation, protection, StatusEffectsSnapshot.none(), 0f);
+    }
+
+    private static PlayerSnapshot player(
+        float health,
+        MitigationSnapshot mitigation,
+        DeathProtectionSnapshot protection,
+        StatusEffectsSnapshot effects,
+        float absorption
+    ) {
         return new PlayerSnapshot(
-            health, 0f, false, false, false, DifficultySnapshot.NORMAL,
-            mitigation, StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(), protection,
+            health, absorption, false, false, false, DifficultySnapshot.NORMAL,
+            mitigation, effects, BlockingSnapshot.none(), HurtState.unknown(), protection,
             new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
             new Vec3Snapshot(0, 0, 0), new Vec3Snapshot(0, 0, 0), Map.of()
         );

@@ -3,6 +3,7 @@ package dev.pixelied.survival.timing;
 import dev.pixelied.survival.core.TickWindow;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,6 +51,19 @@ class ServerTimingEstimatorTest {
             stalled.snapshot(100).nextPacketProcessingWindow().latest()
                 >= normal.snapshot(100).nextPacketProcessingWindow().latest()
         );
+    }
+
+    @Test
+    void resetDiscardsPriorServerTimingSamples() {
+        ServerTimingEstimator estimator = new ServerTimingEstimator();
+        for (int i = 0; i < 20; i++) estimator.observeRttMillis(20);
+        estimator.observeClientTickNanos(5_000_000L);
+
+        estimator.reset();
+        TimingSnapshot fresh = estimator.snapshot(100);
+
+        assertEquals(250d, fresh.rttMs(), 0.0001d);
+        assertEquals(100d, fresh.jitterMs(), 0.0001d);
     }
 
     @Test

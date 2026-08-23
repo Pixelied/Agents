@@ -18,24 +18,56 @@ public final class ContactHazardPredictor implements ThreatPredictor {
     @Override
     public List<ThreatEvent> predict(PredictionContext context) {
         if (context == null) throw new NullPointerException("context");
-        List<ThreatEvent> events = new ArrayList<>(4);
+        List<ThreatEvent> events = new ArrayList<>();
         if (Boolean.parseBoolean(context.player().state("contact_cactus"))) {
-            events.add(event("cactus", 1f, "minecraft:cactus", false));
+            addSustained(events, context, "cactus", 1f, "minecraft:cactus", false);
         }
         if (Boolean.parseBoolean(context.player().state("contact_sweet_berry_bush"))) {
-            events.add(event("sweet_berry_bush", 1f, "minecraft:sweet_berry_bush", false));
+            addSustained(events, context, "sweet_berry_bush", 1f, "minecraft:sweet_berry_bush", false);
         }
         int campfireDamage = positiveInt(context.player().state("contact_campfire_damage"));
         if (campfireDamage > 0) {
-            events.add(event("campfire", campfireDamage, "minecraft:campfire", true));
+            addSustained(events, context, "campfire", campfireDamage, "minecraft:campfire", true);
         }
         if (Boolean.parseBoolean(context.player().state("contact_hot_floor"))) {
-            events.add(event("hot_floor", 1f, "minecraft:hot_floor", true));
+            addSustained(events, context, "hot_floor", 1f, "minecraft:hot_floor", true);
         }
         return List.copyOf(events);
     }
 
-    private static ThreatEvent event(String id, float rawDamage, String sourceKey, boolean fire) {
+    private static void addSustained(
+        List<ThreatEvent> output,
+        PredictionContext context,
+        String id,
+        float rawDamage,
+        String sourceKey,
+        boolean fire
+    ) {
+        // Preserve the established immediate event identity/window: the frame proves contact now,
+        // while the server may process the corresponding contact callback on the current or next
+        // tick. Future continued contact is only potential because the player can still move away.
+        output.add(event(id, rawDamage, sourceKey, fire, new TickWindow(0, 1), Confidence.MATCHED));
+        long horizon = context.limits().maxDecisionHistory();
+        for (long tick = 2L; tick <= horizon; tick++) {
+            output.add(event(
+                id + ":future:" + tick,
+                rawDamage,
+                sourceKey,
+                fire,
+                new TickWindow(tick, tick),
+                Confidence.POTENTIAL
+            ));
+        }
+    }
+
+    private static ThreatEvent event(
+        String id,
+        float rawDamage,
+        String sourceKey,
+        boolean fire,
+        TickWindow impact,
+        Confidence confidence
+    ) {
         EnumSet<DamageFlag> flags = EnumSet.of(DamageFlag.BYPASSES_SHIELD);
         if (fire) flags.add(DamageFlag.IS_FIRE);
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
@@ -44,9 +76,9 @@ public final class ContactHazardPredictor implements ThreatPredictor {
         return new ThreatEvent(
             "contact:" + id,
             ThreatKind.ENVIRONMENT,
-            new TickWindow(0, 1),
+            impact,
             damage,
-            Confidence.MATCHED,
+            confidence,
             Optional.empty(),
             Optional.empty(),
             true,

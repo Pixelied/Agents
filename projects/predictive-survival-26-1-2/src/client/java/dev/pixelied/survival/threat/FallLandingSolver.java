@@ -6,22 +6,24 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
+import dev.pixelied.survival.damage.EffectInstanceSnapshot;
 
 import java.util.List;
 import java.util.Optional;
 
 public final class FallLandingSolver {
     private static final double EPSILON = 1.0E-9d;
+    private static final double VANILLA_DEFAULT_GRAVITY = 0.08d;
+    private static final double VANILLA_DEFAULT_SAFE_FALL_DISTANCE = 3d;
+    private static final double SLOW_FALLING_GRAVITY_CAP = 0.01d;
 
     public Optional<LandingPrediction> solve(PredictionContext context) {
         if (context == null) throw new NullPointerException("context");
         PlayerSnapshot player = context.player();
         if (Boolean.parseBoolean(value(player, "fall_flying", "false"))) return Optional.empty();
 
-        double gravity = finiteNonNegative(value(player, "effective_gravity", "0.08"), 0.08d);
         double verticalFriction = finitePositive(value(player, "vertical_friction", "0.98"), 0.98d);
         double horizontalFriction = finitePositive(value(player, "horizontal_friction", "0.91"), 0.91d);
-        double safeFallDistance = finiteNonNegative(value(player, "safe_fall_distance", "3"), 3d);
         double fallDamageMultiplier = finiteNonNegative(value(player, "fall_damage_multiplier", "1"), 1d);
         double accumulatedFall = finiteNonNegative(value(player, "fall_distance", "0"), 0d);
         boolean suppressingBounce = Boolean.parseBoolean(value(player, "suppressing_bounce", "false"));
@@ -37,6 +39,7 @@ public final class FallLandingSolver {
                 double downwardPart = Math.max(0d, position.y() - hit.playerPosition().y());
                 double totalFallDistance = accumulatedFall + downwardPart;
                 FallSurface surface = surface(hit.block(), suppressingBounce);
+                double safeFallDistance = safeFallDistanceForFutureLandingTick(player, tick);
                 float raw = rawFallDamage(
                     totalFallDistance + surface.extraFallDistance(),
                     surface.damageModifier(),
@@ -53,6 +56,7 @@ public final class FallLandingSolver {
 
             accumulatedFall += Math.max(0d, position.y() - nextPosition.y());
             position = nextPosition;
+            double gravity = effectiveGravityForFutureMovementTick(player, velocity, tick);
             velocity = new Vec3Snapshot(
                 velocity.x() * horizontalFriction,
                 (velocity.y() - gravity) * verticalFriction,
@@ -60,6 +64,28 @@ public final class FallLandingSolver {
             );
         }
         return Optional.empty();
+    }
+
+    /**
+     * Reconstructs LivingEntity#getEffectiveGravity for a future movement tick from a START_CLIENT_TICK
+     * snapshot. Mob effects tick before travel, so a finite Slow Falling effect with duration D is
+     * still present for future movement tick t only when D > t.
+     */
+    static double effectiveGravityForFutureMovementTick(
+        PlayerSnapshot player,
+        Vec3Snapshot velocity,
+        long futureTick
+    ) {
+        if (player == null) throw new NullPointerException("player");
+        if (velocity == null) throw new NullPointerException("velocity");
+        if (futureTick < 1L) throw new IllegalArgumentException("futureTick must be positive");
+
+        double baseGravity = capturedBaseGravity(player);
+        EffectInstanceSnapshot slowFalling = player.statusEffects().effects().get("minecraft:slow_falling");
+        if (velocity.y() > 0d || !activeForFutureMovementTick(slowFalling, futureTick)) {
+            return baseGravity;
+        }
+        return Math.min(baseGravity, SLOW_FALLING_GRAVITY_CAP);
     }
 
     public static float rawFallDamage(
@@ -92,11 +118,20 @@ public final class FallLandingSolver {
 
         LandingHit best = null;
         for (WorldSnapshot.BlockSnapshot block : blocks) {
-            if (!confirmedFullCollisionCube(block)) continue;
-            double blockMinX = Math.floor(block.position().x());
-            double blockMinY = Math.floor(block.position().y());
-            double blockMinZ = Math.floor(block.position().z());
-            double blockTop = blockMinY + 1d;
+            if (!block.collision()) continue;
+            CollisionBounds known = knownCollisionBounds(block);
+            double cellX = Math.floor(block.position().x());
+            double cellY = Math.floor(block.position().y());
+            double cellZ = Math.floor(block.position().z());
+
+            double blockMinX = known == null ? cellX : cellX + known.minX();
+            double blockMaxX = known == null ? cellX + 1d : cellX + known.maxX();
+            double blockMinZ = known == null ? cellZ : cellZ + known.minZ();
+            double blockMaxZ = known == null ? cellZ + 1d : cellZ + known.maxZ();
+            // A collidable legacy snapshot without shape bounds proves that some collision exists
+            // inside this cell but not where its top is. Using the cell floor maximizes possible
+            // fall distance; inventing the cell ceiling can make a slab/stair landing look safer.
+            double blockTop = known == null ? cellY : cellY + known.maxY();
             if (fromBottom < blockTop - EPSILON || toBottom > blockTop + EPSILON) continue;
 
             double t = (blockTop - fromBottom) / (toBottom - fromBottom);
@@ -107,8 +142,8 @@ public final class FallLandingSolver {
             double maxX = at.x() + bounds.maxX();
             double minZ = at.z() + bounds.minZ();
             double maxZ = at.z() + bounds.maxZ();
-            if (maxX <= blockMinX + EPSILON || minX >= blockMinX + 1d - EPSILON
-                || maxZ <= blockMinZ + EPSILON || minZ >= blockMinZ + 1d - EPSILON) {
+            if (maxX <= blockMinX + EPSILON || minX >= blockMaxX - EPSILON
+                || maxZ <= blockMinZ + EPSILON || minZ >= blockMaxZ - EPSILON) {
                 continue;
             }
             if (best == null || t < best.fraction()) best = new LandingHit(t, at, block);
@@ -119,6 +154,43 @@ public final class FallLandingSolver {
     static boolean confirmedFullCollisionCube(WorldSnapshot.BlockSnapshot block) {
         return block.collision()
             && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
+    }
+
+    /**
+     * Conservative collision envelope used by non-landing collision checks such as Elytra impact.
+     * Exact production VoxelShape bounds are used when present. Legacy/unknown collidable geometry
+     * falls back to the whole cell so a real obstacle cannot disappear from prediction.
+     */
+    static AabbSnapshot conservativeCollisionBox(WorldSnapshot.BlockSnapshot block) {
+        if (!block.collision()) return null;
+        double cellX = Math.floor(block.position().x());
+        double cellY = Math.floor(block.position().y());
+        double cellZ = Math.floor(block.position().z());
+        CollisionBounds known = knownCollisionBounds(block);
+        if (known == null) {
+            return new AabbSnapshot(cellX, cellY, cellZ, cellX + 1d, cellY + 1d, cellZ + 1d);
+        }
+        return new AabbSnapshot(
+            cellX + known.minX(), cellY + known.minY(), cellZ + known.minZ(),
+            cellX + known.maxX(), cellY + known.maxY(), cellZ + known.maxZ()
+        );
+    }
+
+    private static CollisionBounds knownCollisionBounds(WorldSnapshot.BlockSnapshot block) {
+        if (!block.collision()) return null;
+        if (confirmedFullCollisionCube(block)) return CollisionBounds.FULL_BLOCK;
+
+        Double minX = finiteDouble(block.properties().get("collision_min_x"));
+        Double minY = finiteDouble(block.properties().get("collision_min_y"));
+        Double minZ = finiteDouble(block.properties().get("collision_min_z"));
+        Double maxX = finiteDouble(block.properties().get("collision_max_x"));
+        Double maxY = finiteDouble(block.properties().get("collision_max_y"));
+        Double maxZ = finiteDouble(block.properties().get("collision_max_z"));
+        if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
+            || maxX <= minX || maxY <= minY || maxZ <= minZ) {
+            return null;
+        }
+        return new CollisionBounds(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     private static FallSurface surface(WorldSnapshot.BlockSnapshot block, boolean suppressingBounce) {
@@ -135,27 +207,64 @@ public final class FallLandingSolver {
         return new FallSurface(1f, 0d);
     }
 
+    private static double safeFallDistanceForFutureLandingTick(PlayerSnapshot player, long futureTick) {
+        Double captured = finiteDouble(player.state("safe_fall_distance"));
+        double safeFallDistance = captured == null ? VANILLA_DEFAULT_SAFE_FALL_DISTANCE : captured;
+
+        EffectInstanceSnapshot jumpBoost = player.statusEffects().effects().get("minecraft:jump_boost");
+        if (jumpBoost != null && !activeForFutureMovementTick(jumpBoost, futureTick)) {
+            // 26.1.2 Jump Boost contributes +1 SAFE_FALL_DISTANCE per effect level. Effect ticking
+            // happens before movement/landing, so remove the currently-observed modifier once the
+            // finite effect has expired. Hidden weaker effects are not client-snapshotted here;
+            // subtracting the full visible modifier is conservative if one later becomes active.
+            safeFallDistance -= jumpBoost.amplifier() + 1d;
+        }
+        return safeFallDistance;
+    }
+
+    private static boolean activeForFutureMovementTick(EffectInstanceSnapshot effect, long futureTick) {
+        return effect != null
+            && (effect.infiniteDuration() || (long) effect.durationTicks() > futureTick);
+    }
+
+    private static double capturedBaseGravity(PlayerSnapshot player) {
+        Double captured = finiteDouble(player.state("base_gravity"));
+        if (captured != null) return captured;
+
+        // Older synthetic snapshots only carried effective_gravity. If Slow Falling was active
+        // while descending, that value may already be capped to 0.01 and cannot safely be projected
+        // beyond expiry. Production 26.1.2 snapshots always carry base_gravity; for old fixtures,
+        // fall back to vanilla's base 0.08 rather than incorrectly extending the favorable cap.
+        EffectInstanceSnapshot slowFalling = player.statusEffects().effects().get("minecraft:slow_falling");
+        if (slowFalling != null && player.velocity().y() <= 0d) return VANILLA_DEFAULT_GRAVITY;
+
+        Double effective = finiteDouble(player.state("effective_gravity"));
+        return effective == null ? VANILLA_DEFAULT_GRAVITY : effective;
+    }
+
     private static String value(PlayerSnapshot player, String key, String fallback) {
         String value = player.state(key);
         return value == null ? fallback : value;
     }
 
-    private static double finiteNonNegative(String value, double fallback) {
+    private static Double finiteDouble(String value) {
+        if (value == null) return null;
         try {
             double parsed = Double.parseDouble(value);
-            return Double.isFinite(parsed) && parsed >= 0d ? parsed : fallback;
+            return Double.isFinite(parsed) ? parsed : null;
         } catch (NumberFormatException ignored) {
-            return fallback;
+            return null;
         }
     }
 
+    private static double finiteNonNegative(String value, double fallback) {
+        Double parsed = finiteDouble(value);
+        return parsed != null && parsed >= 0d ? parsed : fallback;
+    }
+
     private static double finitePositive(String value, double fallback) {
-        try {
-            double parsed = Double.parseDouble(value);
-            return Double.isFinite(parsed) && parsed > 0d ? parsed : fallback;
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
+        Double parsed = finiteDouble(value);
+        return parsed != null && parsed > 0d ? parsed : fallback;
     }
 
     private static Vec3Snapshot add(Vec3Snapshot a, Vec3Snapshot b) {
@@ -168,6 +277,13 @@ public final class FallLandingSolver {
             from.y() + (to.y() - from.y()) * t,
             from.z() + (to.z() - from.z()) * t
         );
+    }
+
+    private record CollisionBounds(
+        double minX, double minY, double minZ,
+        double maxX, double maxY, double maxZ
+    ) {
+        private static final CollisionBounds FULL_BLOCK = new CollisionBounds(0d, 0d, 0d, 1d, 1d, 1d);
     }
 
     private record FallSurface(float damageModifier, double extraFallDistance) {

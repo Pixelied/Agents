@@ -16,6 +16,6 @@ public record SurvivalConfig(
     }
 
     public static SurvivalConfig defaults() {
-        return new SurvivalConfig(SafetyMode.SAFE, true, false, true, false);
+        return new SurvivalConfig(SafetyMode.SAFE, true, false, false, false);
     }
 }

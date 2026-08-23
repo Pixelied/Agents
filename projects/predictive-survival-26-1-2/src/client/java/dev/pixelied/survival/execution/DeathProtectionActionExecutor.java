@@ -55,7 +55,12 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
                 return new ExecutionStatus.Failed("hotbar state contradicted route selection", true);
             }
             pending = new Pending.Hotbar(
-                originalIndex, hotbar.hotbarIndex(), originalBefore, protectionBefore, context.currentServerTick()
+                originalIndex,
+                hotbar.hotbarIndex(),
+                originalBefore,
+                protectionBefore,
+                context.currentServerTick(),
+                context.timing().nextPacketProcessingWindow().latest()
             );
             return new ExecutionStatus.WaitingForServer(
                 "waiting for server-observed held-slot selection",
@@ -84,7 +89,11 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             saturatingAdd(context.currentServerTick(), CONFIRMATION_TIMEOUT_TICKS)
         ).markSent();
         pending = new Pending.ContainerSwap(
-            transaction, sourceInventoryIndex, destinationInventoryIndex, context.currentServerTick()
+            transaction,
+            sourceInventoryIndex,
+            destinationInventoryIndex,
+            context.currentServerTick(),
+            context.timing().nextPacketProcessingWindow().latest()
         );
         return new ExecutionStatus.WaitingForServer(
             "waiting for server-observed container revision and destination contents",
@@ -165,6 +174,35 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         return new ExecutionStatus.Failed("server revised container without the exact planned swap", true);
     }
 
+    public int remainingServerTicks(ExecutionContext context) {
+        Objects.requireNonNull(context, "context");
+        if (pending == null) return Integer.MAX_VALUE;
+
+        if (pending instanceof Pending.Hotbar hotbar) {
+            InventorySlotSnapshot current = context.inventory().slot(hotbar.protectionHotbarIndex()).orElse(null);
+            if (current != null
+                && current.deathProtection()
+                && context.inventory().selectedHotbarIndex() == hotbar.protectionHotbarIndex()) {
+                return 0;
+            }
+            return ticksUntilOrUnknown(context.currentServerTick(), hotbar.latestServerEffectTick());
+        }
+
+        Pending.ContainerSwap swap = (Pending.ContainerSwap) pending;
+        EmergencyInventoryTransaction transaction = swap.transaction();
+        if (context.menu().containerId() == transaction.containerId()
+            && context.menu().stateId() != transaction.stateId()) {
+            InventorySlotSnapshot destination = context.inventory().slot(swap.destinationInventoryIndex()).orElse(null);
+            if (destination != null && destination.deathProtection()) return 0;
+        }
+        return ticksUntilOrUnknown(context.currentServerTick(), swap.latestServerEffectTick());
+    }
+
+    public void reset() {
+        pending = null;
+        confirmedRestoration = null;
+    }
+
     public Optional<RestorationCheckpoint> takeRestorationCheckpoint() {
         RestorationCheckpoint result = confirmedRestoration;
         confirmedRestoration = null;
@@ -194,6 +232,12 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
         return value > Long.MAX_VALUE - increment ? Long.MAX_VALUE : value + increment;
     }
 
+    private static int ticksUntilOrUnknown(long currentTick, long latestEffectTick) {
+        if (currentTick > latestEffectTick) return Integer.MAX_VALUE;
+        long remaining = latestEffectTick - currentTick;
+        return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
+    }
+
     private sealed interface Pending {
         long startedAtServerTick();
 
@@ -202,7 +246,8 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             int protectionHotbarIndex,
             InventorySlotSnapshot originalSelectedBefore,
             InventorySlotSnapshot protectionBefore,
-            long startedAtServerTick
+            long startedAtServerTick,
+            long latestServerEffectTick
         ) implements Pending {
         }
 
@@ -210,7 +255,8 @@ public final class DeathProtectionActionExecutor implements ActionExecutor<Survi
             EmergencyInventoryTransaction transaction,
             int sourceInventoryIndex,
             int destinationInventoryIndex,
-            long startedAtServerTick
+            long startedAtServerTick,
+            long latestServerEffectTick
         ) implements Pending {
         }
     }

@@ -20,9 +20,9 @@ import net.minecraft.world.item.equipment.Equippable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashSet;
 import java.util.Set;
 
 public final class MinecraftEquipmentAdapter {
@@ -87,9 +87,15 @@ public final class MinecraftEquipmentAdapter {
         Map<String, EffectInstanceSnapshot> effects = new LinkedHashMap<>();
         for (MobEffectInstance instance : player.getActiveEffects()) {
             Holder<MobEffect> effect = instance.getEffect();
+            String effectKey = effect.getRegisteredName();
             effects.put(
-                effect.getRegisteredName(),
-                new EffectInstanceSnapshot(effect.getRegisteredName(), instance.getDuration(), instance.getAmplifier())
+                effectKey,
+                new EffectInstanceSnapshot(
+                    effectKey,
+                    instance.getDuration(),
+                    instance.getAmplifier(),
+                    instance.getAmplifier() > 0
+                )
             );
         }
 

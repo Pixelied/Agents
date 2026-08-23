@@ -15,6 +15,7 @@ import dev.pixelied.survival.timeline.ThreatKind;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,8 +46,10 @@ public final class ProjectilePredictor implements ThreatPredictor {
     public List<ThreatEvent> predict(PredictionContext context) {
         if (context == null) throw new NullPointerException("context");
         List<ThreatEvent> result = new ArrayList<>();
+        CollisionBlockIndex blockIndex = CollisionBlockIndex.from(context.world().blocks());
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
-            ProjectileFamily.from(entity).ifPresent(family -> result.addAll(predictEntity(context, entity, family)));
+            ProjectileFamily.from(entity).ifPresent(family ->
+                result.addAll(predictEntity(context, entity, family, blockIndex)));
         }
         return List.copyOf(result);
     }
@@ -54,7 +57,8 @@ public final class ProjectilePredictor implements ThreatPredictor {
     private List<ThreatEvent> predictEntity(
         PredictionContext context,
         WorldSnapshot.EntitySnapshot entity,
-        ProjectileFamily family
+        ProjectileFamily family,
+        CollisionBlockIndex blockIndex
     ) {
         if (Boolean.parseBoolean(entity.properties().getOrDefault("in_ground", "false"))) return List.of();
 
@@ -70,7 +74,7 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 next.position(),
                 bounds.expand(sweptPlayerBox(context.player(), next.tick()))
             );
-            Collision block = firstBlockCollision(context.world().blocks(), bounds, current.position(), next.position());
+            Collision block = firstBlockCollision(blockIndex, bounds, current.position(), next.position());
 
             if (block != null && block.t() <= playerT + EPSILON) {
                 List<ThreatEvent> events = new ArrayList<>();
@@ -626,39 +630,95 @@ public final class ProjectilePredictor implements ThreatPredictor {
     }
 
     private static Collision firstBlockCollision(
-        List<WorldSnapshot.BlockSnapshot> blocks,
+        CollisionBlockIndex blocks,
         ProjectileBounds bounds,
         Vec3Snapshot from,
         Vec3Snapshot to
     ) {
         Collision best = null;
-        for (WorldSnapshot.BlockSnapshot block : blocks) {
-            if (!block.collision()
-                || !Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
-                continue;
-            }
-            double x = Math.floor(block.position().x());
-            double y = Math.floor(block.position().y());
-            double z = Math.floor(block.position().z());
-            AabbSnapshot cube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
-            double bodyT = segmentAabbEntry(from, to, bounds.expand(cube));
-            if (Double.isFinite(bodyT) && (best == null || bodyT < best.t())) {
-                double centerT = segmentAabbEntry(from, to, cube);
-                Vec3Snapshot impact;
-                if (Double.isFinite(centerT)) {
-                    impact = interpolate(from, to, centerT);
-                } else {
-                    Vec3Snapshot center = interpolate(from, to, bodyT);
-                    impact = new Vec3Snapshot(
-                        Math.max(cube.minX(), Math.min(center.x(), cube.maxX())),
-                        Math.max(cube.minY(), Math.min(center.y(), cube.maxY())),
-                        Math.max(cube.minZ(), Math.min(center.z(), cube.maxZ()))
-                    );
+        double padX = Math.max(Math.abs(bounds.minOffsetX()), Math.abs(bounds.maxOffsetX())) + 1d;
+        double padY = Math.max(Math.abs(bounds.minOffsetY()), Math.abs(bounds.maxOffsetY())) + 1d;
+        double padZ = Math.max(Math.abs(bounds.minOffsetZ()), Math.abs(bounds.maxOffsetZ())) + 1d;
+        int minX = floorToInt(Math.min(from.x(), to.x()) - padX);
+        int maxX = floorToInt(Math.max(from.x(), to.x()) + padX);
+        int minY = floorToInt(Math.min(from.y(), to.y()) - padY);
+        int maxY = floorToInt(Math.max(from.y(), to.y()) + padY);
+        int minZ = floorToInt(Math.min(from.z(), to.z()) - padZ);
+        int maxZ = floorToInt(Math.max(from.z(), to.z()) + padZ);
+        if (blocks.empty()) return null;
+        minX = Math.max(minX, blocks.minX());
+        maxX = Math.min(maxX, blocks.maxX());
+        minY = Math.max(minY, blocks.minY());
+        maxY = Math.min(maxY, blocks.maxY());
+        minZ = Math.max(minZ, blocks.minZ());
+        maxZ = Math.min(maxZ, blocks.maxZ());
+        if (minX > maxX || minY > maxY || minZ > maxZ) return null;
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    WorldSnapshot.BlockSnapshot block = blocks.block(x, y, z);
+                    if (block == null) continue;
+                    AabbSnapshot collisionBounds = collisionBounds(block, x, y, z);
+                    double bodyT = segmentAabbEntry(from, to, bounds.expand(collisionBounds));
+                    if (Double.isFinite(bodyT) && (best == null || bodyT < best.t())) {
+                        double centerT = segmentAabbEntry(from, to, collisionBounds);
+                        Vec3Snapshot impact;
+                        if (Double.isFinite(centerT)) {
+                            impact = interpolate(from, to, centerT);
+                        } else {
+                            Vec3Snapshot center = interpolate(from, to, bodyT);
+                            impact = new Vec3Snapshot(
+                                Math.max(collisionBounds.minX(), Math.min(center.x(), collisionBounds.maxX())),
+                                Math.max(collisionBounds.minY(), Math.min(center.y(), collisionBounds.maxY())),
+                                Math.max(collisionBounds.minZ(), Math.min(center.z(), collisionBounds.maxZ()))
+                            );
+                        }
+                        best = new Collision(bodyT, impact, collisionBounds);
+                    }
                 }
-                best = new Collision(bodyT, impact, cube);
             }
         }
         return best;
+    }
+
+    private static AabbSnapshot collisionBounds(WorldSnapshot.BlockSnapshot block, int x, int y, int z) {
+        AabbSnapshot fullCube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
+        if (Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
+            return fullCube;
+        }
+
+        Double minX = finiteUnitBound(block.properties().get("collision_min_x"));
+        Double minY = finiteUnitBound(block.properties().get("collision_min_y"));
+        Double minZ = finiteUnitBound(block.properties().get("collision_min_z"));
+        Double maxX = finiteUnitBound(block.properties().get("collision_max_x"));
+        Double maxY = finiteUnitBound(block.properties().get("collision_max_y"));
+        Double maxZ = finiteUnitBound(block.properties().get("collision_max_z"));
+        if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
+            || maxX <= minX || maxY <= minY || maxZ <= minZ) {
+            // Unknown or malformed partial collision data must not make a real obstacle disappear.
+            return fullCube;
+        }
+        return new AabbSnapshot(
+            x + minX, y + minY, z + minZ,
+            x + maxX, y + maxY, z + maxZ
+        );
+    }
+
+    private static Double finiteUnitBound(String value) {
+        if (value == null) return null;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) && parsed >= 0d && parsed <= 1d ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static int floorToInt(double value) {
+        if (value <= Integer.MIN_VALUE) return Integer.MIN_VALUE;
+        if (value >= Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        return (int) Math.floor(value);
     }
 
     private static AabbSnapshot sweptPlayerBox(PlayerSnapshot player, long tick) {
@@ -845,6 +905,73 @@ public final class ProjectilePredictor implements ThreatPredictor {
     }
 
     private record Collision(double t, Vec3Snapshot position, AabbSnapshot blockBounds) {
+    }
+
+    private record BlockCell(int x, int y, int z) {
+    }
+
+    private static final class CollisionBlockIndex {
+        private final Map<BlockCell, WorldSnapshot.BlockSnapshot> blocks;
+        private final int minX;
+        private final int maxX;
+        private final int minY;
+        private final int maxY;
+        private final int minZ;
+        private final int maxZ;
+
+        private CollisionBlockIndex(
+            Map<BlockCell, WorldSnapshot.BlockSnapshot> blocks,
+            int minX,
+            int maxX,
+            int minY,
+            int maxY,
+            int minZ,
+            int maxZ
+        ) {
+            this.blocks = Map.copyOf(blocks);
+            this.minX = minX;
+            this.maxX = maxX;
+            this.minY = minY;
+            this.maxY = maxY;
+            this.minZ = minZ;
+            this.maxZ = maxZ;
+        }
+
+        static CollisionBlockIndex from(List<WorldSnapshot.BlockSnapshot> snapshots) {
+            Map<BlockCell, WorldSnapshot.BlockSnapshot> indexed = new HashMap<>();
+            int minX = Integer.MAX_VALUE;
+            int maxX = Integer.MIN_VALUE;
+            int minY = Integer.MAX_VALUE;
+            int maxY = Integer.MIN_VALUE;
+            int minZ = Integer.MAX_VALUE;
+            int maxZ = Integer.MIN_VALUE;
+            for (WorldSnapshot.BlockSnapshot block : snapshots) {
+                if (!block.collision()) continue;
+                int x = floorToInt(block.position().x());
+                int y = floorToInt(block.position().y());
+                int z = floorToInt(block.position().z());
+                indexed.put(new BlockCell(x, y, z), block);
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minY = Math.min(minY, y);
+                maxY = Math.max(maxY, y);
+                minZ = Math.min(minZ, z);
+                maxZ = Math.max(maxZ, z);
+            }
+            return new CollisionBlockIndex(indexed, minX, maxX, minY, maxY, minZ, maxZ);
+        }
+
+        WorldSnapshot.BlockSnapshot block(int x, int y, int z) {
+            return blocks.get(new BlockCell(x, y, z));
+        }
+
+        boolean empty() { return blocks.isEmpty(); }
+        int minX() { return minX; }
+        int maxX() { return maxX; }
+        int minY() { return minY; }
+        int maxY() { return maxY; }
+        int minZ() { return minZ; }
+        int maxZ() { return maxZ; }
     }
 
     private record ProjectileBounds(

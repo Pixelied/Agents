@@ -8,6 +8,7 @@ import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.damage.BlockingProfileSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
@@ -16,11 +17,14 @@ import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class ThreatTimelineBlockingStateTest {
     @Test
@@ -44,6 +48,31 @@ class ThreatTimelineBlockingStateTest {
         TimelineResult result = new ThreatTimelineSimulator().simulate(player, timeline);
 
         assertEquals(14f, result.finalHealth(), 0.0001f);
+    }
+
+
+    @Test
+    void oversizedOverlapGroupFailsClosedWhenOrderingCannotBeExhaustivelyProven() {
+        PlayerSnapshot player = player(new BlockingSnapshot(
+            true, 0f, 5, 5, Optional.of(BlockingProfileSnapshot.fullBlock(1000)), 0
+        ));
+        List<ThreatEvent> events = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            DamageSourceSnapshot large = new DamageSourceSnapshot(
+                DamageRange.exact(8f), Set.of(DamageFlag.BYPASSES_COOLDOWN), false, 1f, false,
+                Optional.of(new Vec3Snapshot(0, 0, 4)), "test:large_" + i
+            );
+            events.add(event("large-" + i, 0, large, false));
+        }
+        DamageSourceSnapshot disabling = new DamageSourceSnapshot(
+            DamageRange.exact(1f), Set.of(DamageFlag.BYPASSES_COOLDOWN), false, 1f, false,
+            Optional.of(new Vec3Snapshot(0, 0, 4)), "test:disable", 0f, 0f, 5f
+        );
+        events.add(event("disable", 0, disabling, true));
+
+        TimelineResult result = new ThreatTimelineSimulator().simulate(player, new ThreatTimeline(events));
+
+        assertFalse(result.survived(), "a non-exhaustive >6-event fallback must never claim guaranteed survival");
     }
 
     @Test

@@ -21,7 +21,7 @@ class SurvivalConfigTest {
         assertEquals(SafetyMode.SAFE, config.safetyMode());
         assertTrue(config.restoreHandState());
         assertFalse(config.automaticMovement());
-        assertTrue(config.blockPlacementAndClutches());
+        assertFalse(config.blockPlacementAndClutches());
         assertFalse(config.debugEnabled());
     }
 

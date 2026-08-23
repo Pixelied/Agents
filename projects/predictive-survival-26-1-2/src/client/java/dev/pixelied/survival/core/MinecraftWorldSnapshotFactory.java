@@ -6,13 +6,10 @@ import dev.pixelied.survival.mixin.FireworkRocketAccessor;
 import dev.pixelied.survival.mixin.PrimedTntAccessor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.Difficulty;
-import net.minecraft.world.attribute.BedRule;
-import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.AreaEffectCloud;
@@ -42,11 +39,7 @@ import net.minecraft.world.entity.vehicle.minecart.MinecartTNT;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.Fireworks;
-import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.RespawnAnchorBlock;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
@@ -57,8 +50,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class MinecraftWorldSnapshotFactory {
-    private static final int BLOCK_HORIZONTAL_RANGE = 8;
-    private static final int BLOCK_VERTICAL_RANGE = 12;
     private static final String OBSERVATION_OVERFLOW_TYPE = "predictive_survival:observation_overflow";
 
     public WorldSnapshot capture(ClientLevel level, LocalPlayer player, EngineLimits limits) {
@@ -92,7 +83,22 @@ public final class MinecraftWorldSnapshotFactory {
             entities.add(observationOverflowMarker(player, relevantCount - realEntityLimit));
         }
 
-        return new WorldSnapshot(entities, captureBlocks(level, player.blockPosition()));
+        List<WorldSnapshot.BlockSnapshot> nearbyBlocks = MinecraftNearbyBlockSnapshotFactory.capture(
+            level,
+            player.blockPosition()
+        );
+        List<WorldSnapshot.BlockSnapshot> fallAwareBlocks = MinecraftFallCorridorSnapshotFactory.augment(
+            level,
+            player,
+            limits,
+            nearbyBlocks
+        );
+        List<WorldSnapshot.BlockSnapshot> blocks = MinecraftTriggerableExplosionSnapshotFactory.augment(
+            level,
+            player,
+            fallAwareBlocks
+        );
+        return new WorldSnapshot(entities, blocks);
     }
 
     private static int threatPriority(Entity entity) {
@@ -358,56 +364,6 @@ public final class MinecraftWorldSnapshotFactory {
         properties.put(prefix + "kind", kind);
         properties.put(prefix + "duration_ticks", Integer.toString(duration));
         properties.put(prefix + "amplifier", Integer.toString(amplifier));
-    }
-
-    private static List<WorldSnapshot.BlockSnapshot> captureBlocks(ClientLevel level, BlockPos center) {
-        List<WorldSnapshot.BlockSnapshot> blocks = new ArrayList<>();
-        for (int dx = -BLOCK_HORIZONTAL_RANGE; dx <= BLOCK_HORIZONTAL_RANGE; dx++) {
-            for (int dz = -BLOCK_HORIZONTAL_RANGE; dz <= BLOCK_HORIZONTAL_RANGE; dz++) {
-                for (int dy = -BLOCK_VERTICAL_RANGE; dy <= BLOCK_VERTICAL_RANGE; dy++) {
-                    BlockPos pos = center.offset(dx, dy, dz);
-                    BlockState state = level.getBlockState(pos);
-                    if (state.isAir()) continue;
-
-                    Map<String, String> properties = new LinkedHashMap<>();
-                    boolean collision = !state.getCollisionShape(level, pos).isEmpty();
-                    properties.put("full_collision_cube", Boolean.toString(state.isCollisionShapeFullBlock(level, pos)));
-
-                    if (state.getBlock() instanceof BedBlock) {
-                        BedRule rule = (BedRule) level.environmentAttributes().getValue(EnvironmentAttributes.BED_RULE, pos);
-                        if (rule.explodes()) {
-                            BedPart part = state.getValue(BedBlock.PART);
-                            BlockPos headPos = part == BedPart.HEAD ? pos : pos.relative(state.getValue(BedBlock.FACING));
-                            properties.put("pre_explosion_remove_group", "bed:" + headPos.toShortString());
-                            if (part == BedPart.HEAD) {
-                                properties.put("explosion_radius", "5");
-                                properties.put("triggerable", "true");
-                                properties.put("source_key", "minecraft:bad_respawn_point");
-                                properties.put("scales_with_difficulty", "true");
-                            }
-                        }
-                    } else if (state.getBlock() instanceof RespawnAnchorBlock) {
-                        boolean works = (Boolean) level.environmentAttributes().getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, pos);
-                        if (!works && state.getValue(RespawnAnchorBlock.CHARGE) > 0) {
-                            properties.put("explosion_radius", "5");
-                            properties.put("triggerable", "true");
-                            properties.put("source_key", "minecraft:bad_respawn_point");
-                            properties.put("scales_with_difficulty", "true");
-                            properties.put("pre_explosion_remove_group", "anchor:" + pos.toShortString());
-                        }
-                    }
-
-                    var blockCenter = pos.getCenter();
-                    blocks.add(new WorldSnapshot.BlockSnapshot(
-                        new Vec3Snapshot(blockCenter.x, blockCenter.y, blockCenter.z),
-                        BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
-                        collision,
-                        properties
-                    ));
-                }
-            }
-        }
-        return List.copyOf(blocks);
     }
 
     private static boolean conservativeScalesWithDifficulty(Entity owner, Difficulty difficulty) {

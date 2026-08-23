@@ -188,6 +188,47 @@ class SurvivalEngineTest {
     }
 
 
+
+    @Test
+    void inFlightActionThatCanNoLongerFinishIsReplacedBeforeObservation() {
+        SurvivalAction shield = warmupShield();
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(shield, protection), 100, 4));
+        SurvivalEngine engine = new SurvivalEngine(
+            SurvivalConfig.defaults(), runtime, new DecisionHistory(128)
+        );
+
+        engine.tick();
+        assertInstanceOf(SurvivalAction.RaiseShield.class, engine.currentPlan().orElseThrow().action());
+
+        runtime.reportedRemainingServerTicks = 5;
+        runtime.frame = frame(List.of(protection), 101, 3);
+        engine.tick();
+
+        assertEquals(0, runtime.observeCount, "an action that cannot finish in time must be invalidated before observation");
+        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, engine.currentPlan().orElseThrow().action());
+    }
+
+    @Test
+    void legacyEnabledMovementAndClutchFlagsStillCannotDispatchUnsupportedActions() {
+        SurvivalAction relocate = new SurvivalAction.Relocate(
+            new Vec3Snapshot(4, 0, 0), Set.of("incoming"), 0, true, true, 1d, 0, 0
+        );
+        SurvivalAction cover = new SurvivalAction.PlaceCover(
+            Map.of("incoming", DamageRange.exact(0f)), 0, true, true, 1d, 0, 0
+        );
+        SurvivalAction protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(List.of(relocate, cover, protection), 0, 2));
+        SurvivalConfig legacyEnabled = new SurvivalConfig(
+            dev.pixelied.survival.planner.SafetyMode.SAFE, true, true, true, false
+        );
+        SurvivalEngine engine = new SurvivalEngine(legacyEnabled, runtime, new DecisionHistory(128));
+
+        engine.tick();
+
+        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, engine.currentPlan().orElseThrow().action());
+    }
+
     @Test
     void restorationDangerCheckSimulatesTimelineWithoutHeldDeathProtection() {
         SurvivalEngine.EngineFrame base = frame(List.of(), 700, 0);
@@ -281,6 +322,8 @@ class SurvivalEngineTest {
         private boolean maintenanceCalled;
         private boolean lastRestorationEnabled;
         private boolean lastLethalWithoutProtection;
+        private int reportedRemainingServerTicks = -1;
+        private long activeStartedClientTick;
 
         private FakeRuntime(SurvivalEngine.EngineFrame frame) {
             this.frame = frame;
@@ -307,7 +350,15 @@ class SurvivalEngineTest {
         public ExecutionStatus begin(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
             beginCount++;
             active = action;
+            activeStartedClientTick = ignored.context().timing().clientTick();
             return new ExecutionStatus.WaitingForServer("sent");
+        }
+
+        @Override
+        public int remainingServerTicks(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
+            if (reportedRemainingServerTicks >= 0) return reportedRemainingServerTicks;
+            long elapsed = Math.max(0L, ignored.context().timing().clientTick() - activeStartedClientTick);
+            return (int) Math.max(0L, (long) action.requiredServerTicks() - elapsed);
         }
 
         @Override

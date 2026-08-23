@@ -71,6 +71,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             WitherPotionValidationScenarios.validateSplashWitherHasPreImpactThreat(context, singleplayer);
             StackedWitherPotionValidationScenarios.validateHiddenWitherTailIsPredictedBeforeImpact(context, singleplayer);
             PostImpactStackedStatusPersistenceValidationScenarios.validateHiddenWitherTailSurvivesProjectileRemoval(context, singleplayer);
+            HiddenStatusSnapshotValidationScenarios.validateDirectHiddenWitherTailSurvivesVisibleExpiry(context, singleplayer);
             WitherPersistenceValidationScenarios.validateActiveWitherRetainsFutureThreat(context, singleplayer);
             InfiniteWitherValidationScenarios.validateInfiniteWitherUsesBoundedPhase(context, singleplayer);
             LingeringWitherCloudValidationScenarios.validateLingeringWitherRetainsThreatAcrossCloudHandoff(context, singleplayer);
@@ -86,6 +87,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             results.addAll(LiveExplosionScalingValidationScenarios.runtimeSlice(context, singleplayer));
             MinecartTntValidationScenarios.validatePrimedMinecartProducesBoundedExplosionThreat(context, singleplayer);
             InstantExplosionGuardValidationScenarios.validateVisibleInstantSourcesArmBeforeDetonation(context, singleplayer);
+            TriggerableExplosionRangeValidationScenarios.validateNineBlockRespawnAnchorArmsBeforeDetonation(context, singleplayer);
             HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger(context, singleplayer);
             BlockingCooldownValidationScenarios.validateServerCooldownMakesShieldUnavailable(context, singleplayer);
             waitForServerClientLoaded(context, singleplayer);

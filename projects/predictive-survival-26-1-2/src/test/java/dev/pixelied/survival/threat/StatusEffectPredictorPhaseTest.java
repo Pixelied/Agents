@@ -28,31 +28,31 @@ class StatusEffectPredictorPhaseTest {
     private final StatusEffectPredictor predictor = new StatusEffectPredictor();
 
     @Test
-    void poisonDurationAtApplicationBoundaryDoesNotRepeatCurrentTick() {
+    void poisonDurationAtApplicationBoundaryHitsOnNextServerTick() {
         ThreatEvent next = predictor.predict(context(effect("minecraft:poison", 100, 0))).getFirst();
+
+        assertEquals(new TickWindow(1, 1), next.impact());
+    }
+
+    @Test
+    void poisonBetweenBoundariesUsesCurrentRemainingDurationPhase() {
+        ThreatEvent next = predictor.predict(context(effect("minecraft:poison", 99, 0))).getFirst();
 
         assertEquals(new TickWindow(25, 25), next.impact());
     }
 
     @Test
-    void poisonBetweenBoundariesUsesRemainingDurationPhase() {
-        ThreatEvent next = predictor.predict(context(effect("minecraft:poison", 99, 0))).getFirst();
-
-        assertEquals(new TickWindow(24, 24), next.impact());
-    }
-
-    @Test
-    void witherDurationAtApplicationBoundaryDoesNotRepeatCurrentTick() {
+    void witherDurationAtApplicationBoundaryHitsOnNextServerTick() {
         ThreatEvent next = predictor.predict(context(effect("minecraft:wither", 80, 0))).getFirst();
 
-        assertEquals(new TickWindow(40, 40), next.impact());
+        assertEquals(new TickWindow(1, 1), next.impact());
     }
 
     @Test
-    void witherBetweenBoundariesUsesRemainingDurationPhase() {
+    void witherBetweenBoundariesUsesCurrentRemainingDurationPhase() {
         ThreatEvent next = predictor.predict(context(effect("minecraft:wither", 79, 0))).getFirst();
 
-        assertEquals(new TickWindow(39, 39), next.impact());
+        assertEquals(new TickWindow(40, 40), next.impact());
     }
 
     private static PredictionContext context(EffectInstanceSnapshot effect) {

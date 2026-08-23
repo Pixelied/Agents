@@ -126,7 +126,6 @@ public final class FallPredictor implements ThreatPredictor {
         PlayerSnapshot player = context.player();
         Vec3Snapshot position = player.position();
         Vec3Snapshot velocity = player.velocity();
-        double gravity = finiteNonNegative(player.state("effective_gravity"), 0.08d);
         double verticalFriction = finitePositive(player.state("vertical_friction"), 0.98d);
         double horizontalFriction = finitePositive(player.state("horizontal_friction"), 0.91d);
         if (position.y() < threshold) return 0L;
@@ -134,6 +133,7 @@ public final class FallPredictor implements ThreatPredictor {
         for (long tick = 1; tick <= context.limits().maxProjectileHorizonTicks() && tick < stopBeforeOrAt; tick++) {
             position = add(position, velocity);
             if (position.y() < threshold) return tick;
+            double gravity = FallLandingSolver.effectiveGravityForFutureMovementTick(player, velocity, tick);
             velocity = new Vec3Snapshot(
                 velocity.x() * horizontalFriction,
                 (velocity.y() - gravity) * verticalFriction,
@@ -154,7 +154,7 @@ public final class FallPredictor implements ThreatPredictor {
         Vec3Snapshot velocity = player.velocity();
         for (long tick = 1; tick <= context.limits().maxProjectileHorizonTicks(); tick++) {
             AabbSnapshot next = move(box, velocity.x(), velocity.y(), velocity.z());
-            if (intersectsConfirmedBlock(next, context.world().blocks())) {
+            if (intersectsCollisionBlock(next, context.world().blocks())) {
                 DamageSourceSnapshot source = new DamageSourceSnapshot(
                     DamageRange.exact(raw),
                     EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
@@ -254,13 +254,10 @@ public final class FallPredictor implements ThreatPredictor {
         return DamageRange.exact((float) Math.max(0d, raw));
     }
 
-    private static boolean intersectsConfirmedBlock(AabbSnapshot box, List<WorldSnapshot.BlockSnapshot> blocks) {
+    private static boolean intersectsCollisionBlock(AabbSnapshot box, List<WorldSnapshot.BlockSnapshot> blocks) {
         for (WorldSnapshot.BlockSnapshot block : blocks) {
-            if (!FallLandingSolver.confirmedFullCollisionCube(block)) continue;
-            double x = Math.floor(block.position().x());
-            double y = Math.floor(block.position().y());
-            double z = Math.floor(block.position().z());
-            if (intersects(box, new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d))) return true;
+            AabbSnapshot collision = FallLandingSolver.conservativeCollisionBox(block);
+            if (collision != null && intersects(box, collision)) return true;
         }
         return false;
     }

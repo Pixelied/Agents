@@ -73,7 +73,7 @@ final class FallRescueValidationScenarios {
                 }
             }
 
-            double targetY = center.getY() + 12d;
+            double targetY = center.getY() + 20d;
             player.teleportTo(player.getX(), targetY, player.getZ());
             player.setDeltaMovement(0d, -0.25d, 0d);
             player.fallDistance = 0d;
@@ -82,7 +82,7 @@ final class FallRescueValidationScenarios {
 
         try {
             context.waitFor(minecraft -> minecraft.player != null
-                && minecraft.player.getY() > setup.platformY + 7d
+                && minecraft.player.getY() > setup.platformY + 15d
                 && minecraft.player.getDeltaMovement().y < 0d);
 
             FallPrediction prediction = context.computeOnClient(minecraft -> {

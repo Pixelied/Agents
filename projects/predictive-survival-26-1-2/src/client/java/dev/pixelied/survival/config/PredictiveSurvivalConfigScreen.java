@@ -24,8 +24,6 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
 
     private CycleButton<SafetyMode> safetyModeButton;
     private CycleButton<Boolean> restoreHandButton;
-    private CycleButton<Boolean> automaticMovementButton;
-    private CycleButton<Boolean> clutchesButton;
     private CycleButton<Boolean> debugButton;
     private StringWidget errorWidget;
 
@@ -66,29 +64,15 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
             this.draft.restoreHandState(),
             this.draft::setRestoreHandState
         );
-        this.automaticMovementButton = addBooleanRow(
-            left, top + ROW_GAP * 2,
-            "predictive_survival.config.automatic_movement",
-            "predictive_survival.config.automatic_movement.description",
-            this.draft.automaticMovement(),
-            this.draft::setAutomaticMovement
-        );
-        this.clutchesButton = addBooleanRow(
-            left, top + ROW_GAP * 3,
-            "predictive_survival.config.clutches",
-            "predictive_survival.config.clutches.description",
-            this.draft.blockPlacementAndClutches(),
-            this.draft::setBlockPlacementAndClutches
-        );
         this.debugButton = addBooleanRow(
-            left, top + ROW_GAP * 4,
+            left, top + ROW_GAP * 2,
             "predictive_survival.config.debug",
             "predictive_survival.config.debug.description",
             this.draft.debugEnabled(),
             this.draft::setDebugEnabled
         );
 
-        int controlsY = top + ROW_GAP * 5 + 8;
+        int controlsY = top + ROW_GAP * 3 + 8;
         this.addRenderableWidget(Button.builder(
                 Component.translatable("predictive_survival.config.reset_defaults"),
                 button -> resetDefaults())
@@ -132,8 +116,6 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
         this.draft.resetDefaults();
         this.safetyModeButton.setValue(this.draft.safetyMode());
         this.restoreHandButton.setValue(this.draft.restoreHandState());
-        this.automaticMovementButton.setValue(this.draft.automaticMovement());
-        this.clutchesButton.setValue(this.draft.blockPlacementAndClutches());
         this.debugButton.setValue(this.draft.debugEnabled());
         clearError();
     }

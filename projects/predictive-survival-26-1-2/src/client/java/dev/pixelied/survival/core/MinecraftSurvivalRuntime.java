@@ -45,8 +45,6 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAdapter {
-    private static final float DEFAULT_BLOCK_ANGLE_DEGREES = 90f;
-
     private final Minecraft minecraft;
     private final EngineLimits limits;
     private final MinecraftSnapshotFactory playerSnapshots;
@@ -68,6 +66,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
     private ServerAuthorityTracker authority;
     private LiveState liveState;
+    private LocalPlayer lastPlayer;
     private long clientTick;
     private long previousCaptureNanos;
 
@@ -110,6 +109,10 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.level == null) {
             throw new IllegalStateException("Minecraft player/level are not available");
+        }
+        if (player != lastPlayer) {
+            resetTransientState();
+            lastPlayer = player;
         }
 
         clientTick++;
@@ -205,6 +208,24 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         return nonTotemExecutor.observe(nonTotemContext(state));
     }
 
+    @Override
+    public int remainingServerTicks(SurvivalAction action, SurvivalEngine.EngineFrame frame) {
+        Objects.requireNonNull(action, "action");
+        LiveState state = requireLiveState(frame);
+        if (action instanceof SurvivalAction.EquipDeathProtection) {
+            return protectionExecutor.remainingServerTicks(executionContext(state));
+        }
+        if (action instanceof SurvivalAction.RaiseShield) {
+            return shieldExecutor.remainingServerTicks(executionContext(state));
+        }
+        return nonTotemExecutor.remainingServerTicks(nonTotemContext(state));
+    }
+
+    public void reset() {
+        resetTransientState();
+        lastPlayer = null;
+    }
+
     public Optional<SurvivalEngine.EngineFrame> lastFrame() {
         return liveState == null ? Optional.empty() : Optional.of(liveState.frame());
     }
@@ -226,13 +247,17 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         LocalPlayer player,
         TimingSnapshot timing
     ) {
+        boolean localUsing = player.isUsingItem();
+        SurvivalAction.Hand localHand = localUsing ? hand(player.getUsedItemHand()) : null;
+        boolean trackedUsing = authority.confirmedUsingItem(localUsing, localHand, clientTick);
+
         BlockingSnapshot blocking = snapshot.blocking();
         if (!blocking.usingBlockingItem()) return withHeadYaw(snapshot, blocking, player.getYHeadRot());
 
-        SurvivalAction.Hand localHand = hand(player.getUsedItemHand());
-        boolean localUsing = player.isUsingItem();
-        int confirmedTicks = authority.confirmedUseTicks(localUsing, localHand, clientTick);
-        if (!authority.confirmedUsingItem(localUsing, localHand, clientTick) && localUsing) {
+        int confirmedTicks = trackedUsing
+            ? authority.confirmedUseTicks(true, localHand, clientTick)
+            : 0;
+        if (!trackedUsing && localUsing) {
             long latestDelay = Math.max(0L, timing.nextPacketProcessingWindow().latest() - timing.clientTick());
             int delay = latestDelay >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) latestDelay;
             confirmedTicks = Math.max(0, player.getTicksUsingItem() - delay);
@@ -259,7 +284,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
         boolean localUsing = player.isUsingItem();
         SurvivalAction.Hand localHand = localUsing ? hand(player.getUsedItemHand()) : null;
-        boolean trackedUsing = localUsing && authority.confirmedUsingItem(localUsing, localHand, clientTick);
+        boolean trackedUsing = authority.confirmedUsingItem(localUsing, localHand, clientTick);
         int useTicks;
         boolean serverUsing;
         if (trackedUsing) {
@@ -283,24 +308,12 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             serverUsing,
             serverUsing ? localHand : null,
             useTicks,
-            shieldAngleValid(state.frame().timeline(), state.player())
+            true
         );
     }
 
     private NonTotemExecutionContext nonTotemContext(LiveState state) {
         return new NonTotemExecutionContext(executionContext(state), state.player(), Set.of());
-    }
-
-    private boolean shieldAngleValid(ThreatTimeline timeline, PlayerSnapshot player) {
-        float yaw = parseFloat(player.state("head_yaw"), Float.NaN);
-        if (!Float.isFinite(yaw) || timeline.events().isEmpty()) return false;
-        for (ThreatEvent event : timeline.events()) {
-            if (!event.blockable() || event.canDisableBlocking() || event.sourcePosition().isEmpty()) return false;
-            if (!ServerAuthorityTracker.withinHorizontalBlockAngle(
-                player.position(), yaw, event.sourcePosition().get(), DEFAULT_BLOCK_ANGLE_DEGREES
-            )) return false;
-        }
-        return true;
     }
 
     private ExecutionStatus dispatchIfNeeded(ExecutionStatus status, TimingSnapshot timing) {
@@ -327,18 +340,22 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         return liveState;
     }
 
-    private static SurvivalAction.Hand hand(InteractionHand hand) {
-        return hand == InteractionHand.OFF_HAND ? SurvivalAction.Hand.OFF_HAND : SurvivalAction.Hand.MAIN_HAND;
+    private void resetTransientState() {
+        if (authority != null) authority.reset();
+        authority = null;
+        liveState = null;
+        timingEstimator.reset();
+        cloudAttributions.reset();
+        splashStatusMemory.reset();
+        protectionExecutor.reset();
+        restorationController.abort();
+        shieldExecutor.reset();
+        nonTotemExecutor.reset();
+        previousCaptureNanos = 0L;
     }
 
-    private static float parseFloat(String value, float fallback) {
-        if (value == null) return fallback;
-        try {
-            float parsed = Float.parseFloat(value);
-            return Float.isFinite(parsed) ? parsed : fallback;
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
+    private static SurvivalAction.Hand hand(InteractionHand hand) {
+        return hand == InteractionHand.OFF_HAND ? SurvivalAction.Hand.OFF_HAND : SurvivalAction.Hand.MAIN_HAND;
     }
 
     private record LiveState(

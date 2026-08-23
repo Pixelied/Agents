@@ -21,14 +21,15 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         if (!action.guaranteedBlock()) {
             return new ExecutionStatus.Failed("shield block is not guaranteed", true);
         }
-        if (!context.shieldAngleValid()) {
-            return new ExecutionStatus.Failed("shield angle is no longer valid", true);
-        }
-
         SurvivalAction.Hand hand = context.inventory().activeOffhandShield()
             ? SurvivalAction.Hand.OFF_HAND
             : SurvivalAction.Hand.MAIN_HAND;
-        pending = new Pending(action, hand, context.currentServerTick());
+        pending = new Pending(
+            action,
+            hand,
+            context.currentServerTick(),
+            context.timing().nextPacketProcessingWindow().latest()
+        );
         return statusForObservation(context, true);
     }
 
@@ -45,12 +46,28 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
         return statusForObservation(context, false);
     }
 
-    private ExecutionStatus statusForObservation(ExecutionContext context, boolean mayEmitUseCommand) {
-        if (!context.shieldAngleValid()) {
-            pending = null;
-            return new ExecutionStatus.Failed("incoming threat moved outside the guaranteed block angle", true);
+    public int remainingServerTicks(ExecutionContext context) {
+        Objects.requireNonNull(context, "context");
+        if (pending == null) return Integer.MAX_VALUE;
+
+        if (context.serverUsingItem()) {
+            if (context.usingHand() != pending.hand()) return Integer.MAX_VALUE;
+            return Math.max(0, pending.action().requiredUseTicks() - context.serverUseTicks());
         }
 
+        if (context.currentServerTick() <= pending.latestServerStartTick()) {
+            long waitForStart = pending.latestServerStartTick() - context.currentServerTick();
+            long total = waitForStart + pending.action().requiredUseTicks();
+            return total >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+        }
+        return Integer.MAX_VALUE;
+    }
+
+    public void reset() {
+        pending = null;
+    }
+
+    private ExecutionStatus statusForObservation(ExecutionContext context, boolean mayEmitUseCommand) {
         if (context.serverUsingItem()) {
             if (context.usingHand() != pending.hand()) {
                 pending = null;
@@ -69,13 +86,18 @@ public final class ShieldActionExecutor implements ActionExecutor<SurvivalAction
                 new ExecutionCommand.UseItem(pending.hand())
             );
         }
+        if (context.currentServerTick() > pending.latestServerStartTick()) {
+            pending = null;
+            return new ExecutionStatus.Failed("server did not begin the planned shield use in time", true);
+        }
         return new ExecutionStatus.WaitingForServer("waiting for server-observed shield use state");
     }
 
     private record Pending(
         SurvivalAction.RaiseShield action,
         SurvivalAction.Hand hand,
-        long startedAtServerTick
+        long startedAtServerTick,
+        long latestServerStartTick
     ) {
     }
 }
