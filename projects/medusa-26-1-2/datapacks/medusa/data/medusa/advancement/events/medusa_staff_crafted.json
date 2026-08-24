@@ -1,0 +1,19 @@
+{
+  "criteria": {
+    "crafted": {
+      "trigger": "minecraft:recipe_crafted",
+      "conditions": {
+        "recipe_id": "medusa:medusa_staff",
+        "ingredients": [
+          {"items": "minecraft:heart_of_the_sea", "components": {"minecraft:custom_data": {"md_item": "medusa_heart"}}},
+          {"items": "minecraft:turtle_scute", "components": {"minecraft:custom_data": {"md_item": "gorgon_scale"}}},
+          {"items": "minecraft:turtle_scute", "components": {"minecraft:custom_data": {"md_item": "gorgon_scale"}}},
+          {"items": "minecraft:turtle_scute", "components": {"minecraft:custom_data": {"md_item": "gorgon_scale"}}},
+          {"items": "minecraft:turtle_scute", "components": {"minecraft:custom_data": {"md_item": "gorgon_scale"}}},
+          {"items": "minecraft:flint", "components": {"minecraft:custom_data": {"md_item": "serpent_fang"}}}
+        ]
+      }
+    }
+  },
+  "rewards": {"function": "medusa:staff/craft/activate"}
+}

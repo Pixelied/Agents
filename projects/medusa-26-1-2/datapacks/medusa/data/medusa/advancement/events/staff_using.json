@@ -1,0 +1,14 @@
+{
+  "criteria": {
+    "using": {
+      "trigger": "minecraft:using_item",
+      "conditions": {
+        "item": {
+          "items": "minecraft:breeze_rod",
+          "components": {"minecraft:custom_data": {"md_item": "medusa_staff"}}
+        }
+      }
+    }
+  },
+  "rewards": {"function": "medusa:staff/using_tick"}
+}
