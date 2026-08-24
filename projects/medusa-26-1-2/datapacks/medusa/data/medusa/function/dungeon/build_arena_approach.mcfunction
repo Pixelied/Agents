@@ -1,32 +1,29 @@
-# Monumental throat that reveals the arena and physically cuts through its west wall.
-# connector: arena_approach->arena
-fill ~38 ~-18 ~61 ~49 ~-9 ~75 minecraft:stone_bricks
-fill ~39 ~-17 ~62 ~49 ~-10 ~74 minecraft:air
-fill ~39 ~-18 ~62 ~49 ~-18 ~74 minecraft:polished_deepslate
-# Narrow sanctum end into a tall reveal chamber.
-fill ~38 ~-17 ~64 ~40 ~-12 ~72 minecraft:air
-fill ~40 ~-17 ~62 ~41 ~-10 ~64 minecraft:chiseled_stone_bricks
-fill ~40 ~-17 ~72 ~41 ~-10 ~74 minecraft:chiseled_stone_bricks
-fill ~44 ~-17 ~62 ~45 ~-9 ~64 minecraft:cracked_stone_bricks
-fill ~44 ~-17 ~72 ~45 ~-9 ~74 minecraft:mossy_stone_bricks
-fill ~48 ~-17 ~62 ~49 ~-9 ~64 minecraft:chiseled_stone_bricks
-fill ~48 ~-17 ~72 ~49 ~-9 ~74 minecraft:chiseled_stone_bricks
-# Ceiling ribs frame the first sightline to the prison.
-fill ~40 ~-9 ~64 ~41 ~-9 ~72 minecraft:stone_brick_slab[type=top,waterlogged=false]
-fill ~44 ~-9 ~64 ~45 ~-9 ~72 minecraft:stone_brick_slab[type=top,waterlogged=false]
-fill ~48 ~-9 ~64 ~49 ~-9 ~72 minecraft:stone_brick_slab[type=top,waterlogged=false]
-setblock ~41 ~-9 ~68 minecraft:soul_lantern[hanging=true]
-setblock ~45 ~-9 ~68 minecraft:soul_lantern[hanging=true]
-# Final seal only opens once all three dungeon puzzle flags are complete.
-fill ~43 ~-17 ~64 ~43 ~-13 ~68 minecraft:iron_bars
-setblock ~43 ~-12 ~66 minecraft:chiseled_stone_bricks
-# Rubble / age at the threshold.
-setblock ~42 ~-17 ~63 minecraft:stone_brick_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]
-setblock ~43 ~-17 ~73 minecraft:stone_brick_slab[type=bottom,waterlogged=false]
-setblock ~46 ~-17 ~63 minecraft:cracked_stone_bricks
-setblock ~46 ~-17 ~73 minecraft:mossy_stone_bricks
-setblock ~47 ~-17 ~65 minecraft:cobweb
-# Carve the actual arena doorway LAST so arena wall construction cannot disconnect it.
-fill ~47 ~-17 ~66 ~49 ~-11 ~70 minecraft:air
-fill ~47 ~-18 ~66 ~49 ~-18 ~70 minecraft:polished_deepslate
-fill ~47 ~-10 ~65 ~49 ~-10 ~71 minecraft:stone_brick_stairs[facing=west,half=top,shape=straight,waterlogged=false]
+# Roofed monumental northbound approach from the relocated sanctum into Medusa's existing arena.
+# connector: sanctum->arena
+# Build after the arena so this corridor cleanly cuts through the south arena wall.
+fill ~46 ~-18 ~86 ~54 ~-4 ~106 minecraft:stone_bricks
+fill ~47 ~-17 ~87 ~53 ~-7 ~105 minecraft:air
+fill ~47 ~-18 ~87 ~53 ~-18 ~105 minecraft:polished_deepslate
+# Ribbed vaulted ceiling and procession columns.
+fill ~46 ~-6 ~87 ~46 ~-4 ~105 minecraft:deepslate_bricks
+fill ~54 ~-6 ~87 ~54 ~-4 ~105 minecraft:deepslate_bricks
+fill ~47 ~-6 ~87 ~47 ~-6 ~105 minecraft:stone_brick_stairs[facing=east,half=top,shape=straight,waterlogged=false]
+fill ~53 ~-6 ~87 ~53 ~-6 ~105 minecraft:stone_brick_stairs[facing=west,half=top,shape=straight,waterlogged=false]
+fill ~48 ~-5 ~87 ~52 ~-5 ~105 minecraft:stone_brick_slab[type=top,waterlogged=false]
+fill ~48 ~-17 ~90 ~49 ~-8 ~91 minecraft:chiseled_stone_bricks
+fill ~52 ~-17 ~90 ~53 ~-8 ~91 minecraft:chiseled_stone_bricks
+fill ~48 ~-17 ~96 ~49 ~-8 ~97 minecraft:cracked_stone_bricks
+fill ~52 ~-17 ~96 ~53 ~-8 ~97 minecraft:mossy_stone_bricks
+fill ~48 ~-17 ~102 ~49 ~-8 ~103 minecraft:chiseled_stone_bricks
+fill ~52 ~-17 ~102 ~53 ~-8 ~103 minecraft:chiseled_stone_bricks
+setblock ~50 ~-6 ~91 minecraft:soul_lantern[hanging=true,waterlogged=false]
+setblock ~50 ~-6 ~97 minecraft:soul_lantern[hanging=true,waterlogged=false]
+setblock ~50 ~-6 ~103 minecraft:soul_lantern[hanging=true,waterlogged=false]
+# Carved serpent track and rubble make the approach feel ancient rather than boxy.
+fill ~49 ~-18 ~88 ~51 ~-18 ~104 minecraft:cracked_deepslate_tiles
+setblock ~48 ~-17 ~94 minecraft:cobweb
+setblock ~52 ~-17 ~100 minecraft:cobweb
+setblock ~48 ~-17 ~104 minecraft:moss_carpet
+# Arena reveal: carve through the south-west wall into the existing chamber without moving boss coordinates.
+fill ~48 ~-17 ~86 ~52 ~-8 ~90 minecraft:air
+fill ~48 ~-18 ~86 ~52 ~-18 ~90 minecraft:polished_deepslate

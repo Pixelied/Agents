@@ -18,15 +18,15 @@ class StaffRuntimeContract(unittest.TestCase):
         text = smoke.read_text()
         for marker in MARKERS:
             self.assertIn(marker, text)
-        loaded = (FN / "debug/create_test_temple_loaded.mcfunction").read_text()
-        self.assertIn("function medusa:debug/test_staff_runtime", loaded)
+        continuation = (FN / "debug/continue_smoke.mcfunction").read_text()
+        self.assertIn("function medusa:debug/test_staff_runtime", continuation)
         self.assertLess(
-            loaded.find("function medusa:debug/test_gaze_pipeline"),
-            loaded.find("function medusa:debug/test_staff_runtime"),
+            continuation.find("function medusa:debug/test_gaze_pipeline"),
+            continuation.find("function medusa:debug/test_staff_runtime"),
         )
         self.assertLess(
-            loaded.find("function medusa:debug/test_staff_runtime"),
-            loaded.find("function medusa:debug/test_lifecycle"),
+            continuation.find("function medusa:debug/test_staff_runtime"),
+            continuation.find("function medusa:debug/test_lifecycle"),
         )
 
     def test_ci_requires_staff_runtime_markers(self):

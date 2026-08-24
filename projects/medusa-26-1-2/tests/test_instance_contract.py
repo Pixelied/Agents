@@ -14,10 +14,12 @@ class InstanceContract(unittest.TestCase):
 
     def test_registration_assigns_authoritative_instance_id(self):
         text = (FN / "instance/register.mcfunction").read_text()
+        finish = (FN / "instance/build/stage_12.mcfunction").read_text()
         self.assertIn("$next_eid", text)
         self.assertIn("md_eid", text)
-        self.assertIn("function medusa:dungeon/build_generated", text)
-        self.assertIn("medusa:macro", text)
+        self.assertIn("scoreboard players set @s md_build 1", text)
+        self.assertNotIn("function medusa:dungeon/build_generated", text)
+        self.assertIn("medusa:macro", finish)
 
     def test_participant_cleanup_is_explicit(self):
         clear = FN / "instance/participants/clear_player.mcfunction"

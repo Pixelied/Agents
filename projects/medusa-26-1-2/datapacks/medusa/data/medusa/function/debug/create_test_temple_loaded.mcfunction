@@ -5,13 +5,7 @@ kill @e[type=minecraft:marker,tag=md.debug_marker_probe]
 execute positioned 0 100 0 run function medusa:admin/place_temple
 execute if entity @e[type=minecraft:marker,tag=md.instance,limit=1] run say MEDUSA_INSTANCE_IMMEDIATE_OK
 execute unless entity @e[type=minecraft:marker,tag=md.instance,limit=1] run say MEDUSA_INSTANCE_IMMEDIATE_MISSING
-function medusa:debug/test_dungeon_progression
-function medusa:debug/start_test_boss
-execute if entity @e[tag=md.boss,limit=1] run say MEDUSA_BOSS_OK
-execute unless entity @e[tag=md.boss,limit=1] run say MEDUSA_BOSS_MISSING
-function medusa:debug/give_test_items
-function medusa:debug/test_petrification_damage
-function medusa:debug/test_gaze_pipeline
-function medusa:debug/test_staff_runtime
-function medusa:debug/test_lifecycle
-say MEDUSA_SMOKE_DONE
+tag @e[type=minecraft:marker,tag=md.instance,limit=1,sort=nearest] add md.debug_maze_primary
+scoreboard players set $maze_wait md_tmp 0
+scoreboard players set $maze_smoke_started md_tmp 0
+schedule function medusa:debug/wait_for_maze_ready 1t replace
