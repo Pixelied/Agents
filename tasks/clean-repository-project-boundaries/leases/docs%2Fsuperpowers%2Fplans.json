@@ -4,10 +4,12 @@
   "task_id": "clean-repository-project-boundaries",
   "scope": "docs/superpowers/plans",
   "owner": "openai-repo-cleanup-24a8",
-  "state": "active",
+  "state": "released",
   "intent": "Write the executable migration plan from the approved architecture and verified canonical-source map.",
   "claimed_at": "2026-08-24T11:30:20Z",
   "heartbeat_at": "2026-08-24T11:30:20Z",
   "expires_at": "2026-08-25T11:30:20Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:09:40Z",
+  "release_reason": "Migration plan executed through canonical branch creation, validation, and documented limitations."
 }
