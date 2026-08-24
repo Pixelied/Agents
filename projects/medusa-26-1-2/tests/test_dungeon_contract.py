@@ -102,6 +102,17 @@ class DungeonContract(unittest.TestCase):
             present = sum(token in text for token in palette)
             self.assertGreaterEqual(present, 6, f"{name} needs a richer authored palette")
 
+    def test_readme_describes_shifting_labyrinth_release(self):
+        text = (ROOT / "README.md").read_text().lower()
+        self.assertIn("shifting labyrinth", text)
+        self.assertIn("30 seconds", text)
+        self.assertIn("95x95", text)
+        self.assertIn("fixed sanctum", text)
+        self.assertIn("moving walls", text)
+        self.assertIn("roof", text)
+        self.assertNotIn("three required gorgon puzzles", text)
+        self.assertNotIn("removes resistance only around", text)
+
     def test_admin_placement_delegates_to_instance_registration(self):
         path = ROOT / "datapacks/medusa/data/medusa/function/admin/place_temple.mcfunction"
         self.assertTrue(path.is_file(), "admin placement function is missing")
