@@ -4,10 +4,12 @@
   "task_id": "clean-repository-project-boundaries",
   "scope": ".github/workflows",
   "owner": "openai-repo-cleanup-24a8",
-  "state": "active",
+  "state": "released",
   "intent": "Move ordinary project-specific CI off main while preserving shared workspace validation and legacy SpeedBridge compatibility.",
   "claimed_at": "2026-08-24T11:42:25Z",
   "heartbeat_at": "2026-08-24T11:42:25Z",
   "expires_at": "2026-08-25T11:42:25Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:09:20Z",
+  "release_reason": "Project CI separated onto canonical project branches; shared main workflows verified."
 }
