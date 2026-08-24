@@ -13,7 +13,7 @@
     "validation"
   ],
   "registered_at": "2026-08-24T11:29:00Z",
-  "state": "available",
-  "state_updated_at": "2026-08-24T11:29:00Z",
-  "state_reason": "Beginning approved repository-wide project-boundary cleanup"
+  "state": "offline",
+  "state_updated_at": "2026-08-24T12:10:10Z",
+  "state_reason": "Repository project-boundary cleanup completed; all maintenance scopes released"
 }
