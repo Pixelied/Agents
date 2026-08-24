@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "prune-superseded-branches-2026-08-24",
+  "title": "Physically prune superseded repository branches",
+  "objective": "Reduce the repository branch list to canonical workspace/project refs, the minimum rollback/legacy refs, and branches required by currently open pull requests or stacked dependencies, while preserving a reversible archive of every deleted branch head.",
+  "created_by": "openai-branch-prune-8e51",
+  "created_at": "2026-08-24T12:18:40Z",
+  "priority": "critical",
+  "status": "open",
+  "scopes": [
+    "repository-branches",
+    ".github/workflows/prune-superseded-branches.yml",
+    "docs/protocols",
+    "docs/superpowers/plans"
+  ],
+  "acceptance_criteria": [
+    "Deletion candidates are an explicit audited list; newly created branches are never swept up implicitly.",
+    "Current open PR head/base branches and all canonical project branches are protected dynamically at execution time.",
+    "Every deleted branch head remains reachable from a single archive ref and is recorded by exact SHA.",
+    "The prune aborts before deletion if a candidate became part of an open PR, if a candidate moved after the audit cutoff, or if the archive cannot be verified.",
+    "Only main, canonical project branches, required rollback/legacy refs, the archive ref, and live PR/dependency branches remain after pruning.",
+    "Workspace tests and validation pass after pruning and after cleanup coordination scopes are released."
+  ]
+}
