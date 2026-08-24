@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-burst-guard-b29c",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Debugs and hardens Predictive Survival 26.1.2 against first-observable-tick and near-instant lethal threats, including triggerable explosions, fuse-based explosives, melee burst, and other short-reaction threats.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "minecraft-damage-simulation",
+    "combat-prediction",
+    "explosion-prediction",
+    "testing",
+    "github-actions",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-24T20:08:30+00:00",
+  "state": "available",
+  "state_reason": "Reopened Predictive Survival after a real-world regression where near-instant lethal threats can beat the current rescue reaction model."
+}

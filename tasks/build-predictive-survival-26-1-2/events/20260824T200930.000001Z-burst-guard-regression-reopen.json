@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "predictive-survival-burst-guard-reopen-20260824",
+  "task_id": "build-predictive-survival-26-1-2",
+  "agent_id": "openai-survival-burst-guard-b29c",
+  "type": "progress",
+  "message": "Reopened Predictive Survival after real-world reports that crystals, anchors, and other near-instant lethal sources can kill before protection becomes authoritative even though previous cooperative-detontation GameTests were green.",
+  "data": {
+    "baseline": "a0e06242805d68aefc1a73bdb6314946f1baf518",
+    "root_cause_direction": "existing instant-explosion GameTests wait indefinitely for protection before detonating and therefore do not model first-possible adversarial detonation timing",
+    "strategy": "separate exact fuse/wind-up deadlines from first-observable adversarial burst, reproduce with RED runtime tests, then implement proactive burst guarding only where the client has source-backed pre-impact observability"
+  },
+  "created_at": "2026-08-24T20:09:30+00:00"
+}
