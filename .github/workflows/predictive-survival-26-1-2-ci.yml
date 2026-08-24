@@ -1,0 +1,142 @@
+name: Predictive Survival 26.1.2 CI
+
+on:
+  push:
+    branches:
+      - project/predictive-survival-26-1-2
+    paths:
+      - 'projects/predictive-survival-26-1-2/**'
+      - '.github/workflows/predictive-survival-26-1-2-ci.yml'
+  pull_request:
+    paths:
+      - 'projects/predictive-survival-26-1-2/**'
+      - '.github/workflows/predictive-survival-26-1-2-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # setup-gradle validates the checked-in wrapper before any project task executes.
+      - name: Validate Gradle 9.5.1 wrapper
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Test and build
+        working-directory: projects/predictive-survival-26-1-2
+        run: ./gradlew --no-daemon clean test build
+
+      - name: Compile client GameTests
+        working-directory: projects/predictive-survival-26-1-2
+        run: ./gradlew --no-daemon compileGametestJava processGametestResources
+
+      - name: Run exact-runtime client GameTests
+        timeout-minutes: 5
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a ./gradlew --no-daemon --console=plain runClientGameTest > gametest-console.log 2>&1
+          status=$?
+          set -e
+          exit "$status"
+
+      - name: Print client GameTest diagnostics
+        if: failure()
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          echo '--- gametest-console.log tail ---'
+          if [ -f gametest-console.log ]; then tail -n 120 gametest-console.log; else echo 'gametest-console.log not found'; fi
+          echo '--- run/logs/latest.log tail ---'
+          if [ -f run/logs/latest.log ]; then tail -n 120 run/logs/latest.log; else echo 'latest.log not found'; fi
+
+      - name: Verify production jar isolation
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          jar_file=$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          if [ -z "$jar_file" ]; then
+            echo 'production jar not found'
+            exit 1
+          fi
+          if jar tf "$jar_file" | grep -q '^dev/pixelied/survival/validation/'; then
+            echo 'GameTest validation classes leaked into production jar'
+            exit 1
+          fi
+
+      - name: Package complete deliverables
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          deliverables='predictive-survival-26.1.2-deliverables'
+          source_root="$deliverables/source-tree"
+          source_zip="$deliverables/predictive-survival-26.1.2-source.zip"
+          mkdir -p "$source_root"
+
+          jar_file=$(find projects/predictive-survival-26-1-2/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          if [ -z "$jar_file" ]; then
+            echo 'production jar not found while packaging deliverables'
+            exit 1
+          fi
+          cp "$jar_file" "$deliverables/"
+
+          git archive \
+            --format=tar \
+            HEAD \
+            projects/predictive-survival-26-1-2 \
+            .github/workflows/predictive-survival-26-1-2-ci.yml \
+            tasks/build-predictive-survival-26-1-2 \
+            tasks/design-predictive-survival-26-1-2 \
+            | tar -xf - -C "$source_root"
+
+          git fetch --no-tags --depth=1 origin \
+            design/predictive-survival-26-1-2:refs/remotes/origin/design/predictive-survival-26-1-2 \
+            plan/predictive-survival-26-1-2:refs/remotes/origin/plan/predictive-survival-26-1-2
+          mkdir -p "$source_root/docs/superpowers/specs" "$source_root/docs/superpowers/plans"
+          git show 'refs/remotes/origin/design/predictive-survival-26-1-2:docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md' \
+            > "$source_root/docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md"
+          git show 'refs/remotes/origin/plan/predictive-survival-26-1-2:docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md' \
+            > "$source_root/docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md"
+
+          (
+            cd "$source_root"
+            zip -qr "../predictive-survival-26.1.2-source.zip" .
+          )
+          rm -rf "$source_root"
+
+          (
+            cd "$deliverables"
+            sha256sum ./*.jar ./*.zip > SHA256SUMS.txt
+          )
+
+      - name: Upload production jar
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: predictive-survival-26.1.2
+          if-no-files-found: error
+          path: |
+            projects/predictive-survival-26-1-2/build/libs/*.jar
+            !projects/predictive-survival-26-1-2/build/libs/*-sources.jar
+
+      - name: Upload complete deliverables
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: predictive-survival-26.1.2-complete
+          if-no-files-found: error
+          path: predictive-survival-26.1.2-deliverables/*
