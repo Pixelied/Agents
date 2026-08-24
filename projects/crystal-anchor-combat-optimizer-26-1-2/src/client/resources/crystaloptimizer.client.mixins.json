@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "dev.adrien.crystaloptimizer.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "ClientCommonPacketListenerImplMixin",
+    "ClientPacketListenerMixin",
+    "LocalInventoryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

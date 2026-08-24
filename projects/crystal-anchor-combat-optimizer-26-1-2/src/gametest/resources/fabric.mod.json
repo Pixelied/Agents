@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "crystaloptimizer-test",
+  "version": "1.0.0",
+  "name": "Crystal Optimizer Game Tests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "dev.adrien.crystaloptimizer.gametest.CrystalOptimizerGameTests",
+      "dev.adrien.crystaloptimizer.gametest.ExplosionDifferentialGameTests"
+    ]
+  }
+}
