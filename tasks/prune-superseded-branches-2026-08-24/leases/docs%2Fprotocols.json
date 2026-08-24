@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "prune-superseded-branches-2026-08-24",
+  "scope": "docs/protocols",
+  "owner": "openai-branch-prune-8e51",
+  "state": "active",
+  "intent": "Record exact physical branch pruning results and recovery metadata.",
+  "claimed_at": "2026-08-24T12:19:10Z",
+  "heartbeat_at": "2026-08-24T12:19:10Z",
+  "expires_at": "2026-08-24T14:19:10Z",
+  "generation": 1
+}
