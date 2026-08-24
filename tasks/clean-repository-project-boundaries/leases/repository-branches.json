@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "clean-repository-project-boundaries",
+  "scope": "repository-branches",
+  "owner": "openai-repo-cleanup-24a8",
+  "state": "active",
+  "intent": "Create rollback/canonical project refs and protect active PR bases during the approved repository split; never force-update active agent branches.",
+  "claimed_at": "2026-08-24T11:30:00Z",
+  "heartbeat_at": "2026-08-24T11:30:00Z",
+  "expires_at": "2026-08-25T11:30:00Z",
+  "generation": 1
+}
