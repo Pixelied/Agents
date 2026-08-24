@@ -1,3 +1,0 @@
-$execute if entity @a[tag=fk.participant,scores={fk_aid=$(aid)},sort=nearest,limit=1,distance=..2.5] run function fallen_knight:boss/director/select_close
-$execute unless entity @a[tag=fk.participant,scores={fk_aid=$(aid)},sort=nearest,limit=1,distance=..2.5] if entity @a[tag=fk.participant,scores={fk_aid=$(aid)},sort=nearest,limit=1,distance=..7] run function fallen_knight:boss/director/select_mid
-$execute unless entity @a[tag=fk.participant,scores={fk_aid=$(aid)},sort=nearest,limit=1,distance=..7] if entity @a[tag=fk.participant,scores={fk_aid=$(aid)},sort=nearest,limit=1,distance=..20] run function fallen_knight:boss/director/select_far
