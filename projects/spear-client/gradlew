@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+GRADLE_VERSION=9.4.1
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+
+if [ -r "$CLASSPATH" ]; then
+    if [ -n "${JAVA_HOME:-}" ]; then
+        JAVACMD="$JAVA_HOME/bin/java"
+    else
+        JAVACMD=java
+    fi
+    exec "$JAVACMD" -classpath "$CLASSPATH" -Dorg.gradle.appname=gradlew org.gradle.wrapper.GradleWrapperMain "$@"
+fi
+
+if command -v gradle >/dev/null 2>&1; then
+    FOUND_VERSION=$(gradle --version 2>/dev/null | awk '$1 == "Gradle" { print $2; exit }')
+    if [ "$FOUND_VERSION" != "$GRADLE_VERSION" ]; then
+        echo "Spear Client requires Gradle $GRADLE_VERSION when gradle-wrapper.jar is unavailable; found ${FOUND_VERSION:-unknown}." >&2
+        exit 1
+    fi
+    exec gradle "$@"
+fi
+
+echo "gradle-wrapper.jar is unavailable and Gradle $GRADLE_VERSION is not installed on PATH." >&2
+echo "Install Gradle $GRADLE_VERSION or restore gradle/wrapper/gradle-wrapper.jar." >&2
+exit 1

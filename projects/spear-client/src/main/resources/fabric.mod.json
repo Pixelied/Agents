@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "spearclient",
+  "version": "${version}",
+  "name": "Spear Client",
+  "description": "Client-side Minecraft 26.1.2 spear mechanics research mod.",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.adrien.spearclient.SpearClient"]
+  },
+  "mixins": ["spearclient.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "26.1.2",
+    "java": ">=25",
+    "fabric-api": "0.155.2+26.1.2"
+  }
+}
