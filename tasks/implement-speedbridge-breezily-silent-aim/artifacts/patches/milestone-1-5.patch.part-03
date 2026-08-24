@@ -1,0 +1,220 @@
++
++    public boolean moving() {
++        return Math.abs(forward) > 1.0e-9 || Math.abs(strafe) > 1.0e-9;
++    }
++
++    private static double clamp(double value) {
++        return Math.max(-1.0, Math.min(1.0, value));
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/input/MovementFrame.java b/src/client/java/dev/adrien/speedbridge/input/MovementFrame.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..992a39cde5e5835ffd883aacf63ba7dd1b66a2d8
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/input/MovementFrame.java
+@@ -0,0 +1,38 @@
++package dev.adrien.speedbridge.input;
++
++import dev.adrien.speedbridge.util.Vec2d;
++
++public record MovementFrame(Vec2d forwardAxis, Vec2d rightAxis) {
++    private static final double ORTHOGONAL_EPSILON = 1.0e-6;
++
++    public MovementFrame {
++        if (forwardAxis == null || rightAxis == null) {
++            throw new IllegalArgumentException("movement axes are required");
++        }
++        forwardAxis = forwardAxis.normalized();
++        rightAxis = rightAxis.normalized();
++        if (forwardAxis.lengthSquared() < 0.5 || rightAxis.lengthSquared() < 0.5) {
++            throw new IllegalArgumentException("movement axes must be non-zero");
++        }
++        if (Math.abs(forwardAxis.dot(rightAxis)) > ORTHOGONAL_EPSILON) {
++            throw new IllegalArgumentException("movement axes must be perpendicular");
++        }
++    }
++
++    public static MovementFrame fromReferenceYaw(float yaw) {
++        Vec2d forward = Vec2d.fromYawDegrees(yaw);
++        return new MovementFrame(forward, forward.perpendicularLeft().scale(-1.0));
++    }
++
++    public static MovementFrame fromBackwardAxis(Vec2d backwardAxis) {
++        if (backwardAxis == null || backwardAxis.lengthSquared() < 1.0e-9) {
++            throw new IllegalArgumentException("backward axis must be non-zero");
++        }
++        Vec2d forward = backwardAxis.normalized().scale(-1.0);
++        return new MovementFrame(forward, forward.perpendicularLeft().scale(-1.0));
++    }
++
++    public Vec2d backwardAxis() {
++        return forwardAxis.scale(-1.0);
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/input/MovementFrameAdapter.java b/src/client/java/dev/adrien/speedbridge/input/MovementFrameAdapter.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..39bde5292491784a11a0ca3e2ae58e26a9ec40b5
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/input/MovementFrameAdapter.java
+@@ -0,0 +1,31 @@
++package dev.adrien.speedbridge.input;
++
++import dev.adrien.speedbridge.util.Vec2d;
++
++public final class MovementFrameAdapter {
++    private MovementFrameAdapter() {}
++
++    public static Vec2d worldDirection(MovementFrame frame, MovementCommand command) {
++        if (frame == null || command == null) {
++            throw new IllegalArgumentException("movement frame and command are required");
++        }
++        return frame.forwardAxis().scale(command.forward())
++                .add(frame.rightAxis().scale(command.strafe()))
++                .normalized();
++    }
++
++    public static MovementCommand relativeToYaw(Vec2d worldDirection, float logicalYaw) {
++        return relativeToFrame(worldDirection, MovementFrame.fromReferenceYaw(logicalYaw));
++    }
++
++    public static MovementCommand relativeToFrame(Vec2d worldDirection, MovementFrame frame) {
++        if (worldDirection == null || frame == null) {
++            throw new IllegalArgumentException("world direction and movement frame are required");
++        }
++        Vec2d normalized = worldDirection.normalized();
++        if (normalized.lengthSquared() < 0.5) return MovementCommand.NONE;
++        return new MovementCommand(
++                normalized.dot(frame.forwardAxis()),
++                normalized.dot(frame.rightAxis()));
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/input/MovementInputProjection.java b/src/client/java/dev/adrien/speedbridge/input/MovementInputProjection.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..86271dfbf868f7e51edf7c01148eb5cdbdbdfa44
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/input/MovementInputProjection.java
+@@ -0,0 +1,23 @@
++package dev.adrien.speedbridge.input;
++
++public record MovementInputProjection(
++        boolean forward,
++        boolean backward,
++        boolean left,
++        boolean right,
++        float leftImpulse,
++        float forwardImpulse
++) {
++    private static final double KEY_THRESHOLD = 0.30;
++
++    public static MovementInputProjection from(MovementCommand command) {
++        if (command == null) throw new IllegalArgumentException("movement command is required");
++        return new MovementInputProjection(
++                command.forward() > KEY_THRESHOLD,
++                command.forward() < -KEY_THRESHOLD,
++                command.strafe() < -KEY_THRESHOLD,
++                command.strafe() > KEY_THRESHOLD,
++                (float) -command.strafe(),
++                (float) command.forward());
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/input/MovementOverrideState.java b/src/client/java/dev/adrien/speedbridge/input/MovementOverrideState.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c8ed0a1f36f692149452021e4b5554048be4819
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/input/MovementOverrideState.java
+@@ -0,0 +1,33 @@
++package dev.adrien.speedbridge.input;
++
++import dev.adrien.speedbridge.util.Vec2d;
++
++public final class MovementOverrideState {
++    private static State state;
++
++    private MovementOverrideState() {}
++
++    public static void publish(MovementFrame frame, MovementCommand command, float logicalYaw) {
++        if (frame == null || command == null) {
++            throw new IllegalArgumentException("movement frame and command are required");
++        }
++        state = new State(frame, command, logicalYaw);
++    }
++
++    public static boolean active() {
++        return state != null;
++    }
++
++    public static MovementCommand relativeCommand() {
++        State current = state;
++        if (current == null) return MovementCommand.NONE;
++        Vec2d world = MovementFrameAdapter.worldDirection(current.frame(), current.command());
++        return MovementFrameAdapter.relativeToYaw(world, current.logicalYaw());
++    }
++
++    public static void clear() {
++        state = null;
++    }
++
++    private record State(MovementFrame frame, MovementCommand command, float logicalYaw) {}
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/input/RawInputIntent.java b/src/client/java/dev/adrien/speedbridge/input/RawInputIntent.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..14a2fb243517b7c4b61d666b7a75ee756afe2804
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/input/RawInputIntent.java
+@@ -0,0 +1,28 @@
++package dev.adrien.speedbridge.input;
++
++public record RawInputIntent(
++        boolean forward,
++        boolean backward,
++        boolean left,
++        boolean right,
++        boolean jump,
++        boolean sneak,
++        boolean use
++) {
++    public static RawInputIntent from(InputSnapshot snapshot) {
++        if (snapshot == null) throw new IllegalArgumentException("input snapshot is required");
++        return new RawInputIntent(
++                snapshot.forward(), snapshot.back(), snapshot.left(), snapshot.right(),
++                snapshot.jump(), sneak(), snapshot.use());
++    }
++
++    public MovementCommand movementCommand() {
++        double longitudinal = (forward ? 1.0 : 0.0) - (backward ? 1.0 : 0.0);
++        double lateral = (right ? 1.0 : 0.0) - (left ? 1.0 : 0.0);
++        return new MovementCommand(longitudinal, lateral);
++    }
++
++    public boolean hasMovement() {
++        return forward || backward || left || right;
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/mixin/ClientInputAccessor.java b/src/client/java/dev/adrien/speedbridge/mixin/ClientInputAccessor.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..8f7fca78e382518092f6ebb5eba5e32801685b21
+--- /dev/null
++++ b/src/client/java/dev/adrien/speedbridge/mixin/ClientInputAccessor.java
+@@ -0,0 +1,19 @@
++package dev.adrien.speedbridge.mixin;
++
++import net.minecraft.client.player.ClientInput;
++import net.minecraft.world.entity.player.Input;
++import net.minecraft.world.phys.Vec2;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.gen.Accessor;
++
++@Mixin(ClientInput.class)
++public interface ClientInputAccessor {
++    @Accessor("keyPresses")
++    Input speedbridge$getKeyPresses();
++
++    @Accessor("keyPresses")
++    void speedbridge$setKeyPresses(Input input);
++
++    @Accessor("moveVector")
++    void speedbridge$setMoveVector(Vec2 vector);
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/mixin/KeyboardInputMixin.java b/src/client/java/dev/adrien/speedbridge/mixin/KeyboardInputMixin.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..1cd0d62e4b7029c76ec13f70ffeef1ae0e1f5e43

@@ -1,0 +1,184 @@
+From 8c853422189405e593bfce1a32d6b3f246a8655c Mon Sep 17 00:00:00 2001
+From: OpenAI Inline Agent <openai-inline@users.noreply.github.com>
+Date: Sat, 1 Aug 2026 21:41:55 +0000
+Subject: [PATCH 1/5] test: reproduce staircase crash and backward movement
+ regression
+
+---
+ .../ControllerLifecycleRegressionTest.java    | 26 ++++++++
+ .../input/BackwardMovementRegressionTest.java | 17 +++++
+ .../StaircaseOwnershipRegressionTest.java     | 65 +++++++++++++++++++
+ tools/StandaloneDomainTests.java              | 22 +++++++
+ 4 files changed, 130 insertions(+)
+ create mode 100644 src/test/java/dev/adrien/speedbridge/controller/ControllerLifecycleRegressionTest.java
+ create mode 100644 src/test/java/dev/adrien/speedbridge/input/BackwardMovementRegressionTest.java
+ create mode 100644 src/test/java/dev/adrien/speedbridge/stair/StaircaseOwnershipRegressionTest.java
+
+diff --git a/src/test/java/dev/adrien/speedbridge/controller/ControllerLifecycleRegressionTest.java b/src/test/java/dev/adrien/speedbridge/controller/ControllerLifecycleRegressionTest.java
+new file mode 100644
+index 0000000..fa7d79d
+--- /dev/null
++++ b/src/test/java/dev/adrien/speedbridge/controller/ControllerLifecycleRegressionTest.java
+@@ -0,0 +1,26 @@
++package dev.adrien.speedbridge.controller;
++
++import dev.adrien.speedbridge.path.BridgeHeading;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.PathStep;
++import dev.adrien.speedbridge.stair.StaircaseCycle;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++final class ControllerLifecycleRegressionTest {
++    private static final PathStep STEP = new PathStep(
++            new GridPos(0, 5, -1), new GridPos(0, 6, -1), new BridgeHeading(0, -1));
++
++    @Test
++    void timedOutPlacementFromAnAbortedCycleCannotCreateAnActiveNullStep() {
++        StaircaseCycle staircase = new StaircaseCycle();
++        staircase.start(STEP, 10);
++
++        staircase.reset(); // grounded abort clears the path step
++        staircase.lowerFailed(); // stale pending-placement timeout arrives later
++
++        assertFalse(staircase.active());
++        assertNull(staircase.step());
++    }
++}
+diff --git a/src/test/java/dev/adrien/speedbridge/input/BackwardMovementRegressionTest.java b/src/test/java/dev/adrien/speedbridge/input/BackwardMovementRegressionTest.java
+new file mode 100644
+index 0000000..a429a73
+--- /dev/null
++++ b/src/test/java/dev/adrien/speedbridge/input/BackwardMovementRegressionTest.java
+@@ -0,0 +1,17 @@
++package dev.adrien.speedbridge.input;
++
++import dev.adrien.speedbridge.util.Vec2d;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++
++final class BackwardMovementRegressionTest {
++    @Test
++    void rawPhysicalBackwardReversesWorldDirectionAfterAOneEightyDegreeAimTurn() {
++        Vec2d bridgeBackward = Vec2d.fromYawDegrees(0).scale(-1).normalized();
++        Vec2d rawSAfterAimTurn = Vec2d.fromYawDegrees(180).scale(-1).normalized();
++
++        assertEquals(-1.0, bridgeBackward.dot(rawSAfterAimTurn), 1.0e-9,
++                "camera-relative S points opposite the committed bridge direction after a 180 degree aim turn");
++    }
++}
+diff --git a/src/test/java/dev/adrien/speedbridge/stair/StaircaseOwnershipRegressionTest.java b/src/test/java/dev/adrien/speedbridge/stair/StaircaseOwnershipRegressionTest.java
+new file mode 100644
+index 0000000..631936e
+--- /dev/null
++++ b/src/test/java/dev/adrien/speedbridge/stair/StaircaseOwnershipRegressionTest.java
+@@ -0,0 +1,65 @@
++package dev.adrien.speedbridge.stair;
++
++import dev.adrien.speedbridge.path.BridgeHeading;
++import dev.adrien.speedbridge.path.GridPos;
++import dev.adrien.speedbridge.path.PathStep;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.*;
++
++final class StaircaseOwnershipRegressionTest {
++    private static final PathStep STEP = new PathStep(
++            new GridPos(0, 5, -1), new GridPos(0, 6, -1), new BridgeHeading(0, -1));
++
++    @Test
++    void staleLowerFailureCannotReactivateAResetCycle() {
++        StaircaseCycle cycle = new StaircaseCycle();
++        cycle.start(STEP, 10);
++        cycle.reset();
++
++        cycle.lowerFailed();
++
++        assertFalse(cycle.active(), "a stale callback must not reactivate an idle cycle");
++        assertNull(cycle.step());
++    }
++
++    @Test
++    void staleUpperFailureCannotReactivateAResetCycle() {
++        StaircaseCycle cycle = new StaircaseCycle();
++        cycle.start(STEP, 10);
++        cycle.reset();
++
++        cycle.upperFailed();
++
++        assertFalse(cycle.active(), "a stale callback must not reactivate an idle cycle");
++        assertNull(cycle.step());
++    }
++
++    @Test
++    void everyPublicTransitionPreservesActiveImpliesStep() {
++        StaircaseCycle cycle = new StaircaseCycle();
++        assertInvariant(cycle);
++
++        cycle.start(STEP, 1);
++        assertInvariant(cycle);
++        cycle.lowerAttempted(2);
++        assertInvariant(cycle);
++        cycle.lowerFailed();
++        assertInvariant(cycle);
++        cycle.reset();
++        assertInvariant(cycle);
++
++        cycle.start(STEP, 3);
++        cycle.upperAttempted(4);
++        assertInvariant(cycle);
++        cycle.upperFailed();
++        assertInvariant(cycle);
++        cycle.reset();
++        assertInvariant(cycle);
++    }
++
++    private static void assertInvariant(StaircaseCycle cycle) {
++        assertTrue(!cycle.active() || cycle.step() != null,
++                "an active staircase cycle must always own a path step");
++    }
++}
+diff --git a/tools/StandaloneDomainTests.java b/tools/StandaloneDomainTests.java
+index 2025d18..6d65424 100644
+--- a/tools/StandaloneDomainTests.java
++++ b/tools/StandaloneDomainTests.java
+@@ -27,6 +27,7 @@ public final class StandaloneDomainTests {
+         testRotations();
+         testTargetRanking();
+         testStateMachine();
++        testReportedRegressions();
+         System.out.println("Standalone domain tests passed: " + assertions + " assertions");
+     }
+ 
+@@ -336,6 +337,27 @@ public final class StandaloneDomainTests {
+         check(centered.compareTo(offLine) < 0);
+     }
+ 
++
++    private static void testReportedRegressions() {
++        StaircaseCycle staleLower = new StaircaseCycle();
++        staleLower.start(stairStep(), 10);
++        staleLower.reset();
++        staleLower.lowerFailed();
++        check(!staleLower.active());
++        check(staleLower.step() == null);
++
++        StaircaseCycle staleUpper = new StaircaseCycle();
++        staleUpper.start(stairStep(), 10);
++        staleUpper.reset();
++        staleUpper.upperFailed();
++        check(!staleUpper.active());
++        check(staleUpper.step() == null);
++
++        Vec2d bridgeBackward = Vec2d.fromYawDegrees(0).scale(-1).normalized();
++        Vec2d rawSAfterAimTurn = Vec2d.fromYawDegrees(180).scale(-1).normalized();
++        close(bridgeBackward.dot(rawSAfterAimTurn), -1.0, 1.0e-9);
++    }
++
+     private static void testStateMachine() {
+         BridgeStateMachine state = new BridgeStateMachine();
+         state.begin();
+-- 
+2.54.0

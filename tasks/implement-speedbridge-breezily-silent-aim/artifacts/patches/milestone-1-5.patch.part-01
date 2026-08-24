@@ -1,0 +1,220 @@
++public record BridgeSession(
++        long generation,
++        TechniqueId activeTechnique,
++        long startedTick
++) {
++    public BridgeSession {
++        if (generation < 1) throw new IllegalArgumentException("session generation must be positive");
++        if (activeTechnique == null) throw new IllegalArgumentException("active technique is required");
++        if (startedTick < 0) throw new IllegalArgumentException("startedTick must be non-negative");
++    }
++
++    public PlacementOwner owner(long operationGeneration) {
++        return new PlacementOwner(generation, activeTechnique.value(), operationGeneration);
++    }
++
++    public BridgeSession withTechnique(TechniqueId technique, long tick) {
++        return new BridgeSession(generation, technique, tick);
++    }
++}
+diff --git a/src/client/java/dev/adrien/speedbridge/controller/SpeedBridgeController.java b/src/client/java/dev/adrien/speedbridge/controller/SpeedBridgeController.java
+index 5dc31506134e8406954dc3bb904d877d19e8d9d0..d9db4fee01feb8035e7125721991845263afc210 100644
+--- a/src/client/java/dev/adrien/speedbridge/controller/SpeedBridgeController.java
++++ b/src/client/java/dev/adrien/speedbridge/controller/SpeedBridgeController.java
+@@ -4,13 +4,16 @@ import dev.adrien.speedbridge.bridge.BridgeLine;
+ import dev.adrien.speedbridge.bridge.EdgeDetector;
+ import dev.adrien.speedbridge.bridge.MovementIntent;
+ import dev.adrien.speedbridge.bridge.MovementPlanner;
++import dev.adrien.speedbridge.aim.LogicalRotationRequest;
+ import dev.adrien.speedbridge.config.ActivationMode;
+ import dev.adrien.speedbridge.config.SpeedBridgeConfig;
+ import dev.adrien.speedbridge.hud.HudSnapshot;
+ import dev.adrien.speedbridge.input.InputController;
+ import dev.adrien.speedbridge.input.InputSnapshot;
+-import dev.adrien.speedbridge.input.MovementKeyPlan;
+-import dev.adrien.speedbridge.input.MovementKeyPlanner;
++import dev.adrien.speedbridge.input.MovementCommand;
++import dev.adrien.speedbridge.input.MovementFrame;
++import dev.adrien.speedbridge.input.MovementFrameAdapter;
++import dev.adrien.speedbridge.input.MovementOverrideState;
+ import dev.adrien.speedbridge.path.BridgeHeading;
+ import dev.adrien.speedbridge.path.BridgeHeadingTracker;
+ import dev.adrien.speedbridge.path.BridgePathPlanner;
+@@ -22,12 +25,14 @@ import dev.adrien.speedbridge.path.PlacementLayerResolver;
+ import dev.adrien.speedbridge.path.SupportAnchorResolver;
+ import dev.adrien.speedbridge.path.VerticalIntentTracker;
+ import dev.adrien.speedbridge.placement.AssistedPlacementKind;
+-import dev.adrien.speedbridge.placement.PendingPlacement;
++import dev.adrien.speedbridge.placement.MinecraftPlacementPort;
++import dev.adrien.speedbridge.placement.PlacementOwner;
++import dev.adrien.speedbridge.placement.PlacementPipeline;
++import dev.adrien.speedbridge.placement.PlacementRequest;
++import dev.adrien.speedbridge.placement.PlacementResult;
+ import dev.adrien.speedbridge.placement.PlacementFailure;
+-import dev.adrien.speedbridge.placement.PlacementCadence;
+ import dev.adrien.speedbridge.placement.PlacementTarget;
+ import dev.adrien.speedbridge.placement.PlacementTargetFinder;
+-import dev.adrien.speedbridge.placement.PlacementValidationResult;
+ import dev.adrien.speedbridge.placement.PlacementValidator;
+ import dev.adrien.speedbridge.placement.RotationController;
+ import dev.adrien.speedbridge.selection.BlockSelection;
+@@ -38,6 +43,7 @@ import dev.adrien.speedbridge.stair.StaircaseCycle;
+ import dev.adrien.speedbridge.stair.StaircaseObservation;
+ import dev.adrien.speedbridge.stair.StaircasePhase;
+ import dev.adrien.speedbridge.stair.StaircaseRecovery;
++import dev.adrien.speedbridge.technique.TechniqueId;
+ import dev.adrien.speedbridge.state.BridgeStateMachine;
+ import dev.adrien.speedbridge.state.CleanupPlan;
+ import dev.adrien.speedbridge.state.StopReason;
+@@ -66,14 +72,13 @@ public final class SpeedBridgeController {
+     private final KeyMapping activationKey;
+     private final CleanupPlan cleanupPlan = new CleanupPlan();
+     private final InputController inputController = new InputController(cleanupPlan);
+-    private final MovementKeyPlanner movementKeyPlanner = new MovementKeyPlanner();
+     private final MovementPlanner movementPlanner = new MovementPlanner();
+     private final CollisionSupportScanner supportScanner = new CollisionSupportScanner();
+     private final EdgeDetector edgeDetector = new EdgeDetector();
+     private final BlockSelector blockSelector = new BlockSelector();
+     private final PlacementTargetFinder targetFinder = new PlacementTargetFinder();
+     private final PlacementValidator placementValidator = new PlacementValidator();
+-    private final PlacementCadence placementCadence = new PlacementCadence();
++    private final PlacementPipeline placementPipeline = new PlacementPipeline();
+     private final RotationController rotationController = new RotationController();
+     private final BridgeStateMachine stateMachine = new BridgeStateMachine();
+     private final BridgeHeadingTracker headingTracker = new BridgeHeadingTracker();
+@@ -88,7 +93,8 @@ public final class SpeedBridgeController {
+     private int forcedSneakTicks;
+     private float movementReferenceYaw;
+     private BridgePathPlanner pathPlanner;
+-    private PendingPlacement pendingPlacement;
++    private long sessionGeneration;
++    private long placementOperationGeneration;
+     private PlacementFailure pendingFailure = PlacementFailure.NONE;
+     private HudSnapshot hudSnapshot = HudSnapshot.hidden();
+ 
+@@ -128,7 +134,7 @@ public final class SpeedBridgeController {
+         long tick = client.level.getGameTime();
+         inputController.advancePulses(client, tick);
+         if (!running) begin(player);
+-        pendingFailure = processPendingPlacement(player, tick);
++        pendingFailure = handlePlacementResult(pollPlacement(client, tick));
+ 
+         InputSnapshot physical = inputController.snapshot(client);
+         boolean manualCameraOverride = rotationController.manualOverrideDetected(player);
+@@ -213,15 +219,30 @@ public final class SpeedBridgeController {
+         PlacementFailure failure = pendingFailure;
+         if (manualCameraOverride) {
+             failure = PlacementFailure.MANUAL_CAMERA_OVERRIDE;
+-        } else if (pendingPlacement != null) {
++        } else if (placementPipeline.hasPending()) {
+             failure = PlacementFailure.WAITING_CONFIRMATION;
+         } else if (target.isEmpty()) {
+             failure = PlacementFailure.NO_TARGET;
+         } else if (!stateMachine.mayPlace()) {
+             failure = PlacementFailure.PLACEMENT_DELAY;
+         } else {
+-            failure = requestPlacement(client, physical, target.get(), selection,
+-                    AssistedPlacementKind.LEVEL, step, tick);
++            long operation = nextGeneration(placementOperationGeneration);
++            PlacementOwner owner = new PlacementOwner(sessionGeneration, TechniqueId.STANDARD, operation);
++            PlacementTarget placementTarget = target.orElseThrow();
++            LogicalRotationRequest rotationRequest = new LogicalRotationRequest(
++                    owner, placementTarget.rotation(), 2.0f);
++            PlacementRequest request = new PlacementRequest(
++                    owner, step.lower(), AssistedPlacementKind.LEVEL, step, rotationRequest,
++                    tick, tick + PLACEMENT_CONFIRM_TIMEOUT);
++            PlacementResult result = placementPipeline.attempt(
++                    request, owner, rotationReady, physical.use(), tick, config.placementDelayTicks,
++                    MinecraftPlacementPort.forAttempt(
++                            client, placementValidator, inputController, placementTarget, selection));
++            if (result.status() == PlacementResult.Status.WAITING_CONFIRMATION
++                    && placementPipeline.hasPending()) {
++                placementOperationGeneration = operation;
++            }
++            failure = handlePlacementResult(result);
+         }
+ 
+         String debug = debugLine("level", edge.supportedRatio(), lookAhead, line, playerPosition(player), target, player);
+@@ -233,6 +254,14 @@ public final class SpeedBridgeController {
+                                HeadingDecision headingDecision, boolean manualCameraOverride, long tick) {
+         LocalPlayer player = client.player;
+         PathStep step = staircase.step();
++        if (step == null) {
++            resetStaircaseAndCancelOwnedPlacement();
++            releaseMotion(client);
++            setHud(false, blockCount, selection.stack().getHoverName().getString(),
++                    Optional.empty(), PlacementFailure.INTERNAL_STATE,
++                    "stairs aborted: active cycle had no step");
++            return;
++        }
+         BlockPos lowerPos = toBlockPos(step.lower());
+         BlockPos upperPos = toBlockPos(step.upper());
+         boolean lowerConfirmed = isConfirmedBlock(player, lowerPos);
+@@ -271,20 +300,42 @@ public final class SpeedBridgeController {
+         PlacementFailure failure = pendingFailure;
+         if (manualCameraOverride && !player.onGround()) {
+             failure = PlacementFailure.DIRECTION_CHANGED;
+-        } else if (pendingPlacement != null) {
++        } else if (placementPipeline.hasPending()) {
+             failure = PlacementFailure.WAITING_CONFIRMATION;
+         } else if ((command.placeLower() || command.placeUpper()) && target.isEmpty()) {
+             failure = PlacementFailure.NO_TARGET;
+         } else if (command.placeLower() && rotationReady) {
+-            failure = requestPlacement(client, physical, target.orElseThrow(), selection,
+-                    AssistedPlacementKind.STAIR_LOWER, step, tick);
+-            if (failure == PlacementFailure.NONE) staircase.lowerAttempted(tick);
+-            else if (!failure.retryableDuringStairArc()) staircase.lowerFailed();
++            PlacementOwner owner = new PlacementOwner(
++                    sessionGeneration, TechniqueId.STANDARD, staircase.generation());
++            PlacementTarget placementTarget = target.orElseThrow();
++            LogicalRotationRequest rotationRequest = new LogicalRotationRequest(
++                    owner, placementTarget.rotation(), 2.0f);
++            PlacementRequest request = new PlacementRequest(
++                    owner, step.lower(), AssistedPlacementKind.STAIR_LOWER, step, rotationRequest,
++                    tick, tick + PLACEMENT_CONFIRM_TIMEOUT);
++            PlacementResult result = placementPipeline.attempt(
++                    request, owner, true, physical.use(), tick, config.placementDelayTicks,
++                    MinecraftPlacementPort.forAttempt(
++                            client, placementValidator, inputController, placementTarget, selection));
++            if (result.status() == PlacementResult.Status.WAITING_CONFIRMATION
++                    && placementPipeline.hasPending()) staircase.lowerAttempted(tick);
++            failure = handlePlacementResult(result);
+         } else if (command.placeUpper() && rotationReady) {
+-            failure = requestPlacement(client, physical, target.orElseThrow(), selection,
+-                    AssistedPlacementKind.STAIR_UPPER, step, tick);
+-            if (failure == PlacementFailure.NONE) staircase.upperAttempted(tick);
+-            else if (!failure.retryableDuringStairArc()) staircase.upperFailed();
++            PlacementOwner owner = new PlacementOwner(
++                    sessionGeneration, TechniqueId.STANDARD, staircase.generation());
++            PlacementTarget placementTarget = target.orElseThrow();
++            LogicalRotationRequest rotationRequest = new LogicalRotationRequest(
++                    owner, placementTarget.rotation(), 2.0f);
++            PlacementRequest request = new PlacementRequest(
++                    owner, step.upper(), AssistedPlacementKind.STAIR_UPPER, step, rotationRequest,
++                    tick, tick + PLACEMENT_CONFIRM_TIMEOUT);
++            PlacementResult result = placementPipeline.attempt(
++                    request, owner, true, physical.use(), tick, config.placementDelayTicks,
++                    MinecraftPlacementPort.forAttempt(
++                            client, placementValidator, inputController, placementTarget, selection));
++            if (result.status() == PlacementResult.Status.WAITING_CONFIRMATION
++                    && placementPipeline.hasPending()) staircase.upperAttempted(tick);
++            failure = handlePlacementResult(result);
+         } else if ((command.placeLower() || command.placeUpper()) && !rotationReady) {
+             failure = PlacementFailure.PLACEMENT_DELAY;
+         }
+@@ -292,7 +343,7 @@ public final class SpeedBridgeController {
+         if (command.complete()) {
+             pathPlanner.commit(step, PathCommit.UPPER);
+             movementPlanner.recordPlacement(center(step.upper()));
+-            staircase.reset();
++            resetStaircaseAndCancelOwnedPlacement();
+             stateMachine.placed(0);
+         } else if (command.aborted() && player.onGround()) {
+             if (lowerConfirmed && command.recovery() == StaircaseRecovery.LOWER_BLOCK) {
+@@ -301,7 +352,7 @@ public final class SpeedBridgeController {
+             } else {
+                 pathPlanner.reset(anchorResolver.resolve(player));
+             }
+-            staircase.reset();
++            resetStaircaseAndCancelOwnedPlacement();
+             stateMachine.begin();
