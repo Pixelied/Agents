@@ -15,6 +15,17 @@ class MazeDatapackContract(unittest.TestCase):
         self.assertIn("28", accept)
         self.assertIn("64", reject)
 
+    def test_constructive_proposal_preserves_and_rotates_spanning_tree(self):
+        load = (FN / "load.mcfunction").read_text()
+        mutate = (FN / "maze/propose/mutate_cell.mcfunction").read_text()
+        validate = (FN / "maze/validate/visit_neighbor.mcfunction").read_text()
+        commit = (FN / "maze/transition/commit_ctx.mcfunction").read_text()
+        self.assertIn("md_nparent", load)
+        self.assertIn("md_mparent", mutate)
+        self.assertIn("md_nparent", validate)
+        self.assertIn("md_mparent", commit)
+        self.assertIn("md_nparent", commit)
+
     def test_validation_is_time_sliced(self):
         tick = (FN / "maze/validate/tick.mcfunction").read_text()
         self.assertIn("function medusa:maze/validate/spread", tick)
