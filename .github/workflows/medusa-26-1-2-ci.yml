@@ -88,9 +88,12 @@ jobs:
           grep -q 'MEDUSA_INSTANCE_IMMEDIATE_OK' server.log
           grep -q 'MEDUSA_MAZE_CELLS_OK' server.log
           grep -q 'MEDUSA_MAZE_INITIAL_SOLVABLE_OK' server.log
+          grep -q 'MEDUSA_MAZE_INITIAL_READY_FAST_OK' server.log
           grep -q 'MEDUSA_MAZE_DELTA_OK' server.log
+          grep -q 'MEDUSA_MAZE_PROPOSAL_FAST_OK' server.log
           grep -q 'MEDUSA_MAZE_OPEN_FIRST_OK' server.log
           grep -q 'MEDUSA_MAZE_WALL_DISPLAY_OK' server.log
+          grep -q 'MEDUSA_MAZE_HELPERS_BOUNDED_OK' server.log
           grep -q 'MEDUSA_MAZE_COLLISION_OK' server.log
           grep -q 'MEDUSA_MAZE_OCCUPIED_ABORT_OK' server.log
           grep -q 'MEDUSA_MAZE_INSTANCE_ISOLATION_OK' server.log
