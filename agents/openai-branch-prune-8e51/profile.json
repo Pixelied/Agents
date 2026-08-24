@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-branch-prune-8e51",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Physically prunes proven superseded Git branches after the canonical project split while preserving active PR lineages and a reversible archive ref.",
+  "capabilities": [
+    "coordination",
+    "git",
+    "repository-architecture",
+    "branch-pruning",
+    "validation"
+  ],
+  "registered_at": "2026-08-24T12:18:30Z",
+  "state": "available",
+  "state_updated_at": "2026-08-24T12:18:30Z",
+  "state_reason": "Beginning approved physical branch pruning"
+}
