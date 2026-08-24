@@ -4,7 +4,7 @@
 
 **Goal:** Physically reduce the repository branch list to canonical workspace/project refs, minimum rollback/legacy safety refs, and branches required by current open PR/dependency chains, without losing recoverability for any deleted branch history.
 
-**Architecture:** Use one guarded, one-shot GitHub Actions workflow committed to `main`. The workflow operates on an explicit audited candidate list, dynamically protects all current open PR head/base refs, refuses to delete any candidate that moved after the audit cutoff, builds a single archive branch whose commit ancestry retains every deleted branch head, verifies the archive ref, and only then deletes candidates through the GitHub refs API. A post-run verification pass confirms the exact surviving branch set and normal workspace validation before the one-shot workflow is removed.
+**Architecture:** Use one guarded, one-shot GitHub Actions workflow committed to `main`. The workflow operates on an explicit audited candidate list, dynamically protects all current open PR head/base refs, refuses to delete any ordinary candidate that moved after the audit cutoff, refuses to run while another agent owns any unexpired active lease, builds a single archive branch whose commit ancestry retains every deleted branch head, verifies the archive ref, and only then deletes candidates through the GitHub refs API. A post-run verification pass confirms the exact surviving branch set and normal workspace validation before the one-shot workflow and its temporary contract test are removed.
 
 **Tech Stack:** GitHub REST API, GitHub Actions, Python 3.11 standard library, repository coordination protocol v1.0.
 
@@ -17,7 +17,9 @@
 - Never delete `backup/pre-project-split-2026-08-24` or `legacy/mixed-main-2026-08-24` during this pass.
 - Never delete a branch that is the head or base of a currently open pull request at execution time.
 - Do not infer deletion from prefixes alone; only branches in the explicit 2026-08-24 audited candidate list may be removed.
-- Abort before the first deletion if a candidate branch moved after audit cutoff `2026-08-24T12:18:00Z`.
+- Abort before the first deletion if an ordinary candidate branch moved after audit cutoff `2026-08-24T12:18:00Z`.
+- `cleanup/physical-branch-prune-2026-08-24` is the single post-cutoff exception because it is owned by this pruning task itself; it may be deleted only after its PR has merged/closed and therefore no longer protects the branch dynamically.
+- Abort before the first deletion if any other agent owns an unexpired active workspace lease.
 - Before deletion, keep every candidate head reachable from `archive/pre-branch-prune-2026-08-24` using chained multi-parent archive commits.
 - Preserve project implementation contents; this task changes refs and cleanup documentation only.
 - Run `python -m unittest discover -s tests -v` and `python agentctl.py validate` after pruning and again after cleanup coordination closeout.
@@ -32,11 +34,11 @@
 
 **Interfaces:**
 - Consumes: current GitHub branch list and open PR metadata.
-- Produces: exact protected branch set, exact 66-name deletion candidate set, audit cutoff, and archive-ref name consumed by Task 2.
+- Produces: exact protected branch set, exact 67-name deletion candidate set, audit cutoff, and archive-ref name consumed by Task 2.
 
 - [ ] **Step 1: Re-read all open PR metadata immediately before workflow creation**
 
-Run through the GitHub connector and collect every same-repository open PR `head` and `base` branch.
+Collect every same-repository open PR `head` and `base` branch.
 
 Expected protected live PR/dependency refs at the audit point:
 
@@ -69,7 +71,7 @@ project/spear-client-26-1-2
 
 - [ ] **Step 3: Record the explicit deletion candidates**
 
-The workflow may delete only these 66 names:
+The workflow may delete only these 67 names:
 
 ```text
 backup/main-2026-08-01
@@ -82,6 +84,7 @@ ci/predictive-survival-hardening-recovery-check
 ci/predictive-survival-hardening-verify
 ci/speedbridge-assist-1.1.0
 cleanup/project-boundary-migration
+cleanup/physical-branch-prune-2026-08-24
 coord/hypershot-26-2-7c4e
 coord/pearl-catcher-hardening-claim
 coord/predictive-survival-contingency-closeout
@@ -142,18 +145,23 @@ work/medusa-shifting-maze-inline
 
 - [ ] **Step 4: Commit the audit manifest before destructive execution**
 
-Expected: manifest exists on `main`, independently reviewable before the prune workflow runs.
+Expected: manifest exists on the cleanup PR and is independently reviewable before the prune workflow runs.
 
-### Task 2: Add a one-shot fail-closed pruning workflow
+### Task 2: Add and red-green test a one-shot fail-closed pruning workflow
 
 **Files:**
 - Create: `.github/workflows/prune-superseded-branches.yml`
+- Create temporarily: `tests/test_branch_prune_contract.py`
 
 **Interfaces:**
 - Consumes: exact candidate/protected sets from Task 1 and GitHub REST API state at execution time.
 - Produces: archive ref `archive/pre-branch-prune-2026-08-24` and physical deletion of only verified candidates.
 
-- [ ] **Step 1: Configure the workflow as one-shot push-triggered cleanup**
+- [ ] **Step 1: Add the contract test first and verify RED**
+
+The test requires the one-shot workflow, explicit candidates, dynamic protection markers, archive construction, delete verification, and compilable embedded Python. Run the ordinary PR validation workflow and require failure specifically because the prune workflow is absent.
+
+- [ ] **Step 2: Configure the workflow as a guarded one-shot push cleanup**
 
 Use:
 
@@ -166,9 +174,13 @@ permissions:
   pull-requests: read
 ```
 
-Guard the job so it runs only when `github.event.head_commit.message == 'chore: prune superseded branches'`.
+Guard the job with:
 
-- [ ] **Step 2: Implement REST preflight in Python standard library**
+```text
+startsWith(github.event.head_commit.message, 'chore: prune superseded branches')
+```
+
+- [ ] **Step 3: Implement REST and lease preflight in Python standard library**
 
 The script must:
 
@@ -176,6 +188,7 @@ The script must:
 GET /repos/{repo}/pulls?state=open&per_page=100
 GET /repos/{repo}/branches?per_page=100 (paginate)
 GET /repos/{repo}/commits/{sha} for each existing candidate
+scan tasks/*/leases/*.json for unexpired active leases
 ```
 
 Before any DELETE request, fail if:
@@ -183,18 +196,19 @@ Before any DELETE request, fail if:
 ```text
 candidate in open PR head/base refs
 candidate is one of the protected canonical/safety refs
-candidate latest commit committer date > 2026-08-24T12:18:00Z
+ordinary candidate latest commit committer date > 2026-08-24T12:18:00Z
+an unexpired active lease belongs to another agent
 any expected canonical branch is missing
 archive ref already exists at an unexpected commit
 ```
 
-New branches not in the explicit candidate list are ignored, never deleted.
+New branches not in the explicit candidate list are ignored, never deleted. The owned cleanup branch is the only cutoff exception.
 
-- [ ] **Step 3: Build a reversible archive ref before deletion**
+- [ ] **Step 4: Build a reversible archive ref before deletion**
 
 Create a JSON manifest blob containing each existing candidate branch and exact head SHA. Create an archive tree from current `main` plus `docs/protocols/branch-prune-archive-2026-08-24.json`.
 
-Create chained archive commits in chunks of at most 20 candidate parent SHAs:
+Create chained archive commits in chunks of at most 20 unique candidate parent SHAs:
 
 ```text
 archive-commit-1 parents = [current-main, candidate-1..candidate-20]
@@ -205,7 +219,7 @@ archive-commit-4 parents = [archive-commit-3, remaining candidates]
 
 Every archive commit uses the same archive tree. Create `refs/heads/archive/pre-branch-prune-2026-08-24` at the final archive commit, then GET the ref and verify the SHA before proceeding.
 
-- [ ] **Step 4: Delete candidates only after archive verification**
+- [ ] **Step 5: Delete candidates only after archive verification**
 
 For each candidate still present and preflight-approved:
 
@@ -215,17 +229,9 @@ DELETE /repos/{repo}/git/refs/heads/{url-encoded-branch}
 
 After every deletion, GET the ref and require HTTP 404. If any deletion fails, stop immediately and leave the archive ref intact.
 
-- [ ] **Step 5: Emit an exact summary**
+- [ ] **Step 6: Verify GREEN on the exact PR head**
 
-The job log must print:
-
-```text
-archive ref + SHA
-candidate count
-missing/already-absent candidates
-all deleted branch names
-all protected branch names
-```
+Expected: temporary safety tests plus normal workspace tests all pass, embedded Python compiles, and `python agentctl.py validate` returns `errors: []`, `ok: true`.
 
 ### Task 3: Execute pruning and verify the surviving topology
 
@@ -237,21 +243,23 @@ all protected branch names
 - Consumes: completed Task 2 workflow run.
 - Produces: authoritative post-prune branch registry.
 
-- [ ] **Step 1: Trigger the one-shot workflow with the exact commit message**
+- [ ] **Step 1: Merge the verified PR using the exact trigger title**
 
-Commit the workflow/manifest using:
+Merge PR #35 with merge commit title beginning exactly:
 
 ```text
 chore: prune superseded branches
 ```
 
-- [ ] **Step 2: Read the complete workflow job log**
+Use an expected-head SHA precondition so a concurrent PR-head move blocks the merge.
 
-Expected: preflight passes, archive ref is created and verified, and only explicit candidates are deleted.
+- [ ] **Step 2: Read the complete pruning workflow job log**
+
+Expected: preflight passes, archive ref is created and verified, and only explicit candidates are deleted. If a current PR or live external lease blocks pruning, do not bypass it; leave refs untouched and investigate.
 
 - [ ] **Step 3: Re-query the complete branch list**
 
-Expected surviving refs are exactly:
+Expected surviving refs are:
 
 ```text
 main
@@ -278,13 +286,14 @@ fix/medusa-dungeon-rebuild
 
 If a genuinely new branch appeared after the audit, it may also remain; record it and do not delete it automatically.
 
-- [ ] **Step 4: Re-read all open PRs**
+- [ ] **Step 4: Re-read all open PRs and archive metadata**
 
-Expected: every open PR retains its original head/base branch and remains open.
+Expected: every pre-existing open PR retains its original head/base branch and remains open; PR #35 is merged/closed. Fetch the archive branch and its embedded branch→SHA manifest.
 
 ### Task 4: Remove one-shot machinery and close coordination state
 
 **Files:**
+- Delete: `tests/test_branch_prune_contract.py`
 - Delete: `.github/workflows/prune-superseded-branches.yml`
 - Modify: `docs/protocols/branch-supersession-2026-08-24.md`
 - Modify: `docs/protocols/branch-prune-manifest-2026-08-24.md`
@@ -296,13 +305,13 @@ Expected: every open PR retains its original head/base branch and remains open.
 - Consumes: verified post-prune topology.
 - Produces: clean shared workspace with no reusable destructive workflow and no active cleanup leases.
 
-- [ ] **Step 1: Delete the one-shot workflow from `main`**
+- [ ] **Step 1: Remove the temporary test first, then remove the one-shot workflow from `main`**
 
-Expected: no future push can re-run physical pruning accidentally.
+Deleting the test first prevents a transient shared-CI failure after the destructive workflow is removed. Neither cleanup commit uses the prune trigger message.
 
 - [ ] **Step 2: Record exact deletion and archive metadata**
 
-Update the branch supersession registry and manifest with the archive SHA, actual deleted list, and any skipped candidate.
+Update the branch supersession registry and manifest with the archive SHA, actual deleted list/count, any skipped candidate, and final surviving branch set.
 
 - [ ] **Step 3: Run the shared workspace verification gate**
 
@@ -313,9 +322,9 @@ python -m unittest discover -s tests -v
 python agentctl.py validate
 ```
 
-Expected: all tests pass and validator returns `errors: []`, `ok: true`.
+Expected: all shared tests pass and validator returns `errors: []`, `ok: true`.
 
-- [ ] **Step 4: Mark task completed, release all four scopes, and set cleanup agent offline**
+- [ ] **Step 4: Mark task completed, release all five scopes, and set cleanup agent offline**
 
 Expected: no active lease owned by `openai-branch-prune-8e51` remains.
 

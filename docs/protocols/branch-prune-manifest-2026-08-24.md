@@ -6,7 +6,7 @@ Audit cutoff: `2026-08-24T12:18:00Z`
 
 Archive ref to create before deletion: `archive/pre-branch-prune-2026-08-24`
 
-This manifest is intentionally explicit. The pruning workflow may delete only branches listed under **Deletion candidates**. It must dynamically protect every current open PR head/base branch, and it must abort before the first deletion if a listed candidate moved after the audit cutoff.
+This manifest is intentionally explicit. The pruning workflow may delete only branches listed under **Deletion candidates**. It must dynamically protect every current open PR head/base branch, and it must abort before the first deletion if a listed candidate moved after the audit cutoff. The single exception is the cleanup branch created by this pruning task itself; that branch is expected to contain post-cutoff commits and is deleted only after PR #35 has merged/closed.
 
 ## Canonical and safety refs — never delete in this pass
 
@@ -54,7 +54,7 @@ fix/medusa-dungeon-rebuild
 
 ## Deletion candidates
 
-Exactly 66 audited branch names:
+Exactly 67 audited branch names:
 
 ```text
 backup/main-2026-08-01
@@ -67,6 +67,7 @@ ci/predictive-survival-hardening-recovery-check
 ci/predictive-survival-hardening-verify
 ci/speedbridge-assist-1.1.0
 cleanup/project-boundary-migration
+cleanup/physical-branch-prune-2026-08-24
 coord/hypershot-26-2-7c4e
 coord/pearl-catcher-hardening-claim
 coord/predictive-survival-contingency-closeout
@@ -129,7 +130,8 @@ work/medusa-shifting-maze-inline
 
 1. A branch created after this audit but absent from the explicit candidate list is never deleted.
 2. If a candidate becomes an open PR head/base before execution, the workflow aborts before any deletion.
-3. If a candidate's head commit is newer than the audit cutoff, the workflow aborts before any deletion.
-4. Before the first DELETE request, the workflow creates and verifies `archive/pre-branch-prune-2026-08-24` whose ancestry retains every candidate head SHA that existed at execution time.
-5. The archive tree contains `docs/protocols/branch-prune-archive-2026-08-24.json` with exact branch→SHA mappings.
-6. The one-shot destructive workflow is removed from `main` immediately after post-prune verification.
+3. If a candidate's head commit is newer than the audit cutoff, the workflow aborts before any deletion, except `cleanup/physical-branch-prune-2026-08-24`, which is owned by this cleanup task and is expected to move while PR #35 is prepared.
+4. Any unexpired active lease owned by another agent aborts pruning before deletion.
+5. Before the first DELETE request, the workflow creates and verifies `archive/pre-branch-prune-2026-08-24` whose ancestry retains every candidate head SHA that existed at execution time.
+6. The archive tree contains `docs/protocols/branch-prune-archive-2026-08-24.json` with exact branch→SHA mappings.
+7. The one-shot destructive workflow is removed from `main` immediately after post-prune verification.
