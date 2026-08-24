@@ -1,0 +1,35 @@
+name: Spear Client CI
+
+on:
+  push:
+    branches:
+      - project/spear-client-26-1-2
+    paths:
+      - "projects/spear-client/**"
+      - ".github/workflows/spear-client-ci.yml"
+  pull_request:
+    paths:
+      - "projects/spear-client/**"
+      - ".github/workflows/spear-client-ci.yml"
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/spear-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.4.1"
+      - name: Scaffold contract tests
+        run: python -m unittest discover -s tests -v
+      - name: Verify pinned Gradle entrypoint
+        run: ./gradlew --version
+      - name: Clean, test, and build
+        run: ./gradlew --no-daemon clean test build
