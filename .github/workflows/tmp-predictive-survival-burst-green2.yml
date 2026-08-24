@@ -1,17 +1,16 @@
 name: Temporary Predictive Survival burst GREEN 2
 
 on:
-  pull_request:
+  push:
     branches:
-      - project/predictive-survival-26-1-2
-    types: [synchronize]
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply-test-commit:
-    if: ${{ github.event.pull_request.number == 40 && github.event.pull_request.head.ref == 'fix/predictive-survival-burst-guard-26-1-2' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ contains(github.event.head_commit.message, 'activate burst GREEN 2') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -91,8 +90,7 @@ jobs:
         run: ./gradlew --no-daemon clean test build
       - name: Commit only after GREEN
         run: |
-          git add projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/ExplosionPredictor.java \
-                  projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java
+          git add -A
           git config user.name "Pixelied CI"
           git config user.email "actions@users.noreply.github.com"
           git commit -m "fix: bound moving fused explosions and capture remote burst items"
