@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "clean-repository-project-boundaries",
+  "title": "Separate project implementations from workspace main",
+  "objective": "Clean the repository without losing work: identify and preserve the newest canonical state of every real project, move each project onto a dedicated long-lived project branch, make main coordination-only, protect active pull requests and historical recovery paths, and document unambiguous branching rules for future agents.",
+  "created_by": "openai-repo-cleanup-24a8",
+  "created_at": "2026-08-24T11:29:30Z",
+  "priority": "critical",
+  "status": "open",
+  "scopes": [
+    "repository-branches",
+    "projects",
+    ".github/workflows",
+    "AGENTS.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    "docs/protocols",
+    "docs/superpowers/specs",
+    "docs/superpowers/plans"
+  ],
+  "acceptance_criteria": [
+    "Every real project has a documented canonical source chosen from actual tree identity and ancestry rather than branch-name recency.",
+    "No canonical project state is older than a known verified or active newer implementation state.",
+    "A pre-cleanup backup reference preserves the complete previous main tree before project removal.",
+    "Main contains coordination/workspace code and documentation but no ordinary project implementation trees.",
+    "Each normal project has a dedicated long-lived project branch containing only its own canonical project implementation plus required project-specific workspace integration.",
+    "Active pull requests are not force-pushed, overwritten, or made dependent on the cleaned main unexpectedly.",
+    "Future agents have explicit rules for workspace branches, project base branches, feature branches, stacked branches, and source-of-truth coordination state.",
+    "Temporary and duplicate branches are only removed when they are proven redundant and contain no unique canonical project state or active pull request work.",
+    "Workspace tests and validation pass after the migration."
+  ]
+}
