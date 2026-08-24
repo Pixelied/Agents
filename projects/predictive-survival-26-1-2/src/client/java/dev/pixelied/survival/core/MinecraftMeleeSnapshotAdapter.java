@@ -51,6 +51,7 @@ final class MinecraftMeleeSnapshotAdapter {
         if (!isPotentialMeleeCandidate(player)) return Map.of();
 
         ItemStack weapon = player.getMainHandItem();
+        ItemStack offhand = player.getOffhandItem();
         Map<String, String> properties = new LinkedHashMap<>();
         properties.put("melee_capable", "true");
         properties.put("melee_model", "player");
@@ -69,7 +70,10 @@ final class MinecraftMeleeSnapshotAdapter {
 
         AttributeInstance range = player.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
         if (range != null) properties.put("attack_range", Double.toString(range.getValue()));
+        AttributeInstance blockRange = player.getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
+        if (blockRange != null) properties.put("block_interaction_range", Double.toString(blockRange.getValue()));
         properties.put("weapon_key", itemKey(weapon));
+        properties.put("offhand_item_key", itemKey(offhand));
 
         // Server fall state can diverge around movement reconciliation. A conservative remote
         // player bound must include a critical/mace-smash-capable state without guessing it.
