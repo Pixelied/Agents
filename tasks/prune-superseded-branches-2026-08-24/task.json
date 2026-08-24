@@ -11,6 +11,7 @@
   "scopes": [
     "repository-branches",
     ".github/workflows/prune-superseded-branches.yml",
+    ".github/workflows/prune-superseded-branches-locked.yml",
     "docs/protocols",
     "docs/superpowers/plans",
     "tests/test_branch_prune_contract.py"
@@ -19,7 +20,8 @@
     "Deletion candidates are an explicit audited list; newly created branches are never swept up implicitly.",
     "Current open PR head/base branches and all canonical project branches are protected dynamically at execution time.",
     "Every deleted branch head remains reachable from a single archive ref and is recorded by exact SHA.",
-    "The prune aborts before deletion if a candidate became part of an open PR, if a candidate moved after the audit cutoff, or if the archive cannot be verified.",
+    "The prune aborts before deletion if a candidate became part of an open PR, if a candidate moved after the audit cutoff, if another agent owns an unexpired active lease, or if the archive cannot be verified.",
+    "The final deletion executor requires the exact precreated archive lock SHA before it may archive or delete refs.",
     "Only main, canonical project branches, required rollback/legacy refs, the archive ref, and live PR/dependency branches remain after pruning.",
     "The one-shot pruning workflow is covered by a red-green contract test before merge.",
     "Workspace tests and validation pass after pruning and after cleanup coordination scopes are released."
