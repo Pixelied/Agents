@@ -1,0 +1,111 @@
+{
+  "type": "minecraft:generic",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:diamond_sword",
+          "functions": [
+            {
+              "function": "minecraft:set_components",
+              "components": {
+                "minecraft:custom_data": {
+                  "fk_item": "oathbreaker"
+                },
+                "minecraft:custom_name": {
+                  "text": "Oathbreaker",
+                  "italic": false
+                },
+                "minecraft:lore": [
+                  {
+                    "text": "Cursed Cleave",
+                    "color": "dark_purple",
+                    "italic": false
+                  }
+                ],
+                "minecraft:item_model": "fallen_knight:oathbreaker",
+                "minecraft:attribute_modifiers": [
+                  {
+                    "id": "fallen_knight:oathbreaker_damage",
+                    "type": "minecraft:attack_damage",
+                    "amount": 6.0,
+                    "operation": "add_value",
+                    "slot": "mainhand"
+                  },
+                  {
+                    "id": "fallen_knight:oathbreaker_speed",
+                    "type": "minecraft:attack_speed",
+                    "amount": -2.7,
+                    "operation": "add_value",
+                    "slot": "mainhand"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:structure_void",
+          "functions": [
+            {
+              "function": "minecraft:set_components",
+              "components": {
+                "minecraft:custom_data": {
+                  "fk_item": "cursed_sword_fragment"
+                },
+                "minecraft:custom_name": {
+                  "text": "Cursed Sword Fragment",
+                  "italic": false
+                },
+                "minecraft:item_model": "fallen_knight:cursed_sword_fragment"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:emerald",
+          "weight": 6,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 3
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:diamond",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:book",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:enchant_randomly"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+.DS_Store
+__pycache__/
+*.pyc
+tools/server/
+run/
+dist/
+datapacks/fallen_knight/data/fallen_knight/structure/**/*.nbt

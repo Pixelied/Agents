@@ -1,0 +1,13 @@
+{
+  "additional_wants":{"id":"minecraft:compass"},
+  "given_item_modifiers":[
+    {"decoration":"minecraft:target_x","destination":"fallen_knight:castle","function":"minecraft:exploration_map","search_radius":100},
+    {"function":"minecraft:set_name","name":{"text":"Ruined Castle Map","italic":false},"target":"item_name"},
+    {"function":"minecraft:filtered","item_filter":{"items":"minecraft:filled_map","predicates":{"minecraft:map_id":{}}},"on_fail":{"function":"minecraft:discard"}}
+  ],
+  "gives":{"id":"minecraft:map"},
+  "max_uses":3.0,
+  "reputation_discount":0.2,
+  "wants":{"count":16.0,"id":"minecraft:emerald"},
+  "xp":10.0
+}

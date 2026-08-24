@@ -1,0 +1,7 @@
+{
+  "elements":[
+    {"element":{"element_type":"minecraft:single_pool_element","location":"fallen_knight:clue/camp","processors":"minecraft:empty","projection":"rigid"},"weight":1},
+    {"element":{"element_type":"minecraft:single_pool_element","location":"fallen_knight:clue/watchtower","processors":"minecraft:empty","projection":"rigid"},"weight":1}
+  ],
+  "fallback":"minecraft:empty"
+}
