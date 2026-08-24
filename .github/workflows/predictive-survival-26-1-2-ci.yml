@@ -84,7 +84,6 @@ jobs:
           set -euo pipefail
           deliverables='predictive-survival-26.1.2-deliverables'
           source_root="$deliverables/source-tree"
-          source_zip="$deliverables/predictive-survival-26.1.2-source.zip"
           mkdir -p "$source_root"
 
           jar_file=$(find projects/predictive-survival-26-1-2/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
@@ -103,14 +102,12 @@ jobs:
             tasks/design-predictive-survival-26-1-2 \
             | tar -xf - -C "$source_root"
 
-          git fetch --no-tags --depth=1 origin \
-            design/predictive-survival-26-1-2:refs/remotes/origin/design/predictive-survival-26-1-2 \
-            plan/predictive-survival-26-1-2:refs/remotes/origin/plan/predictive-survival-26-1-2
-          mkdir -p "$source_root/docs/superpowers/specs" "$source_root/docs/superpowers/plans"
-          git show 'refs/remotes/origin/design/predictive-survival-26-1-2:docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md' \
-            > "$source_root/docs/superpowers/specs/2026-08-17-predictive-survival-26-1-2-design.md"
-          git show 'refs/remotes/origin/plan/predictive-survival-26-1-2:docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md' \
-            > "$source_root/docs/superpowers/plans/2026-08-17-predictive-survival-26-1-2.md"
+          # The repository cleanup moved the canonical design/plan documents into the physical
+          # project tree and removed the old design/* and plan/* branches. Preserve the historical
+          # top-level docs layout in release archives without depending on deleted branches.
+          mkdir -p "$source_root/docs/superpowers"
+          cp -a "$source_root/projects/predictive-survival-26-1-2/docs/superpowers/." \
+            "$source_root/docs/superpowers/"
 
           (
             cd "$source_root"
