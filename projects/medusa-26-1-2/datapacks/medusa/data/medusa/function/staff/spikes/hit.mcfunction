@@ -1,1 +1,0 @@
-execute as @e[tag=!md.staff_spike_caster,type=!minecraft:marker,type=!minecraft:item,type=!minecraft:item_display,type=!minecraft:block_display,type=!minecraft:text_display,type=!minecraft:interaction,type=!minecraft:armor_stand,type=!minecraft:experience_orb,distance=..2.8] if data entity @s Health run function medusa:staff/spikes/hit_target

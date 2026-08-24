@@ -21,6 +21,7 @@ Your first job is not to edit files. Your first job is to understand current tas
 11. Do not place secrets, credentials, private keys, access tokens, or personal data in this repository.
 12. Do not treat an unmerged branch claim as globally visible. See [Git concurrency](#git-concurrency).
 13. Do not use Base64-split archives as routine artifact storage. See [Artifact storage](#artifact-storage).
+14. Choose the correct implementation base before editing: workspace work starts from `main`; existing project work starts from its canonical `project/<project-id>` branch. See [Branch ownership and project bases](#branch-ownership-and-project-bases).
 
 ## Startup checklist
 
@@ -32,12 +33,15 @@ Read, in order:
 - `.agent-workspace.json` — machine-readable paths, commands, and protocol version;
 - `README.md` — human overview;
 - `docs/protocols/coordination.md` — concurrency details;
+- `docs/protocols/project-branches.md` — canonical project bases and branch rules;
 - `docs/protocols/task-lifecycle.md` — task and agent lifecycle;
 - the selected task's `task.json`, events, leases, and handoffs.
 
 ### 2. Synchronize
 
-Update from the source-of-truth branch before registering, claiming, heartbeating, releasing, or changing state. Never make a claim from stale history.
+Update from the source-of-truth coordination branch (`main`) before registering, claiming, heartbeating, releasing, or changing state. Never make a claim from stale history.
+
+Synchronizing coordination state does **not** mean every implementation branch should be based on `main`. Project implementation bases are defined separately below.
 
 ### 3. Register this exact agent instance
 
@@ -68,7 +72,7 @@ python agentctl.py status --task improve-readme
 - `active_lease_count` from unexpired leases;
 - `effective_state`, which is `busy` while leases are active and `idle` for an otherwise available agent with no active lease.
 
-Confirm the objective and acceptance criteria, the intended declared scope, current leases, latest handoff, and branch freshness.
+Confirm the objective and acceptance criteria, the intended declared scope, current leases, latest handoff, branch freshness, and the correct implementation base for the work.
 
 ### 5. Claim the smallest exclusive scope
 
@@ -196,11 +200,68 @@ Filesystem leases serialize a synchronized checkout, but Git branches are isolat
 
 Use one of these patterns:
 
-- **Shared coordination branch:** write registration and lease state to a designated coordination branch using SHA preconditions, then reread after each write.
+- **Shared coordination branch:** write registration and lease state to the designated coordination source of truth (`main`) using SHA preconditions, then reread after each write.
 - **Claim-first pull request:** merge the deterministic lease file before implementation begins.
 - **Single coordinator:** one coordinator serializes lease writes while workers use separate implementation branches.
 
 Never begin exclusive work based only on an unmerged claim. Refresh immediately before the claim write. The first claim reaching source-of-truth history wins; losing agents must reread state and choose another scope.
+
+## Branch ownership and project bases
+
+Git branch ancestry and coordination source-of-truth are different concerns.
+
+### Workspace work
+
+Shared coordination/protocol/tooling work branches from current `main` and normally targets `main` in its pull request.
+
+Examples:
+
+```text
+fix/workspace-validator
+feat/workspace-coordination
+ docs/workspace-onboarding
+```
+
+`main` should not accumulate ordinary project implementation trees or ordinary project-specific CI.
+
+### New independent projects
+
+Create a dedicated long-lived project base directly from clean `main`:
+
+```text
+project/<project-id>
+```
+
+The project's first implementation and project-specific CI belong on that branch. Do not put the new project on `main` first.
+
+### Existing project work
+
+Start from the current canonical project base:
+
+```text
+project/<project-id>
+  -> feat/<project-feature>
+  -> fix/<project-fix>
+```
+
+Do **not** branch an independent project change from another project's feature/fix branch. Do **not** merge another project's implementation merely to obtain updated shared workspace files.
+
+### Intentional stacked work
+
+A feature may branch from another unmerged feature only when it genuinely depends on that work. The pull request must target the dependency branch and clearly state the stack. Once the dependency is integrated, rebase/retarget carefully rather than silently treating the stack as independent.
+
+### Coordination while on project branches
+
+Even while implementation lives on `project/...` or a project feature branch:
+
+1. refresh coordination state from `main` before registration/lease/event/state writes;
+2. publish coordination writes to `main` using the repository's concurrency rules;
+3. keep project implementation changes on the project lineage;
+4. never resolve a workspace update by importing unrelated `projects/*` trees.
+
+Canonical project branches and any documented legacy exceptions are listed in `docs/protocols/project-branches.md`.
+
+When deciding which historical copy is newest, compare actual project tree/content, ancestry, PR intent, and verification state. A branch named `v3`, `final`, `latest`, or with a later timestamp is not automatically canonical.
 
 ## File ownership model
 
@@ -211,10 +272,11 @@ Never begin exclusive work based only on an unmerged claim. Refresh immediately 
 - `tasks/<task-id>/handoffs/*.json` — append-only transfers.
 - `tasks/<task-id>/artifacts/` — small task evidence and references, not an unrestricted binary dump.
 - `templates/` and `schemas/` — protocol contracts; changes require tests and protocol review.
+- `projects/<project-id>/` — appears on that project's canonical/project feature lineage, not normally on `main`.
 
 ### Git-tracked records versus runtime directories
 
-Git does not preserve empty directories. A clean checkout may therefore omit an empty `leases/`, `handoffs/`, `artifacts/`, `inbox/`, or `notes/` directory even though the workspace creates those directories locally. That is valid workspace state: writers recreate parent directories when the first record is written.
+Git does not preserve empty directories. A clean checkout may therefore omit an empty `leases/`, `handoffs/`, `artifacts/`, `inbox/`, `notes/`, or `projects/` directory. That is valid workspace state: writers recreate parent directories when the first record is written.
 
 `events/` is different for a normal task because `task-create` immediately writes a tracked `task_created` event. A missing task `events/` directory is therefore treated as suspicious, while a missing empty `handoffs/` directory is not. Do not add validator failures or placeholder files solely to force optional empty runtime directories into Git.
 

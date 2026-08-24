@@ -1,6 +1,0 @@
-{
-  "criteria": {
-    "hurt": {"trigger": "minecraft:entity_hurt_player"}
-  },
-  "rewards": {"function": "medusa:staff/on_caster_hurt"}
-}
