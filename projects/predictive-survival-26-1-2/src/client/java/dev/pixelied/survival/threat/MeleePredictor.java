@@ -15,6 +15,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 public final class MeleePredictor implements ThreatPredictor {
     private static final long POTENTIAL_ATTACK_WINDOW_TICKS = 2L;
@@ -36,12 +37,20 @@ public final class MeleePredictor implements ThreatPredictor {
 
     private Optional<ThreatEvent> buildThreat(PredictionContext context, WorldSnapshot.EntitySnapshot attacker) {
         Map<String, String> properties = attacker.properties();
+        boolean committed = Boolean.parseBoolean(properties.getOrDefault("attack_committed", "false"));
         boolean mobModel = "mob".equals(properties.get("melee_model"));
+        long approachTick = 0L;
         if (mobModel) {
             if (!withinMobRange(attacker, context.player().boundingBox(), properties)) return Optional.empty();
         } else {
             double reach = parseFiniteNonNegative(properties.get("attack_range"), Double.POSITIVE_INFINITY);
-            if (aabbDistance(attacker.boundingBox(), context.player().boundingBox()) > reach) return Optional.empty();
+            double currentDistance = aabbDistance(attacker.boundingBox(), context.player().boundingBox());
+            if (currentDistance > reach) {
+                if (committed) return Optional.empty();
+                OptionalLong projected = firstProjectedReachTick(context, attacker, reach);
+                if (projected.isEmpty()) return Optional.empty();
+                approachTick = projected.getAsLong();
+            }
         }
 
         String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
@@ -91,10 +100,9 @@ public final class MeleePredictor implements ThreatPredictor {
             blockingDisableSeconds
         );
 
-        boolean committed = Boolean.parseBoolean(properties.getOrDefault("attack_committed", "false"));
         TickWindow impact = committed
             ? committedWindow(properties)
-            : new TickWindow(0L, POTENTIAL_ATTACK_WINDOW_TICKS);
+            : new TickWindow(approachTick, approachTick + POTENTIAL_ATTACK_WINDOW_TICKS);
         Confidence confidence = committed ? Confidence.MATCHED : Confidence.POTENTIAL;
         boolean canDisableBlocking = Boolean.parseBoolean(properties.getOrDefault("can_disable_blocking", "false"));
         if (!spear && !mobModel) canDisableBlocking = weapon.canDisableBlocking();
@@ -112,6 +120,45 @@ public final class MeleePredictor implements ThreatPredictor {
             true,
             canDisableBlocking
         ));
+    }
+
+    private static OptionalLong firstProjectedReachTick(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot attacker,
+        double reach
+    ) {
+        long reactionTicks = Math.max(
+            0L,
+            context.timing().nextPacketProcessingWindow().latest() - context.timing().clientTick()
+        );
+        long horizon = Math.min(
+            context.limits().maxProjectileHorizonTicks(),
+            Math.max(POTENTIAL_ATTACK_WINDOW_TICKS, reactionTicks)
+        );
+        for (long tick = 1L; tick <= horizon; tick++) {
+            dev.pixelied.survival.core.AabbSnapshot attackerBox = translate(
+                attacker.boundingBox(), attacker.velocity(), tick
+            );
+            dev.pixelied.survival.core.AabbSnapshot playerBox = translate(
+                context.player().boundingBox(), context.player().velocity(), tick
+            );
+            if (aabbDistance(attackerBox, playerBox) <= reach) return OptionalLong.of(tick);
+        }
+        return OptionalLong.empty();
+    }
+
+    private static dev.pixelied.survival.core.AabbSnapshot translate(
+        dev.pixelied.survival.core.AabbSnapshot box,
+        dev.pixelied.survival.core.Vec3Snapshot velocity,
+        long ticks
+    ) {
+        double dx = velocity.x() * ticks;
+        double dy = velocity.y() * ticks;
+        double dz = velocity.z() * ticks;
+        return new dev.pixelied.survival.core.AabbSnapshot(
+            box.minX() + dx, box.minY() + dy, box.minZ() + dz,
+            box.maxX() + dx, box.maxY() + dy, box.maxZ() + dz
+        );
     }
 
     private static boolean withinMobRange(

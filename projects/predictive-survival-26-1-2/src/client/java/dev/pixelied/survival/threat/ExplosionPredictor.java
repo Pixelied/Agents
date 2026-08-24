@@ -32,6 +32,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
                 context, world
             ).ifPresent(events::add);
         }
+        addCrystalPlacementBurstEvents(context, world, events);
         for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
             OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(context.world().blocks(), block);
             buildEvent(
@@ -40,6 +41,119 @@ public final class ExplosionPredictor implements ThreatPredictor {
             ).ifPresent(events::add);
         }
         return List.copyOf(events);
+    }
+
+    private void addCrystalPlacementBurstEvents(
+        PredictionContext context,
+        OcclusionView world,
+        List<ThreatEvent> events
+    ) {
+        for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
+            if (!"minecraft:player".equals(attacker.typeKey()) || !holdsEndCrystal(attacker.properties())) continue;
+
+            double reach = parseFiniteNonNegative(
+                attacker.properties().get("block_interaction_range"),
+                parseFiniteNonNegative(attacker.properties().get("attack_range"), 4.5d)
+            );
+            ThreatEvent worst = null;
+            for (WorldSnapshot.BlockSnapshot support : context.world().blocks()) {
+                if (!isCrystalSupport(support.blockId()) || !withinPlacementReach(attacker, support, reach)) continue;
+                Vec3Snapshot center = crystalCenterAbove(support.position());
+                if (!crystalPlacementSpaceClear(center, context)) continue;
+
+                Map<String, String> properties = Map.of(
+                    "explosion_radius", "6",
+                    "triggerable", "true",
+                    "source_key", "minecraft:explosion",
+                    "scales_with_difficulty", "true"
+                );
+                String id = "burst:crystal:" + attacker.id() + ":" + blockCellKey(support.position());
+                Optional<ThreatEvent> candidate = buildEvent(
+                    id, "minecraft:end_crystal", center, new Vec3Snapshot(0, 0, 0), properties, context, world
+                );
+                if (candidate.isPresent() && (worst == null
+                    || candidate.get().damage().rawDamage().max() > worst.damage().rawDamage().max())) {
+                    worst = candidate.get();
+                }
+            }
+            if (worst != null) events.add(worst);
+        }
+    }
+
+    private static boolean holdsEndCrystal(Map<String, String> properties) {
+        return "minecraft:end_crystal".equals(properties.get("weapon_key"))
+            || "minecraft:end_crystal".equals(properties.get("offhand_item_key"));
+    }
+
+    private static boolean isCrystalSupport(String blockId) {
+        return "minecraft:obsidian".equals(blockId) || "minecraft:bedrock".equals(blockId);
+    }
+
+    private static boolean withinPlacementReach(
+        WorldSnapshot.EntitySnapshot attacker,
+        WorldSnapshot.BlockSnapshot support,
+        double reach
+    ) {
+        double x = Math.floor(support.position().x());
+        double y = Math.floor(support.position().y());
+        double z = Math.floor(support.position().z());
+        AabbSnapshot blockBox = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
+        return aabbDistance(attacker.boundingBox(), blockBox) <= reach;
+    }
+
+    private static Vec3Snapshot crystalCenterAbove(Vec3Snapshot support) {
+        double x = Math.floor(support.x());
+        double y = Math.floor(support.y());
+        double z = Math.floor(support.z());
+        return new Vec3Snapshot(x + 0.5d, y + 1d, z + 0.5d);
+    }
+
+    private static boolean crystalPlacementSpaceClear(Vec3Snapshot crystalCenter, PredictionContext context) {
+        int x = (int) Math.floor(crystalCenter.x());
+        int y = (int) Math.floor(crystalCenter.y());
+        int z = (int) Math.floor(crystalCenter.z());
+
+        for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+            if (sameBlockCell(block.position(), x, y, z)) return false;
+        }
+
+        AabbSnapshot spawnSpace = new AabbSnapshot(x, y, z, x + 1d, y + 2d, z + 1d);
+        if (intersects(spawnSpace, context.player().boundingBox())) return false;
+        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+            if (intersects(spawnSpace, entity.boundingBox())) return false;
+        }
+        return true;
+    }
+
+    private static boolean sameBlockCell(Vec3Snapshot position, int x, int y, int z) {
+        return (int) Math.floor(position.x()) == x
+            && (int) Math.floor(position.y()) == y
+            && (int) Math.floor(position.z()) == z;
+    }
+
+    private static String blockCellKey(Vec3Snapshot position) {
+        return (int) Math.floor(position.x()) + ","
+            + (int) Math.floor(position.y()) + ","
+            + (int) Math.floor(position.z());
+    }
+
+    private static boolean intersects(AabbSnapshot first, AabbSnapshot second) {
+        return first.maxX() > second.minX() && first.minX() < second.maxX()
+            && first.maxY() > second.minY() && first.minY() < second.maxY()
+            && first.maxZ() > second.minZ() && first.minZ() < second.maxZ();
+    }
+
+    private static double aabbDistance(AabbSnapshot first, AabbSnapshot second) {
+        double dx = axisGap(first.minX(), first.maxX(), second.minX(), second.maxX());
+        double dy = axisGap(first.minY(), first.maxY(), second.minY(), second.maxY());
+        double dz = axisGap(first.minZ(), first.maxZ(), second.minZ(), second.maxZ());
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static double axisGap(double minA, double maxA, double minB, double maxB) {
+        if (maxA < minB) return minB - maxA;
+        if (maxB < minA) return minA - maxB;
+        return 0d;
     }
 
     private Optional<ThreatEvent> buildEvent(
@@ -195,6 +309,16 @@ public final class ExplosionPredictor implements ThreatPredictor {
         return new RadiusRange(min, max);
     }
 
+    private static double parseFiniteNonNegative(String value, double fallback) {
+        if (value == null) return fallback;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) && parsed >= 0d ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
     private static Float parsePositiveFloat(String value) {
         if (value == null) return null;
         try {
@@ -283,7 +407,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
             boolean intersects = slab(from.x(), to.x() - from.x(), minX, maxX, range)
                 && slab(from.y(), to.y() - from.y(), minY, maxY, range)
                 && slab(from.z(), to.z() - from.z(), minZ, maxZ, range);
-            return intersects && range[1] > RAY_ORIGIN_EPSILON;
+            return intersects && range[1] > RAY_ORIGIN_EPSILON && range[0] < 1.0 - RAY_ORIGIN_EPSILON;
         }
 
         private static boolean slab(double origin, double direction, double min, double max, double[] range) {
