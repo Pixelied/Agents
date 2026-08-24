@@ -1,3 +1,3 @@
-forceload add 0 0 96 96
-forceload add -48 0 -1 96
-schedule function medusa:debug/create_test_temple_loaded 5t replace
+forceload add -64 0 128 128
+scoreboard players set $chunk_wait md_tmp 0
+schedule function medusa:debug/wait_for_test_chunk 1t replace

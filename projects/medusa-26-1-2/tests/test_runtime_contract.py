@@ -15,31 +15,50 @@ class RuntimeEntrypointContract(unittest.TestCase):
             "debug/start_test_boss.mcfunction",
             "debug/give_test_items.mcfunction",
             "debug/test_petrification_damage.mcfunction",
+            "debug/test_gaze_pipeline.mcfunction",
         ]:
             self.assertTrue((FN / rel).is_file(), f"missing runtime debug entrypoint: {rel}")
 
-    def test_debug_harness_loads_then_schedules_the_remote_arena(self):
-        text = (FN / "debug/create_test_temple.mcfunction").read_text()
-        self.assertIn("forceload add 0 0 96 96", text)
-        self.assertIn("schedule function medusa:debug/create_test_temple_loaded 5t replace", text)
-        loaded = FN / "debug/create_test_temple_loaded.mcfunction"
-        self.assertTrue(loaded.is_file(), "scheduled loaded-chunk temple creation function is missing")
-        self.assertIn("function medusa:admin/place_temple", loaded.read_text())
+    def test_debug_harness_waits_for_entity_ready_chunk(self):
+        entry = (FN / "debug/create_test_temple.mcfunction").read_text()
+        waiter = FN / "debug/wait_for_test_chunk.mcfunction"
+        self.assertIn("forceload add -64 0 128 128", entry)
+        self.assertNotIn("forceload add 0 0 96 96", entry)
+        self.assertIn("schedule function medusa:debug/wait_for_test_chunk 1t replace", entry)
+        self.assertNotIn("create_test_temple_loaded 5t", entry)
+        self.assertTrue(waiter.is_file(), "entity-readiness wait function is missing")
+        text = waiter.read_text()
+        self.assertIn("md.chunk_probe", text)
+        self.assertIn("schedule function medusa:debug/wait_for_test_chunk 1t replace", text)
+        self.assertIn("schedule function medusa:debug/create_test_temple_loaded 1t replace", text)
 
-    def test_scheduled_loaded_harness_runs_smoke_after_temple_build(self):
-        text = (FN / "debug/create_test_temple_loaded.mcfunction").read_text()
-        temple_pos = text.find("function medusa:admin/place_temple")
-        boss_pos = text.find("function medusa:debug/start_test_boss")
-        damage_pos = text.find("function medusa:debug/test_petrification_damage")
-        done_pos = text.find("MEDUSA_SMOKE_DONE")
+    def test_scheduled_harness_waits_for_maze_before_existing_smoke(self):
+        loaded = (FN / "debug/create_test_temple_loaded.mcfunction").read_text()
+        temple_pos = loaded.find("function medusa:admin/place_temple")
+        wait_pos = loaded.find("schedule function medusa:debug/wait_for_maze_ready 1t replace")
         self.assertGreaterEqual(temple_pos, 0)
-        self.assertGreater(boss_pos, temple_pos, "boss smoke must run after the blocking temple build returns")
+        self.assertGreater(wait_pos, temple_pos, "maze readiness wait must begin after the temple build returns")
+
+        continuation = (FN / "debug/continue_smoke.mcfunction").read_text()
+        boss_pos = continuation.find("function medusa:debug/start_test_boss")
+        damage_pos = continuation.find("function medusa:debug/test_petrification_damage")
+        gaze_pos = continuation.find("function medusa:debug/test_gaze_pipeline")
+        done_pos = continuation.find("MEDUSA_SMOKE_DONE")
+        self.assertGreaterEqual(boss_pos, 0)
         self.assertGreater(damage_pos, boss_pos, "damage smoke must run after boss bootstrap")
-        self.assertGreater(done_pos, damage_pos, "smoke completion marker must be emitted last")
+        self.assertGreater(gaze_pos, damage_pos, "gaze smoke must run after the damage probe")
+        self.assertGreater(done_pos, gaze_pos, "smoke completion marker must be emitted last")
 
     def test_exact_runtime_workflow_waits_for_in_game_smoke_completion(self):
-        workflow = (REPO / ".github/workflows/medusa-26-1-2-ci.yml").read_text()
+        workflow_path = REPO / ".github/workflows/medusa-26-1-2-ci.yml"
+        if not workflow_path.is_file():
+            self.skipTest("repo-level GitHub Actions workflow is not bundled in the standalone source archive")
+        workflow = workflow_path.read_text()
         self.assertIn("grep -q 'MEDUSA_SMOKE_DONE' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_GAZE_LOS_OK' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_GAZE_PETRIFICATION_OK' server.log", workflow)
+        self.assertIn("grep -q 'MEDUSA_RESISTANCE_BYPASS_OK' server.log", workflow)
         self.assertNotIn("echo 'function medusa:debug/start_test_boss'", workflow)
         self.assertNotIn("echo 'function medusa:debug/test_petrification_damage'", workflow)
         self.assertIn("Serialization errors", workflow, "runtime gate must reject entity/data serialization warnings")
@@ -87,15 +106,31 @@ class RuntimeEntrypointContract(unittest.TestCase):
                 f"26.1.2 shaped ingredient {symbol} must be an item/tag string or list, got {ingredient!r}",
             )
 
-    def test_petrification_suffocation_opens_a_resistance_damage_window(self):
+    def test_petrification_damage_bypasses_resistance_without_clearing_effects(self):
         text = (FN / "petrify/suffocate.mcfunction").read_text()
-        clear_pos = text.find("effect clear @s minecraft:resistance")
-        damage_pos = text.find("damage @s 2 medusa:petrification")
-        restore_pos = text.find("effect give @s minecraft:resistance")
-        self.assertGreaterEqual(clear_pos, 0, "suffocation must temporarily clear Resistance")
-        self.assertGreater(damage_pos, clear_pos, "damage must happen after Resistance is cleared")
-        self.assertGreater(restore_pos, damage_pos, "Resistance must be restored immediately after damage")
+        bypass = DP / "data/minecraft/tags/damage_type/bypasses_resistance.json"
+        self.assertTrue(bypass.is_file(), "petrification damage must be registered as bypassing Resistance")
+        self.assertIn("medusa:petrification", bypass.read_text())
+        self.assertIn("damage @s 2 medusa:petrification", text)
+        self.assertNotIn("effect clear", text)
 
         debug = (FN / "debug/test_petrification_damage.mcfunction").read_text()
-        self.assertIn("effect clear @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
-        self.assertIn("effect give @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance", debug)
+        self.assertIn("effect give @e[type=minecraft:husk,tag=md.damage_probe,limit=1] minecraft:resistance 10 4 true", debug)
+        self.assertNotIn("effect clear", debug)
+        self.assertIn("MEDUSA_RESISTANCE_BYPASS_OK", debug)
+
+    def test_manual_damage_probe_spawns_in_the_executors_loaded_chunk(self):
+        debug = (FN / "debug/test_petrification_damage.mcfunction").read_text()
+        self.assertNotIn("summon minecraft:husk 8 101 0", debug, "manual debug probe must not depend on the CI world's fixed origin")
+        self.assertIn("summon minecraft:husk ~ ~ ~", debug, "manual debug probe should spawn beside the command executor")
+
+    def test_removed_husk_attack_sound_is_not_used(self):
+        offenders = []
+        for path in FN.rglob("*.mcfunction"):
+            if "minecraft:entity.husk.attack" in path.read_text():
+                offenders.append(str(path.relative_to(ROOT)))
+        self.assertEqual(offenders, [], "26.1.2 reports minecraft:entity.husk.attack as unknown: " + ", ".join(offenders))
+
+
+if __name__ == "__main__":
+    unittest.main()
