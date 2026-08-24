@@ -25,20 +25,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '9.5.1'
-      - name: Apply reviewed production patch and source-backed fixture correction
+      - name: Apply reviewed production patch
         run: |
           test -f .burst-green.patch
           git apply --check .burst-green.patch
           git apply .burst-green.patch
           git rm .burst-green.patch
+          if [ -f .burst-green-trigger ]; then git rm .burst-green-trigger; fi
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/threat/ExplosionPredictorTest.java')
+          p = Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/ExplosionPredictor.java')
           s = p.read_text()
-          old = 'new Vec3Snapshot(2.5, -0.5, 0.5),\n            "minecraft:obsidian",'
-          new = 'new Vec3Snapshot(1.5, -0.5, 0.5),\n            "minecraft:obsidian",'
+          old = '            return intersects && range[1] > RAY_ORIGIN_EPSILON;'
+          new = '            return intersects && range[1] > RAY_ORIGIN_EPSILON && range[0] < 1.0 - RAY_ORIGIN_EPSILON;'
           if old not in s:
-              raise SystemExit('crystal burst test fixture anchor changed')
+              raise SystemExit('ExplosionPredictor ray endpoint anchor changed')
           p.write_text(s.replace(old, new, 1))
           PY
       - name: Verify full unit/build gate
@@ -47,8 +48,7 @@ jobs:
       - name: Commit only after GREEN
         run: |
           git add projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/ExplosionPredictor.java \
-                  projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/MeleePredictor.java \
-                  projects/predictive-survival-26-1-2/src/test/java/dev/pixelied/survival/threat/ExplosionPredictorTest.java
+                  projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/MeleePredictor.java
           git config user.name "Pixelied CI"
           git config user.email "actions@users.noreply.github.com"
           git commit -m "fix: guard precursor crystal and approaching melee burst after RED"
