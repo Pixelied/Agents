@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "prune-superseded-branches-2026-08-24",
+  "scope": ".github/workflows/finalize-branch-prune.yml",
+  "owner": "openai-branch-prune-8e51",
+  "state": "active",
+  "intent": "Run exact final-tree verification, close coordination state, self-remove, and delete the temporary verification branch.",
+  "claimed_at": "2026-08-24T12:49:30Z",
+  "heartbeat_at": "2026-08-24T12:49:30Z",
+  "expires_at": "2026-08-24T14:49:30Z",
+  "generation": 1
+}
