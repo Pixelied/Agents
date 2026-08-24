@@ -1,6 +1,6 @@
 execute if score $maze_debug_aborted md_tmp matches 1 run say MEDUSA_MAZE_OCCUPIED_ABORT_OK
 execute unless score $maze_debug_aborted md_tmp matches 1 run say MEDUSA_MAZE_OCCUPIED_ABORT_FAILED
-kill @e[type=minecraft:marker,tag=md.maze.occupancy_probe]
+kill @e[type=minecraft:armor_stand,tag=md.maze.occupancy_probe]
 function medusa:maze/transition/commit
 execute store result storage medusa:macro maze.eid int 1 run scoreboard players get @s md_eid
 function medusa:debug/maze_smoke/mark_recovery_edge_ctx with storage medusa:macro maze
