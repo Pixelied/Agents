@@ -38,8 +38,8 @@ class BuildStagingContract(unittest.TestCase):
             "medusa:dungeon/build_arena_approach",
         ]
         for stage in range(1, 10):
-            stage_text = (FN / f"instance/build/stage_{stage}.mcfunction").read_text()
-            present = sum(function in stage_text for function in heavy_functions)
+            lines = set((FN / f"instance/build/stage_{stage}.mcfunction").read_text().splitlines())
+            present = sum(f"function {function}" in lines for function in heavy_functions)
             self.assertEqual(present, 1, f"build stage {stage} must run exactly one heavy architecture module")
 
     def test_final_build_stages_start_runtime_only_after_architecture(self):
