@@ -4,10 +4,12 @@
   "task_id": "clean-repository-project-boundaries",
   "scope": "repository-branches",
   "owner": "openai-repo-cleanup-24a8",
-  "state": "active",
+  "state": "released",
   "intent": "Create rollback/canonical project refs and protect active PR bases during the approved repository split; never force-update active agent branches.",
   "claimed_at": "2026-08-24T11:30:00Z",
   "heartbeat_at": "2026-08-24T11:30:00Z",
   "expires_at": "2026-08-25T11:30:00Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:09:52Z",
+  "release_reason": "Rollback/legacy refs, canonical project refs, active PR protection, and branch supersession registry are complete."
 }
