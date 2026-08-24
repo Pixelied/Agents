@@ -40,6 +40,13 @@ class BranchPruneWorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn(required, text)
 
+    def test_workflow_requires_exact_precreated_archive_lock(self):
+        text = self.workflow_text()
+        self.assertIn('ARCHIVE_LOCK_SHA = "ffde333abbb6c0bbb4d91d1181deed103fe0f85b"', text)
+        self.assertIn("archive lock mismatch", text)
+        self.assertIn('api("PATCH", archive_patch_path', text)
+        self.assertIn('"force": False', text)
+
     def test_workflow_uses_explicit_candidates_not_prefix_sweeps(self):
         text = self.workflow_text()
         self.assertIn("CANDIDATES = [", text)
