@@ -1,3 +1,6 @@
+execute if score $maze_proposal_wait md_tmp matches ..120 if score @s md_mtry matches 1 run say MEDUSA_MAZE_PROPOSAL_FAST_OK
+execute unless score $maze_proposal_wait md_tmp matches ..120 run say MEDUSA_MAZE_PROPOSAL_FAST_FAILED
+execute unless score @s md_mtry matches 1 run say MEDUSA_MAZE_PROPOSAL_FAST_FAILED
 scoreboard players set $maze_has_open md_tmp 0
 scoreboard players set $maze_has_close md_tmp 0
 execute store result storage medusa:macro maze.eid int 1 run scoreboard players get @s md_eid
