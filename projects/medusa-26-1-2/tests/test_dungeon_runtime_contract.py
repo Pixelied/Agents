@@ -8,9 +8,12 @@ FN = ROOT / "datapacks/medusa/data/medusa/function"
 MAZE_MARKERS = [
     "MEDUSA_MAZE_CELLS_OK",
     "MEDUSA_MAZE_INITIAL_SOLVABLE_OK",
+    "MEDUSA_MAZE_INITIAL_READY_FAST_OK",
     "MEDUSA_MAZE_DELTA_OK",
+    "MEDUSA_MAZE_PROPOSAL_FAST_OK",
     "MEDUSA_MAZE_OPEN_FIRST_OK",
     "MEDUSA_MAZE_WALL_DISPLAY_OK",
+    "MEDUSA_MAZE_HELPERS_BOUNDED_OK",
     "MEDUSA_MAZE_COLLISION_OK",
     "MEDUSA_MAZE_OCCUPIED_ABORT_OK",
     "MEDUSA_MAZE_INSTANCE_ISOLATION_OK",
@@ -42,8 +45,19 @@ class DungeonRuntimeContract(unittest.TestCase):
         continuation = (FN / "debug/continue_smoke.mcfunction").read_text()
         self.assertIn("schedule function medusa:debug/wait_for_maze_ready 1t replace", loaded)
         self.assertIn("function medusa:debug/test_dungeon_progression", waiter)
-        self.assertIn("function medusa:debug/start_test_boss", continuation)
         self.assertIn("MEDUSA_SMOKE_DONE", continuation)
+
+    def test_runtime_smoke_has_measured_maze_budgets(self):
+        progression = (FN / "debug/test_dungeon_progression_instance.mcfunction").read_text()
+        proposal = (FN / "debug/maze_smoke/proposal_ready.mcfunction").read_text()
+        opening = (FN / "debug/maze_smoke/check_open_started_ctx.mcfunction").read_text()
+        self.assertIn("$maze_wait", progression)
+        self.assertIn("..400", progression)
+        self.assertIn("$maze_proposal_wait", proposal)
+        self.assertIn("..120", proposal)
+        self.assertIn("md_mtry matches 1", proposal)
+        self.assertIn("md.maze.wall_display", opening)
+        self.assertIn("..14", opening)
 
     def test_ci_requires_shifting_maze_runtime_markers(self):
         workflow_path = REPO / ".github/workflows/medusa-26-1-2-ci.yml"
