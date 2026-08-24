@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "24a8-canonical-split-20260824",
+  "task_id": "clean-repository-project-boundaries",
+  "agent_id": "openai-repo-cleanup-24a8",
+  "type": "progress",
+  "message": "Merged coordination-only main, created seven isolated canonical project branches from exact audited tree SHAs, protected old mixed-main PRs, and published the branch supersession registry.",
+  "data": {
+    "clean_main_merge": "31aad2fd343abb9aeab3dc678616f7e18609865e",
+    "pre_split_backup": {
+      "branch": "backup/pre-project-split-2026-08-24",
+      "sha": "5a64ea68509f08742995220cbd80319e19517d63"
+    },
+    "legacy_pr_base": "legacy/mixed-main-2026-08-24",
+    "canonical_projects": {
+      "crystal-anchor-combat-optimizer-26-1-2": {
+        "branch": "project/crystal-anchor-combat-optimizer-26-1-2",
+        "tree": "2a19af02aed059341907adda96f2824468cadf4e",
+        "source": "feat/crystalbot-v3-world-class PR #24"
+      },
+      "fallen-knight-26-1-2": {
+        "branch": "project/fallen-knight-26-1-2",
+        "tree": "0a6810cb24a49d51e21615f389d4d9733d685f6a",
+        "source": "fix/fallen-knight-playtest-v2 PR #17"
+      },
+      "hypershot": {
+        "branch": "project/hypershot",
+        "tree": "c87bfbed23c230b482281fd4845963c14fa38b5c",
+        "source": "clean release/main implementation tree"
+      },
+      "medusa-26-1-2": {
+        "branch": "project/medusa-26-1-2",
+        "tree": "fe509d34237a5006c5c4f10479db905372fe97f1",
+        "source": "fix/medusa-dungeon-rebuild PR #16"
+      },
+      "pearl-catcher-26-1-2": {
+        "branch": "project/pearl-catcher-26-1-2",
+        "tree": "9bf19d6843f4b6118b3d5f978dd4ef7bf562f09d",
+        "source": "hardening tree formerly on main"
+      },
+      "predictive-survival-26-1-2": {
+        "branch": "project/predictive-survival-26-1-2",
+        "tree": "b4e8e476ed7ed3393ce945ad573ac696fbb37306",
+        "source": "verified contingency tree formerly on main"
+      },
+      "spear-client-26-1-2": {
+        "branch": "project/spear-client-26-1-2",
+        "tree": "e1ab81d52a80015078aa3f1cf1295143551c032f",
+        "source": "feat/spear-client-26-1-2 development tree"
+      }
+    },
+    "structural_verification": "Each canonical branch was re-read after creation and contains exactly one projects/* entry with the exact expected tree SHA; each has only shared workspace workflows plus its own project workflow.",
+    "source_ci": {
+      "medusa": "PR #16 exact source head: Medusa CI success and workspace validation success",
+      "fallen_knight": "PR #17 exact source head: workspace validation success; project CI failure from pre-existing WIP contract/runtime failures, not altered by cleanup",
+      "crystal_v3": "PR #24 exact source head: workspace validation success; project CI failure with 3 project tests failing, not altered by cleanup"
+    },
+    "speedbridge": "Legacy artifact/patch lineage retained because repository does not contain an honest complete current source tree to transplant safely.",
+    "branch_deletion": "Connected GitHub tooling and available plugins expose no branch/ref deletion action; old refs are classified in docs/protocols/branch-supersession-2026-08-24.md and are noncanonical, but were not destructively rewritten."
+  },
+  "created_at": "2026-08-24T12:06:00Z"
+}
