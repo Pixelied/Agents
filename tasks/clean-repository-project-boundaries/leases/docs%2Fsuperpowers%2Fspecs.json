@@ -4,10 +4,12 @@
   "task_id": "clean-repository-project-boundaries",
   "scope": "docs/superpowers/specs",
   "owner": "openai-repo-cleanup-24a8",
-  "state": "active",
+  "state": "released",
   "intent": "Document the approved safe project-boundary architecture and canonical-source inventory before implementation.",
   "claimed_at": "2026-08-24T11:30:10Z",
   "heartbeat_at": "2026-08-24T11:30:10Z",
   "expires_at": "2026-08-25T11:30:10Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:09:44Z",
+  "release_reason": "Approved architecture and exact canonical-source evidence are merged and implemented."
 }
