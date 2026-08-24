@@ -1,0 +1,71 @@
+name: Crystal Anchor Optimizer 26.1.2 CI
+
+on:
+  push:
+    branches:
+      - project/crystal-anchor-combat-optimizer-26-1-2
+    paths:
+      - 'projects/crystal-anchor-combat-optimizer-26-1-2/**'
+      - '.github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml'
+  pull_request:
+    paths:
+      - 'projects/crystal-anchor-combat-optimizer-26-1-2/**'
+      - '.github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle 9.5.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Test, build, and run GameTests
+        working-directory: projects/crystal-anchor-combat-optimizer-26-1-2
+        run: gradle --no-daemon clean test build runGameTest --stacktrace
+
+      - name: Package distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='projects/crystal-anchor-combat-optimizer-26-1-2'
+          dist='crystal-optimizer-dist'
+          rm -rf "$dist"
+          mkdir -p "$dist/package/project" "$dist/package/ci"
+          rsync -a \
+            --exclude '.gradle/' \
+            --exclude 'build/' \
+            --exclude 'run/' \
+            --exclude '.idea/' \
+            "$project/" "$dist/package/project/"
+          cp .github/workflows/crystal-anchor-combat-optimizer-26-1-2-ci.yml "$dist/package/ci/"
+          (
+            cd "$dist/package"
+            zip -qr ../crystal-anchor-combat-optimizer-26-1-2-source.zip .
+          )
+          cp "$project"/build/libs/*.jar "$dist/"
+          (
+            cd "$dist"
+            sha256sum *.jar *.zip > SHA256SUMS.txt
+          )
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: crystal-anchor-combat-optimizer-26-1-2
+          path: crystal-optimizer-dist/*
+          if-no-files-found: error
+          retention-days: 30
