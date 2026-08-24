@@ -4,10 +4,12 @@
   "task_id": "clean-repository-project-boundaries",
   "scope": "tests",
   "owner": "openai-repo-cleanup-24a8",
-  "state": "active",
+  "state": "released",
   "intent": "Remove the legacy SpeedBridge-specific workflow contract test from coordination-only main after its workflow moved to the protected legacy lineage; keep shared workspace tests intact.",
   "claimed_at": "2026-08-24T11:46:30Z",
   "heartbeat_at": "2026-08-24T11:46:30Z",
   "expires_at": "2026-08-25T11:46:30Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:09:56Z",
+  "release_reason": "Project-specific SpeedBridge test remains in legacy history; shared workspace suite is clean and green."
 }
