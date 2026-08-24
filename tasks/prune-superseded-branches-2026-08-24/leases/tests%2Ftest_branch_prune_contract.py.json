@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "prune-superseded-branches-2026-08-24",
+  "scope": "tests/test_branch_prune_contract.py",
+  "owner": "openai-branch-prune-8e51",
+  "state": "active",
+  "intent": "Red-green contract-test the one-shot destructive branch pruning workflow before merge.",
+  "claimed_at": "2026-08-24T12:23:00Z",
+  "heartbeat_at": "2026-08-24T12:23:00Z",
+  "expires_at": "2026-08-24T14:23:00Z",
+  "generation": 1
+}
