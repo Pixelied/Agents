@@ -25,15 +25,21 @@ Coordination writes still synchronize against `main` even when implementation wo
 
 ## Canonical projects established by the 2026-08-24 cleanup
 
-| Project | Canonical branch | Selected source/tree at migration audit |
+The final migration re-read moving active heads immediately before branch construction and transplanted project trees by exact Git tree SHA onto cleaned `main` (`31aad2fd343abb9aeab3dc678616f7e18609865e`).
+
+| Project | Canonical branch | Exact canonical project tree |
 | --- | --- | --- |
-| Crystal Anchor Optimizer / CrystalBot | `project/crystal-anchor-combat-optimizer-26-1-2` | latest `feat/crystalbot-v3-world-class` project tree; active head is re-checked at snapshot time |
-| Fallen Knight 26.1.2 | `project/fallen-knight-26-1-2` | `fix/fallen-knight-playtest-v2`, tree `0a6810cb24a49d51e21615f389d4d9733d685f6a` |
-| Hypershot | `project/hypershot` | release/main tree `c87bfbed23c230b482281fd4845963c14fa38b5c` |
-| Medusa 26.1.2 | `project/medusa-26-1-2` | latest `fix/medusa-dungeon-rebuild` project tree; active head is re-checked at snapshot time |
-| Pearl Catcher 26.1.2 | `project/pearl-catcher-26-1-2` | tree `9bf19d6843f4b6118b3d5f978dd4ef7bf562f09d` |
-| Predictive Survival 26.1.2 | `project/predictive-survival-26-1-2` | verified contingency tree `b4e8e476ed7ed3393ce945ad573ac696fbb37306` |
-| Spear Client 26.1.2 | `project/spear-client-26-1-2` | development tree `e1ab81d52a80015078aa3f1cf1295143551c032f` |
+| Crystal Anchor Optimizer / CrystalBot | `project/crystal-anchor-combat-optimizer-26-1-2` | `2a19af02aed059341907adda96f2824468cadf4e` |
+| Fallen Knight 26.1.2 | `project/fallen-knight-26-1-2` | `0a6810cb24a49d51e21615f389d4d9733d685f6a` |
+| Hypershot | `project/hypershot` | `c87bfbed23c230b482281fd4845963c14fa38b5c` |
+| Medusa 26.1.2 | `project/medusa-26-1-2` | `fe509d34237a5006c5c4f10479db905372fe97f1` |
+| Pearl Catcher 26.1.2 | `project/pearl-catcher-26-1-2` | `9bf19d6843f4b6118b3d5f978dd4ef7bf562f09d` |
+| Predictive Survival 26.1.2 | `project/predictive-survival-26-1-2` | `b4e8e476ed7ed3393ce945ad573ac696fbb37306` |
+| Spear Client 26.1.2 | `project/spear-client-26-1-2` | `e1ab81d52a80015078aa3f1cf1295143551c032f` |
+
+Each canonical branch was independently inspected after creation: its `projects/` directory contains exactly the one project listed above and the directory SHA matches the selected source SHA exactly. The branch also contains only shared workspace workflows plus its own project workflow.
+
+Spear Client is the newest preserved **development** state, not a claim of release completeness. Its old implementation lease had already expired before the migration.
 
 The cleanup's detailed source-selection evidence is in `docs/superpowers/specs/2026-08-24-project-boundary-repository-cleanup-design.md`.
 
@@ -68,6 +74,8 @@ Examples found during the migration:
 
 - `fix/fallen-knight-playtest-v3` looked newer by name but was a divergent recovery branch containing Base64 chunks and was 21 commits behind the real v2 implementation lineage.
 - `feat/hypershot-26-2-production` had a different project-tree SHA only because of `.branch-marker`; the actual implementation matched the clean release/main copy.
+
+The complete old-ref classification from this migration is recorded in `docs/protocols/branch-supersession-2026-08-24.md`. Old refs marked superseded are history only and must not be used as new work bases.
 
 ## Project workflow ownership
 
