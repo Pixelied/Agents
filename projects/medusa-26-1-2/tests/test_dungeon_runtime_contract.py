@@ -57,7 +57,13 @@ class DungeonRuntimeContract(unittest.TestCase):
         self.assertIn("..120", proposal)
         self.assertIn("md_mtry matches 1", proposal)
         self.assertIn("md.maze.wall_display", opening)
-        self.assertIn("..14", opening)
+        self.assertIn("#maze_open_controllers", opening)
+        self.assertIn("md_mmode=1", opening)
+        self.assertIn("matches 1..14", opening)
+        self.assertIn("#maze_expected_displays", opening)
+        self.assertIn("*= $three md_tmp", opening)
+        self.assertIn("#maze_wall_displays md_tmp = #maze_expected_displays md_tmp", opening)
+        self.assertIn("matches ..42", opening)
 
     def test_ci_requires_shifting_maze_runtime_markers(self):
         workflow_path = REPO / ".github/workflows/medusa-26-1-2-ci.yml"
