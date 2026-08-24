@@ -20,12 +20,15 @@ class BranchPruneWorkflowContractTests(unittest.TestCase):
         self.assertIn(end, text)
         return textwrap.dedent(text.split(start, 1)[1].rsplit(end, 1)[0])
 
-    def test_workflow_is_one_shot_and_has_only_required_permissions(self):
+    def test_workflow_runs_only_for_exact_merged_pr_trigger(self):
         text = self.workflow_text()
+        self.assertIn("pull_request:", text)
+        self.assertIn("types: [closed]", text)
         self.assertIn("branches: [main]", text)
+        self.assertIn("github.event.pull_request.merged == true", text)
+        self.assertIn("github.event.pull_request.title == 'Execute locked branch prune'", text)
         self.assertIn("contents: write", text)
         self.assertIn("pull-requests: read", text)
-        self.assertIn("chore: prune superseded branches locked", text)
         self.assertIn("physical-branch-prune-2026-08-24", text)
 
     def test_workflow_has_fail_closed_protection_gates(self):
