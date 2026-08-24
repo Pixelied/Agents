@@ -13,7 +13,7 @@
     "validation"
   ],
   "registered_at": "2026-08-24T12:18:30Z",
-  "state": "available",
-  "state_updated_at": "2026-08-24T12:18:30Z",
-  "state_reason": "Beginning approved physical branch pruning"
+  "state": "offline",
+  "state_updated_at": "2026-08-24T12:50:49.482021+00:00",
+  "state_reason": "Physical branch prune completed; all cleanup scopes released"
 }

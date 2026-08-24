@@ -4,10 +4,12 @@
   "task_id": "prune-superseded-branches-2026-08-24",
   "scope": ".github/workflows/finalize-branch-prune.yml",
   "owner": "openai-branch-prune-8e51",
-  "state": "active",
+  "state": "released",
   "intent": "Run exact final-tree verification, close coordination state, self-remove, and delete the temporary verification branch.",
   "claimed_at": "2026-08-24T12:49:30Z",
   "heartbeat_at": "2026-08-24T12:49:30Z",
   "expires_at": "2026-08-24T14:49:30Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:50:49.482021+00:00",
+  "release_reason": "Physical branch prune completed, recovery archive verified, temporary machinery removed, and final closeout verification started"
 }

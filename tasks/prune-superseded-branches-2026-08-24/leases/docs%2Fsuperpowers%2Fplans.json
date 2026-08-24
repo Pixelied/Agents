@@ -4,10 +4,12 @@
   "task_id": "prune-superseded-branches-2026-08-24",
   "scope": "docs/superpowers/plans",
   "owner": "openai-branch-prune-8e51",
-  "state": "active",
+  "state": "released",
   "intent": "Write the approved physical branch-pruning implementation plan before execution.",
   "claimed_at": "2026-08-24T12:19:15Z",
   "heartbeat_at": "2026-08-24T12:19:15Z",
   "expires_at": "2026-08-24T14:19:15Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:50:49.482021+00:00",
+  "release_reason": "Physical branch prune completed, recovery archive verified, temporary machinery removed, and final closeout verification started"
 }
