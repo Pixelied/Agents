@@ -1,0 +1,287 @@
+name: One-shot locked prune superseded branches
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: physical-branch-prune-2026-08-24
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    if: startsWith(github.event.head_commit.message, 'chore: prune superseded branches locked')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Verify archive lock, archive exact heads, and prune explicit refs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          MAIN_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from urllib.error import HTTPError
+          from urllib.parse import quote
+          from urllib.request import Request, urlopen
+
+          TOKEN = os.environ["GITHUB_TOKEN"]
+          REPO = os.environ["REPOSITORY"]
+          MAIN_SHA = os.environ["MAIN_SHA"]
+          AGENT_ID = "openai-branch-prune-8e51"
+          AUDIT_CUTOFF = datetime.fromisoformat("2026-08-24T12:18:00+00:00")
+          ARCHIVE_BRANCH = "archive/pre-branch-prune-2026-08-24"
+          ARCHIVE_REF = f"refs/heads/{ARCHIVE_BRANCH}"
+          ARCHIVE_LOCK_SHA = "ffde333abbb6c0bbb4d91d1181deed103fe0f85b"
+          POST_AUDIT_OWN_BRANCHES = {"cleanup/physical-branch-prune-2026-08-24"}
+
+          PROTECTED_CANONICAL = {
+              "main",
+              "backup/pre-project-split-2026-08-24",
+              "legacy/mixed-main-2026-08-24",
+              "project/crystal-anchor-combat-optimizer-26-1-2",
+              "project/fallen-knight-26-1-2",
+              "project/hypershot",
+              "project/medusa-26-1-2",
+              "project/pearl-catcher-26-1-2",
+              "project/predictive-survival-26-1-2",
+              "project/spear-client-26-1-2",
+          }
+
+          manifest_path = Path("docs/protocols/branch-prune-manifest-2026-08-24.md")
+          manifest_text = manifest_path.read_text(encoding="utf-8")
+          candidate_section = manifest_text.split("## Deletion candidates", 1)[1].split("## Execution invariants", 1)[0]
+          candidate_block = candidate_section.split("```text\n", 1)[1].split("```", 1)[0]
+          CANDIDATES = [line.strip() for line in candidate_block.splitlines() if line.strip()]
+          if len(CANDIDATES) != 67 or len(CANDIDATES) != len(set(CANDIDATES)):
+              raise SystemExit(f"explicit candidate manifest mismatch: expected 67 unique refs, got {len(CANDIDATES)}")
+          if PROTECTED_CANONICAL.intersection(CANDIDATES):
+              raise SystemExit("protected canonical ref appears in deletion candidates")
+
+          headers = {
+              "Authorization": f"Bearer {TOKEN}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "agents-branch-prune-locked",
+          }
+
+          def api(method, path, payload=None, expected=(200,)):
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              request = Request(f"https://api.github.com{path}", data=data, method=method, headers=headers)
+              try:
+                  with urlopen(request, timeout=30) as response:
+                      status = response.status
+                      raw = response.read()
+              except HTTPError as error:
+                  status = error.code
+                  raw = error.read()
+              if status not in expected:
+                  detail = raw.decode("utf-8", errors="replace")
+                  raise SystemExit(f"GitHub API {method} {path} returned {status}: {detail}")
+              if not raw:
+                  return status, None
+              return status, json.loads(raw.decode("utf-8"))
+
+          def paged(path):
+              page = 1
+              output = []
+              while True:
+                  separator = "&" if "?" in path else "?"
+                  _, items = api("GET", f"{path}{separator}per_page=100&page={page}")
+                  output.extend(items)
+                  if len(items) < 100:
+                      return output
+                  page += 1
+
+          def ref_get_path(branch):
+              return f"/repos/{REPO}/git/ref/{quote('heads/' + branch, safe='/')}"
+
+          def ref_patch_path(branch):
+              return f"/repos/{REPO}/git/refs/{quote('heads/' + branch, safe='/')}"
+
+          def current_branches():
+              branches = paged(f"/repos/{REPO}/branches")
+              return {item["name"]: item["commit"]["sha"] for item in branches}
+
+          def current_open_pr_refs():
+              refs = set()
+              snapshot = []
+              for pr in paged(f"/repos/{REPO}/pulls?state=open"):
+                  head_repo = (pr.get("head") or {}).get("repo") or {}
+                  base_repo = (pr.get("base") or {}).get("repo") or {}
+                  head_ref = (pr.get("head") or {}).get("ref")
+                  base_ref = (pr.get("base") or {}).get("ref")
+                  if head_repo.get("full_name") == REPO and head_ref:
+                      refs.add(head_ref)
+                  if base_repo.get("full_name") == REPO and base_ref:
+                      refs.add(base_ref)
+                  snapshot.append({"number": pr["number"], "head": head_ref, "base": base_ref})
+              return refs, snapshot
+
+          # Fail closed if another agent still owns any unexpired active lease.
+          now = datetime.now(timezone.utc)
+          external_leases = []
+          for lease_path in Path("tasks").glob("*/leases/*.json"):
+              try:
+                  lease = json.loads(lease_path.read_text(encoding="utf-8"))
+              except (OSError, json.JSONDecodeError):
+                  continue
+              expires_at = lease.get("expires_at")
+              if lease.get("state") != "active" or not expires_at:
+                  continue
+              expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+              if expiry > now and lease.get("owner") != AGENT_ID:
+                  external_leases.append({
+                      "path": str(lease_path),
+                      "owner": lease.get("owner"),
+                      "scope": lease.get("scope"),
+                      "expires_at": expires_at,
+                  })
+          if external_leases:
+              raise SystemExit("active external lease blocks pruning: " + json.dumps(external_leases, sort_keys=True))
+
+          branches_before = current_branches()
+          missing_canonical = sorted(PROTECTED_CANONICAL - set(branches_before))
+          if missing_canonical:
+              raise SystemExit("canonical branch missing: " + ", ".join(missing_canonical))
+
+          open_pr_refs, open_pr_snapshot = current_open_pr_refs()
+          candidate_pr_conflicts = sorted(set(CANDIDATES).intersection(open_pr_refs))
+          if candidate_pr_conflicts:
+              raise SystemExit("candidate became open PR head/base: " + ", ".join(candidate_pr_conflicts))
+
+          archive_get_path = ref_get_path(ARCHIVE_BRANCH)
+          archive_patch_path = ref_patch_path(ARCHIVE_BRANCH)
+          _, archive_lock = api("GET", archive_get_path, expected=(200,))
+          if archive_lock["object"]["sha"] != ARCHIVE_LOCK_SHA:
+              raise SystemExit(
+                  f"archive lock mismatch: expected {ARCHIVE_LOCK_SHA}, got {archive_lock['object']['sha']}"
+              )
+
+          candidate_heads = []
+          missing_candidates = []
+          for branch in CANDIDATES:
+              sha = branches_before.get(branch)
+              if not sha:
+                  missing_candidates.append(branch)
+                  continue
+              _, commit = api("GET", f"/repos/{REPO}/commits/{sha}")
+              commit_date_text = commit["commit"]["committer"]["date"]
+              commit_date = datetime.fromisoformat(commit_date_text.replace("Z", "+00:00"))
+              if branch not in POST_AUDIT_OWN_BRANCHES and commit_date > AUDIT_CUTOFF:
+                  raise SystemExit(
+                      f"candidate moved after audit cutoff: {branch} at {commit_date_text} ({sha})"
+                  )
+              candidate_heads.append({"branch": branch, "sha": sha, "committer_date": commit_date_text})
+
+          if not candidate_heads:
+              raise SystemExit("no candidate branches remain; refusing destructive execution")
+
+          archive_manifest = {
+              "schema_version": 1,
+              "created_at": datetime.now(timezone.utc).isoformat(),
+              "audit_cutoff": AUDIT_CUTOFF.isoformat(),
+              "archive_lock_sha": ARCHIVE_LOCK_SHA,
+              "main_sha": MAIN_SHA,
+              "archive_branch": ARCHIVE_BRANCH,
+              "candidates": candidate_heads,
+              "missing_candidates": missing_candidates,
+              "protected_canonical": sorted(PROTECTED_CANONICAL),
+              "open_pr_refs": sorted(open_pr_refs),
+              "open_pr_snapshot": open_pr_snapshot,
+              "branches_before_count": len(branches_before),
+          }
+          archive_manifest_text = json.dumps(archive_manifest, indent=2, sort_keys=True) + "\n"
+          _, blob = api(
+              "POST",
+              f"/repos/{REPO}/git/blobs",
+              {"content": archive_manifest_text, "encoding": "utf-8"},
+              expected=(201,),
+          )
+          _, main_git_commit = api("GET", f"/repos/{REPO}/git/commits/{MAIN_SHA}")
+          _, archive_tree = api(
+              "POST",
+              f"/repos/{REPO}/git/trees",
+              {
+                  "base_tree": main_git_commit["tree"]["sha"],
+                  "tree": [{
+                      "path": "docs/protocols/branch-prune-archive-2026-08-24.json",
+                      "mode": "100644",
+                      "type": "blob",
+                      "sha": blob["sha"],
+                  }],
+              },
+              expected=(201,),
+          )
+
+          unique_candidate_shas = list(dict.fromkeys(item["sha"] for item in candidate_heads))
+          archive_parents = unique_candidate_shas
+          chunk_size = 20
+          previous_archive_sha = MAIN_SHA
+          for index in range(0, len(archive_parents), chunk_size):
+              chunk = archive_parents[index:index + chunk_size]
+              parents = list(dict.fromkeys([previous_archive_sha, *chunk]))
+              _, archive_commit = api(
+                  "POST",
+                  f"/repos/{REPO}/git/commits",
+                  {
+                      "message": f"archive: preserve pruned branch heads batch {index // chunk_size + 1}",
+                      "tree": archive_tree["sha"],
+                      "parents": parents,
+                  },
+                  expected=(201,),
+              )
+              previous_archive_sha = archive_commit["sha"]
+
+          api("PATCH", archive_patch_path, {"sha": previous_archive_sha, "force": False}, expected=(200,))
+          _, verify_ref = api("GET", archive_get_path, expected=(200,))
+          if verify_ref["object"]["sha"] != previous_archive_sha:
+              raise SystemExit("archive verification failed")
+
+          # Re-check PR protection after archive construction and before the first delete.
+          final_open_pr_refs, _ = current_open_pr_refs()
+          final_conflicts = sorted(set(CANDIDATES).intersection(final_open_pr_refs))
+          if final_conflicts:
+              raise SystemExit("candidate became open PR head/base before deletion: " + ", ".join(final_conflicts))
+
+          deleted = []
+          for item in candidate_heads:
+              branch = item["branch"]
+              expected_sha = item["sha"]
+              status, current_ref = api("GET", ref_get_path(branch), expected=(200, 404))
+              if status == 404:
+                  missing_candidates.append(branch)
+                  continue
+              if current_ref["object"]["sha"] != expected_sha:
+                  raise SystemExit(
+                      f"candidate moved after archive before deletion: {branch}; expected {expected_sha}, got {current_ref['object']['sha']}"
+                  )
+              api("DELETE", ref_patch_path(branch), expected=(204,))
+              status, _ = api("GET", ref_get_path(branch), expected=(404,))
+              if status != 404:
+                  raise SystemExit(f"expected 404 after deleting {branch}")
+              deleted.append(branch)
+
+          print("archive ref:", ARCHIVE_REF)
+          print("archive sha:", previous_archive_sha)
+          print("archive lock sha:", ARCHIVE_LOCK_SHA)
+          print("candidate count:", len(CANDIDATES))
+          print("archived candidate heads:", len(candidate_heads))
+          print("deleted branch count:", len(deleted))
+          print("missing/already-absent candidates:", json.dumps(sorted(set(missing_candidates)), indent=2))
+          print("deleted branches:", json.dumps(deleted, indent=2))
+          print("protected canonical branches:", json.dumps(sorted(PROTECTED_CANONICAL), indent=2))
+          print("protected open PR refs:", json.dumps(sorted(final_open_pr_refs), indent=2))
+          PY
