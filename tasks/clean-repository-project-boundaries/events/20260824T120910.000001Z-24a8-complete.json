@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "24a8-complete-20260824",
+  "task_id": "clean-repository-project-boundaries",
+  "agent_id": "openai-repo-cleanup-24a8",
+  "type": "progress",
+  "message": "Marked the project-boundary migration complete after a fresh zero-diff verification of current main; proceeding to release all cleanup scopes and take the one-shot cleanup agent offline.",
+  "data": {
+    "verification_pr": 34,
+    "verification_head": "927fae1bbfb251d775548da9c9d03e358eedef6b",
+    "verification_run_id": 32725347682,
+    "workspace_tests": "35/35 passed",
+    "workspace_validation": {
+      "errors": [],
+      "ok": true
+    },
+    "canonical_project_count": 7,
+    "physical_branch_deletion": "Not available through the connected GitHub actions or installable plugins; superseded refs are classified and forbidden as new work bases instead of being destructively rewritten.",
+    "project_wip_signals": {
+      "medusa": "exact canonical source head project CI green",
+      "fallen_knight": "exact canonical source head retains pre-existing WIP project CI failures",
+      "crystal_v3": "exact canonical source head retains three pre-existing project test failures"
+    }
+  },
+  "created_at": "2026-08-24T12:09:10Z"
+}
