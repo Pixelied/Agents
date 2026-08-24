@@ -5,6 +5,11 @@ ROOT = Path(__file__).resolve().parents[1]
 FN = ROOT / "datapacks/medusa/data/medusa/function"
 
 
+def read_module(relative: str) -> str:
+    root = FN / relative
+    return "\n".join(path.read_text() for path in sorted(root.rglob("*.mcfunction")))
+
+
 class MazeDatapackContract(unittest.TestCase):
     def test_proposal_has_bounded_retry_and_delta_gate(self):
         propose = (FN / "maze/propose/start.mcfunction").read_text()
@@ -17,11 +22,11 @@ class MazeDatapackContract(unittest.TestCase):
 
     def test_constructive_proposal_preserves_and_rotates_spanning_tree(self):
         load = (FN / "load.mcfunction").read_text()
-        mutate = (FN / "maze/propose/mutate_cell.mcfunction").read_text()
-        validate = (FN / "maze/validate/visit_neighbor.mcfunction").read_text()
+        propose = read_module("maze/propose")
+        validate = read_module("maze/validate")
         commit = (FN / "maze/transition/commit_ctx.mcfunction").read_text()
         self.assertIn("md_nparent", load)
-        self.assertIn("md_mparent", mutate)
+        self.assertIn("md_mparent", propose)
         self.assertIn("md_nparent", validate)
         self.assertIn("md_mparent", commit)
         self.assertIn("md_nparent", commit)
@@ -32,9 +37,9 @@ class MazeDatapackContract(unittest.TestCase):
         self.assertNotIn("schedule function medusa:maze/validate/tick 0t", tick)
 
     def test_next_edges_are_mirrored(self):
-        mutate = (FN / "maze/propose/mutate_cell.mcfunction").read_text()
+        propose = read_module("maze/propose")
         for token in ["md_ne", "md_nw", "md_ns", "md_nn"]:
-            self.assertIn(token, mutate)
+            self.assertIn(token, propose)
 
     def test_shift_opens_before_it_closes(self):
         start_open = (FN / "maze/transition/start_open.mcfunction").read_text()
