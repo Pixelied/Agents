@@ -1,0 +1,120 @@
+name: Fallen Knight 26.1.2 CI
+
+on:
+  push:
+    branches: ["project/fallen-knight-26-1-2"]
+    paths:
+      - "projects/fallen-knight-26-1-2/**"
+      - ".github/workflows/fallen-knight-26-1-2-ci.yml"
+  pull_request:
+    paths:
+      - "projects/fallen-knight-26-1-2/**"
+      - ".github/workflows/fallen-knight-26-1-2-ci.yml"
+
+jobs:
+  static-contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/fallen-knight-26-1-2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate deterministic structure NBT
+        run: python3 scripts/generate_structures.py
+      - name: Run contract tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Run static validator
+        run: python3 scripts/validate_fallen_knight.py
+
+  exact-runtime:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/fallen-knight-26-1-2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Generate deterministic structure NBT
+        run: python3 scripts/generate_structures.py
+      - name: Fetch exact Minecraft 26.1.2 dedicated server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run/world/datapacks
+          curl -fsSL https://piston-meta.mojang.com/mc/game/version_manifest_v2.json -o run/version_manifest.json
+          VERSION_URL=$(python3 - <<'PY'
+          import json
+          data=json.load(open('run/version_manifest.json'))
+          print(next(v['url'] for v in data['versions'] if v['id']=='26.1.2'))
+          PY
+          )
+          curl -fsSL "$VERSION_URL" -o run/version.json
+          SERVER_URL=$(python3 - <<'PY'
+          import json
+          data=json.load(open('run/version.json'))
+          assert data['id']=='26.1.2'
+          assert data['javaVersion']['majorVersion']==25
+          print(data['downloads']['server']['url'])
+          PY
+          )
+          EXPECTED_SHA1=$(python3 - <<'PY'
+          import json
+          print(json.load(open('run/version.json'))['downloads']['server']['sha1'])
+          PY
+          )
+          curl -fsSL "$SERVER_URL" -o run/server.jar
+          echo "$EXPECTED_SHA1  run/server.jar" | sha1sum -c -
+          cp -R datapacks/fallen_knight run/world/datapacks/fallen_knight
+          printf 'eula=true\n' > run/eula.txt
+          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\ndifficulty=normal\n' > run/server.properties
+      - name: Boot server and exercise real encounter/runtime/worldgen paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd run
+          {
+            sleep 35
+            echo 'difficulty normal'
+            echo 'execute in minecraft:overworld run forceload add 0 0'
+            echo 'execute in minecraft:overworld run fill -2 99 -2 20 99 2 minecraft:stone'
+            echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/spawn_carrier'
+            sleep 1
+            echo 'execute in minecraft:overworld positioned 0 100 0 unless entity @e[type=minecraft:vindicator,tag=fk.boss,distance=..32] run say FK_SMOKE_FAIL_CARRIER'
+            echo 'execute in minecraft:overworld positioned 0 100 0 run data get entity @e[type=minecraft:vindicator,tag=fk.boss,sort=nearest,limit=1,distance=..32] Health'
+            echo 'function fallen_knight:debug/remove_test_entities'
+            echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/server_smoke'
+            sleep 1
+            echo 'execute in minecraft:overworld positioned 0 100 0 run function fallen_knight:debug/server_smoke_verify'
+            echo 'execute in minecraft:overworld positioned 16 100 0 summon minecraft:marker run function fallen_knight:debug/bootstrap_test_seed'
+            sleep 1
+            echo 'execute in minecraft:overworld positioned 16 100 0 unless entity @e[type=minecraft:marker,tag=fk.debug_arena,tag=fk.arena,distance=..3] run say FK_SMOKE_FAIL_SEED_REGISTER'
+            echo 'execute in minecraft:overworld run forceload add 32 32 128 128'
+            echo 'execute in minecraft:overworld positioned 64 100 64 run place structure fallen_knight:fallen_castle'
+            sleep 4
+            echo 'execute in minecraft:overworld positioned 64 100 64 as @e[type=minecraft:marker,distance=..80] at @s if block ~ ~-1 ~ minecraft:lodestone run say FK_DIAG_CASTLE_SIGNATURE_OK'
+            echo 'execute in minecraft:overworld positioned 64 100 64 unless entity @e[tag=fk.arena,distance=..80] unless entity @e[tag=fk.arena_seed,distance=..80] run say FK_SMOKE_FAIL_CASTLE_CONTROLLER'
+            echo 'execute in minecraft:overworld run forceload add 144 48 192 96'
+            echo 'execute in minecraft:overworld positioned 160 100 64 run place structure fallen_knight:clue_ruin'
+            sleep 2
+            echo 'execute in minecraft:overworld positioned 0 101 0 run loot spawn ~ ~ ~ loot fallen_knight:chests/castle'
+            echo 'stop'
+          } | timeout 110s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
+          grep -q 'Done (' server.log
+          ! grep -Eq 'FK_SMOKE_FAIL|No entity was found|There is no structure|Unknown function|Unknown or incomplete command|Failed to instantiate function|Missing arguments to function|Failed to load|Errors in currently selected data packs|Couldn.t parse|Exception loading' server.log
+
+  package:
+    needs: [static-contracts, exact-runtime]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build installable release ZIPs
+        working-directory: projects/fallen-knight-26-1-2
+        run: python3 scripts/build_release.py --output "$GITHUB_WORKSPACE/dist"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fallen-knight-26.1.2-fixed
+          path: dist/*.zip
+          if-no-files-found: error
