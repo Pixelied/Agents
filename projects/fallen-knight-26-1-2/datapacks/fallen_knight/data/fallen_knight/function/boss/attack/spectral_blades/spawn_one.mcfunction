@@ -1,4 +1,2 @@
-summon minecraft:marker ~ ~ ~ {Tags:["fk.spectral","fk.spectral_new"]}
-scoreboard players operation @e[type=minecraft:marker,tag=fk.spectral_new,sort=nearest,limit=1,distance=..1] fk_aid = @s fk_aid
-scoreboard players set @e[type=minecraft:marker,tag=fk.spectral_new,sort=nearest,limit=1,distance=..1] fk_timer 0
-tag @e[type=minecraft:marker,tag=fk.spectral_new,sort=nearest,limit=1,distance=..1] remove fk.spectral_new
+execute store result storage fallen_knight:macro helper.aid int 1 run scoreboard players get @s fk_aid
+execute summon minecraft:marker run function fallen_knight:boss/attack/spectral_blades/bootstrap_one

@@ -1,0 +1,4 @@
+{
+  "placement": {"type":"minecraft:random_spread","salt":1742612,"separation":40,"spacing":80},
+  "structures": [{"structure":"fallen_knight:fallen_castle","weight":1}]
+}
