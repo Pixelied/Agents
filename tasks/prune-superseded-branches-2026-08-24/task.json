@@ -12,6 +12,7 @@
     "repository-branches",
     ".github/workflows/prune-superseded-branches.yml",
     ".github/workflows/prune-superseded-branches-locked.yml",
+    ".github/workflows/finalize-branch-prune.yml",
     "docs/protocols",
     "docs/superpowers/plans",
     "tests/test_branch_prune_contract.py"
@@ -24,6 +25,7 @@
     "The final deletion executor requires the exact precreated archive lock SHA before it may archive or delete refs.",
     "Only main, canonical project branches, required rollback/legacy refs, the archive ref, and live PR/dependency branches remain after pruning.",
     "The one-shot pruning workflow is covered by a red-green contract test before merge.",
-    "Workspace tests and validation pass after pruning and after cleanup coordination scopes are released."
+    "Temporary prune and closeout workflows/tests are removed after use.",
+    "Workspace tests and validation pass on the exact final main tree after cleanup coordination scopes are released and the cleanup agent is offline."
   ]
 }
