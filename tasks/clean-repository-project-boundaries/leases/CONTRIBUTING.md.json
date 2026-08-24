@@ -4,10 +4,12 @@
   "task_id": "clean-repository-project-boundaries",
   "scope": "CONTRIBUTING.md",
   "owner": "openai-repo-cleanup-24a8",
-  "state": "active",
+  "state": "released",
   "intent": "Clarify contributor branch-base selection for workspace and project work.",
   "claimed_at": "2026-08-24T11:42:10Z",
   "heartbeat_at": "2026-08-24T11:42:10Z",
   "expires_at": "2026-08-25T11:42:10Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:09:28Z",
+  "release_reason": "Contributor branch-base contract is merged and verified on main."
 }
