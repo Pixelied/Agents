@@ -5,6 +5,7 @@ import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.core.SurvivalEngine;
 import dev.pixelied.survival.debug.DecisionHistory;
+import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.BlockPos;
@@ -19,12 +20,19 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-final class FusedTntDeadlineValidationScenarios {
+public final class FusedTntDeadlineValidationScenarios implements FabricClientGameTest {
     private static final int FIXED_FUSE_TICKS = 16;
 
-    private FusedTntDeadlineValidationScenarios() {
+    @Override
+    public void runTest(ClientGameTestContext context) {
+        try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
+            context.waitFor(minecraft -> minecraft.player != null && minecraft.level != null);
+            waitForServerClientLoaded(context, singleplayer);
+            validateFixedFuseArmsBeforeVanillaDetonation(context, singleplayer);
+        }
     }
 
     static void validateFixedFuseArmsBeforeVanillaDetonation(
@@ -74,9 +82,10 @@ final class FusedTntDeadlineValidationScenarios {
                 context.runOnClient(minecraft -> harness.engine().tick());
                 context.waitTick();
 
+                int observedTntId = tntId;
                 TntState state = singleplayer.getServer().computeOnServer(server -> {
                     ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
-                    Entity entity = player.level().getEntity(tntId);
+                    Entity entity = player.level().getEntity(observedTntId);
                     int fuse = entity instanceof PrimedTnt tnt ? tnt.getFuse() : 0;
                     boolean protectedNow = player.getMainHandItem().is(Items.TOTEM_OF_UNDYING)
                         || player.getOffhandItem().is(Items.TOTEM_OF_UNDYING);
@@ -136,6 +145,21 @@ final class FusedTntDeadlineValidationScenarios {
                 && Math.abs(minecraft.player.getY() - arena.originalPosition().y) < 0.05d
                 && Math.abs(minecraft.player.getZ() - arena.originalPosition().z) < 0.05d);
         }
+    }
+
+    private static void waitForServerClientLoaded(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer
+    ) {
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            boolean loaded = singleplayer.getServer().computeOnServer(server -> {
+                List<ServerPlayer> players = server.getPlayerList().getPlayers();
+                return players.size() == 1 && players.getFirst().connection.hasClientLoaded();
+            });
+            if (loaded) return;
+            context.waitTick();
+        }
+        throw new AssertionError("server player did not report client-loaded readiness before fixed TNT regression");
     }
 
     private static void prepareTotemInventory(ServerPlayer player) {
