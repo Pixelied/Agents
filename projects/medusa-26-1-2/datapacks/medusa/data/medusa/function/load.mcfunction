@@ -64,6 +64,7 @@ scoreboard objectives add md_mseen dummy
 scoreboard objectives add md_mfront dummy
 scoreboard objectives add md_mdist dummy
 scoreboard objectives add md_mparent dummy
+scoreboard objectives add md_nparent dummy
 scoreboard objectives add md_mphase dummy
 scoreboard objectives add md_mtick dummy
 scoreboard objectives add md_mtry dummy
