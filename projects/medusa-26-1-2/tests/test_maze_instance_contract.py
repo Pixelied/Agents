@@ -22,12 +22,16 @@ class MazeInstanceContract(unittest.TestCase):
         self.assertIn("md_mrow", spawn)
         self.assertIn("md_mcol", spawn)
 
-    def test_registration_starts_runtime_generation(self):
+    def test_registration_starts_runtime_generation_after_staged_build(self):
         register = (FN / "instance/register.mcfunction").read_text()
-        self.assertIn("scoreboard players set @s md_mphase 0", register)
-        self.assertIn("function medusa:maze/setup/start", register)
+        stage10 = (FN / "instance/build/stage_10.mcfunction").read_text()
         instance_tick = (FN / "instance/tick_one.mcfunction").read_text()
         maze_tick = (FN / "maze/tick.mcfunction").read_text()
+        self.assertIn("scoreboard players set @s md_mphase 0", register)
+        self.assertIn("scoreboard players set @s md_build 1", register)
+        self.assertNotIn("function medusa:maze/setup/start", register)
+        self.assertIn("function medusa:maze/setup/start", stage10)
+        self.assertIn("md_build matches 0", instance_tick)
         self.assertIn("function medusa:maze/tick", instance_tick)
         self.assertIn("function medusa:maze/generate/tick", maze_tick)
 
