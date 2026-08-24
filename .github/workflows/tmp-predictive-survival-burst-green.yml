@@ -1,0 +1,310 @@
+name: Temporary Predictive Survival burst-guard GREEN
+
+on:
+  push:
+    branches:
+      - fix/predictive-survival-burst-guard-26-1-2
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: ${{ !contains(github.event.head_commit.message, 'burst-guard GREEN after RED') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/predictive-survival-burst-guard-26-1-2
+          fetch-depth: 0
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+      - name: Apply minimal GREEN patches
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat')
+
+          p = root / 'ExplosionPredictor.java'
+          s = p.read_text()
+          old = '''        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+              buildEvent(
+                  "explosion:" + entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.properties(),
+                  context, world
+              ).ifPresent(events::add);
+          }
+          for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+          '''
+          new = '''        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+              buildEvent(
+                  "explosion:" + entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.properties(),
+                  context, world
+              ).ifPresent(events::add);
+          }
+          addCrystalPlacementBurstEvents(context, world, events);
+          for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+          '''
+          if old not in s:
+              raise SystemExit('ExplosionPredictor integration anchor changed')
+          s = s.replace(old, new, 1)
+
+          anchor = '''    private Optional<ThreatEvent> buildEvent(
+          '''
+          helper = '''    private void addCrystalPlacementBurstEvents(
+              PredictionContext context,
+              OcclusionView world,
+              List<ThreatEvent> events
+          ) {
+              for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
+                  if (!"minecraft:player".equals(attacker.typeKey()) || !holdsEndCrystal(attacker.properties())) continue;
+
+                  double reach = parseFiniteNonNegative(
+                      attacker.properties().get("block_interaction_range"),
+                      parseFiniteNonNegative(attacker.properties().get("attack_range"), 4.5d)
+                  );
+                  ThreatEvent worst = null;
+                  for (WorldSnapshot.BlockSnapshot support : context.world().blocks()) {
+                      if (!isCrystalSupport(support.blockId()) || !withinPlacementReach(attacker, support, reach)) continue;
+                      Vec3Snapshot center = crystalCenterAbove(support.position());
+                      if (!crystalPlacementSpaceClear(center, context)) continue;
+
+                      Map<String, String> properties = Map.of(
+                          "explosion_radius", "6",
+                          "triggerable", "true",
+                          "source_key", "minecraft:explosion",
+                          "scales_with_difficulty", "true"
+                      );
+                      String id = "burst:crystal:" + attacker.id() + ":" + blockCellKey(support.position());
+                      Optional<ThreatEvent> candidate = buildEvent(
+                          id, "minecraft:end_crystal", center, new Vec3Snapshot(0, 0, 0), properties, context, world
+                      );
+                      if (candidate.isPresent() && (worst == null
+                          || candidate.get().damage().rawDamage().max() > worst.damage().rawDamage().max())) {
+                          worst = candidate.get();
+                      }
+                  }
+                  if (worst != null) events.add(worst);
+              }
+          }
+
+          private static boolean holdsEndCrystal(Map<String, String> properties) {
+              return "minecraft:end_crystal".equals(properties.get("weapon_key"))
+                  || "minecraft:end_crystal".equals(properties.get("offhand_item_key"));
+          }
+
+          private static boolean isCrystalSupport(String blockId) {
+              return "minecraft:obsidian".equals(blockId) || "minecraft:bedrock".equals(blockId);
+          }
+
+          private static boolean withinPlacementReach(
+              WorldSnapshot.EntitySnapshot attacker,
+              WorldSnapshot.BlockSnapshot support,
+              double reach
+          ) {
+              double x = Math.floor(support.position().x());
+              double y = Math.floor(support.position().y());
+              double z = Math.floor(support.position().z());
+              AabbSnapshot blockBox = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
+              return aabbDistance(attacker.boundingBox(), blockBox) <= reach;
+          }
+
+          private static Vec3Snapshot crystalCenterAbove(Vec3Snapshot support) {
+              double x = Math.floor(support.x());
+              double y = Math.floor(support.y());
+              double z = Math.floor(support.z());
+              return new Vec3Snapshot(x + 0.5d, y + 1d, z + 0.5d);
+          }
+
+          private static boolean crystalPlacementSpaceClear(Vec3Snapshot crystalCenter, PredictionContext context) {
+              int x = (int) Math.floor(crystalCenter.x());
+              int y = (int) Math.floor(crystalCenter.y());
+              int z = (int) Math.floor(crystalCenter.z());
+
+              for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+                  if (sameBlockCell(block.position(), x, y, z)) return false;
+              }
+
+              AabbSnapshot spawnSpace = new AabbSnapshot(x, y, z, x + 1d, y + 2d, z + 1d);
+              if (intersects(spawnSpace, context.player().boundingBox())) return false;
+              for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+                  if (intersects(spawnSpace, entity.boundingBox())) return false;
+              }
+              return true;
+          }
+
+          private static boolean sameBlockCell(Vec3Snapshot position, int x, int y, int z) {
+              return (int) Math.floor(position.x()) == x
+                  && (int) Math.floor(position.y()) == y
+                  && (int) Math.floor(position.z()) == z;
+          }
+
+          private static String blockCellKey(Vec3Snapshot position) {
+              return (int) Math.floor(position.x()) + ","
+                  + (int) Math.floor(position.y()) + ","
+                  + (int) Math.floor(position.z());
+          }
+
+          private static boolean intersects(AabbSnapshot first, AabbSnapshot second) {
+              return first.maxX() > second.minX() && first.minX() < second.maxX()
+                  && first.maxY() > second.minY() && first.minY() < second.maxY()
+                  && first.maxZ() > second.minZ() && first.minZ() < second.maxZ();
+          }
+
+          private static double aabbDistance(AabbSnapshot first, AabbSnapshot second) {
+              double dx = axisGap(first.minX(), first.maxX(), second.minX(), second.maxX());
+              double dy = axisGap(first.minY(), first.maxY(), second.minY(), second.maxY());
+              double dz = axisGap(first.minZ(), first.maxZ(), second.minZ(), second.maxZ());
+              return Math.sqrt(dx * dx + dy * dy + dz * dz);
+          }
+
+          private static double axisGap(double minA, double maxA, double minB, double maxB) {
+              if (maxA < minB) return minB - maxA;
+              if (maxB < minA) return minA - maxB;
+              return 0d;
+          }
+
+              private Optional<ThreatEvent> buildEvent(
+          '''
+          if anchor not in s:
+              raise SystemExit('ExplosionPredictor buildEvent anchor changed')
+          s = s.replace(anchor, helper, 1)
+
+          parse_anchor = '''    private static Float parsePositiveFloat(String value) {
+          '''
+          parse_helper = '''    private static double parseFiniteNonNegative(String value, double fallback) {
+              if (value == null) return fallback;
+              try {
+                  double parsed = Double.parseDouble(value);
+                  return Double.isFinite(parsed) && parsed >= 0d ? parsed : fallback;
+              } catch (NumberFormatException ignored) {
+                  return fallback;
+              }
+          }
+
+              private static Float parsePositiveFloat(String value) {
+          '''
+          if parse_anchor not in s:
+              raise SystemExit('ExplosionPredictor parse anchor changed')
+          s = s.replace(parse_anchor, parse_helper, 1)
+          p.write_text(s)
+
+          p = root / 'MeleePredictor.java'
+          s = p.read_text()
+          if 'import java.util.OptionalLong;' not in s:
+              s = s.replace('import java.util.Optional;\n', 'import java.util.Optional;\nimport java.util.OptionalLong;\n', 1)
+
+          old = '''        Map<String, String> properties = attacker.properties();
+          boolean mobModel = "mob".equals(properties.get("melee_model"));
+          if (mobModel) {
+              if (!withinMobRange(attacker, context.player().boundingBox(), properties)) return Optional.empty();
+          } else {
+              double reach = parseFiniteNonNegative(properties.get("attack_range"), Double.POSITIVE_INFINITY);
+              if (aabbDistance(attacker.boundingBox(), context.player().boundingBox()) > reach) return Optional.empty();
+          }
+
+          String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
+          '''
+          new = '''        Map<String, String> properties = attacker.properties();
+          boolean committed = Boolean.parseBoolean(properties.getOrDefault("attack_committed", "false"));
+          boolean mobModel = "mob".equals(properties.get("melee_model"));
+          long approachTick = 0L;
+          if (mobModel) {
+              if (!withinMobRange(attacker, context.player().boundingBox(), properties)) return Optional.empty();
+          } else {
+              double reach = parseFiniteNonNegative(properties.get("attack_range"), Double.POSITIVE_INFINITY);
+              double currentDistance = aabbDistance(attacker.boundingBox(), context.player().boundingBox());
+              if (currentDistance > reach) {
+                  if (committed) return Optional.empty();
+                  OptionalLong projected = firstProjectedReachTick(context, attacker, reach);
+                  if (projected.isEmpty()) return Optional.empty();
+                  approachTick = projected.getAsLong();
+              }
+          }
+
+          String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
+          '''
+          if old not in s:
+              raise SystemExit('MeleePredictor range anchor changed')
+          s = s.replace(old, new, 1)
+
+          old = '''        boolean committed = Boolean.parseBoolean(properties.getOrDefault("attack_committed", "false"));
+          TickWindow impact = committed
+              ? committedWindow(properties)
+              : new TickWindow(0L, POTENTIAL_ATTACK_WINDOW_TICKS);
+          '''
+          new = '''        TickWindow impact = committed
+              ? committedWindow(properties)
+              : new TickWindow(approachTick, approachTick + POTENTIAL_ATTACK_WINDOW_TICKS);
+          '''
+          if old not in s:
+              raise SystemExit('MeleePredictor impact anchor changed')
+          s = s.replace(old, new, 1)
+
+          anchor = '''    private static boolean withinMobRange(
+          '''
+          helper = '''    private static OptionalLong firstProjectedReachTick(
+              PredictionContext context,
+              WorldSnapshot.EntitySnapshot attacker,
+              double reach
+          ) {
+              long reactionTicks = Math.max(
+                  0L,
+                  context.timing().nextPacketProcessingWindow().latest() - context.timing().clientTick()
+              );
+              long horizon = Math.min(
+                  context.limits().maxProjectileHorizonTicks(),
+                  Math.max(POTENTIAL_ATTACK_WINDOW_TICKS, reactionTicks)
+              );
+              for (long tick = 1L; tick <= horizon; tick++) {
+                  dev.pixelied.survival.core.AabbSnapshot attackerBox = translate(
+                      attacker.boundingBox(), attacker.velocity(), tick
+                  );
+                  dev.pixelied.survival.core.AabbSnapshot playerBox = translate(
+                      context.player().boundingBox(), context.player().velocity(), tick
+                  );
+                  if (aabbDistance(attackerBox, playerBox) <= reach) return OptionalLong.of(tick);
+              }
+              return OptionalLong.empty();
+          }
+
+          private static dev.pixelied.survival.core.AabbSnapshot translate(
+              dev.pixelied.survival.core.AabbSnapshot box,
+              dev.pixelied.survival.core.Vec3Snapshot velocity,
+              long ticks
+          ) {
+              double dx = velocity.x() * ticks;
+              double dy = velocity.y() * ticks;
+              double dz = velocity.z() * ticks;
+              return new dev.pixelied.survival.core.AabbSnapshot(
+                  box.minX() + dx, box.minY() + dy, box.minZ() + dz,
+                  box.maxX() + dx, box.maxY() + dy, box.maxZ() + dz
+              );
+          }
+
+              private static boolean withinMobRange(
+          '''
+          if anchor not in s:
+              raise SystemExit('MeleePredictor helper anchor changed')
+          s = s.replace(anchor, helper, 1)
+          p.write_text(s)
+          PY
+      - name: Verify GREEN
+        working-directory: projects/predictive-survival-26-1-2
+        run: ./gradlew --no-daemon clean test build
+      - name: Commit verified production patch and remove helper
+        shell: bash
+        run: |
+          git rm .github/workflows/tmp-predictive-survival-burst-green.yml
+          git add projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/ExplosionPredictor.java \
+                  projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/MeleePredictor.java
+          git config user.name "Pixelied CI"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "fix: predict precursor crystal and approaching melee burst-guard GREEN after RED"
+          git push origin HEAD:fix/predictive-survival-burst-guard-26-1-2
