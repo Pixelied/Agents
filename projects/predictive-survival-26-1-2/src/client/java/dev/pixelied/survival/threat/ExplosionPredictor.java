@@ -198,7 +198,12 @@ public final class ExplosionPredictor implements ThreatPredictor {
         }
         if (radius.bounded()) confidence = lessCertain(confidence, Confidence.BOUNDED);
 
-        DamageRange raw = triggerable
+        boolean fusedMotionEnvelope = !triggerable
+            && impact.latest() > 0L
+            && (hasMotion(sourceVelocity) || hasMotion(context.player().velocity()));
+        if (fusedMotionEnvelope) confidence = lessCertain(confidence, Confidence.BOUNDED);
+
+        DamageRange raw = triggerable || fusedMotionEnvelope
             ? triggerableDamageEnvelope(radius, center, sourceVelocity, impact.latest(), context, world)
             : damageAt(radius, center, context.player().position(), context.player().boundingBox(), world);
         float rawMin = raw.min();
@@ -307,6 +312,10 @@ public final class ExplosionPredictor implements ThreatPredictor {
         Float max = parsePositiveFloat(properties.get("explosion_radius_max"));
         if (min == null || max == null || min > max) return null;
         return new RadiusRange(min, max);
+    }
+
+    private static boolean hasMotion(Vec3Snapshot velocity) {
+        return velocity.x() != 0d || velocity.y() != 0d || velocity.z() != 0d;
     }
 
     private static double parseFiniteNonNegative(String value, double fallback) {
