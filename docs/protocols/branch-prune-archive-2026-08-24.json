@@ -1,0 +1,413 @@
+{
+  "archive_branch": "archive/pre-branch-prune-2026-08-24",
+  "archive_lock_sha": "ffde333abbb6c0bbb4d91d1181deed103fe0f85b",
+  "audit_cutoff": "2026-08-24T12:18:00+00:00",
+  "branches_before_count": 87,
+  "candidates": [
+    {
+      "branch": "backup/main-2026-08-01",
+      "committer_date": "2026-08-01T14:10:58Z",
+      "sha": "a3f589998142ee91b9033bd8e579e3173df9e488"
+    },
+    {
+      "branch": "backup/predictive-survival-hardening-6c12750",
+      "committer_date": "2026-08-20T12:51:31Z",
+      "sha": "9b1a1042c1d1fea7043890ca260b9d5ccceeef1d"
+    },
+    {
+      "branch": "backup/weekly-2026-08-02",
+      "committer_date": "2026-08-01T22:04:01Z",
+      "sha": "f8336043bff1e37c8189021f7ac3aef8f0dfcff7"
+    },
+    {
+      "branch": "backup/weekly-2026-08-23",
+      "committer_date": "2026-08-22T16:30:35Z",
+      "sha": "db9775d097f12bd2ebc4255514b530cfc4a872ff"
+    },
+    {
+      "branch": "ci/predictive-survival-26-1-2-hardening",
+      "committer_date": "2026-08-22T10:50:48Z",
+      "sha": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0"
+    },
+    {
+      "branch": "ci/predictive-survival-hardening-publish-v15",
+      "committer_date": "2026-08-22T10:50:48Z",
+      "sha": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0"
+    },
+    {
+      "branch": "ci/predictive-survival-hardening-recovery-check",
+      "committer_date": "2026-08-22T10:50:48Z",
+      "sha": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0"
+    },
+    {
+      "branch": "ci/predictive-survival-hardening-verify",
+      "committer_date": "2026-08-22T10:50:48Z",
+      "sha": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0"
+    },
+    {
+      "branch": "ci/speedbridge-assist-1.1.0",
+      "committer_date": "2026-08-01T14:57:12Z",
+      "sha": "de9f7ec8d54df79411deccef5bad87a7175f3301"
+    },
+    {
+      "branch": "cleanup/project-boundary-migration",
+      "committer_date": "2026-08-24T12:11:12Z",
+      "sha": "fadb2ed68f29c72c2f078bca571e2206a154d0c3"
+    },
+    {
+      "branch": "cleanup/physical-branch-prune-2026-08-24",
+      "committer_date": "2026-08-24T12:41:33Z",
+      "sha": "48db492cb26d3a2312a300393c499496f375b7d7"
+    },
+    {
+      "branch": "coord/hypershot-26-2-7c4e",
+      "committer_date": "2026-08-05T09:50:52Z",
+      "sha": "7d9db8712ed7e61f5f19890d1df9350a782c7aaa"
+    },
+    {
+      "branch": "coord/pearl-catcher-hardening-claim",
+      "committer_date": "2026-08-22T16:30:25Z",
+      "sha": "fa2b066a523e31c8f534027f1daf0d521bc687c5"
+    },
+    {
+      "branch": "coord/predictive-survival-contingency-closeout",
+      "committer_date": "2026-08-23T22:12:27Z",
+      "sha": "ba10e91f2a389e98fc5f2c3ca560bd9ed6f28b25"
+    },
+    {
+      "branch": "coord/predictive-survival-review-7c4d-claim",
+      "committer_date": "2026-08-22T14:13:49Z",
+      "sha": "d5e6208df547a600d9c2107c2e2f3b96f317b9f8"
+    },
+    {
+      "branch": "coord/release-predictive-survival-review-lease",
+      "committer_date": "2026-08-23T09:31:45Z",
+      "sha": "f0da0b123b7f36808b75d5b73a6a569b64d075c4"
+    },
+    {
+      "branch": "design/predictive-survival-26-1-2",
+      "committer_date": "2026-08-17T17:34:47Z",
+      "sha": "f9541881baa08df65e876713083c2fba69d47ccb"
+    },
+    {
+      "branch": "feat/fallen-knight-26-1-2",
+      "committer_date": "2026-08-17T16:06:02Z",
+      "sha": "b15a12bc1d7193bbca0a17626b2020d00d3bf22c"
+    },
+    {
+      "branch": "feat/hypershot-26-2-production",
+      "committer_date": "2026-08-05T10:20:11Z",
+      "sha": "ce5219fcde272ca9348a996425d1502414689f14"
+    },
+    {
+      "branch": "feat/medusa-26-1-2",
+      "committer_date": "2026-08-18T16:55:08Z",
+      "sha": "f9f7fa8edc68888c894c08a7d18c734e6df2fb21"
+    },
+    {
+      "branch": "feat/multi-agent-workspace",
+      "committer_date": "2026-08-01T13:14:02Z",
+      "sha": "79bb776f7cab361427ff03fc5b201775fa096cb5"
+    },
+    {
+      "branch": "feat/predictive-survival-26-1-2-sol",
+      "committer_date": "2026-08-19T11:29:36Z",
+      "sha": "9347ec4fccc05d09e8703376838bf6fd555332c4"
+    },
+    {
+      "branch": "feat/predictive-survival-26-1-2",
+      "committer_date": "2026-08-19T18:16:47Z",
+      "sha": "94bfa42a5ac3c1b8ee89f31089fcb8a9b941f33f"
+    },
+    {
+      "branch": "feat/predictive-survival-contingency-planner",
+      "committer_date": "2026-08-23T21:52:53Z",
+      "sha": "4dd323e8b24103161973aae32c72402bae230541"
+    },
+    {
+      "branch": "feat/spear-client-26-1-2",
+      "committer_date": "2026-08-16T23:13:04Z",
+      "sha": "59a14463cf984c5b25b2989b99c1af86dcefc132"
+    },
+    {
+      "branch": "feature/hypershot-26-2",
+      "committer_date": "2026-08-05T10:23:27Z",
+      "sha": "c4f80edb5b57106bb5f7a2213c9783c81c6ea4de"
+    },
+    {
+      "branch": "fix/fallen-knight-playtest",
+      "committer_date": "2026-08-19T11:44:34Z",
+      "sha": "f551dcf177cb2a9900af90117d466accc6a66ec3"
+    },
+    {
+      "branch": "fix/fallen-knight-playtest-v3",
+      "committer_date": "2026-08-19T14:36:41Z",
+      "sha": "7996998be29351e5a49a9fdda2386edc94722e19"
+    },
+    {
+      "branch": "fix/pearl-catcher-26-1-2-hardening",
+      "committer_date": "2026-08-23T12:18:58Z",
+      "sha": "d2a803710e45c935442903140843066ce84913d2"
+    },
+    {
+      "branch": "fix/post-first-run-hardening",
+      "committer_date": "2026-08-01T16:10:19Z",
+      "sha": "8fb8f04fff8672cb831ee04489586caead4ecb7d"
+    },
+    {
+      "branch": "fix/predictive-survival-26-1-2-hardening",
+      "committer_date": "2026-08-22T10:43:50Z",
+      "sha": "de4e63f5cf7c97f2f93af3b764644f15ce0b3ce7"
+    },
+    {
+      "branch": "fix/predictive-survival-26-1-2-pristine",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "fix/predictive-survival-review-hardening",
+      "committer_date": "2026-08-23T09:23:24Z",
+      "sha": "d3c795cb6a29cd9c2e9a8692d5aa42e034f6e9e2"
+    },
+    {
+      "branch": "package/crystal-anchor-combat-optimizer-26-1-2",
+      "committer_date": "2026-08-18T13:18:47Z",
+      "sha": "f3121bd622b3d41c5bf6ceff1d0879ce9133ba69"
+    },
+    {
+      "branch": "plan/predictive-survival-26-1-2",
+      "committer_date": "2026-08-17T17:50:12Z",
+      "sha": "5dd9afb6e8eb8b21540f262a85985e00fc357419"
+    },
+    {
+      "branch": "release/hypershot-0.2.0-beta.1",
+      "committer_date": "2026-08-05T17:02:11Z",
+      "sha": "d60044191379ae162b1e42af3434d7434ae642e4"
+    },
+    {
+      "branch": "stage/medusa-full-forceload-fix",
+      "committer_date": "2026-08-22T17:36:51Z",
+      "sha": "cb63cc17df38109e7d696dd158dff5143121022d"
+    },
+    {
+      "branch": "stage/medusa-initial-validation-fix",
+      "committer_date": "2026-08-22T17:45:02Z",
+      "sha": "3a6604f0df9aa22325cb0eb775a78161ecdd08bd"
+    },
+    {
+      "branch": "stage/medusa-parser-and-maze-diagnostics",
+      "committer_date": "2026-08-22T17:32:21Z",
+      "sha": "f5eede8fcd8159493d89be928b1fdf4be0dc6965"
+    },
+    {
+      "branch": "stage/medusa-shifting-task2",
+      "committer_date": "2026-08-22T14:29:45Z",
+      "sha": "889486ee6523b3d529f827a94f08694116d520d2"
+    },
+    {
+      "branch": "stage/medusa-shifting-task3",
+      "committer_date": "2026-08-22T14:42:31Z",
+      "sha": "4e217431de29fecb0fafa97c5e1def77e5f17e55"
+    },
+    {
+      "branch": "stage/medusa-shifting-task4",
+      "committer_date": "2026-08-22T14:48:48Z",
+      "sha": "8718497d3009371b4a9e714e026b6dc93947eb00"
+    },
+    {
+      "branch": "stage/medusa-shifting-task5",
+      "committer_date": "2026-08-22T14:53:31Z",
+      "sha": "1d057f067ed7e39867b4b660ff23b0061ffddd8d"
+    },
+    {
+      "branch": "stage/medusa-shifting-task6",
+      "committer_date": "2026-08-22T15:07:05Z",
+      "sha": "ea3f0556cd1925bdda8fd2fd7518cacae961603c"
+    },
+    {
+      "branch": "stage/medusa-shifting-task7-fix",
+      "committer_date": "2026-08-22T17:00:27Z",
+      "sha": "9eb3a9835b9a0e61ee411f0e9ccdf99e4619441b"
+    },
+    {
+      "branch": "stage/medusa-shifting-task7",
+      "committer_date": "2026-08-22T15:12:51Z",
+      "sha": "b995dcd8b8b813efb06b0056f40f97e392955e01"
+    },
+    {
+      "branch": "stage/medusa-shifting-task8",
+      "committer_date": "2026-08-22T17:08:22Z",
+      "sha": "4d8147572dbd58098b5cc44c73cad43bc9389613"
+    },
+    {
+      "branch": "stage/medusa-shifting-task9",
+      "committer_date": "2026-08-22T17:12:21Z",
+      "sha": "7fa4036fc651190312b0144ed4f12236a3dbedd1"
+    },
+    {
+      "branch": "stage/medusa-shifting-task10-fix",
+      "committer_date": "2026-08-22T17:27:37Z",
+      "sha": "b271a44a71ca472698eab14d96306493ee31c9d5"
+    },
+    {
+      "branch": "stage/medusa-shifting-task10",
+      "committer_date": "2026-08-22T17:25:30Z",
+      "sha": "22d0ec20b74382452f476948d56603d94a25f98d"
+    },
+    {
+      "branch": "tmp/cleanup-probe",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp/delete-me",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp/ignore-this",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp/last-probe",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp/predictive-survival-baked-latest",
+      "committer_date": "2026-08-22T10:50:48Z",
+      "sha": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0"
+    },
+    {
+      "branch": "tmp/predictive-survival-pristine-assemble",
+      "committer_date": "2026-08-22T10:50:48Z",
+      "sha": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0"
+    },
+    {
+      "branch": "tmp/predictive-survival-pristine-assemble-2",
+      "committer_date": "2026-08-22T10:50:48Z",
+      "sha": "cd7e6806e4f96094e84bfef39d1830ed3f6741e0"
+    },
+    {
+      "branch": "tmp/ps-final-final",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp/ps-pristine",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp/ps-pristine-tree",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp/what",
+      "committer_date": "2026-08-19T23:38:42Z",
+      "sha": "0c4b21da1060d2510bf64fa0971e5c18b982783d"
+    },
+    {
+      "branch": "tmp-noop-should-not-create",
+      "committer_date": "2026-08-23T09:32:31Z",
+      "sha": "f828932279d05e8bea47c6cb2e947c23ccfa2857"
+    },
+    {
+      "branch": "work/crystal-anchor-combat-optimizer-26-1-2",
+      "committer_date": "2026-08-18T12:58:26Z",
+      "sha": "12b8314ca46b47379fb6e0f9de9f37831e954a1c"
+    },
+    {
+      "branch": "work/crystal-optimizer-v2",
+      "committer_date": "2026-08-19T23:49:13Z",
+      "sha": "1c50e81931527d269012133fe047c7f81c00fed8"
+    },
+    {
+      "branch": "work/medusa-build-staging",
+      "committer_date": "2026-08-24T10:26:52Z",
+      "sha": "3c3cd1014769dbfe216ead5cb967240dd5a3e1f4"
+    },
+    {
+      "branch": "work/medusa-maze-constructive-proposal",
+      "committer_date": "2026-08-24T10:08:16Z",
+      "sha": "b009ff0d73e75c625eb42dc1937ac1a97534495d"
+    },
+    {
+      "branch": "work/medusa-shifting-maze-inline",
+      "committer_date": "2026-08-24T10:38:27Z",
+      "sha": "20cf7e99de4f319446fbe7483190256e59237340"
+    }
+  ],
+  "created_at": "2026-08-24T12:42:52.190690+00:00",
+  "main_sha": "49ddae79addad46d35eda7d10778f2845192017d",
+  "missing_candidates": [],
+  "open_pr_refs": [
+    "ci/speedbridge-26-2-hook-inspect",
+    "ci/speedbridge-breezily-milestone-1-5",
+    "design/crystal-optimizer-v2",
+    "design/speedbridge-breezily-silent-aim",
+    "feat/crystal-optimizer-v2-lethal-efficiency",
+    "feat/crystalbot-v3-world-class",
+    "fix/crystal-optimizer-v2-kickstart",
+    "fix/fallen-knight-playtest-v2",
+    "fix/medusa-dungeon-rebuild",
+    "legacy/mixed-main-2026-08-24"
+  ],
+  "open_pr_snapshot": [
+    {
+      "base": "feat/crystal-optimizer-v2-lethal-efficiency",
+      "head": "feat/crystalbot-v3-world-class",
+      "number": 24
+    },
+    {
+      "base": "fix/crystal-optimizer-v2-kickstart",
+      "head": "feat/crystal-optimizer-v2-lethal-efficiency",
+      "number": 23
+    },
+    {
+      "base": "design/crystal-optimizer-v2",
+      "head": "fix/crystal-optimizer-v2-kickstart",
+      "number": 19
+    },
+    {
+      "base": "legacy/mixed-main-2026-08-24",
+      "head": "fix/fallen-knight-playtest-v2",
+      "number": 17
+    },
+    {
+      "base": "legacy/mixed-main-2026-08-24",
+      "head": "fix/medusa-dungeon-rebuild",
+      "number": 16
+    },
+    {
+      "base": "legacy/mixed-main-2026-08-24",
+      "head": "ci/speedbridge-26-2-hook-inspect",
+      "number": 10
+    },
+    {
+      "base": "legacy/mixed-main-2026-08-24",
+      "head": "ci/speedbridge-breezily-milestone-1-5",
+      "number": 5
+    },
+    {
+      "base": "legacy/mixed-main-2026-08-24",
+      "head": "design/speedbridge-breezily-silent-aim",
+      "number": 4
+    }
+  ],
+  "protected_canonical": [
+    "backup/pre-project-split-2026-08-24",
+    "legacy/mixed-main-2026-08-24",
+    "main",
+    "project/crystal-anchor-combat-optimizer-26-1-2",
+    "project/fallen-knight-26-1-2",
+    "project/hypershot",
+    "project/medusa-26-1-2",
+    "project/pearl-catcher-26-1-2",
+    "project/predictive-survival-26-1-2",
+    "project/spear-client-26-1-2"
+  ],
+  "schema_version": 1
+}
