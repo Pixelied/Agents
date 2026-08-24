@@ -17,7 +17,8 @@
     "CONTRIBUTING.md",
     "docs/protocols",
     "docs/superpowers/specs",
-    "docs/superpowers/plans"
+    "docs/superpowers/plans",
+    "tests"
   ],
   "acceptance_criteria": [
     "Every real project has a documented canonical source chosen from actual tree identity and ancestry rather than branch-name recency.",
