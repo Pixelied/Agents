@@ -33,6 +33,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
             ).ifPresent(events::add);
         }
         addCrystalPlacementBurstEvents(context, world, events);
+        addAnchorChargeBurstEvents(context, events);
         for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
             OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(context.world().blocks(), block);
             buildEvent(
@@ -80,9 +81,50 @@ public final class ExplosionPredictor implements ThreatPredictor {
         }
     }
 
+    private void addAnchorChargeBurstEvents(PredictionContext context, List<ThreatEvent> events) {
+        for (WorldSnapshot.BlockSnapshot anchor : context.world().blocks()) {
+            if (!"minecraft:respawn_anchor".equals(anchor.blockId())) continue;
+            if (!Boolean.parseBoolean(anchor.properties().getOrDefault("anchor_explodes", "false"))) continue;
+            Integer charge = parseNonNegativeInt(anchor.properties().get("anchor_charge"));
+            if (charge == null || charge > 0) continue;
+
+            OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(context.world().blocks(), anchor);
+            for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
+                if (!"minecraft:player".equals(attacker.typeKey()) || !holdsGlowstone(attacker.properties())) continue;
+                double reach = parseFiniteNonNegative(
+                    attacker.properties().get("block_interaction_range"),
+                    parseFiniteNonNegative(attacker.properties().get("attack_range"), 4.5d)
+                );
+                if (!withinPlacementReach(attacker, anchor, reach)) continue;
+
+                Map<String, String> properties = Map.of(
+                    "explosion_radius", "5",
+                    "triggerable", "true",
+                    "source_key", "minecraft:bad_respawn_point",
+                    "scales_with_difficulty", "true"
+                );
+                String id = "burst:anchor-charge:" + attacker.id() + ":" + blockCellKey(anchor.position());
+                buildEvent(
+                    id,
+                    "minecraft:respawn_anchor",
+                    anchor.position(),
+                    new Vec3Snapshot(0, 0, 0),
+                    properties,
+                    context,
+                    eventWorld
+                ).ifPresent(events::add);
+            }
+        }
+    }
+
     private static boolean holdsEndCrystal(Map<String, String> properties) {
         return "minecraft:end_crystal".equals(properties.get("weapon_key"))
             || "minecraft:end_crystal".equals(properties.get("offhand_item_key"));
+    }
+
+    private static boolean holdsGlowstone(Map<String, String> properties) {
+        return "minecraft:glowstone".equals(properties.get("weapon_key"))
+            || "minecraft:glowstone".equals(properties.get("offhand_item_key"));
     }
 
     private static boolean isCrystalSupport(String blockId) {
