@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-repo-cleanup-24a8",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Safely separates project implementations from the coordination main branch, preserves the newest canonical project state, and clarifies branch ownership rules without overwriting active agent work.",
+  "capabilities": [
+    "coordination",
+    "git",
+    "repository-architecture",
+    "migration",
+    "validation"
+  ],
+  "registered_at": "2026-08-24T11:29:00Z",
+  "state": "available",
+  "state_updated_at": "2026-08-24T11:29:00Z",
+  "state_reason": "Beginning approved repository-wide project-boundary cleanup"
+}
