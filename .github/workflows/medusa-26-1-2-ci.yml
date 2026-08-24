@@ -94,6 +94,7 @@ jobs:
           grep -q 'MEDUSA_MAZE_COLLISION_OK' server.log
           grep -q 'MEDUSA_MAZE_OCCUPIED_ABORT_OK' server.log
           grep -q 'MEDUSA_MAZE_INSTANCE_ISOLATION_OK' server.log
+          grep -q 'MEDUSA_MAZE_TRAPS_OK' server.log
           grep -q 'MEDUSA_MAZE_RECOVERY_OK' server.log
           grep -q 'MEDUSA_MAZE_COMPLETE_OK' server.log
           grep -q 'MEDUSA_BOSS_OK' server.log
