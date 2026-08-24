@@ -1,0 +1,156 @@
+name: Medusa 26.1.2 CI
+
+on:
+  push:
+    branches: ["project/medusa-26-1-2"]
+    paths:
+      - "projects/medusa-26-1-2/**"
+      - ".github/workflows/medusa-26-1-2-ci.yml"
+  pull_request:
+    paths:
+      - "projects/medusa-26-1-2/**"
+      - ".github/workflows/medusa-26-1-2-ci.yml"
+
+jobs:
+  static-contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/medusa-26-1-2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run contract tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Run static validator
+        run: python3 scripts/validate_medusa.py
+
+  exact-runtime:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/medusa-26-1-2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Fetch exact Minecraft 26.1.2 dedicated server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p run/world/datapacks
+          curl -fsSL https://piston-meta.mojang.com/mc/game/version_manifest_v2.json -o run/version_manifest.json
+          VERSION_URL=$(python3 - <<'PY'
+          import json
+          data=json.load(open('run/version_manifest.json'))
+          print(next(v['url'] for v in data['versions'] if v['id']=='26.1.2'))
+          PY
+          )
+          curl -fsSL "$VERSION_URL" -o run/version.json
+          SERVER_URL=$(python3 - <<'PY'
+          import json
+          data=json.load(open('run/version.json'))
+          assert data['id']=='26.1.2'
+          assert data['javaVersion']['majorVersion']==25
+          print(data['downloads']['server']['url'])
+          PY
+          )
+          EXPECTED_SHA1=$(python3 - <<'PY'
+          import json
+          print(json.load(open('run/version.json'))['downloads']['server']['sha1'])
+          PY
+          )
+          curl -fsSL "$SERVER_URL" -o run/server.jar
+          echo "$EXPECTED_SHA1  run/server.jar" | sha1sum -c -
+          (
+            cd datapacks/medusa
+            zip -qr ../../run/world/datapacks/medusa.zip . \
+              -x '.DS_Store' '*/.DS_Store'
+          )
+          unzip -p run/world/datapacks/medusa.zip pack.mcmeta >/dev/null
+          printf 'eula=true\n' > run/eula.txt
+          printf 'online-mode=false\nlevel-name=world\nspawn-protection=0\npause-when-empty-seconds=-1\n' > run/server.properties
+      - name: Boot server and exercise Medusa runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd run
+          {
+            sleep 40
+            echo 'function medusa:debug/create_test_temple'
+            sleep 70
+            echo 'forceload remove all'
+            echo 'stop'
+          } | timeout 160s java -Xms512M -Xmx1G -jar server.jar nogui | tee server.log
+          grep -q 'Done (' server.log
+          grep -q 'MEDUSA_RAW_MARKER_OK' server.log
+          grep -q 'MEDUSA_INSTANCE_IMMEDIATE_OK' server.log
+          grep -q 'MEDUSA_MAZE_CELLS_OK' server.log
+          grep -q 'MEDUSA_MAZE_INITIAL_SOLVABLE_OK' server.log
+          grep -q 'MEDUSA_MAZE_INITIAL_READY_FAST_OK' server.log
+          grep -q 'MEDUSA_MAZE_DELTA_OK' server.log
+          grep -q 'MEDUSA_MAZE_PROPOSAL_FAST_OK' server.log
+          grep -q 'MEDUSA_MAZE_OPEN_FIRST_OK' server.log
+          grep -q 'MEDUSA_MAZE_WALL_DISPLAY_OK' server.log
+          grep -q 'MEDUSA_MAZE_HELPERS_BOUNDED_OK' server.log
+          grep -q 'MEDUSA_MAZE_COLLISION_OK' server.log
+          grep -q 'MEDUSA_MAZE_OCCUPIED_ABORT_OK' server.log
+          grep -q 'MEDUSA_MAZE_INSTANCE_ISOLATION_OK' server.log
+          grep -q 'MEDUSA_MAZE_TRAPS_OK' server.log
+          grep -q 'MEDUSA_MAZE_RECOVERY_OK' server.log
+          grep -q 'MEDUSA_MAZE_COMPLETE_OK' server.log
+          grep -q 'MEDUSA_BOSS_OK' server.log
+          grep -q 'MEDUSA_PETRIFICATION_DAMAGE_OK' server.log
+          grep -q 'MEDUSA_RESISTANCE_BYPASS_OK' server.log
+          grep -q 'MEDUSA_GAZE_ANGLE_OK' server.log
+          grep -q 'MEDUSA_GAZE_LOS_OK' server.log
+          grep -q 'MEDUSA_GAZE_PETRIFICATION_OK' server.log
+          grep -q 'MEDUSA_STAFF_QUICK_ISOLATION_OK' server.log
+          grep -q 'MEDUSA_STAFF_NOAI_COMPAT_OK' server.log
+          grep -q 'MEDUSA_STAFF_BOSS_LIMIT_OK' server.log
+          grep -q 'MEDUSA_PHASE2_OK' server.log
+          grep -q 'MEDUSA_PHASE3_OK' server.log
+          grep -q 'MEDUSA_DEATH_STATE_OK' server.log
+          grep -q 'MEDUSA_REWARD_GUARD_OK' server.log
+          grep -q 'MEDUSA_EYE_RECOVERY_OK' server.log
+          grep -q 'MEDUSA_RITUAL_REFUND_OK' server.log
+          grep -q 'MEDUSA_RESTART_RECOVERY_OK' server.log
+          grep -q 'MEDUSA_INSTANCE_ISOLATION_OK' server.log
+          grep -q 'MEDUSA_EYE_INSTANCE_ID_OK' server.log
+          grep -q 'MEDUSA_SMOKE_DONE' server.log
+          ! grep -Eq 'MEDUSA_RAW_MARKER_MISSING|MEDUSA_INSTANCE_IMMEDIATE_MISSING|MEDUSA_BOSS_MISSING|MEDUSA_.*_FAILED' server.log
+          ! grep -Eq 'Unknown function|Unknown or incomplete command|Failed to load|Errors in currently selected data packs|Could not load|Serialization errors|Failed to instantiate' server.log
+
+  package:
+    needs: [static-contracts, exact-runtime]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build direct-install archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd projects/medusa-26-1-2
+          (
+            cd datapacks/medusa
+            zip -qr "$GITHUB_WORKSPACE/medusa-datapack-26.1.2.zip" . \
+              -x '.DS_Store' '*/.DS_Store'
+          )
+          (
+            cd resourcepacks/medusa
+            zip -qr "$GITHUB_WORKSPACE/medusa-resourcepack-26.1.2.zip" . \
+              -x '.DS_Store' '*/.DS_Store'
+          )
+          zip -qr "$GITHUB_WORKSPACE/medusa-26.1.2-source.zip" . \
+            -x 'run/*' '__pycache__/*' '*/__pycache__/*' '*.pyc' '.DS_Store' '*/.DS_Store'
+          unzip -p "$GITHUB_WORKSPACE/medusa-datapack-26.1.2.zip" pack.mcmeta >/dev/null
+          unzip -p "$GITHUB_WORKSPACE/medusa-resourcepack-26.1.2.zip" pack.mcmeta >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: medusa-26.1.2-installers
+          path: |
+            medusa-datapack-26.1.2.zip
+            medusa-resourcepack-26.1.2.zip
+            medusa-26.1.2-source.zip
+          if-no-files-found: error
