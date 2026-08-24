@@ -4,10 +4,12 @@
   "task_id": "clean-repository-project-boundaries",
   "scope": "projects",
   "owner": "openai-repo-cleanup-24a8",
-  "state": "active",
+  "state": "released",
   "intent": "Remove ordinary project implementations from main after preserving newest canonical project trees on dedicated refs.",
   "claimed_at": "2026-08-24T11:42:20Z",
   "heartbeat_at": "2026-08-24T11:42:20Z",
   "expires_at": "2026-08-25T11:42:20Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-08-24T12:09:48Z",
+  "release_reason": "Main is project-free and seven exact canonical project trees are preserved on dedicated project branches."
 }
