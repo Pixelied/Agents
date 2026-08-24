@@ -1,5 +1,5 @@
 scoreboard players set $maze_debug_aborted md_tmp 0
-kill @e[type=minecraft:marker,tag=md.maze.occupancy_probe]
+kill @e[type=minecraft:armor_stand,tag=md.maze.occupancy_probe]
 tag @e[type=minecraft:marker,tag=md.maze.wall_controller,tag=!md.debug_occupied_controller,scores={md_mmode=2},limit=1,sort=nearest] add md.debug_occupied_controller
 execute if entity @e[type=minecraft:marker,tag=md.debug_occupied_controller,limit=1] run say MEDUSA_MAZE_DEBUG_CLOSE_CONTROLLER_FOUND
 execute unless entity @e[type=minecraft:marker,tag=md.debug_occupied_controller,limit=1] run say MEDUSA_MAZE_DEBUG_CLOSE_CONTROLLER_MISSING
