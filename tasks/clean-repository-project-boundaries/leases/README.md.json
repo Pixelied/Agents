@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "clean-repository-project-boundaries",
+  "scope": "README.md",
+  "owner": "openai-repo-cleanup-24a8",
+  "state": "active",
+  "intent": "Update the repository map for coordination-only main and canonical project branches.",
+  "claimed_at": "2026-08-24T11:42:05Z",
+  "heartbeat_at": "2026-08-24T11:42:05Z",
+  "expires_at": "2026-08-25T11:42:05Z",
+  "generation": 1
+}
