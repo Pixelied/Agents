@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "predictive_survival_gametest",
+  "version": "1.0.0",
+  "name": "Predictive Survival Client GameTests",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "dev.pixelied.survival.validation.SurvivalValidationClientGameTest",
+      "dev.pixelied.survival.validation.SurvivalItemRoutingClientGameTest"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.1.2",
+    "java": ">=25",
+    "fabric-api": "*",
+    "predictive_survival": "*"
+  }
+}
