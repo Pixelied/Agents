@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "prune-superseded-branches-2026-08-24",
+  "scope": ".github/workflows/prune-superseded-branches.yml",
+  "owner": "openai-branch-prune-8e51",
+  "state": "active",
+  "intent": "Add a one-shot fail-closed branch-pruning workflow with dynamic PR protection and archive verification.",
+  "claimed_at": "2026-08-24T12:19:05Z",
+  "heartbeat_at": "2026-08-24T12:19:05Z",
+  "expires_at": "2026-08-24T14:19:05Z",
+  "generation": 1
+}
