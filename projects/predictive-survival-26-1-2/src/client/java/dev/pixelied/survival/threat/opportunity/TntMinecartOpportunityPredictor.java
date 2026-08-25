@@ -64,15 +64,24 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
                 Boolean.parseBoolean(properties.getOrDefault("scales_with_difficulty", "true")),
                 true
             );
-            ThreatEvent projected = explosionFactory.createProjected(
-                id,
-                impact,
-                Confidence.POTENTIAL,
-                spec,
-                cart.velocity(),
-                context,
-                world
-            ).orElse(null);
+            ThreatEvent projected = impact.earliest() == impact.latest()
+                ? explosionFactory.create(
+                    id,
+                    impact,
+                    Confidence.POTENTIAL,
+                    spec,
+                    context,
+                    world
+                ).orElse(null)
+                : explosionFactory.createProjected(
+                    id,
+                    impact,
+                    Confidence.POTENTIAL,
+                    spec,
+                    cart.velocity(),
+                    context,
+                    world
+                ).orElse(null);
             if (projected == null) continue;
             if (!damageOracle.lethalWithoutDeathProtection(
                 context.player(), new ThreatTimeline(List.of(projected)))) continue;
