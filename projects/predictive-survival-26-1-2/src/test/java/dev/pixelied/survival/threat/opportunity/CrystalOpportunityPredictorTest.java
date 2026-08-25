@@ -43,8 +43,8 @@ class CrystalOpportunityPredictorTest {
     void nonAirBlockAboveSupportPreventsCrystalPlacementOpportunity() {
         WorldSnapshot.EntitySnapshot attacker = crystalAttacker();
         WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
-        WorldSnapshot.BlockSnapshot blocker = fullBlock(2, 1, 0, "minecraft:stone");
-        PredictionContext context = context(List.of(attacker), List.of(support, blocker));
+        WorldSnapshot.BlockSnapshot water = nonCollidingBlock(2, 1, 0, "minecraft:water");
+        PredictionContext context = context(List.of(attacker), List.of(support, water));
 
         List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(context);
 
@@ -113,6 +113,16 @@ class CrystalOpportunityPredictorTest {
             true,
             List.of(new AabbSnapshot(x, y, z, x + 1.0, y + 1.0, z + 1.0)),
             Map.of("full_collision_cube", "true")
+        );
+    }
+
+    private static WorldSnapshot.BlockSnapshot nonCollidingBlock(int x, int y, int z, String blockId) {
+        return new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(x + 0.5, y + 0.5, z + 0.5),
+            blockId,
+            false,
+            List.of(),
+            Map.of("full_collision_cube", "false")
         );
     }
 }
