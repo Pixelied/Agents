@@ -1,7 +1,6 @@
 package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.damage.BlockingSnapshot;
-import dev.pixelied.survival.damage.DamageRange;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
