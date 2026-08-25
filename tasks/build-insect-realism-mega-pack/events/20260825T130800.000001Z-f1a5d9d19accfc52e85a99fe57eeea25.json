@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "f1a5d9d19accfc52e85a99fe57eeea25",
+  "task_id": "build-insect-realism-mega-pack",
+  "agent_id": "chatgpt-insect-research-4112",
+  "type": "claim",
+  "message": "Claimed the isolated insect realism project scope for inline execution.",
+  "data": {"scope": "projects/insect-realism-overlay", "lease_minutes": 1440},
+  "created_at": "2026-08-25T13:08:00+00:00"
+}
