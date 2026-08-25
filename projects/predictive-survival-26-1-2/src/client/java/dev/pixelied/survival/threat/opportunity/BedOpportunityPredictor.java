@@ -70,6 +70,8 @@ public final class BedOpportunityPredictor implements LethalOpportunityPredictor
                     if (placementObstructed(context, foot)) continue;
 
                     Vec3Snapshot center = head.center();
+                    if (distance(context.player().position(), center) >= 10.0d) continue;
+
                     long reactionTicks = Math.max(
                         0L,
                         context.timing().nextPacketProcessingWindow().latest() - context.timing().clientTick()
@@ -197,6 +199,13 @@ public final class BedOpportunityPredictor implements LethalOpportunityPredictor
         return first.minX() < second.maxX() && first.maxX() > second.minX()
             && first.minY() < second.maxY() && first.maxY() > second.minY()
             && first.minZ() < second.maxZ() && first.maxZ() > second.minZ();
+    }
+
+    private static double distance(Vec3Snapshot first, Vec3Snapshot second) {
+        double dx = first.x() - second.x();
+        double dy = first.y() - second.y();
+        double dz = first.z() - second.z();
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private static Double positiveDouble(String value) {
