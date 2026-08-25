@@ -18,6 +18,7 @@ import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.monster.Creeper;
@@ -106,6 +107,7 @@ public final class MinecraftWorldSnapshotFactory {
     }
 
     private static boolean isThreatRelevant(Entity entity) {
+        if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) return true;
         if (entity instanceof AreaEffectCloud
             || entity instanceof EvokerFangs
             || entity instanceof LightningBolt
@@ -266,6 +268,12 @@ public final class MinecraftWorldSnapshotFactory {
         } else if (entity instanceof EndCrystal) {
             properties.put("explosion_radius", "6");
             properties.put("triggerable", "true");
+            properties.put("source_key", "minecraft:explosion");
+            properties.put("scales_with_difficulty", "true");
+        } else if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) {
+            properties.put("explosion_radius", "7");
+            properties.put("fuse_ticks", Integer.toString(Math.max(0, wither.getInvulnerableTicks())));
+            properties.put("explosion_center_y_offset", Double.toString(wither.getEyeY() - wither.getY()));
             properties.put("source_key", "minecraft:explosion");
             properties.put("scales_with_difficulty", "true");
         } else if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) {

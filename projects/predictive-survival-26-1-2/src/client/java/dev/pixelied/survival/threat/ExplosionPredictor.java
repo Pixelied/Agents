@@ -32,8 +32,9 @@ public final class ExplosionPredictor implements ThreatPredictor {
         List<ThreatEvent> events = new ArrayList<>();
 
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+            Vec3Snapshot center = explosionCenter(entity);
             buildEvent(
-                "explosion:" + entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.properties(),
+                "explosion:" + entity.id(), entity.typeKey(), center, entity.velocity(), entity.properties(),
                 context, world
             ).ifPresent(events::add);
         }
@@ -439,6 +440,18 @@ public final class ExplosionPredictor implements ThreatPredictor {
 
     private static boolean hasMotion(Vec3Snapshot velocity) {
         return velocity.x() != 0d || velocity.y() != 0d || velocity.z() != 0d;
+    }
+
+    private static Vec3Snapshot explosionCenter(WorldSnapshot.EntitySnapshot entity) {
+        String encodedOffset = entity.properties().get("explosion_center_y_offset");
+        if (encodedOffset == null) return entity.position();
+        try {
+            double offset = Double.parseDouble(encodedOffset);
+            if (!Double.isFinite(offset)) return entity.position();
+            return new Vec3Snapshot(entity.position().x(), entity.position().y() + offset, entity.position().z());
+        } catch (NumberFormatException ignored) {
+            return entity.position();
+        }
     }
 
     private static double parseFiniteNonNegative(String value, double fallback) {
