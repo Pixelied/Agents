@@ -27,6 +27,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
     private static final double CRYSTAL_HALF_WIDTH = 1.0d;
     private static final double CRYSTAL_HEIGHT = 2.0d;
     private static final double SERVER_USE_ON_RANGE_BUFFER = 1.0d;
+    private static final double SERVER_ATTACK_RANGE_BUFFER = 3.0d;
 
     private final ExplosionThreatFactory explosionFactory = new ExplosionThreatFactory();
     private final VanillaDamageOracle damageOracle = new VanillaDamageOracle();
@@ -46,6 +47,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
             Double blockRange = positiveDouble(attacker.properties().get("block_interaction_range"));
             Double entityRange = positiveDouble(attacker.properties().get("attack_range"));
             if (eye == null || blockRange == null || entityRange == null) continue;
+            AttackProfile attackProfile = postPlacementAttackProfile(attacker.properties(), entityRange);
 
             for (WorldSnapshot.BlockSnapshot support : context.world().blocks()) {
                 if (!isCrystalSupport(support.blockId())) continue;
@@ -72,7 +74,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                     center.y() + CRYSTAL_HEIGHT,
                     center.z() + CRYSTAL_HALF_WIDTH
                 );
-                if (!withinRange(eye, placedCrystal, entityRange)) continue;
+                if (!withinServerAttackRange(eye, placedCrystal, attackProfile)) continue;
 
                 long reactionTicks = Math.max(
                     0L,
@@ -109,6 +111,11 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                 evidence.put("block_interaction_range", Double.toString(blockRange));
                 evidence.put("server_use_on_range_buffer", Double.toString(SERVER_USE_ON_RANGE_BUFFER));
                 evidence.put("entity_interaction_range", Double.toString(entityRange));
+                evidence.put("server_attack_range_buffer", Double.toString(SERVER_ATTACK_RANGE_BUFFER));
+                evidence.put("attack_profile", attackProfile.source());
+                evidence.put("attack_min_range", Double.toString(attackProfile.minRange()));
+                evidence.put("attack_max_range", Double.toString(attackProfile.maxRange()));
+                evidence.put("attack_hitbox_margin", Double.toString(attackProfile.hitboxMargin()));
                 result.add(new LethalOpportunity(
                     id,
                     OpportunityFamily.CRYSTAL,
@@ -120,6 +127,50 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
             }
         }
         return List.copyOf(result);
+    }
+
+    private static AttackProfile postPlacementAttackProfile(Map<String, String> properties, double entityRange) {
+        boolean mainCrystal = END_CRYSTAL_ITEM.equals(properties.get("main_hand_item_key"));
+        boolean offhandCrystal = END_CRYSTAL_ITEM.equals(properties.get("offhand_item_key"));
+        Integer mainCount = positiveInt(properties.get("main_hand_count"));
+
+        // ServerboundAttackPacket always evaluates the player's main-hand stack. An off-hand
+        // placement leaves the main hand untouched. A main-hand placement only changes the attack
+        // profile when the placed crystal consumes the last item in that stack.
+        if (offhandCrystal || mainCrystal && mainCount != null && mainCount > 1) {
+            return currentMainHandAttackProfile(properties, entityRange);
+        }
+        if (mainCrystal) return defaultAttackProfile(entityRange, "post_place_default");
+
+        // SAFE may model a legal hidden-slot change before placement. Without observable stack
+        // components, do not invent a custom post-place weapon profile; use the synchronized
+        // default entity interaction range after a potentially consumed singleton crystal.
+        return defaultAttackProfile(entityRange, "post_place_default");
+    }
+
+    private static AttackProfile currentMainHandAttackProfile(Map<String, String> properties, double entityRange) {
+        Double min = nonNegativeDouble(properties.get("main_hand_attack_min_range"));
+        Double max = nonNegativeDouble(properties.get("main_hand_attack_max_range"));
+        Double margin = nonNegativeDouble(properties.get("main_hand_attack_hitbox_margin"));
+        if (min == null || max == null || margin == null || min > max) {
+            return defaultAttackProfile(entityRange, "current_main_hand");
+        }
+        return new AttackProfile(min, max, margin, "current_main_hand");
+    }
+
+    private static AttackProfile defaultAttackProfile(double entityRange, String source) {
+        return new AttackProfile(0d, entityRange, 0d, source);
+    }
+
+    private static boolean withinServerAttackRange(
+        Vec3Snapshot eye,
+        AabbSnapshot target,
+        AttackProfile profile
+    ) {
+        double distance = Math.sqrt(distanceToSqr(eye, target));
+        double min = profile.minRange() - profile.hitboxMargin() - SERVER_ATTACK_RANGE_BUFFER;
+        double max = profile.maxRange() + profile.hitboxMargin() + SERVER_ATTACK_RANGE_BUFFER;
+        return distance >= min && distance <= max;
     }
 
     private static boolean hasObservedBlockAt(
@@ -187,9 +238,24 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
         return 0d;
     }
 
+    private static Integer positiveInt(String value) {
+        if (value == null) return null;
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private static Double positiveDouble(String value) {
         Double parsed = finiteDouble(value);
         return parsed != null && parsed > 0d ? parsed : null;
+    }
+
+    private static Double nonNegativeDouble(String value) {
+        Double parsed = finiteDouble(value);
+        return parsed != null && parsed >= 0d ? parsed : null;
     }
 
     private static Double finiteDouble(String value) {
@@ -200,5 +266,8 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private record AttackProfile(double minRange, double maxRange, double hitboxMargin, String source) {
     }
 }
