@@ -13,6 +13,7 @@ import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.timing.TimingSnapshot;
 import org.junit.jupiter.api.Test;
 
@@ -81,15 +82,49 @@ class CrystalOpportunityPredictorTest {
         assertTrue(opportunities.isEmpty());
     }
 
+    @Test
+    void balancedModeRequiresVisibleCrystalEvidence() {
+        WorldSnapshot.EntitySnapshot attacker = attackerWithoutVisibleCrystal();
+        WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
+
+        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(
+            context(List.of(attacker), List.of(support), SafetyMode.BALANCED)
+        );
+
+        assertTrue(opportunities.isEmpty());
+    }
+
+    @Test
+    void safeModeBudgetsSlotChangePlaceAndBreakWithoutVisibleCrystal() {
+        WorldSnapshot.EntitySnapshot attacker = attackerWithoutVisibleCrystal();
+        WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
+
+        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(
+            context(List.of(attacker), List.of(support), SafetyMode.SAFE)
+        );
+
+        assertEquals(1, opportunities.size());
+        assertEquals(3, opportunities.getFirst().actionDepth());
+        assertEquals("false", opportunities.getFirst().evidence().get("visible_crystal"));
+    }
+
     private static WorldSnapshot.EntitySnapshot crystalAttacker() {
+        return attackerWithHands("minecraft:end_crystal", "minecraft:air");
+    }
+
+    private static WorldSnapshot.EntitySnapshot attackerWithoutVisibleCrystal() {
+        return attackerWithHands("minecraft:air", "minecraft:air");
+    }
+
+    private static WorldSnapshot.EntitySnapshot attackerWithHands(String mainHand, String offhand) {
         return attacker(
             "attacker",
             new Vec3Snapshot(3.5, 0.0, 0.5),
             Map.of(
                 "block_interaction_range", "4.5",
                 "attack_range", "3.0",
-                "main_hand_item_key", "minecraft:end_crystal",
-                "offhand_item_key", "minecraft:air",
+                "main_hand_item_key", mainHand,
+                "offhand_item_key", offhand,
                 "eye_position_x", "3.5",
                 "eye_position_y", "1.62",
                 "eye_position_z", "0.5"
@@ -100,6 +135,14 @@ class CrystalOpportunityPredictorTest {
     private static PredictionContext context(
         List<WorldSnapshot.EntitySnapshot> entities,
         List<WorldSnapshot.BlockSnapshot> blocks
+    ) {
+        return context(entities, blocks, SafetyMode.BALANCED);
+    }
+
+    private static PredictionContext context(
+        List<WorldSnapshot.EntitySnapshot> entities,
+        List<WorldSnapshot.BlockSnapshot> blocks,
+        SafetyMode safetyMode
     ) {
         PlayerSnapshot player = new PlayerSnapshot(
             4f, 0f, false, false, false, DifficultySnapshot.NORMAL,
@@ -114,7 +157,8 @@ class CrystalOpportunityPredictorTest {
             player,
             new WorldSnapshot(entities, blocks),
             new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 1)),
-            EngineLimits.defaults()
+            EngineLimits.defaults(),
+            safetyMode
         );
     }
 
