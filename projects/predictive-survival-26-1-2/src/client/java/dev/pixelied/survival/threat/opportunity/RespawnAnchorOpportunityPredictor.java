@@ -23,6 +23,7 @@ import java.util.Map;
 public final class RespawnAnchorOpportunityPredictor implements LethalOpportunityPredictor {
     private static final String RESPAWN_ANCHOR = "minecraft:respawn_anchor";
     private static final String GLOWSTONE = "minecraft:glowstone";
+    private static final double SERVER_USE_ON_RANGE_BUFFER = 1.0d;
 
     private final ExplosionThreatFactory explosionFactory = new ExplosionThreatFactory();
     private final VanillaDamageOracle damageOracle = new VanillaDamageOracle();
@@ -51,7 +52,7 @@ public final class RespawnAnchorOpportunityPredictor implements LethalOpportunit
                 int y = (int)Math.floor(anchor.position().y());
                 int z = (int)Math.floor(anchor.position().z());
                 AabbSnapshot anchorBox = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
-                if (!withinRange(eye, anchorBox, blockRange)) continue;
+                if (!withinRange(eye, anchorBox, blockRange + SERVER_USE_ON_RANGE_BUFFER)) continue;
 
                 long reactionTicks = Math.max(
                     0L,
@@ -93,6 +94,7 @@ public final class RespawnAnchorOpportunityPredictor implements LethalOpportunit
                 evidence.put("anchor_charge", Integer.toString(charge));
                 evidence.put("visible_glowstone", Boolean.toString(visibleGlowstone));
                 evidence.put("block_interaction_range", Double.toString(blockRange));
+                evidence.put("server_use_on_range_buffer", Double.toString(SERVER_USE_ON_RANGE_BUFFER));
                 result.add(new LethalOpportunity(
                     id,
                     OpportunityFamily.RESPAWN_ANCHOR,
