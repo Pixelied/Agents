@@ -9,15 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MinecraftTntMinecartOpportunitySnapshotContractTest {
     @Test
-    void liveSnapshotPublishesUnprimedMinecartTriggerEvidence() throws Exception {
+    void liveSnapshotPublishesUnprimedMinecartTriggerEvidenceWithoutInventingHiddenGameRuleState() throws Exception {
         String factory = Files.readString(Path.of(
             "src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java"
         ));
 
         assertTrue(factory.contains("properties.put(\"fall_distance\""));
         assertTrue(factory.contains("minecart.fallDistance"));
-        assertTrue(factory.contains("GameRules.TNT_EXPLODES"));
-        assertTrue(factory.contains("properties.put(\"tnt_explodes\""));
+        assertTrue(factory.contains("properties.put(\"tnt_explodes\", \"unknown\")"));
     }
 
     @Test
