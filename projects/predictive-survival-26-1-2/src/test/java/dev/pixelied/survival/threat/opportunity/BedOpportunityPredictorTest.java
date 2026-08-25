@@ -95,7 +95,7 @@ class BedOpportunityPredictorTest {
     @Test
     void placementTargetOutsideBlockInteractionReachDoesNotCreateOpportunity() {
         List<LethalOpportunity> result = predict(
-            attackerAt(new Vec3Snapshot(8.0, 0.0, 0.5), "minecraft:red_bed", true),
+            attackerAt(new Vec3Snapshot(9.0, 0.0, 0.5), "minecraft:red_bed", true),
             List.of(fullBlock(2, 0, 0, "minecraft:stone")),
             SafetyMode.BALANCED
         );
