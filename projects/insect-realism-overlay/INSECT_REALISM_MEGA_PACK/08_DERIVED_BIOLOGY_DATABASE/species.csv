@@ -1,0 +1,2 @@
+species_id,scientific_name,common_name,worker_body_length_min_mm,worker_body_length_max_mm,primary_target,source_ids,notes
+linepithema_humile,Linepithema humile,Argentine ant,2.2,2.6,true,msstate-linepithema-humile;ufifas-argentine-ant;wild-2004-linepithema-taxonomy,"Primary 2–4 mm profile. Independent identification sources agree on 2.2–2.6 mm workers; Wild 2004 anchors component morphometrics."

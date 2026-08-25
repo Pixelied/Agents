@@ -1,0 +1,5 @@
+species_id,measurement,mean_mm,min_mm,max_mm,sd_mm,n,view_or_segment,source_ids,uncertainty_notes
+linepithema_humile,worker_body_length,,2.2,2.6,,,whole_body,msstate-linepithema-humile;ufifas-argentine-ant,"Independent identification references agree on this total-length range; primary taxonomic component measurements are kept separately rather than inventing a derived total-body mean."
+linepithema_humile,head_length,,0.62,0.78,,81,head,wild-2004-linepithema-taxonomy,"Reported worker morphometric range across the taxonomic sample; no mean/SD promoted from the source note."
+linepithema_humile,head_width,,0.53,0.72,,81,head,wild-2004-linepithema-taxonomy,"Reported worker morphometric range across the taxonomic sample; no mean/SD promoted from the source note."
+linepithema_humile,scape_length,,0.62,0.80,,81,antenna_scape,wild-2004-linepithema-taxonomy,"Reported worker morphometric range across the taxonomic sample; no mean/SD promoted from the source note."
