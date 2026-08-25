@@ -115,6 +115,38 @@ class BedOpportunityPredictorTest {
     }
 
     @Test
+    void explosionAtVanillaRadiusBoundaryIsStillConsidered() {
+        PlayerSnapshot player = new PlayerSnapshot(
+            1f, 0f, false, false, false, DifficultySnapshot.NORMAL,
+            MitigationSnapshot.none(), StatusEffectsSnapshot.none(), BlockingSnapshot.none(), HurtState.unknown(),
+            DeathProtectionSnapshot.none(),
+            new AabbSnapshot(0.2, 0.0, 0.2, 0.8, 1.8, 0.8),
+            new Vec3Snapshot(0.5, 0.5, 0.5),
+            new Vec3Snapshot(0.0, 0.0, 0.0),
+            Map.of()
+        );
+        WorldSnapshot.EntitySnapshot attacker = attackerAtFacing(
+            new Vec3Snapshot(7.5, 0.0, 6.5),
+            "minecraft:red_bed",
+            true,
+            "east"
+        );
+        List<WorldSnapshot.BlockSnapshot> blocks = List.of(fullBlock(7, -1, 6, "minecraft:stone"));
+        PredictionContext context = new PredictionContext(
+            player,
+            new WorldSnapshot(List.of(attacker), blocks),
+            new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 1)),
+            EngineLimits.defaults(),
+            SafetyMode.BALANCED
+        );
+
+        List<LethalOpportunity> result = new BedOpportunityPredictor().predict(context);
+
+        LethalOpportunity opportunity = placement(result, "7,0,6", "8,0,6");
+        assertTrue(opportunity.projectedThreat().damage().rawDamage().max() > 0f);
+    }
+
+    @Test
     void projectedExplosionUsesHeadCenterWithoutBedSelfOcclusion() {
         List<LethalOpportunity> result = predict(
             attacker("minecraft:red_bed", true),
@@ -176,6 +208,15 @@ class BedOpportunityPredictorTest {
         String heldItem,
         boolean bedExplodes
     ) {
+        return attackerAtFacing(position, heldItem, bedExplodes, "west");
+    }
+
+    private static WorldSnapshot.EntitySnapshot attackerAtFacing(
+        Vec3Snapshot position,
+        String heldItem,
+        boolean bedExplodes,
+        String facing
+    ) {
         return new WorldSnapshot.EntitySnapshot(
             "attacker",
             "minecraft:player",
@@ -192,7 +233,7 @@ class BedOpportunityPredictorTest {
                 "eye_position_x", Double.toString(position.x()),
                 "eye_position_y", "1.62",
                 "eye_position_z", Double.toString(position.z()),
-                "horizontal_facing", "west",
+                "horizontal_facing", facing,
                 "bed_explodes", Boolean.toString(bedExplodes)
             )
         );
