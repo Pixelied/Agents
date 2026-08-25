@@ -126,7 +126,7 @@ class BedOpportunityPredictorTest {
             Map.of()
         );
         WorldSnapshot.EntitySnapshot attacker = attackerAtFacing(
-            new Vec3Snapshot(7.5, 0.0, 6.5),
+            new Vec3Snapshot(7.5, 1.0, 4.5),
             "minecraft:red_bed",
             true,
             "east"
@@ -231,7 +231,7 @@ class BedOpportunityPredictorTest {
                 "main_hand_item_key", heldItem,
                 "offhand_item_key", "minecraft:air",
                 "eye_position_x", Double.toString(position.x()),
-                "eye_position_y", "1.62",
+                "eye_position_y", Double.toString(position.y() + 1.62d),
                 "eye_position_z", Double.toString(position.z()),
                 "horizontal_facing", facing,
                 "bed_explodes", Boolean.toString(bedExplodes)
