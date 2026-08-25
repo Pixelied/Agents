@@ -24,4 +24,18 @@ class MinecraftMeleeOpportunitySnapshotContractTest {
         assertTrue(adapter.contains("properties.put(\"eye_position_z\""));
         assertTrue(adapter.contains("properties.put(\"attack_range\""));
     }
+
+    @Test
+    void remotePlayerSnapshotPublishesBadRespawnPlacementEvidence() throws Exception {
+        String adapter = Files.readString(Path.of(
+            "src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java"
+        ));
+
+        assertTrue(adapter.contains("EnvironmentAttributes.BED_RULE"));
+        assertTrue(adapter.contains("properties.put(\"bed_explodes\""));
+        assertTrue(adapter.contains("EnvironmentAttributes.RESPAWN_ANCHOR_WORKS"));
+        assertTrue(adapter.contains("properties.put(\"anchor_explodes\""));
+        assertTrue(adapter.contains("player.getDirection().getSerializedName()"));
+        assertTrue(adapter.contains("properties.put(\"horizontal_facing\""));
+    }
 }
