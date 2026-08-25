@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "c74e9d8b6a2f4c1192a5d7f60c3b8e11",
+  "task_id": "build-predictive-survival-26-1-2",
+  "agent_id": "openai-survival-instant-burst-c74e",
+  "type": "forced_scope_release",
+  "message": "Human-authorized release of stale generation-5 Predictive Survival project lease; repository owner confirmed no agent is currently working the scope.",
+  "data": {
+    "scope": "projects/predictive-survival-26-1-2",
+    "previous_owner": "openai-survival-burst-guard-b29c",
+    "previous_generation": 5,
+    "authorization": "explicit human instruction"
+  },
+  "created_at": "2026-08-25T13:47:01+00:00"
+}
