@@ -70,6 +70,17 @@ class CrystalOpportunityPredictorTest {
         assertTrue(opportunities.isEmpty());
     }
 
+    @Test
+    void localPlayerInsidePlacementVolumePreventsCrystalOpportunity() {
+        WorldSnapshot.EntitySnapshot attacker = crystalAttacker();
+        WorldSnapshot.BlockSnapshot support = fullBlock(0, 0, 0, "minecraft:obsidian");
+        PredictionContext context = context(List.of(attacker), List.of(support));
+
+        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(context);
+
+        assertTrue(opportunities.isEmpty());
+    }
+
     private static WorldSnapshot.EntitySnapshot crystalAttacker() {
         return attacker(
             "attacker",
