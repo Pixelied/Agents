@@ -1,8 +1,6 @@
 package dev.pixelied.survival.core;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.EmptyBlockGetter;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.shapes.Shapes;
 import org.junit.jupiter.api.Test;
 
@@ -29,32 +27,37 @@ class MinecraftCollisionShapeComponentsTest {
     }
 
     @Test
-    void capturesRepresentativeVanillaPartialCollisionShapes() {
+    void capturesRepresentativePartialCollisionShapesInWorldCoordinates() {
         BlockPos pos = new BlockPos(10, 20, 30);
+        var slabShape = Shapes.box(0, 0, 0, 1, 0.5, 1);
+        var stairShape = Shapes.or(
+            Shapes.box(0, 0, 0, 1, 0.5, 1),
+            Shapes.box(0, 0.5, 0.5, 1, 1, 1)
+        );
+        var fenceShape = Shapes.or(
+            Shapes.box(0.375, 0, 0.375, 0.625, 1.5, 0.625),
+            Shapes.box(0, 0.375, 0.4375, 1, 1.125, 0.5625)
+        );
+        var wallShape = Shapes.or(
+            Shapes.box(0.25, 0, 0.25, 0.75, 1.5, 0.75),
+            Shapes.box(0, 0, 0.3125, 1, 1.5, 0.6875)
+        );
+        var trapdoorShape = Shapes.box(0, 0, 0, 1, 0.1875, 1);
 
-        var slab = MinecraftCollisionShapeSnapshot.capture(
-            Blocks.OAK_SLAB.defaultBlockState().getCollisionShape(EmptyBlockGetter.INSTANCE, pos), pos
-        );
-        var stairs = MinecraftCollisionShapeSnapshot.capture(
-            Blocks.OAK_STAIRS.defaultBlockState().getCollisionShape(EmptyBlockGetter.INSTANCE, pos), pos
-        );
-        var fence = MinecraftCollisionShapeSnapshot.capture(
-            Blocks.OAK_FENCE.defaultBlockState().getCollisionShape(EmptyBlockGetter.INSTANCE, pos), pos
-        );
-        var wall = MinecraftCollisionShapeSnapshot.capture(
-            Blocks.COBBLESTONE_WALL.defaultBlockState().getCollisionShape(EmptyBlockGetter.INSTANCE, pos), pos
-        );
-        var trapdoor = MinecraftCollisionShapeSnapshot.capture(
-            Blocks.OAK_TRAPDOOR.defaultBlockState().getCollisionShape(EmptyBlockGetter.INSTANCE, pos), pos
-        );
+        var slab = MinecraftCollisionShapeSnapshot.capture(slabShape, pos);
+        var stairs = MinecraftCollisionShapeSnapshot.capture(stairShape, pos);
+        var fence = MinecraftCollisionShapeSnapshot.capture(fenceShape, pos);
+        var wall = MinecraftCollisionShapeSnapshot.capture(wallShape, pos);
+        var trapdoor = MinecraftCollisionShapeSnapshot.capture(trapdoorShape, pos);
 
         assertFalse(slab.isEmpty());
         assertEquals(20.5, slab.getFirst().maxY(), 1.0E-9);
-        assertFalse(stairs.isEmpty());
+        assertTrue(stairs.size() >= 2);
         assertFalse(fence.isEmpty());
         assertFalse(wall.isEmpty());
         assertFalse(trapdoor.isEmpty());
         assertTrue(stairs.stream().allMatch(box -> box.minX() >= 10 && box.maxX() <= 11));
         assertTrue(fence.stream().allMatch(box -> box.minZ() >= 30 && box.maxZ() <= 31));
+        assertEquals(20.1875, trapdoor.getFirst().maxY(), 1.0E-9);
     }
 }
