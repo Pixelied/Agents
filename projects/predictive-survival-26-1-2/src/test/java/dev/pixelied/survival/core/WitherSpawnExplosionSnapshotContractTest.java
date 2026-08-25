@@ -19,5 +19,6 @@ class WitherSpawnExplosionSnapshotContractTest {
         assertTrue(source.contains("getInvulnerableTicks()"), "the synchronized spawn countdown must be observed");
         assertTrue(source.contains("\"explosion_radius\", \"7\""), "Wither spawn blast power must be snapshotted");
         assertTrue(source.contains("\"fuse_ticks\""), "remaining spawn ticks must feed the fused explosion deadline");
+        assertTrue(source.contains("\"explosion_center_y_offset\""), "Wither blast center must preserve vanilla eye height");
     }
 }
