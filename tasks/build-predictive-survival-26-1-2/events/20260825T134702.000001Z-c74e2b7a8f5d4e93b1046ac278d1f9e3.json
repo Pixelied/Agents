@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "c74e2b7a8f5d4e93b1046ac278d1f9e3",
+  "task_id": "build-predictive-survival-26-1-2",
+  "agent_id": "openai-survival-instant-burst-c74e",
+  "type": "scope_claimed",
+  "message": "Claimed projects/predictive-survival-26-1-2 for approved instant-burst implementation.",
+  "data": {
+    "scope": "projects/predictive-survival-26-1-2",
+    "generation": 6,
+    "branch": "fix/predictive-survival-instant-burst-26-1-2"
+  },
+  "created_at": "2026-08-25T13:47:02+00:00"
+}
