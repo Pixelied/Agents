@@ -68,8 +68,17 @@ class RespawnAnchorOpportunityPredictorTest {
     }
 
     @Test
-    void anchorOutsideBlockInteractionReachDoesNotCreateOpportunity() {
-        WorldSnapshot.EntitySnapshot farAttacker = attackerAt(new Vec3Snapshot(7.0, 0.0, 0.5), "minecraft:air");
+    void serverUseOnBufferExtendsAnchorInteractionRangeByOneBlock() {
+        WorldSnapshot.EntitySnapshot bufferedAttacker = attackerAt(new Vec3Snapshot(7.0, 0.0, 0.5), "minecraft:air");
+        List<LethalOpportunity> result = predict(anchor(4, true), bufferedAttacker, SafetyMode.BALANCED);
+
+        assertEquals(1, result.size());
+        assertEquals("1.0", result.getFirst().evidence().get("server_use_on_range_buffer"));
+    }
+
+    @Test
+    void anchorOutsideServerBufferedBlockInteractionRangeDoesNotCreateOpportunity() {
+        WorldSnapshot.EntitySnapshot farAttacker = attackerAt(new Vec3Snapshot(8.0, 0.0, 0.5), "minecraft:air");
         List<LethalOpportunity> result = predict(anchor(4, true), farAttacker, SafetyMode.BALANCED);
 
         assertTrue(result.isEmpty());
