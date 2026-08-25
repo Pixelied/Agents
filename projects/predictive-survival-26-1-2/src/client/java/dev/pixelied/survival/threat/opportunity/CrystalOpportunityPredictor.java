@@ -58,6 +58,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                     x, y + 1d, z,
                     x + 1d, y + 3d, z + 1d
                 );
+                if (intersects(context.player().boundingBox(), placementVolume)) continue;
                 if (hasObservedEntityIntersection(context.world().entities(), placementVolume)) continue;
 
                 Vec3Snapshot center = new Vec3Snapshot(x + 0.5d, y + 1d, z + 0.5d);
