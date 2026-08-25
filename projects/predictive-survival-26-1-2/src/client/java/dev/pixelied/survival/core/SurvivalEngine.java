@@ -179,7 +179,7 @@ public final class SurvivalEngine {
     }
 
     public void replaceConfig(SurvivalConfig replacement) {
-        config.set(Objects.requireNonNull(replacement, "config"));
+        config.set(Objects.requireNonNull(replacement, "replacement"));
         failedActions.clear();
         clearCurrentPlan();
     }
