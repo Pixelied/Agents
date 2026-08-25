@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-insect-realism-mega-pack",
+  "title": "Build insect realism research mega pack",
+  "objective": "Create a reproducible, licensed, deeply researched corpus and derived biology database for a 2-4 mm ant-first desktop overlay on macOS, Windows, and Linux.",
+  "created_by": "chatgpt-insect-research-4112",
+  "created_at": "2026-08-25T13:07:30+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": ["projects/insect-realism-overlay"],
+  "acceptance_criteria": [
+    "The research corpus records at least 2000 reviewed page-equivalents or equivalent primary-source depth without redistributing restricted material",
+    "Ant locomotion, gait, climbing, antenna motion, anatomy, behavior, trajectories, and screen-scale rendering are converted into provenance-backed implementation parameters",
+    "Open-source simulator/tracker/overlay candidates are audited for technical reuse and licensing",
+    "macOS, Windows, and Linux transparent click-through overlay constraints are documented",
+    "The final INSECT_REALISM_MEGA_PACK.zip is deterministic, indexed, license-audited, and reproducible"
+  ]
+}
