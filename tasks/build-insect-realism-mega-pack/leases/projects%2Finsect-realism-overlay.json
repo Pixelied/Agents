@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-insect-realism-mega-pack",
+  "scope": "projects/insect-realism-overlay",
+  "owner": "chatgpt-insect-research-4112",
+  "state": "active",
+  "intent": "Build the reproducible ant/insect realism research corpus, analysis tooling, derived biology tables, and Mega Pack artifact",
+  "claimed_at": "2026-08-25T13:08:00+00:00",
+  "heartbeat_at": "2026-08-25T13:08:00+00:00",
+  "expires_at": "2026-08-26T13:08:00+00:00",
+  "generation": 1
+}
