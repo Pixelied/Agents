@@ -9,6 +9,7 @@ import dev.pixelied.survival.execution.ExecutionStatus;
 import dev.pixelied.survival.planner.ActionSimulation;
 import dev.pixelied.survival.planner.ContingencyPlan;
 import dev.pixelied.survival.planner.ContingencyPlanner;
+import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalPlan;
 import dev.pixelied.survival.planner.SurvivalPlanner;
@@ -69,7 +70,10 @@ public final class SurvivalEngine {
 
     public void tick() {
         SurvivalConfig liveConfig = config();
-        EngineFrame frame = Objects.requireNonNull(runtime.capture(liveConfig.rescuePolicy()), "runtime frame");
+        EngineFrame frame = Objects.requireNonNull(
+            runtime.capture(liveConfig.rescuePolicy(), liveConfig.safetyMode()),
+            "runtime frame"
+        );
         updateDangerWindow(frame.timeline());
         runtime.maintainRestoration(
             frame,
@@ -415,6 +419,12 @@ public final class SurvivalEngine {
         default EngineFrame capture(RescuePolicy policy) {
             Objects.requireNonNull(policy, "policy");
             return capture();
+        }
+
+        default EngineFrame capture(RescuePolicy policy, SafetyMode safetyMode) {
+            Objects.requireNonNull(policy, "policy");
+            Objects.requireNonNull(safetyMode, "safetyMode");
+            return capture(policy);
         }
 
         ExecutionStatus begin(SurvivalAction action, EngineFrame frame);
