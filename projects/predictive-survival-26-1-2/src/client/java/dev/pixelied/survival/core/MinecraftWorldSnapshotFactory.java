@@ -165,6 +165,8 @@ public final class MinecraftWorldSnapshotFactory {
         }
 
         if (entity instanceof AbstractArrow arrow) {
+            properties.put("abstract_arrow", "true");
+            properties.put("on_fire", Boolean.toString(arrow.isOnFire()));
             AbstractArrowAccessor accessor = (AbstractArrowAccessor) (Object) arrow;
             properties.put("base_damage", Double.toString(accessor.predictiveSurvival$getBaseDamage()));
             properties.put("critical", Boolean.toString(arrow.isCritArrow()));
@@ -258,6 +260,8 @@ public final class MinecraftWorldSnapshotFactory {
             putExplosionCenter(properties, tnt.getX(), tnt.getY(0.0625), tnt.getZ());
         } else if (entity instanceof MinecartTNT minecart) {
             properties.putAll(MinecraftExplosionSnapshotRules.tntMinecart(minecart.isPrimed(), minecart.getFuse()));
+            properties.put("fall_distance", Double.toString(Math.max(0d, minecart.fallDistance)));
+            properties.put("tnt_explodes", "unknown");
         } else if (entity instanceof EndCrystal) {
             properties.put("explosion_radius", "6");
             properties.put("triggerable", "true");
