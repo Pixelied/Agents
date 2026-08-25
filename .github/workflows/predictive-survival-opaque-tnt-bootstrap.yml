@@ -1,0 +1,79 @@
+name: Predictive Survival Opaque TNT Bootstrap
+
+on:
+  pull_request:
+    paths:
+      - 'projects/predictive-survival-26-1-2/**'
+      - '.github/workflows/predictive-survival-opaque-tnt-bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Apply and verify conservative Primed TNT bounds
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$HEAD_REF"
+          remote_head=$(git rev-parse "origin/$HEAD_REF")
+          if [ "$remote_head" != "$EVENT_HEAD" ]; then
+            echo "branch moved: event=$EVENT_HEAD remote=$remote_head"
+            exit 1
+          fi
+          git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          root = Path('projects/predictive-survival-26-1-2')
+          world = root / 'src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java'
+          text = world.read_text()
+          import_line = 'import dev.pixelied.survival.mixin.PrimedTntAccessor;\n'
+          if import_line not in text:
+              raise SystemExit('PrimedTntAccessor import missing or fix already applied')
+          text = text.replace(import_line, '', 1)
+          old = '''        if (entity instanceof PrimedTnt tnt) {\n            properties.put("explosion_radius", Float.toString(((PrimedTntAccessor) (Object) tnt).predictiveSurvival$getExplosionPower()));\n            properties.put("fuse_ticks", Integer.toString(Math.max(0, tnt.getFuse())));\n            properties.put("source_key", "minecraft:explosion");\n            properties.put("scales_with_difficulty", "true");\n'''
+          new = '''        if (entity instanceof PrimedTnt tnt) {\n            // explosionPower is server-side NBT (0..128) and is not synchronized to remote clients.\n            // Preserve the full vanilla-legal interval instead of trusting the client's default field.\n            properties.put("explosion_radius_min", "0.0");\n            properties.put("explosion_radius_max", "128.0");\n            properties.put("fuse_ticks", Integer.toString(Math.max(0, tnt.getFuse())));\n            properties.put("source_key", "minecraft:explosion");\n            properties.put("scales_with_difficulty", "true");\n'''
+          if old not in text:
+              raise SystemExit('Primed TNT snapshot anchor missing')
+          world.write_text(text.replace(old, new, 1))
+
+          mixins = root / 'src/main/resources/predictive_survival.client.mixins.json'
+          text = mixins.read_text()
+          entry = '    "PrimedTntAccessor",\n'
+          if entry not in text:
+              raise SystemExit('PrimedTntAccessor mixin entry missing')
+          mixins.write_text(text.replace(entry, '', 1))
+
+          accessor = root / 'src/client/java/dev/pixelied/survival/mixin/PrimedTntAccessor.java'
+          if not accessor.exists():
+              raise SystemExit('PrimedTntAccessor source missing')
+          accessor.unlink()
+          PY
+
+          (
+            cd projects/predictive-survival-26-1-2
+            ./gradlew --no-daemon clean test build
+          )
+          git diff --check
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A projects/predictive-survival-26-1-2
+          git commit -m 'fix: bound opaque Primed TNT explosion power'
+          git push origin "HEAD:$HEAD_REF"
