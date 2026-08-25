@@ -25,7 +25,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CrystalOpportunityPredictorTest {
     @Test
     void legalLethalSupportCreatesOpportunityBeforeCrystalEntityExists() {
-        WorldSnapshot.EntitySnapshot attacker = attacker(
+        WorldSnapshot.EntitySnapshot attacker = crystalAttacker();
+        WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
+        PredictionContext context = context(List.of(attacker), List.of(support));
+
+        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(context);
+
+        assertEquals(1, opportunities.size());
+        LethalOpportunity opportunity = opportunities.getFirst();
+        assertEquals(OpportunityFamily.CRYSTAL, opportunity.family());
+        assertEquals(2, opportunity.actionDepth());
+        assertEquals("true", opportunity.evidence().get("visible_crystal"));
+        assertTrue(opportunity.projectedThreat().damage().rawDamage().max() > 0f);
+    }
+
+    @Test
+    void nonAirBlockAboveSupportPreventsCrystalPlacementOpportunity() {
+        WorldSnapshot.EntitySnapshot attacker = crystalAttacker();
+        WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
+        WorldSnapshot.BlockSnapshot blocker = fullBlock(2, 1, 0, "minecraft:stone");
+        PredictionContext context = context(List.of(attacker), List.of(support, blocker));
+
+        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(context);
+
+        assertTrue(opportunities.isEmpty());
+    }
+
+    private static WorldSnapshot.EntitySnapshot crystalAttacker() {
+        return attacker(
             "attacker",
             new Vec3Snapshot(3.5, 0.0, 0.5),
             Map.of(
@@ -38,17 +65,6 @@ class CrystalOpportunityPredictorTest {
                 "eye_position_z", "0.5"
             )
         );
-        WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
-        PredictionContext context = context(List.of(attacker), List.of(support));
-
-        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(context);
-
-        assertEquals(1, opportunities.size());
-        LethalOpportunity opportunity = opportunities.getFirst();
-        assertEquals(OpportunityFamily.CRYSTAL, opportunity.family());
-        assertEquals(2, opportunity.actionDepth());
-        assertEquals("true", opportunity.evidence().get("visible_crystal"));
-        assertTrue(opportunity.projectedThreat().damage().rawDamage().max() > 0f);
     }
 
     private static PredictionContext context(
