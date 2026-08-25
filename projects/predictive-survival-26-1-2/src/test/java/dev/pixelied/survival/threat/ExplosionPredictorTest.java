@@ -69,6 +69,38 @@ class ExplosionPredictorTest {
     }
 
     @Test
+    void nearbyCrystalHolderWithReachableSupportCreatesPrePlacementBurstThreat() {
+        WorldSnapshot.EntitySnapshot attacker = new WorldSnapshot.EntitySnapshot(
+            "attacker:crystal",
+            "minecraft:player",
+            new Vec3Snapshot(4.3, 0, 0.3),
+            new Vec3Snapshot(0, 0, 0),
+            new AabbSnapshot(4.0, 0, 0, 4.6, 1.8, 0.6),
+            Map.of(
+                "melee_capable", "true",
+                "melee_model", "player",
+                "weapon_key", "minecraft:end_crystal",
+                "attack_range", "3"
+            )
+        );
+        WorldSnapshot.BlockSnapshot support = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(2.5, -0.5, 0.5),
+            "minecraft:obsidian",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        ThreatEvent burst = new ExplosionPredictor().predict(context(List.of(attacker), List.of(support))).stream()
+            .filter(event -> event.id().startsWith("burst:crystal:"))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals(Confidence.POTENTIAL, burst.confidence());
+        assertEquals(0L, burst.impact().earliest());
+        assertTrue(burst.damage().rawDamage().max() > 20f);
+    }
+
+    @Test
     void triggerableThreatWindowExtendsThroughLatestServerProcessingTick() {
         WorldSnapshot.EntitySnapshot crystal = entity("crystal:timing", "minecraft:end_crystal", Map.of(
             "explosion_radius", "6.0",

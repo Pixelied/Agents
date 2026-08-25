@@ -3,7 +3,6 @@ package dev.pixelied.survival.core;
 import dev.pixelied.survival.mixin.AbstractArrowAccessor;
 import dev.pixelied.survival.mixin.FallingBlockEntityAccessor;
 import dev.pixelied.survival.mixin.FireworkRocketAccessor;
-import dev.pixelied.survival.mixin.PrimedTntAccessor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
@@ -18,6 +17,7 @@ import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.monster.Creeper;
@@ -106,16 +106,17 @@ public final class MinecraftWorldSnapshotFactory {
     }
 
     private static boolean isThreatRelevant(Entity entity) {
+        if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) return true;
         if (entity instanceof AreaEffectCloud
             || entity instanceof EvokerFangs
             || entity instanceof LightningBolt
             || entity instanceof FallingBlockEntity
             || entity instanceof PrimedTnt
             || entity instanceof EndCrystal
-            || entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
+            || entity instanceof MinecartTNT) {
             return true;
         }
-        if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) return true;
+        if (entity instanceof Creeper creeper && (creeper.getSwellDir() > 0 || creeper.isIgnited())) return true;
         if (entity instanceof LivingEntity living && MinecraftMeleeSnapshotAdapter.isPotentialMeleeCandidate(living)) {
             return true;
         }
@@ -252,7 +253,10 @@ public final class MinecraftWorldSnapshotFactory {
         }
 
         if (entity instanceof PrimedTnt tnt) {
-            properties.put("explosion_radius", Float.toString(((PrimedTntAccessor) (Object) tnt).predictiveSurvival$getExplosionPower()));
+            // explosionPower is server-side NBT (0..128) and is not synchronized to remote clients.
+            // Preserve the full vanilla-legal interval instead of trusting the client's default field.
+            properties.put("explosion_radius_min", "0.0");
+            properties.put("explosion_radius_max", "128.0");
             properties.put("fuse_ticks", Integer.toString(Math.max(0, tnt.getFuse())));
             properties.put("source_key", "minecraft:explosion");
             properties.put("scales_with_difficulty", "true");
@@ -268,11 +272,20 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("triggerable", "true");
             properties.put("source_key", "minecraft:explosion");
             properties.put("scales_with_difficulty", "true");
-        } else if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) {
-            float progress = Math.max(0f, Math.min(1f, creeper.getSwelling(1f)));
-            int conservativeRemaining = Math.max(0, (int) Math.floor((1f - progress) * 28f));
-            properties.put("explosion_radius", creeper.isPowered() ? "6" : "3");
-            properties.put("fuse_ticks", Integer.toString(conservativeRemaining));
+        } else if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) {
+            properties.put("explosion_radius", "7");
+            properties.put("fuse_ticks", Integer.toString(Math.max(0, wither.getInvulnerableTicks())));
+            properties.put("explosion_center_y_offset", Double.toString(wither.getEyeY() - wither.getY()));
+            properties.put("source_key", "minecraft:explosion");
+            properties.put("scales_with_difficulty", "true");
+        } else if (entity instanceof Creeper creeper && (creeper.getSwellDir() > 0 || creeper.isIgnited())) {
+            // Remote Fuse and ExplosionRadius are server-side NBT and are not synchronized.
+            // The client does know priming/ignition and powered state, so fail closed over every
+            // harmful signed-byte radius and allow the server to already be at the detonation edge.
+            properties.put("explosion_radius_min", "0.0");
+            properties.put("explosion_radius_max", creeper.isPowered() ? "254.0" : "127.0");
+            properties.put("triggerable", "true");
+            properties.put("source_key", "minecraft:explosion");
             properties.put("scales_with_difficulty", "true");
         }
 

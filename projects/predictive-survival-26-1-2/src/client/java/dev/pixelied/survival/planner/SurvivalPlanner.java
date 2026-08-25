@@ -157,7 +157,7 @@ public final class SurvivalPlanner {
                     return accepted(
                         action,
                         immediateResult,
-                        "best effort: immediate potential threat may beat server authority",
+                        "best effort: immediate threat may beat server authority",
                         DeadlineStatus.BEST_EFFORT
                     );
                 }
@@ -184,7 +184,7 @@ public final class SurvivalPlanner {
         ThreatTimeline transformedTimeline = action.applyTimeline(timeline);
         TimelineResult result = timelineSimulator.simulate(action.apply(context.player()), transformedTimeline);
         String reason = deadlineStatus == DeadlineStatus.BEST_EFFORT
-            ? "best effort: immediate potential threat may beat server authority"
+            ? "best effort: immediate threat may beat server authority"
             : "ok";
         return accepted(action, result, reason, deadlineStatus);
     }
@@ -239,9 +239,7 @@ public final class SurvivalPlanner {
             .filter(event -> event.id().equals(lethalId))
             .findFirst()
             .orElse(null);
-        return lethal != null
-            && lethal.confidence() == Confidence.POTENTIAL
-            && lethal.impact().earliest() == 0L;
+        return lethal != null && lethal.impact().earliest() == 0L;
     }
 
     private static DeadlineStatus legacyDeadlineStatus(

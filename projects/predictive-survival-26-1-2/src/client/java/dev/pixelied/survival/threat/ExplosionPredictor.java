@@ -19,6 +19,13 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class ExplosionPredictor implements ThreatPredictor {
+    private static final double BED_COLLISION_HEIGHT = 9d / 16d;
+    private static final double TNT_MINECART_CRASH_SPEED_SQUARED = 0.01d;
+    private static final String TNT_MINECART_MAX_OPAQUE_RADIUS = "1088.0";
+    private static final int[][] HORIZONTAL_OFFSETS = {
+        {1, 0}, {-1, 0}, {0, 1}, {0, -1}
+    };
+
     private final ExplosionExposure exposure = new ExplosionExposure();
 
     @Override
@@ -27,11 +34,16 @@ public final class ExplosionPredictor implements ThreatPredictor {
         List<ThreatEvent> events = new ArrayList<>();
 
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+            Vec3Snapshot center = explosionCenter(entity);
             buildEvent(
-                "explosion:" + entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.properties(),
+                "explosion:" + entity.id(), entity.typeKey(), center, entity.velocity(), entity.properties(),
                 context, world
             ).ifPresent(events::add);
         }
+        addMinecartCollisionBurstEvents(context, world, events);
+        addCrystalPlacementBurstEvents(context, world, events);
+        addBedPlacementBurstEvents(context, world, events);
+        addAnchorChargeBurstEvents(context, events);
         for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
             OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(context.world().blocks(), block);
             buildEvent(
@@ -40,6 +52,330 @@ public final class ExplosionPredictor implements ThreatPredictor {
             ).ifPresent(events::add);
         }
         return List.copyOf(events);
+    }
+
+    private void addMinecartCollisionBurstEvents(
+        PredictionContext context,
+        OcclusionView world,
+        List<ThreatEvent> events
+    ) {
+        for (WorldSnapshot.EntitySnapshot minecart : context.world().entities()) {
+            if (!"minecraft:tnt_minecart".equals(minecart.typeKey())) continue;
+            if (hasFuseMetadata(minecart.properties())) continue;
+
+            Vec3Snapshot velocity = minecart.velocity();
+            double horizontalSpeedSquared = velocity.x() * velocity.x() + velocity.z() * velocity.z();
+            if (!Double.isFinite(horizontalSpeedSquared)
+                || horizontalSpeedSquared < TNT_MINECART_CRASH_SPEED_SQUARED) {
+                continue;
+            }
+            if (!projectedHorizontalCollision(minecart, context.world().blocks())) continue;
+
+            Map<String, String> properties = Map.of(
+                "explosion_radius_min", "0.0",
+                "explosion_radius_max", TNT_MINECART_MAX_OPAQUE_RADIUS,
+                "fuse_ticks_min", "0",
+                "fuse_ticks_max", "1",
+                "source_key", "minecraft:explosion",
+                "scales_with_difficulty", "true"
+            );
+            buildEvent(
+                "burst:minecart-collision:" + minecart.id(),
+                minecart.typeKey(),
+                minecart.position(),
+                minecart.velocity(),
+                properties,
+                context,
+                world
+            ).ifPresent(events::add);
+        }
+    }
+
+    private static boolean hasFuseMetadata(Map<String, String> properties) {
+        return properties.containsKey("fuse_ticks")
+            || properties.containsKey("fuse_ticks_min")
+            || properties.containsKey("fuse_ticks_max");
+    }
+
+    private static boolean projectedHorizontalCollision(
+        WorldSnapshot.EntitySnapshot entity,
+        List<WorldSnapshot.BlockSnapshot> blocks
+    ) {
+        Vec3Snapshot velocity = entity.velocity();
+        AabbSnapshot start = entity.boundingBox();
+        AabbSnapshot projected = translate(start, velocity);
+        for (WorldSnapshot.BlockSnapshot block : blocks) {
+            if (!block.collision()) continue;
+            AabbSnapshot collision = blockCollisionBounds(block);
+            if (collision == null) continue;
+            if (intersects(projected, collision) && !intersects(start, collision)) return true;
+        }
+        return false;
+    }
+
+    private static AabbSnapshot blockCollisionBounds(WorldSnapshot.BlockSnapshot block) {
+        int x = (int)Math.floor(block.position().x());
+        int y = (int)Math.floor(block.position().y());
+        int z = (int)Math.floor(block.position().z());
+        AabbSnapshot fullCube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
+        if (Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
+            return fullCube;
+        }
+
+        Double minX = parseUnitBound(block.properties().get("collision_min_x"));
+        Double minY = parseUnitBound(block.properties().get("collision_min_y"));
+        Double minZ = parseUnitBound(block.properties().get("collision_min_z"));
+        Double maxX = parseUnitBound(block.properties().get("collision_max_x"));
+        Double maxY = parseUnitBound(block.properties().get("collision_max_y"));
+        Double maxZ = parseUnitBound(block.properties().get("collision_max_z"));
+        if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
+            || minX > maxX || minY > maxY || minZ > maxZ) {
+            // A collidable block with an unknown serialized shape is never proof of open space.
+            return fullCube;
+        }
+        return new AabbSnapshot(
+            x + minX, y + minY, z + minZ,
+            x + maxX, y + maxY, z + maxZ
+        );
+    }
+
+    private static Double parseUnitBound(String value) {
+        if (value == null) return null;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) && parsed >= 0d && parsed <= 1d ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private void addCrystalPlacementBurstEvents(
+        PredictionContext context,
+        OcclusionView world,
+        List<ThreatEvent> events
+    ) {
+        for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
+            if (!"minecraft:player".equals(attacker.typeKey()) || !holdsEndCrystal(attacker.properties())) continue;
+
+            double reach = parseFiniteNonNegative(
+                attacker.properties().get("block_interaction_range"),
+                parseFiniteNonNegative(attacker.properties().get("attack_range"), 4.5d)
+            );
+            ThreatEvent worst = null;
+            for (WorldSnapshot.BlockSnapshot support : context.world().blocks()) {
+                if (!isCrystalSupport(support.blockId()) || !withinPlacementReach(attacker, support, reach)) continue;
+                Vec3Snapshot center = crystalCenterAbove(support.position());
+                if (!crystalPlacementSpaceClear(center, context)) continue;
+
+                Map<String, String> properties = Map.of(
+                    "explosion_radius", "6",
+                    "triggerable", "true",
+                    "source_key", "minecraft:explosion",
+                    "scales_with_difficulty", "true"
+                );
+                String id = "burst:crystal:" + attacker.id() + ":" + blockCellKey(support.position());
+                Optional<ThreatEvent> candidate = buildEvent(
+                    id, "minecraft:end_crystal", center, new Vec3Snapshot(0, 0, 0), properties, context, world
+                );
+                if (candidate.isPresent() && (worst == null
+                    || candidate.get().damage().rawDamage().max() > worst.damage().rawDamage().max())) {
+                    worst = candidate.get();
+                }
+            }
+            if (worst != null) events.add(worst);
+        }
+    }
+
+    private void addBedPlacementBurstEvents(
+        PredictionContext context,
+        OcclusionView world,
+        List<ThreatEvent> events
+    ) {
+        for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
+            if (!"minecraft:player".equals(attacker.typeKey())) continue;
+            if (!Boolean.parseBoolean(attacker.properties().getOrDefault("bed_explodes", "false"))) continue;
+            if (!holdsBed(attacker.properties())) continue;
+
+            double reach = parseFiniteNonNegative(
+                attacker.properties().get("block_interaction_range"),
+                parseFiniteNonNegative(attacker.properties().get("attack_range"), 4.5d)
+            );
+            ThreatEvent worst = null;
+            for (WorldSnapshot.BlockSnapshot support : context.world().blocks()) {
+                if (!support.collision() || !withinPlacementReach(attacker, support, reach)) continue;
+                int footX = (int)Math.floor(support.position().x());
+                int footY = (int)Math.floor(support.position().y()) + 1;
+                int footZ = (int)Math.floor(support.position().z());
+                if (!bedCellClear(context, footX, footY, footZ)) continue;
+
+                for (int[] offset : HORIZONTAL_OFFSETS) {
+                    int headX = footX + offset[0];
+                    int headZ = footZ + offset[1];
+                    if (!bedCellClear(context, headX, footY, headZ)) continue;
+
+                    Vec3Snapshot center = new Vec3Snapshot(headX + 0.5d, footY + 0.5d, headZ + 0.5d);
+                    Map<String, String> properties = Map.of(
+                        "explosion_radius", "5",
+                        "triggerable", "true",
+                        "source_key", "minecraft:bad_respawn_point",
+                        "scales_with_difficulty", "true"
+                    );
+                    String id = "burst:bed-place:" + attacker.id() + ":"
+                        + footX + "," + footY + "," + footZ + ":" + offset[0] + "," + offset[1];
+                    Optional<ThreatEvent> candidate = buildEvent(
+                        id,
+                        "minecraft:red_bed",
+                        center,
+                        new Vec3Snapshot(0, 0, 0),
+                        properties,
+                        context,
+                        world
+                    );
+                    if (candidate.isPresent() && (worst == null
+                        || candidate.get().damage().rawDamage().max() > worst.damage().rawDamage().max())) {
+                        worst = candidate.get();
+                    }
+                }
+            }
+            if (worst != null) events.add(worst);
+        }
+    }
+
+    private void addAnchorChargeBurstEvents(PredictionContext context, List<ThreatEvent> events) {
+        for (WorldSnapshot.BlockSnapshot anchor : context.world().blocks()) {
+            if (!"minecraft:respawn_anchor".equals(anchor.blockId())) continue;
+            if (!Boolean.parseBoolean(anchor.properties().getOrDefault("anchor_explodes", "false"))) continue;
+            Integer charge = parseNonNegativeInt(anchor.properties().get("anchor_charge"));
+            if (charge == null || charge > 0) continue;
+
+            OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(context.world().blocks(), anchor);
+            for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
+                if (!"minecraft:player".equals(attacker.typeKey()) || !holdsGlowstone(attacker.properties())) continue;
+                double reach = parseFiniteNonNegative(
+                    attacker.properties().get("block_interaction_range"),
+                    parseFiniteNonNegative(attacker.properties().get("attack_range"), 4.5d)
+                );
+                if (!withinPlacementReach(attacker, anchor, reach)) continue;
+
+                Map<String, String> properties = Map.of(
+                    "explosion_radius", "5",
+                    "triggerable", "true",
+                    "source_key", "minecraft:bad_respawn_point",
+                    "scales_with_difficulty", "true"
+                );
+                String id = "burst:anchor-charge:" + attacker.id() + ":" + blockCellKey(anchor.position());
+                buildEvent(
+                    id,
+                    "minecraft:respawn_anchor",
+                    anchor.position(),
+                    new Vec3Snapshot(0, 0, 0),
+                    properties,
+                    context,
+                    eventWorld
+                ).ifPresent(events::add);
+            }
+        }
+    }
+
+    private static boolean holdsEndCrystal(Map<String, String> properties) {
+        return "minecraft:end_crystal".equals(properties.get("weapon_key"))
+            || "minecraft:end_crystal".equals(properties.get("offhand_item_key"));
+    }
+
+    private static boolean holdsGlowstone(Map<String, String> properties) {
+        return "minecraft:glowstone".equals(properties.get("weapon_key"))
+            || "minecraft:glowstone".equals(properties.get("offhand_item_key"));
+    }
+
+    private static boolean holdsBed(Map<String, String> properties) {
+        return isBedItem(properties.get("weapon_key")) || isBedItem(properties.get("offhand_item_key"));
+    }
+
+    private static boolean isBedItem(String itemKey) {
+        return itemKey != null && itemKey.startsWith("minecraft:") && itemKey.endsWith("_bed");
+    }
+
+    private static boolean isCrystalSupport(String blockId) {
+        return "minecraft:obsidian".equals(blockId) || "minecraft:bedrock".equals(blockId);
+    }
+
+    private static boolean withinPlacementReach(
+        WorldSnapshot.EntitySnapshot attacker,
+        WorldSnapshot.BlockSnapshot support,
+        double reach
+    ) {
+        double x = Math.floor(support.position().x());
+        double y = Math.floor(support.position().y());
+        double z = Math.floor(support.position().z());
+        AabbSnapshot blockBox = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
+        return aabbDistance(attacker.boundingBox(), blockBox) <= reach;
+    }
+
+    private static Vec3Snapshot crystalCenterAbove(Vec3Snapshot support) {
+        double x = Math.floor(support.x());
+        double y = Math.floor(support.y());
+        double z = Math.floor(support.z());
+        return new Vec3Snapshot(x + 0.5d, y + 1d, z + 0.5d);
+    }
+
+    private static boolean crystalPlacementSpaceClear(Vec3Snapshot crystalCenter, PredictionContext context) {
+        int x = (int)Math.floor(crystalCenter.x());
+        int y = (int)Math.floor(crystalCenter.y());
+        int z = (int)Math.floor(crystalCenter.z());
+
+        for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+            if (sameBlockCell(block.position(), x, y, z)) return false;
+        }
+
+        AabbSnapshot spawnSpace = new AabbSnapshot(x, y, z, x + 1d, y + 2d, z + 1d);
+        if (intersects(spawnSpace, context.player().boundingBox())) return false;
+        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+            if (intersects(spawnSpace, entity.boundingBox())) return false;
+        }
+        return true;
+    }
+
+    private static boolean bedCellClear(PredictionContext context, int x, int y, int z) {
+        for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+            if (sameBlockCell(block.position(), x, y, z)) return false;
+        }
+        AabbSnapshot bedShape = new AabbSnapshot(x, y, z, x + 1d, y + BED_COLLISION_HEIGHT, z + 1d);
+        if (intersects(bedShape, context.player().boundingBox())) return false;
+        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+            if (intersects(bedShape, entity.boundingBox())) return false;
+        }
+        return true;
+    }
+
+    private static boolean sameBlockCell(Vec3Snapshot position, int x, int y, int z) {
+        return (int)Math.floor(position.x()) == x
+            && (int)Math.floor(position.y()) == y
+            && (int)Math.floor(position.z()) == z;
+    }
+
+    private static String blockCellKey(Vec3Snapshot position) {
+        return (int)Math.floor(position.x()) + ","
+            + (int)Math.floor(position.y()) + ","
+            + (int)Math.floor(position.z());
+    }
+
+    private static boolean intersects(AabbSnapshot first, AabbSnapshot second) {
+        return first.maxX() > second.minX() && first.minX() < second.maxX()
+            && first.maxY() > second.minY() && first.minY() < second.maxY()
+            && first.maxZ() > second.minZ() && first.minZ() < second.maxZ();
+    }
+
+    private static double aabbDistance(AabbSnapshot first, AabbSnapshot second) {
+        double dx = axisGap(first.minX(), first.maxX(), second.minX(), second.maxX());
+        double dy = axisGap(first.minY(), first.maxY(), second.minY(), second.maxY());
+        double dz = axisGap(first.minZ(), first.maxZ(), second.minZ(), second.maxZ());
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static double axisGap(double minA, double maxA, double minB, double maxB) {
+        if (maxA < minB) return minB - maxA;
+        if (maxB < minA) return minA - maxB;
+        return 0d;
     }
 
     private Optional<ThreatEvent> buildEvent(
@@ -84,7 +420,12 @@ public final class ExplosionPredictor implements ThreatPredictor {
         }
         if (radius.bounded()) confidence = lessCertain(confidence, Confidence.BOUNDED);
 
-        DamageRange raw = triggerable
+        boolean fusedMotionEnvelope = !triggerable
+            && impact.latest() > 0L
+            && (hasMotion(sourceVelocity) || hasMotion(context.player().velocity()));
+        if (fusedMotionEnvelope) confidence = lessCertain(confidence, Confidence.BOUNDED);
+
+        DamageRange raw = triggerable || fusedMotionEnvelope
             ? triggerableDamageEnvelope(radius, center, sourceVelocity, impact.latest(), context, world)
             : damageAt(radius, center, context.player().position(), context.player().boundingBox(), world);
         float rawMin = raw.min();
@@ -195,6 +536,32 @@ public final class ExplosionPredictor implements ThreatPredictor {
         return new RadiusRange(min, max);
     }
 
+    private static boolean hasMotion(Vec3Snapshot velocity) {
+        return velocity.x() != 0d || velocity.y() != 0d || velocity.z() != 0d;
+    }
+
+    private static Vec3Snapshot explosionCenter(WorldSnapshot.EntitySnapshot entity) {
+        String encodedOffset = entity.properties().get("explosion_center_y_offset");
+        if (encodedOffset == null) return entity.position();
+        try {
+            double offset = Double.parseDouble(encodedOffset);
+            if (!Double.isFinite(offset)) return entity.position();
+            return new Vec3Snapshot(entity.position().x(), entity.position().y() + offset, entity.position().z());
+        } catch (NumberFormatException ignored) {
+            return entity.position();
+        }
+    }
+
+    private static double parseFiniteNonNegative(String value, double fallback) {
+        if (value == null) return fallback;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) && parsed >= 0d ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
     private static Float parsePositiveFloat(String value) {
         if (value == null) return null;
         try {
@@ -283,7 +650,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
             boolean intersects = slab(from.x(), to.x() - from.x(), minX, maxX, range)
                 && slab(from.y(), to.y() - from.y(), minY, maxY, range)
                 && slab(from.z(), to.z() - from.z(), minZ, maxZ, range);
-            return intersects && range[1] > RAY_ORIGIN_EPSILON;
+            return intersects && range[1] > RAY_ORIGIN_EPSILON && range[0] < 1.0 - RAY_ORIGIN_EPSILON;
         }
 
         private static boolean slab(double origin, double direction, double min, double max, double[] range) {
