@@ -109,6 +109,7 @@ final class MinecraftNearbyBlockSnapshotFactory {
 
     private static WorldSnapshot.BlockSnapshot snapshot(ClientLevel level, BlockPos pos, BlockState state) {
         Map<String, String> properties = new LinkedHashMap<>();
+        properties.put("replaceable", Boolean.toString(state.canBeReplaced()));
         var collisionShape = state.getCollisionShape(level, pos);
         boolean collision = !collisionShape.isEmpty();
         MinecraftCollisionShapeSnapshot.write(
