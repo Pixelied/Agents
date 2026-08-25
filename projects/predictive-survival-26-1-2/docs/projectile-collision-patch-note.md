@@ -1,1 +1,0 @@
-Temporary implementation note: the exact projectile collision RED is reproduced and the minimal production patch has been reviewed locally. This note will be removed before final verification.
