@@ -25,7 +25,7 @@ import java.util.function.Predicate;
 
 /** Captures the fixed nearby block cube without thousands of ClientLevel lookups per frame. */
 final class MinecraftNearbyBlockSnapshotFactory {
-    private static final int HORIZONTAL_RANGE = 8;
+    private static final int HORIZONTAL_RANGE = 12;
     private static final int VERTICAL_RANGE = 12;
     private static final Predicate<BlockState> NON_AIR = state -> !state.isAir();
     private static final Comparator<WorldSnapshot.BlockSnapshot> VANILLA_SCAN_ORDER = Comparator
