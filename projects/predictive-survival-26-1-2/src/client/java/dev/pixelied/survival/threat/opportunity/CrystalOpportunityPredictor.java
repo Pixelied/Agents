@@ -26,6 +26,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
     private static final String BEDROCK = "minecraft:bedrock";
     private static final double CRYSTAL_HALF_WIDTH = 1.0d;
     private static final double CRYSTAL_HEIGHT = 2.0d;
+    private static final double SERVER_USE_ON_RANGE_BUFFER = 1.0d;
 
     private final ExplosionThreatFactory explosionFactory = new ExplosionThreatFactory();
     private final VanillaDamageOracle damageOracle = new VanillaDamageOracle();
@@ -52,7 +53,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                 int y = (int)Math.floor(support.position().y());
                 int z = (int)Math.floor(support.position().z());
                 AabbSnapshot supportBox = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
-                if (!withinRange(eye, supportBox, blockRange)) continue;
+                if (!withinRange(eye, supportBox, blockRange + SERVER_USE_ON_RANGE_BUFFER)) continue;
                 if (hasObservedBlockAt(context.world().blocks(), x, y + 1, z)) continue;
 
                 AabbSnapshot placementVolume = new AabbSnapshot(
@@ -106,6 +107,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                 evidence.put("support", x + "," + y + "," + z);
                 evidence.put("visible_crystal", Boolean.toString(visibleCrystal));
                 evidence.put("block_interaction_range", Double.toString(blockRange));
+                evidence.put("server_use_on_range_buffer", Double.toString(SERVER_USE_ON_RANGE_BUFFER));
                 evidence.put("entity_interaction_range", Double.toString(entityRange));
                 result.add(new LethalOpportunity(
                     id,
