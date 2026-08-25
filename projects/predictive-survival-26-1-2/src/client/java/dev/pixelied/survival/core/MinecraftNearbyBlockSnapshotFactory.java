@@ -133,7 +133,10 @@ final class MinecraftNearbyBlockSnapshotFactory {
             }
         } else if (state.getBlock() instanceof RespawnAnchorBlock) {
             boolean works = (Boolean) level.environmentAttributes().getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, pos);
-            if (!works && state.getValue(RespawnAnchorBlock.CHARGE) > 0) {
+            int charge = state.getValue(RespawnAnchorBlock.CHARGE);
+            properties.put("anchor_explodes", Boolean.toString(!works));
+            properties.put("anchor_charge", Integer.toString(charge));
+            if (!works && charge > 0) {
                 properties.put("explosion_radius", "5");
                 properties.put("triggerable", "true");
                 properties.put("source_key", "minecraft:bad_respawn_point");
