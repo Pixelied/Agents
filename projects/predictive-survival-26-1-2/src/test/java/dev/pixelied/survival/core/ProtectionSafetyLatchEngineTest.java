@@ -18,6 +18,7 @@ import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +45,34 @@ class ProtectionSafetyLatchEngineTest {
         assertTrue(runtime.lastLethalWithoutProtection, "planning-only lethal risk must latch restoration too");
         assertInstanceOf(SurvivalAction.EquipDeathProtection.class, runtime.startedAction);
         assertEquals(secondTotem, runtime.startedAction);
+    }
+
+    @Test
+    void newlyAuthoritativeOnlyTotemPreemptsInFlightShieldThatWouldReplaceIt() {
+        ThreatTimeline planning = doubleLethalTimeline();
+        SurvivalAction.RaiseShield unsafeShield = routedMainHandShield();
+        SurvivalAction.EquipDeathProtection secondTotem = secondTotem();
+        SurvivalEngine.EngineFrame first = frame(
+            unprotectedPlayer(),
+            planning,
+            List.of(unsafeShield, secondTotem)
+        );
+        SurvivalEngine.EngineFrame second = frame(
+            protectedPlayer(),
+            planning,
+            List.of(unsafeShield, secondTotem)
+        );
+        SequenceRuntime runtime = new SequenceRuntime(List.of(first, second));
+        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(32));
+
+        engine.tick();
+        assertEquals(unsafeShield, runtime.startedActions.getFirst(), "first frame should establish the in-flight shield");
+
+        engine.tick();
+
+        assertEquals(2, runtime.startedActions.size(), "unsafe in-flight shield must be replaced immediately");
+        assertEquals(secondTotem, runtime.startedActions.get(1));
+        assertEquals(0, runtime.observeCalls, "unsafe action must be preempted before another observe/reconcile cycle");
     }
 
     private static SurvivalEngine.EngineFrame frame(
@@ -106,6 +135,14 @@ class ProtectionSafetyLatchEngineTest {
     }
 
     private static PlayerSnapshot protectedPlayer() {
+        return player(DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.deterministicNoOp()));
+    }
+
+    private static PlayerSnapshot unprotectedPlayer() {
+        return player(DeathProtectionSnapshot.none());
+    }
+
+    private static PlayerSnapshot player(DeathProtectionSnapshot protection) {
         return new PlayerSnapshot(
             5f,
             0f,
@@ -117,11 +154,11 @@ class ProtectionSafetyLatchEngineTest {
             StatusEffectsSnapshot.none(),
             BlockingSnapshot.none(),
             HurtState.unknown(),
-            DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.deterministicNoOp()),
+            protection,
             new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
             new Vec3Snapshot(0.3, 0, 0.3),
             new Vec3Snapshot(0, 0, 0),
-            Map.of("main_hand", "minecraft:totem_of_undying", "off_hand", "minecraft:air")
+            Map.of("main_hand", protection.mainHand().isPresent() ? "minecraft:totem_of_undying" : "minecraft:air", "off_hand", "minecraft:air")
         );
     }
 
@@ -200,6 +237,36 @@ class ProtectionSafetyLatchEngineTest {
 
         @Override
         public ExecutionStatus observe(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
+            return new ExecutionStatus.WaitingForServer("pending");
+        }
+    }
+
+    private static final class SequenceRuntime implements SurvivalEngine.RuntimeAdapter {
+        private final List<SurvivalEngine.EngineFrame> frames;
+        private final List<SurvivalAction> startedActions = new ArrayList<>();
+        private int captureIndex;
+        private int observeCalls;
+
+        private SequenceRuntime(List<SurvivalEngine.EngineFrame> frames) {
+            this.frames = List.copyOf(frames);
+        }
+
+        @Override
+        public SurvivalEngine.EngineFrame capture() {
+            int index = Math.min(captureIndex, frames.size() - 1);
+            captureIndex++;
+            return frames.get(index);
+        }
+
+        @Override
+        public ExecutionStatus begin(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
+            startedActions.add(action);
+            return new ExecutionStatus.WaitingForServer("sent");
+        }
+
+        @Override
+        public ExecutionStatus observe(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
+            observeCalls++;
             return new ExecutionStatus.WaitingForServer("pending");
         }
     }
