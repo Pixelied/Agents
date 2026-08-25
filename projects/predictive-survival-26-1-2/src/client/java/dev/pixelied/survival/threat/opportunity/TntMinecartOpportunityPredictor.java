@@ -42,7 +42,8 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             Map<String, String> properties = cart.properties();
             if (!Boolean.parseBoolean(properties.getOrDefault("tnt_minecart", "false"))) continue;
             if (Boolean.parseBoolean(properties.getOrDefault("tnt_minecart_primed", "false"))) continue;
-            if (!Boolean.parseBoolean(properties.getOrDefault("tnt_explodes", "false"))) continue;
+            String tntExplodes = properties.getOrDefault("tnt_explodes", "unknown");
+            if ("false".equals(tntExplodes)) continue;
 
             Trigger trigger = earliestTrigger(cart, context.world());
             if (trigger == null) continue;
@@ -80,6 +81,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             evidence.put("trigger_speed_sqr", Double.toString(trigger.speedSqr()));
             evidence.put("explosion_radius_min", Float.toString(radius.min()));
             evidence.put("explosion_radius_max", Float.toString(radius.max()));
+            evidence.put("tnt_explodes", tntExplodes);
             if (trigger.projectileSpeedSqr() != null) {
                 evidence.put("projectile_speed_sqr", Double.toString(trigger.projectileSpeedSqr()));
             }
