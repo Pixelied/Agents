@@ -32,6 +32,7 @@ import dev.pixelied.survival.threat.SplashStatusThreatMemory;
 import dev.pixelied.survival.threat.ThreatPredictor;
 import dev.pixelied.survival.threat.ThreatPredictorRegistry;
 import dev.pixelied.survival.threat.WardenSonicBoomPredictor;
+import dev.pixelied.survival.threat.opportunity.CrystalOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunityRegistry;
 import dev.pixelied.survival.threat.opportunity.OpportunityTimelineAssembler;
@@ -104,7 +105,9 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             environment::predict,
             splashStatusMemory
         ));
-        this.opportunityPredictors = new LethalOpportunityRegistry(List.of());
+        this.opportunityPredictors = new LethalOpportunityRegistry(List.of(
+            new CrystalOpportunityPredictor()
+        ));
         this.opportunityTimelineAssembler = new OpportunityTimelineAssembler();
         this.candidateGenerator = new SurvivalCandidateGenerator();
         this.protectionExecutor = new DeathProtectionActionExecutor();
