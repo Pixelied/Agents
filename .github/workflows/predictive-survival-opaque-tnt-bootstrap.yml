@@ -59,12 +59,13 @@ jobs:
           if entry not in text:
               raise SystemExit('PrimedTntAccessor mixin entry missing')
           mixins.write_text(text.replace(entry, '', 1))
-
-          accessor = root / 'src/client/java/dev/pixelied/survival/mixin/PrimedTntAccessor.java'
-          if not accessor.exists():
-              raise SystemExit('PrimedTntAccessor source missing')
-          accessor.unlink()
           PY
+
+          accessor='projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/mixin/PrimedTntAccessor.java'
+          if [ ! -f "$accessor" ]; then
+            echo 'PrimedTntAccessor source missing'
+            exit 1
+          fi
 
           (
             cd projects/predictive-survival-26-1-2
@@ -74,6 +75,19 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A projects/predictive-survival-26-1-2
+          git add \
+            projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java \
+            projects/predictive-survival-26-1-2/src/main/resources/predictive_survival.client.mixins.json
+          git rm "$accessor"
+          staged=$(git diff --cached --name-only)
+          expected=$(printf '%s\n' \
+            'projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java' \
+            'projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/mixin/PrimedTntAccessor.java' \
+            'projects/predictive-survival-26-1-2/src/main/resources/predictive_survival.client.mixins.json')
+          if [ "$staged" != "$expected" ]; then
+            echo 'unexpected staged paths:'
+            printf '%s\n' "$staged"
+            exit 1
+          fi
           git commit -m 'fix: bound opaque Primed TNT explosion power'
           git push origin "HEAD:$HEAD_REF"
