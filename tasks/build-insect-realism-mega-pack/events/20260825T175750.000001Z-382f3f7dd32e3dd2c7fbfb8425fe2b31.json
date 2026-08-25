@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "382f3f7dd32e3dd2c7fbfb8425fe2b31",
+  "task_id": "build-insect-realism-mega-pack",
+  "agent_id": "chatgpt-insect-research-4112",
+  "type": "progress",
+  "message": "Completed the primary ant evidence corpus gate: 39 traceable sources, 2343 reviewed page-equivalent, all 13 priority research families covered by multiple independent sources, and 15 local tests passing. Synced project commit e46a03ec22d42dd620e1b2f4077c92d26c21261b.",
+  "data": {
+    "project_branch": "project/insect-realism-overlay",
+    "project_commit": "e46a03ec22d42dd620e1b2f4077c92d26c21261b",
+    "sources": 39,
+    "page_equivalent": 2343,
+    "tests_passing": 15
+  },
+  "created_at": "2026-08-25T17:57:50+00:00"
+}
