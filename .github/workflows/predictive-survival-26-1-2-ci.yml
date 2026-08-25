@@ -13,7 +13,7 @@ on:
       - '.github/workflows/predictive-survival-26-1-2-ci.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -27,98 +27,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-
-      - name: Apply source-backed Wither spawn explosion fix
-        if: github.event_name == 'pull_request'
-        shell: bash
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          if [ -z "$HEAD_REF" ] || [ -z "$EVENT_HEAD" ]; then
-            echo 'missing pull-request head metadata'
-            exit 1
-          fi
-          git fetch origin "$HEAD_REF"
-          remote_head=$(git rev-parse "origin/$HEAD_REF")
-          if [ "$remote_head" != "$EVENT_HEAD" ]; then
-            echo "branch moved: event=$EVENT_HEAD remote=$remote_head"
-            exit 1
-          fi
-          git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
-          python3 <<'PY'
-          from pathlib import Path
-
-          root = Path('projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival')
-
-          world = root / 'core/MinecraftWorldSnapshotFactory.java'
-          text = world.read_text()
-          import_anchor = 'import net.minecraft.world.entity.boss.enderdragon.EndCrystal;\n'
-          if 'import net.minecraft.world.entity.boss.wither.WitherBoss;' in text:
-              raise SystemExit('WitherBoss import already present; refusing duplicate bootstrap')
-          if import_anchor not in text:
-              raise SystemExit('WorldSnapshot import anchor missing')
-          text = text.replace(
-              import_anchor,
-              import_anchor + 'import net.minecraft.world.entity.boss.wither.WitherBoss;\n',
-              1,
-          )
-          relevance_anchor = '''    private static boolean isThreatRelevant(Entity entity) {\n        if (entity instanceof AreaEffectCloud\n'''
-          if relevance_anchor not in text:
-              raise SystemExit('threat-relevance anchor missing')
-          text = text.replace(
-              relevance_anchor,
-              '''    private static boolean isThreatRelevant(Entity entity) {\n        if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) return true;\n        if (entity instanceof AreaEffectCloud\n''',
-              1,
-          )
-          explosion_anchor = '''        } else if (entity instanceof EndCrystal) {\n            properties.put("explosion_radius", "6");\n            properties.put("triggerable", "true");\n            properties.put("source_key", "minecraft:explosion");\n            properties.put("scales_with_difficulty", "true");\n        } else if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) {\n'''
-          if explosion_anchor not in text:
-              raise SystemExit('entity explosion anchor missing')
-          text = text.replace(
-              explosion_anchor,
-              '''        } else if (entity instanceof EndCrystal) {\n            properties.put("explosion_radius", "6");\n            properties.put("triggerable", "true");\n            properties.put("source_key", "minecraft:explosion");\n            properties.put("scales_with_difficulty", "true");\n        } else if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) {\n            properties.put("explosion_radius", "7");\n            properties.put("fuse_ticks", Integer.toString(Math.max(0, wither.getInvulnerableTicks())));\n            properties.put("explosion_center_y_offset", Double.toString(wither.getEyeY() - wither.getY()));\n            properties.put("source_key", "minecraft:explosion");\n            properties.put("scales_with_difficulty", "true");\n        } else if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) {\n''',
-              1,
-          )
-          world.write_text(text)
-
-          predictor = root / 'threat/ExplosionPredictor.java'
-          text = predictor.read_text()
-          loop_anchor = '''        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {\n            buildEvent(\n                "explosion:" + entity.id(), entity.typeKey(), entity.position(), entity.velocity(), entity.properties(),\n                context, world\n            ).ifPresent(events::add);\n        }\n'''
-          if loop_anchor not in text:
-              raise SystemExit('ExplosionPredictor entity-loop anchor missing')
-          text = text.replace(
-              loop_anchor,
-              '''        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {\n            Vec3Snapshot center = explosionCenter(entity);\n            buildEvent(\n                "explosion:" + entity.id(), entity.typeKey(), center, entity.velocity(), entity.properties(),\n                context, world\n            ).ifPresent(events::add);\n        }\n''',
-              1,
-          )
-          helper_anchor = '''    private static boolean hasMotion(Vec3Snapshot velocity) {\n        return velocity.x() != 0d || velocity.y() != 0d || velocity.z() != 0d;\n    }\n\n'''
-          if helper_anchor not in text:
-              raise SystemExit('ExplosionPredictor helper anchor missing')
-          text = text.replace(
-              helper_anchor,
-              '''    private static boolean hasMotion(Vec3Snapshot velocity) {\n        return velocity.x() != 0d || velocity.y() != 0d || velocity.z() != 0d;\n    }\n\n    private static Vec3Snapshot explosionCenter(WorldSnapshot.EntitySnapshot entity) {\n        String encodedOffset = entity.properties().get("explosion_center_y_offset");\n        if (encodedOffset == null) return entity.position();\n        try {\n            double offset = Double.parseDouble(encodedOffset);\n            if (!Double.isFinite(offset)) return entity.position();\n            return new Vec3Snapshot(entity.position().x(), entity.position().y() + offset, entity.position().z());\n        } catch (NumberFormatException ignored) {\n            return entity.position();\n        }\n    }\n\n''',
-              1,
-          )
-          predictor.write_text(text)
-          PY
-
-          (
-            cd projects/predictive-survival-26-1-2
-            ./gradlew --no-daemon clean test build
-          )
-          git diff --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
-            projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java \
-            projects/predictive-survival-26-1-2/src/client/java/dev/pixelied/survival/threat/ExplosionPredictor.java
-          if git diff --cached --quiet; then
-            echo 'expected Wither production changes were not produced'
-            exit 1
-          fi
-          git commit -m 'fix: predict Wither spawn explosion deadline'
-          git push origin "HEAD:$HEAD_REF"
 
       # setup-gradle validates the checked-in wrapper before any project task executes.
       - name: Validate Gradle 9.5.1 wrapper
@@ -194,6 +102,9 @@ jobs:
             tasks/design-predictive-survival-26-1-2 \
             | tar -xf - -C "$source_root"
 
+          # The repository cleanup moved the canonical design/plan documents into the physical
+          # project tree and removed the old design/* and plan/* branches. Preserve the historical
+          # top-level docs layout in release archives without depending on deleted branches.
           mkdir -p "$source_root/docs/superpowers"
           cp -a "$source_root/projects/predictive-survival-26-1-2/docs/superpowers/." \
             "$source_root/docs/superpowers/"
