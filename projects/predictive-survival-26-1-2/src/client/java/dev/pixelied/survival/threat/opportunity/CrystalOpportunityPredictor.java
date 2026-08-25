@@ -7,6 +7,7 @@ import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.damage.VanillaDamageOracle;
+import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.threat.ExplosionSpec;
 import dev.pixelied.survival.threat.ExplosionThreatFactory;
 import dev.pixelied.survival.threat.SnapshotOcclusionView;
@@ -38,7 +39,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
         for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
             if (!"minecraft:player".equals(attacker.typeKey())) continue;
             boolean visibleCrystal = holdsCrystal(attacker.properties());
-            if (!visibleCrystal) continue;
+            if (!visibleCrystal && context.safetyMode() != SafetyMode.SAFE) continue;
 
             Vec3Snapshot eye = eyePosition(attacker);
             Double blockRange = positiveDouble(attacker.properties().get("block_interaction_range"));
@@ -111,7 +112,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                     OpportunityFamily.CRYSTAL,
                     projected,
                     Confidence.POTENTIAL,
-                    2,
+                    visibleCrystal ? 2 : 3,
                     evidence
                 ));
             }
