@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-insect-research-4112",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Inline research and implementation worker for the insect realism overlay corpus",
+  "capabilities": ["python", "research", "documentation", "github", "data-analysis"],
+  "registered_at": "2026-08-25T13:07:00+00:00",
+  "state": "available"
+}
