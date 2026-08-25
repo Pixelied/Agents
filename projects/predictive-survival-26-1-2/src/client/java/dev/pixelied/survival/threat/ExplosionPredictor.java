@@ -5,6 +5,7 @@ import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
+import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.timeline.ThreatEvent;
 
 import java.util.ArrayList;
@@ -43,17 +44,28 @@ public final class ExplosionPredictor implements ThreatPredictor {
         PredictionContext context,
         OcclusionView world
     ) {
-        RadiusRange radius = parseRadiusRange(properties);
-        if (radius == null) return Optional.empty();
+        RadiusResolution radiusResolution = resolveRadius(properties, context.safetyMode());
+        if (radiusResolution == null) return Optional.empty();
+        RadiusRange radius = radiusResolution.radius();
 
         TickWindow impact;
         Confidence confidence;
         boolean triggerable = Boolean.parseBoolean(properties.getOrDefault("triggerable", "false"));
         Integer fuse = parseNonNegativeInt(properties.get("fuse_ticks"));
         if (fuse != null) {
-            if (fuse > context.limits().maxProjectileHorizonTicks()) return Optional.empty();
-            impact = new TickWindow(fuse, fuse);
-            confidence = Confidence.EXACT;
+            if (Boolean.parseBoolean(properties.getOrDefault("countdown_server_synchronized", "false"))) {
+                impact = ExplosionTiming.ageCountdown(fuse, context.timing().observationAgeWindow());
+                if (impact.earliest() > context.limits().maxProjectileHorizonTicks()) return Optional.empty();
+                impact = new TickWindow(
+                    impact.earliest(),
+                    Math.min(impact.latest(), context.limits().maxProjectileHorizonTicks())
+                );
+                confidence = impact.earliest() == impact.latest() ? Confidence.EXACT : Confidence.BOUNDED;
+            } else {
+                if (fuse > context.limits().maxProjectileHorizonTicks()) return Optional.empty();
+                impact = new TickWindow(fuse, fuse);
+                confidence = Confidence.EXACT;
+            }
         } else {
             Integer fuseMin = parseNonNegativeInt(properties.get("fuse_ticks_min"));
             Integer fuseMax = parseNonNegativeInt(properties.get("fuse_ticks_max"));
@@ -74,7 +86,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
                 return Optional.empty();
             }
         }
-        if (radius.bounded()) confidence = lessCertain(confidence, Confidence.BOUNDED);
+        confidence = lessCertain(confidence, radiusResolution.confidenceFloor());
 
         ExplosionSpec spec = new ExplosionSpec(
             center,
@@ -106,14 +118,29 @@ public final class ExplosionPredictor implements ThreatPredictor {
             && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
     }
 
-    private static RadiusRange parseRadiusRange(Map<String, String> properties) {
+    private static RadiusResolution resolveRadius(Map<String, String> properties, SafetyMode safetyMode) {
         Float exact = parsePositiveFloat(properties.get("explosion_radius"));
-        if (exact != null) return new RadiusRange(exact, exact);
+        if (exact != null) return new RadiusResolution(new RadiusRange(exact, exact), Confidence.EXACT);
 
         Float min = parseNonNegativeFloat(properties.get("explosion_radius_min"));
         Float max = parsePositiveFloat(properties.get("explosion_radius_max"));
-        if (min == null || max == null || min > max) return null;
-        return new RadiusRange(min, max);
+        if (min != null && max != null && min <= max) {
+            return new RadiusResolution(new RadiusRange(min, max), Confidence.BOUNDED);
+        }
+
+        if (!Boolean.parseBoolean(properties.getOrDefault("server_hidden_explosion_power", "false"))) {
+            return null;
+        }
+
+        Float defaultRadius = parsePositiveFloat(properties.get("explosion_radius_default"));
+        Float hiddenMin = parseNonNegativeFloat(properties.get("explosion_radius_hidden_min"));
+        Float hiddenMax = parsePositiveFloat(properties.get("explosion_radius_hidden_max"));
+        if (safetyMode == SafetyMode.SAFE) {
+            if (hiddenMin == null || hiddenMax == null || hiddenMin > hiddenMax) return null;
+            return new RadiusResolution(new RadiusRange(hiddenMin, hiddenMax), Confidence.BOUNDED);
+        }
+        if (defaultRadius == null) return null;
+        return new RadiusResolution(new RadiusRange(defaultRadius, defaultRadius), Confidence.POTENTIAL);
     }
 
     private static Float parsePositiveFloat(String value) {
@@ -150,9 +177,9 @@ public final class ExplosionPredictor implements ThreatPredictor {
         return first.ordinal() >= second.ordinal() ? first : second;
     }
 
+    private record RadiusResolution(RadiusRange radius, Confidence confidenceFloor) {
+    }
+
     private record RadiusRange(float min, float max) {
-        private boolean bounded() {
-            return Float.compare(min, max) != 0;
-        }
     }
 }
