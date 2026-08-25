@@ -16,8 +16,9 @@ class CreeperOpaqueExplosionContractTest {
             "src/client/java/dev/pixelied/survival/core/MinecraftWorldSnapshotFactory.java"
         ));
 
-        int start = source.indexOf("entity instanceof Creeper creeper");
-        int end = source.indexOf("if (entity instanceof Mob mob)", start);
+        String branchAnchor = "} else if (entity instanceof Creeper creeper";
+        int start = source.indexOf(branchAnchor);
+        int end = source.indexOf("} else if (", start + branchAnchor.length());
         assertTrue(start >= 0 && end > start, "creeper snapshot branch must exist");
         String creeper = source.substring(start, end);
 
