@@ -14,12 +14,9 @@ import dev.pixelied.survival.threat.SnapshotOcclusionView;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /** Predicts legal place-then-use hostile bed bursts before either bed half exists. */
 public final class BedOpportunityPredictor implements LethalOpportunityPredictor {
@@ -40,7 +37,7 @@ public final class BedOpportunityPredictor implements LethalOpportunityPredictor
     public List<LethalOpportunity> predict(PredictionContext context) {
         if (context == null) throw new NullPointerException("context");
 
-        Set<BlockCell> occupied = occupiedCells(context.world().blocks());
+        Map<BlockCell, WorldSnapshot.BlockSnapshot> blocksByCell = blocksByCell(context.world().blocks());
         Map<String, LethalOpportunity> result = new LinkedHashMap<>();
         SnapshotOcclusionView postExplosionWorld = new SnapshotOcclusionView(context.world().blocks());
 
@@ -57,16 +54,23 @@ public final class BedOpportunityPredictor implements LethalOpportunityPredictor
             if (eye == null || blockRange == null || facing == null) continue;
 
             for (WorldSnapshot.BlockSnapshot target : context.world().blocks()) {
-                if (!target.collision()) continue;
                 BlockCell targetCell = cell(target.position());
                 if (!withinKnownNearbyAirRegion(context, targetCell)) continue;
                 if (!withinServerUseOnRange(eye, targetCell.box(), blockRange)) continue;
 
-                for (int[] face : USE_ON_FACES) {
-                    BlockCell foot = targetCell.offset(face[0], face[1], face[2]);
+                boolean targetReplaceable = isReplaceable(target);
+                int placementVariants = targetReplaceable ? 1 : USE_ON_FACES.length;
+                for (int index = 0; index < placementVariants; index++) {
+                    BlockCell foot;
+                    if (targetReplaceable) {
+                        foot = targetCell;
+                    } else {
+                        int[] face = USE_ON_FACES[index];
+                        foot = targetCell.offset(face[0], face[1], face[2]);
+                    }
                     BlockCell head = foot.offset(facing.dx, 0, facing.dz);
                     if (!withinKnownNearbyAirRegion(context, foot) || !withinKnownNearbyAirRegion(context, head)) continue;
-                    if (occupied.contains(foot) || occupied.contains(head)) continue;
+                    if (!isPlacementCellAvailable(blocksByCell, foot) || !isPlacementCellAvailable(blocksByCell, head)) continue;
                     if (placementObstructed(context, foot)) continue;
 
                     Vec3Snapshot center = head.center();
@@ -103,6 +107,7 @@ public final class BedOpportunityPredictor implements LethalOpportunityPredictor
                     Map<String, String> evidence = new LinkedHashMap<>();
                     evidence.put("attacker_id", attacker.id());
                     evidence.put("target", targetCell.serialized());
+                    evidence.put("target_replaceable", Boolean.toString(targetReplaceable));
                     evidence.put("foot", foot.serialized());
                     evidence.put("head", head.serialized());
                     evidence.put("facing", facing.serialized);
@@ -145,10 +150,24 @@ public final class BedOpportunityPredictor implements LethalOpportunityPredictor
             && Math.abs(cell.y - centerY) <= NEARBY_VERTICAL_RANGE;
     }
 
-    private static Set<BlockCell> occupiedCells(List<WorldSnapshot.BlockSnapshot> blocks) {
-        Set<BlockCell> occupied = new HashSet<>(Math.max(16, blocks.size() * 2));
-        for (WorldSnapshot.BlockSnapshot block : blocks) occupied.add(cell(block.position()));
-        return occupied;
+    private static Map<BlockCell, WorldSnapshot.BlockSnapshot> blocksByCell(
+        List<WorldSnapshot.BlockSnapshot> blocks
+    ) {
+        Map<BlockCell, WorldSnapshot.BlockSnapshot> result = new LinkedHashMap<>(Math.max(16, blocks.size() * 2));
+        for (WorldSnapshot.BlockSnapshot block : blocks) result.put(cell(block.position()), block);
+        return result;
+    }
+
+    private static boolean isPlacementCellAvailable(
+        Map<BlockCell, WorldSnapshot.BlockSnapshot> blocksByCell,
+        BlockCell cell
+    ) {
+        WorldSnapshot.BlockSnapshot block = blocksByCell.get(cell);
+        return block == null || isReplaceable(block);
+    }
+
+    private static boolean isReplaceable(WorldSnapshot.BlockSnapshot block) {
+        return Boolean.parseBoolean(block.properties().getOrDefault("replaceable", "false"));
     }
 
     private static BlockCell cell(Vec3Snapshot position) {
