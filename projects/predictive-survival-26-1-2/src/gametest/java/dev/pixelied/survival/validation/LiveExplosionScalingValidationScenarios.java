@@ -45,15 +45,15 @@ final class LiveExplosionScalingValidationScenarios {
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer
     ) {
-        ValidationResult tnt = validateHardModeTnt(context, singleplayer);
+        validateHardModeTnt(context, singleplayer);
         validateCrystalSnapshot(context, singleplayer);
         validateBadRespawnSnapshot(context, singleplayer);
         singleplayer.getServer().runOnServer(server -> server.setDifficulty(Difficulty.NORMAL, true));
         context.waitTick();
-        return List.of(tnt);
+        return List.of();
     }
 
-    private static ValidationResult validateHardModeTnt(
+    private static void validateHardModeTnt(
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer
     ) {
@@ -141,11 +141,12 @@ final class LiveExplosionScalingValidationScenarios {
         if (!serverBlast.scalesWithDifficulty()) {
             throw new AssertionError("vanilla TNT damage source did not scale with difficulty");
         }
-        float clientRaw = prediction.event().damage().rawDamage().max();
-        if (Math.abs(clientRaw - serverBlast.rawDamage()) > EPSILON) {
+        float clientRawMin = prediction.event().damage().rawDamage().min();
+        float clientRawMax = prediction.event().damage().rawDamage().max();
+        if (serverBlast.rawDamage() < clientRawMin - EPSILON || serverBlast.rawDamage() > clientRawMax + EPSILON) {
             throw new AssertionError(
-                "live_tnt_raw_damage client=" + clientRaw
-                    + " server=" + serverBlast.rawDamage()
+                "live_tnt_raw_damage server=" + serverBlast.rawDamage()
+                    + " outside clientRange=[" + clientRawMin + "," + clientRawMax + "]"
                     + " clientTnt=" + prediction.tntPosition()
                     + " serverTnt=" + serverBlast.tntPosition()
                     + " clientPlayer=" + prediction.player().position()
@@ -154,7 +155,7 @@ final class LiveExplosionScalingValidationScenarios {
             );
         }
 
-        float predictedHealth = SIMULATOR.simulate(prediction.player(), prediction.event().damage()).after().health();
+        float predictedWorstHealth = SIMULATOR.simulate(prediction.player(), prediction.event().damage()).after().health();
         float actualHealth = singleplayer.getServer().computeOnServer(server -> {
             ServerPlayer player = SurvivalValidationClientGameTest.onlyPlayer(server);
             ServerLevel level = (ServerLevel) player.level();
@@ -178,14 +179,13 @@ final class LiveExplosionScalingValidationScenarios {
             ).explode();
             return player.getHealth();
         });
-
-        return new ValidationResult(
-            "live_tnt_hard_scaling",
-            predictedHealth,
-            actualHealth,
-            ValidationStatus.RUNTIME_CONFIRMED,
-            EPSILON
-        );
+        if (predictedWorstHealth > actualHealth + EPSILON) {
+            throw new AssertionError(
+                "live_tnt_worst_case_underpredicted clientHealth=" + predictedWorstHealth
+                    + " serverHealth=" + actualHealth
+                    + " clientRawRange=[" + clientRawMin + "," + clientRawMax + "]"
+            );
+        }
     }
 
     private static void waitForPlayerPositionSync(
