@@ -106,10 +106,11 @@ public final class MeleePredictor implements ThreatPredictor {
             flags.add(DamageFlag.BYPASSES_SHIELD);
         }
 
-        String defaultSource = spear
+        String sourceKey = spear
             ? "minecraft:spear"
-            : maceSmash ? "minecraft:mace_smash" : defaultMeleeSource(attacker);
-        String sourceKey = properties.getOrDefault("source_key", defaultSource);
+            : maceSmash
+                ? "minecraft:mace_smash"
+                : properties.getOrDefault("source_key", defaultMeleeSource(attacker));
         Float armorAdjustment = parseFiniteFloat(properties.get("armor_effectiveness_adjustment"));
         float armorEffectivenessAdjustment = armorAdjustment == null ? 0f : armorAdjustment;
         Float disableSeconds = parseFiniteFloat(properties.get("blocking_disable_seconds"));
