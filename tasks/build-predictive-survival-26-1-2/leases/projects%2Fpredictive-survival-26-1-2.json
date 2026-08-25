@@ -4,10 +4,12 @@
   "task_id": "build-predictive-survival-26-1-2",
   "scope": "projects/predictive-survival-26-1-2",
   "owner": "openai-survival-burst-guard-b29c",
-  "state": "active",
+  "state": "released",
   "intent": "Reproduce and fix the real-world failure where first-observable-tick or near-instant lethal threats can kill before Predictive Survival establishes server-authoritative protection. Separate deterministic fuse/wind-up threats from adversarial triggerable burst threats, add realistic exact-runtime regressions, and preserve fail-closed timing semantics.",
   "claimed_at": "2026-08-24T20:09:00+00:00",
   "heartbeat_at": "2026-08-24T20:09:00+00:00",
   "expires_at": "2026-08-25T20:09:00+00:00",
-  "generation": 5
+  "generation": 5,
+  "released_at": "2026-08-25T13:47:00+00:00",
+  "release_reason": "Human-authorized release: repository owner confirmed no agent is currently working this scope; releasing stale generation-5 lease so the approved instant-burst implementation can proceed."
 }
