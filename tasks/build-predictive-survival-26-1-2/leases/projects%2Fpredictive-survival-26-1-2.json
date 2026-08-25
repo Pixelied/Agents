@@ -7,7 +7,7 @@
   "state": "active",
   "intent": "Execute the approved Predictive Survival 26.1.2 instant-burst implementation plan from the canonical good baseline, using regression-first TDD and exact-runtime verification without importing PR #40 production code.",
   "claimed_at": "2026-08-25T13:47:02+00:00",
-  "heartbeat_at": "2026-08-25T13:47:02+00:00",
-  "expires_at": "2026-08-25T17:47:02+00:00",
+  "heartbeat_at": "2026-08-25T17:31:00+00:00",
+  "expires_at": "2026-08-25T21:31:00+00:00",
   "generation": 6
 }
