@@ -157,6 +157,8 @@ public final class MinecraftWorldSnapshotFactory {
             properties.put("observation_age_ticks", "1");
         }
         if (entity instanceof Projectile projectile) {
+            properties.put("projectile", "true");
+            properties.put("on_fire", Boolean.toString(projectile.isOnFire()));
             properties.put("projectile_age_ticks", Integer.toString(Math.max(0, entity.tickCount)));
             properties.put(
                 "scales_with_difficulty",
