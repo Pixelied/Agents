@@ -20,10 +20,12 @@ class MinecraftSurvivalRuntimeOpportunityContractTest {
         assertTrue(runtime.contains("import dev.pixelied.survival.threat.opportunity.BedOpportunityPredictor;"));
         assertTrue(runtime.contains("import dev.pixelied.survival.threat.opportunity.RespawnAnchorOpportunityPredictor;"));
         assertTrue(runtime.contains("import dev.pixelied.survival.threat.opportunity.TntMinecartOpportunityPredictor;"));
+        assertTrue(runtime.contains("import dev.pixelied.survival.threat.opportunity.MeleeApproachOpportunityPredictor;"));
         assertTrue(runtime.contains("new CrystalOpportunityPredictor()"));
         assertTrue(runtime.contains("new BedOpportunityPredictor()"));
         assertTrue(runtime.contains("new RespawnAnchorOpportunityPredictor()"));
         assertTrue(runtime.contains("new TntMinecartOpportunityPredictor()"));
+        assertTrue(runtime.contains("new MeleeApproachOpportunityPredictor()"));
         assertTrue(runtime.contains("new PredictionContext(reactive.player(), reactive.world(), timing, limits, safetyMode)"));
         assertTrue(runtime.contains("ThreatTimeline actualTimeline = new ThreatTimeline(predicted);"));
         assertTrue(runtime.contains("List<LethalOpportunity> opportunities = opportunityPredictors.predictAll(context);"));
