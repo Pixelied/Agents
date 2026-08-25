@@ -12,6 +12,7 @@ import dev.pixelied.survival.planner.ContingencyPlanner;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalPlan;
 import dev.pixelied.survival.planner.SurvivalPlanner;
+import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
@@ -178,7 +179,7 @@ public final class SurvivalEngine {
     }
 
     public void replaceConfig(SurvivalConfig replacement) {
-        config.set(Objects.requireNonNull(replacement, "replacement"));
+        config.set(Objects.requireNonNull(replacement, "config"));
         failedActions.clear();
         clearCurrentPlan();
     }
@@ -381,13 +382,30 @@ public final class SurvivalEngine {
 
     public record EngineFrame(
         PredictionContext context,
-        ThreatTimeline timeline,
+        ThreatTimeline actualTimeline,
+        List<LethalOpportunity> opportunities,
+        ThreatTimeline planningTimeline,
         List<SurvivalAction> candidates
     ) {
         public EngineFrame {
             context = Objects.requireNonNull(context, "context");
-            timeline = Objects.requireNonNull(timeline, "timeline");
+            actualTimeline = Objects.requireNonNull(actualTimeline, "actualTimeline");
+            opportunities = List.copyOf(Objects.requireNonNull(opportunities, "opportunities"));
+            planningTimeline = Objects.requireNonNull(planningTimeline, "planningTimeline");
             candidates = List.copyOf(Objects.requireNonNull(candidates, "candidates"));
+        }
+
+        public EngineFrame(
+            PredictionContext context,
+            ThreatTimeline timeline,
+            List<SurvivalAction> candidates
+        ) {
+            this(context, timeline, List.of(), timeline, candidates);
+        }
+
+        /** Compatibility alias for callers that historically consumed the engine's planning risk. */
+        public ThreatTimeline timeline() {
+            return planningTimeline;
         }
     }
 
