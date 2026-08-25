@@ -40,9 +40,8 @@ public final class MeleePredictor implements ThreatPredictor {
         boolean mobModel = "mob".equals(properties.get("melee_model"));
         if (mobModel) {
             if (!withinMobRange(attacker, context.player().boundingBox(), properties)) return Optional.empty();
-        } else {
-            double reach = parseFiniteNonNegative(properties.get("attack_range"), Double.POSITIVE_INFINITY);
-            if (aabbDistance(attacker.boundingBox(), context.player().boundingBox()) > reach) return Optional.empty();
+        } else if (!ServerPlayerAttackRange.isWithin(attacker, context.player().boundingBox())) {
+            return Optional.empty();
         }
 
         String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
@@ -286,19 +285,6 @@ public final class MeleePredictor implements ThreatPredictor {
         return "minecraft:player".equals(attacker.typeKey())
             ? "minecraft:player_attack"
             : "minecraft:mob_attack";
-    }
-
-    private static double aabbDistance(dev.pixelied.survival.core.AabbSnapshot a, dev.pixelied.survival.core.AabbSnapshot b) {
-        double dx = axisGap(a.minX(), a.maxX(), b.minX(), b.maxX());
-        double dy = axisGap(a.minY(), a.maxY(), b.minY(), b.maxY());
-        double dz = axisGap(a.minZ(), a.maxZ(), b.minZ(), b.maxZ());
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
-    }
-
-    private static double axisGap(double minA, double maxA, double minB, double maxB) {
-        if (maxA < minB) return minB - maxA;
-        if (maxB < minA) return minA - maxB;
-        return 0d;
     }
 
     private static float clamp01(float value) {
