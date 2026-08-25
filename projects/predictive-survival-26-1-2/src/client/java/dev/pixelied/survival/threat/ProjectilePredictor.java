@@ -659,22 +659,23 @@ public final class ProjectilePredictor implements ThreatPredictor {
                 for (int z = minZ; z <= maxZ; z++) {
                     WorldSnapshot.BlockSnapshot block = blocks.block(x, y, z);
                     if (block == null) continue;
-                    AabbSnapshot collisionBounds = collisionBounds(block, x, y, z);
-                    double bodyT = segmentAabbEntry(from, to, bounds.expand(collisionBounds));
-                    if (Double.isFinite(bodyT) && (best == null || bodyT < best.t())) {
-                        double centerT = segmentAabbEntry(from, to, collisionBounds);
-                        Vec3Snapshot impact;
-                        if (Double.isFinite(centerT)) {
-                            impact = interpolate(from, to, centerT);
-                        } else {
-                            Vec3Snapshot center = interpolate(from, to, bodyT);
-                            impact = new Vec3Snapshot(
-                                Math.max(collisionBounds.minX(), Math.min(center.x(), collisionBounds.maxX())),
-                                Math.max(collisionBounds.minY(), Math.min(center.y(), collisionBounds.maxY())),
-                                Math.max(collisionBounds.minZ(), Math.min(center.z(), collisionBounds.maxZ()))
-                            );
+                    for (AabbSnapshot collisionBounds : collisionBounds(block, x, y, z)) {
+                        double bodyT = segmentAabbEntry(from, to, bounds.expand(collisionBounds));
+                        if (Double.isFinite(bodyT) && (best == null || bodyT < best.t())) {
+                            double centerT = segmentAabbEntry(from, to, collisionBounds);
+                            Vec3Snapshot impact;
+                            if (Double.isFinite(centerT)) {
+                                impact = interpolate(from, to, centerT);
+                            } else {
+                                Vec3Snapshot center = interpolate(from, to, bodyT);
+                                impact = new Vec3Snapshot(
+                                    Math.max(collisionBounds.minX(), Math.min(center.x(), collisionBounds.maxX())),
+                                    Math.max(collisionBounds.minY(), Math.min(center.y(), collisionBounds.maxY())),
+                                    Math.max(collisionBounds.minZ(), Math.min(center.z(), collisionBounds.maxZ()))
+                                );
+                            }
+                            best = new Collision(bodyT, impact, collisionBounds);
                         }
-                        best = new Collision(bodyT, impact, collisionBounds);
                     }
                 }
             }
@@ -682,10 +683,17 @@ public final class ProjectilePredictor implements ThreatPredictor {
         return best;
     }
 
-    private static AabbSnapshot collisionBounds(WorldSnapshot.BlockSnapshot block, int x, int y, int z) {
+    private static List<AabbSnapshot> collisionBounds(
+        WorldSnapshot.BlockSnapshot block,
+        int x,
+        int y,
+        int z
+    ) {
+        if (!block.collisionBoxes().isEmpty()) return block.collisionBoxes();
+
         AabbSnapshot fullCube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
         if (Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
-            return fullCube;
+            return List.of(fullCube);
         }
 
         Double minX = finiteUnitBound(block.properties().get("collision_min_x"));
@@ -697,12 +705,12 @@ public final class ProjectilePredictor implements ThreatPredictor {
         if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
             || maxX <= minX || maxY <= minY || maxZ <= minZ) {
             // Unknown or malformed partial collision data must not make a real obstacle disappear.
-            return fullCube;
+            return List.of(fullCube);
         }
-        return new AabbSnapshot(
+        return List.of(new AabbSnapshot(
             x + minX, y + minY, z + minZ,
             x + maxX, y + maxY, z + maxZ
-        );
+        ));
     }
 
     private static Double finiteUnitBound(String value) {
