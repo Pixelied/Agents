@@ -59,7 +59,7 @@ class ProtectionSafetyLatchEngineTest {
         );
         return new SurvivalEngine.EngineFrame(
             context,
-            ThreatTimeline.empty(),
+            new ThreatTimeline(List.of()),
             List.of(),
             planning,
             candidates
@@ -196,6 +196,11 @@ class ProtectionSafetyLatchEngineTest {
         public ExecutionStatus begin(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
             startedAction = action;
             return new ExecutionStatus.WaitingForServer("sent");
+        }
+
+        @Override
+        public ExecutionStatus observe(SurvivalAction action, SurvivalEngine.EngineFrame ignored) {
+            return new ExecutionStatus.WaitingForServer("pending");
         }
     }
 }
