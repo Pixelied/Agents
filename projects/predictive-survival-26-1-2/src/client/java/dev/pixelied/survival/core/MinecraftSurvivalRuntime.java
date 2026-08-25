@@ -36,6 +36,7 @@ import dev.pixelied.survival.threat.opportunity.BedOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.CrystalOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.RespawnAnchorOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.TntMinecartOpportunityPredictor;
+import dev.pixelied.survival.threat.opportunity.MeleeApproachOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunityRegistry;
 import dev.pixelied.survival.threat.opportunity.OpportunityTimelineAssembler;
@@ -112,7 +113,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             new CrystalOpportunityPredictor(),
             new BedOpportunityPredictor(),
             new RespawnAnchorOpportunityPredictor(),
-            new TntMinecartOpportunityPredictor()
+            new TntMinecartOpportunityPredictor(),
+            new MeleeApproachOpportunityPredictor()
         ));
         this.opportunityTimelineAssembler = new OpportunityTimelineAssembler();
         this.candidateGenerator = new SurvivalCandidateGenerator();
