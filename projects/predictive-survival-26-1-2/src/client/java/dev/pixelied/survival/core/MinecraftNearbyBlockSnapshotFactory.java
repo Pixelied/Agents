@@ -116,6 +116,7 @@ final class MinecraftNearbyBlockSnapshotFactory {
             collisionShape,
             state.isCollisionShapeFullBlock(level, pos)
         );
+        List<AabbSnapshot> collisionBoxes = MinecraftCollisionShapeSnapshot.capture(collisionShape, pos);
 
         if (state.getBlock() instanceof BedBlock) {
             BedRule rule = (BedRule) level.environmentAttributes().getValue(EnvironmentAttributes.BED_RULE, pos);
@@ -146,6 +147,7 @@ final class MinecraftNearbyBlockSnapshotFactory {
             new Vec3Snapshot(center.x, center.y, center.z),
             BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
             collision,
+            collisionBoxes,
             properties
         );
     }
