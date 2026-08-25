@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-instant-burst-c74e",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Implements the approved Predictive Survival 26.1.2 lethal-opportunity, authority-deadline, vanilla-damage, and protection-latch hardening from the canonical project baseline.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "minecraft-damage-simulation",
+    "combat-prediction",
+    "explosion-prediction",
+    "testing",
+    "github-actions",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-25T13:30:00+00:00",
+  "state": "available",
+  "state_reason": "Approved architecture and implementation plan are ready; waiting for the active Predictive Survival generation-5 project lease to become available before production edits."
+}
