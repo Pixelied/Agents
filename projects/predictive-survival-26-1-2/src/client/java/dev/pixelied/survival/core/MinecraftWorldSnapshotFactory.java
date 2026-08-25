@@ -113,7 +113,7 @@ public final class MinecraftWorldSnapshotFactory {
             || entity instanceof FallingBlockEntity
             || entity instanceof PrimedTnt
             || entity instanceof EndCrystal
-            || entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
+            || entity instanceof MinecartTNT) {
             return true;
         }
         if (entity instanceof Creeper creeper && (creeper.getSwellDir() > 0 || creeper.isIgnited())) return true;

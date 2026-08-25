@@ -20,6 +20,8 @@ import java.util.Optional;
 
 public final class ExplosionPredictor implements ThreatPredictor {
     private static final double BED_COLLISION_HEIGHT = 9d / 16d;
+    private static final double TNT_MINECART_CRASH_SPEED_SQUARED = 0.01d;
+    private static final String TNT_MINECART_MAX_OPAQUE_RADIUS = "1088.0";
     private static final int[][] HORIZONTAL_OFFSETS = {
         {1, 0}, {-1, 0}, {0, 1}, {0, -1}
     };
@@ -38,6 +40,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
                 context, world
             ).ifPresent(events::add);
         }
+        addMinecartCollisionBurstEvents(context, world, events);
         addCrystalPlacementBurstEvents(context, world, events);
         addBedPlacementBurstEvents(context, world, events);
         addAnchorChargeBurstEvents(context, events);
@@ -49,6 +52,101 @@ public final class ExplosionPredictor implements ThreatPredictor {
             ).ifPresent(events::add);
         }
         return List.copyOf(events);
+    }
+
+    private void addMinecartCollisionBurstEvents(
+        PredictionContext context,
+        OcclusionView world,
+        List<ThreatEvent> events
+    ) {
+        for (WorldSnapshot.EntitySnapshot minecart : context.world().entities()) {
+            if (!"minecraft:tnt_minecart".equals(minecart.typeKey())) continue;
+            if (hasFuseMetadata(minecart.properties())) continue;
+
+            Vec3Snapshot velocity = minecart.velocity();
+            double horizontalSpeedSquared = velocity.x() * velocity.x() + velocity.z() * velocity.z();
+            if (!Double.isFinite(horizontalSpeedSquared)
+                || horizontalSpeedSquared < TNT_MINECART_CRASH_SPEED_SQUARED) {
+                continue;
+            }
+            if (!projectedHorizontalCollision(minecart, context.world().blocks())) continue;
+
+            Map<String, String> properties = Map.of(
+                "explosion_radius_min", "0.0",
+                "explosion_radius_max", TNT_MINECART_MAX_OPAQUE_RADIUS,
+                "fuse_ticks_min", "0",
+                "fuse_ticks_max", "1",
+                "source_key", "minecraft:explosion",
+                "scales_with_difficulty", "true"
+            );
+            buildEvent(
+                "burst:minecart-collision:" + minecart.id(),
+                minecart.typeKey(),
+                minecart.position(),
+                minecart.velocity(),
+                properties,
+                context,
+                world
+            ).ifPresent(events::add);
+        }
+    }
+
+    private static boolean hasFuseMetadata(Map<String, String> properties) {
+        return properties.containsKey("fuse_ticks")
+            || properties.containsKey("fuse_ticks_min")
+            || properties.containsKey("fuse_ticks_max");
+    }
+
+    private static boolean projectedHorizontalCollision(
+        WorldSnapshot.EntitySnapshot entity,
+        List<WorldSnapshot.BlockSnapshot> blocks
+    ) {
+        Vec3Snapshot velocity = entity.velocity();
+        AabbSnapshot start = entity.boundingBox();
+        AabbSnapshot projected = translate(start, velocity);
+        for (WorldSnapshot.BlockSnapshot block : blocks) {
+            if (!block.collision()) continue;
+            AabbSnapshot collision = blockCollisionBounds(block);
+            if (collision == null) continue;
+            if (intersects(projected, collision) && !intersects(start, collision)) return true;
+        }
+        return false;
+    }
+
+    private static AabbSnapshot blockCollisionBounds(WorldSnapshot.BlockSnapshot block) {
+        int x = (int)Math.floor(block.position().x());
+        int y = (int)Math.floor(block.position().y());
+        int z = (int)Math.floor(block.position().z());
+        AabbSnapshot fullCube = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
+        if (Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"))) {
+            return fullCube;
+        }
+
+        Double minX = parseUnitBound(block.properties().get("collision_min_x"));
+        Double minY = parseUnitBound(block.properties().get("collision_min_y"));
+        Double minZ = parseUnitBound(block.properties().get("collision_min_z"));
+        Double maxX = parseUnitBound(block.properties().get("collision_max_x"));
+        Double maxY = parseUnitBound(block.properties().get("collision_max_y"));
+        Double maxZ = parseUnitBound(block.properties().get("collision_max_z"));
+        if (minX == null || minY == null || minZ == null || maxX == null || maxY == null || maxZ == null
+            || minX > maxX || minY > maxY || minZ > maxZ) {
+            // A collidable block with an unknown serialized shape is never proof of open space.
+            return fullCube;
+        }
+        return new AabbSnapshot(
+            x + minX, y + minY, z + minZ,
+            x + maxX, y + maxY, z + maxZ
+        );
+    }
+
+    private static Double parseUnitBound(String value) {
+        if (value == null) return null;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) && parsed >= 0d && parsed <= 1d ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private void addCrystalPlacementBurstEvents(
