@@ -32,7 +32,7 @@ class ExplosionThreatFactoryParityTest {
         TickWindow impact = new TickWindow(0, 2);
         ExplosionSpec spec = new ExplosionSpec(
             new Vec3Snapshot(3, 0, 0), 6f, 6f,
-            "minecraft:explosion", false, true, false
+            "minecraft:explosion", false, true
         );
 
         ThreatEvent event = new ExplosionThreatFactory().create(
