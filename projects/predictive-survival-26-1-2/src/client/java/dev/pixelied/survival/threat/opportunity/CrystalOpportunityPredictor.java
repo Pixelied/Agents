@@ -52,6 +52,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                 int z = (int)Math.floor(support.position().z());
                 AabbSnapshot supportBox = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
                 if (!withinRange(eye, supportBox, blockRange)) continue;
+                if (hasObservedBlockAt(context.world().blocks(), x, y + 1, z)) continue;
 
                 Vec3Snapshot center = new Vec3Snapshot(x + 0.5d, y + 1d, z + 0.5d);
                 AabbSnapshot placedCrystal = new AabbSnapshot(
@@ -109,6 +110,22 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
             }
         }
         return List.copyOf(result);
+    }
+
+    private static boolean hasObservedBlockAt(
+        List<WorldSnapshot.BlockSnapshot> blocks,
+        int x,
+        int y,
+        int z
+    ) {
+        for (WorldSnapshot.BlockSnapshot block : blocks) {
+            if ((int)Math.floor(block.position().x()) == x
+                && (int)Math.floor(block.position().y()) == y
+                && (int)Math.floor(block.position().z()) == z) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean holdsCrystal(Map<String, String> properties) {
