@@ -81,7 +81,7 @@ class TntMinecartOpportunityPredictorTest {
             new Vec3Snapshot(2.0, 0.5, 0.5),
             new Vec3Snapshot(0.8, 0.0, 0.0),
             new AabbSnapshot(1.6, 0.4, 0.1, 2.4, 0.6, 0.9),
-            minecartProperties(false, 0.0, true)
+            minecartProperties(false, 0.0, "true")
         );
         WorldSnapshot.BlockSnapshot split = new WorldSnapshot.BlockSnapshot(
             new Vec3Snapshot(3.5, 0.5, 0.5),
@@ -139,6 +139,21 @@ class TntMinecartOpportunityPredictorTest {
     }
 
     @Test
+    void unknownTntExplodesGameRuleFailsClosedToPotentialExplosion() {
+        WorldSnapshot.EntitySnapshot cart = minecart(
+            new Vec3Snapshot(2.0, 0.0, 0.5),
+            new Vec3Snapshot(0.2, 0.0, 0.0),
+            true,
+            0.0,
+            "unknown"
+        );
+
+        LethalOpportunity opportunity = only(predict(List.of(cart), List.of(), SafetyMode.BALANCED));
+
+        assertEquals("unknown", opportunity.evidence().get("tnt_explodes"));
+    }
+
+    @Test
     void disabledTntExplodesGameRuleSuppressesMinecartOpportunity() {
         WorldSnapshot.EntitySnapshot cart = minecart(
             new Vec3Snapshot(2.0, 0.0, 0.5),
@@ -171,6 +186,16 @@ class TntMinecartOpportunityPredictorTest {
         double fallDistance,
         boolean tntExplodes
     ) {
+        return minecart(position, velocity, horizontalCollision, fallDistance, Boolean.toString(tntExplodes));
+    }
+
+    private static WorldSnapshot.EntitySnapshot minecart(
+        Vec3Snapshot position,
+        Vec3Snapshot velocity,
+        boolean horizontalCollision,
+        double fallDistance,
+        String tntExplodes
+    ) {
         return new WorldSnapshot.EntitySnapshot(
             "cart",
             "minecraft:tnt_minecart",
@@ -187,14 +212,14 @@ class TntMinecartOpportunityPredictorTest {
     private static Map<String, String> minecartProperties(
         boolean horizontalCollision,
         double fallDistance,
-        boolean tntExplodes
+        String tntExplodes
     ) {
         return Map.ofEntries(
             Map.entry("tnt_minecart", "true"),
             Map.entry("tnt_minecart_primed", "false"),
             Map.entry("horizontal_collision", Boolean.toString(horizontalCollision)),
             Map.entry("fall_distance", Double.toString(fallDistance)),
-            Map.entry("tnt_explodes", Boolean.toString(tntExplodes)),
+            Map.entry("tnt_explodes", tntExplodes),
             Map.entry("explosion_radius_default_min", "4.0"),
             Map.entry("explosion_radius_default_max", "11.5"),
             Map.entry("explosion_radius_hidden_min", "0.0"),
