@@ -15,6 +15,7 @@ import dev.pixelied.survival.execution.ShieldActionExecutor;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
 import dev.pixelied.survival.inventory.MinecraftInventorySnapshotFactory;
+import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalCandidateGenerator;
 import dev.pixelied.survival.threat.AreaEffectCloudAttributionTracker;
@@ -31,6 +32,9 @@ import dev.pixelied.survival.threat.SplashStatusThreatMemory;
 import dev.pixelied.survival.threat.ThreatPredictor;
 import dev.pixelied.survival.threat.ThreatPredictorRegistry;
 import dev.pixelied.survival.threat.WardenSonicBoomPredictor;
+import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
+import dev.pixelied.survival.threat.opportunity.LethalOpportunityRegistry;
+import dev.pixelied.survival.threat.opportunity.OpportunityTimelineAssembler;
 import dev.pixelied.survival.timing.ServerTimingEstimator;
 import dev.pixelied.survival.timing.TimingSnapshot;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -58,6 +62,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final AreaEffectCloudAttributionTracker cloudAttributions;
     private final SplashStatusThreatMemory splashStatusMemory;
     private final ThreatPredictorRegistry predictors;
+    private final LethalOpportunityRegistry opportunityPredictors;
+    private final OpportunityTimelineAssembler opportunityTimelineAssembler;
     private final SurvivalCandidateGenerator candidateGenerator;
     private final DeathProtectionActionExecutor protectionExecutor;
     private final DeathProtectionRestorationController restorationController;
@@ -98,6 +104,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             environment::predict,
             splashStatusMemory
         ));
+        this.opportunityPredictors = new LethalOpportunityRegistry(List.of());
+        this.opportunityTimelineAssembler = new OpportunityTimelineAssembler();
         this.candidateGenerator = new SurvivalCandidateGenerator();
         this.protectionExecutor = new DeathProtectionActionExecutor();
         this.restorationController = new DeathProtectionRestorationController();
@@ -108,12 +116,18 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
     @Override
     public SurvivalEngine.EngineFrame capture() {
-        return capture(RescuePolicy.smartDefaults());
+        return capture(RescuePolicy.smartDefaults(), SafetyMode.BALANCED);
     }
 
     @Override
     public SurvivalEngine.EngineFrame capture(RescuePolicy policy) {
+        return capture(policy, SafetyMode.BALANCED);
+    }
+
+    @Override
+    public SurvivalEngine.EngineFrame capture(RescuePolicy policy, SafetyMode safetyMode) {
         Objects.requireNonNull(policy, "policy");
+        Objects.requireNonNull(safetyMode, "safetyMode");
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.level == null) {
             throw new IllegalStateException("Minecraft player/level are not available");
@@ -150,14 +164,16 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             playerSnapshot,
             world
         );
-        PredictionContext context = new PredictionContext(reactive.player(), reactive.world(), timing, limits);
+        PredictionContext context = new PredictionContext(reactive.player(), reactive.world(), timing, limits, safetyMode);
         List<ThreatEvent> predicted = predictors.predictAll(context);
         cloudAttributions.observePredictedThreats(clientTick, predicted);
         splashStatusMemory.observePredictedThreats(context, predicted);
-        ThreatTimeline timeline = new ThreatTimeline(predicted);
-        List<SurvivalAction> candidates = candidateGenerator.generate(context, timeline, inventory, menu, policy);
+        ThreatTimeline actualTimeline = new ThreatTimeline(predicted);
+        List<LethalOpportunity> opportunities = opportunityPredictors.predictAll(context);
+        ThreatTimeline planningTimeline = opportunityTimelineAssembler.assemble(actualTimeline, opportunities, limits.maxThreats());
+        List<SurvivalAction> candidates = candidateGenerator.generate(context, planningTimeline, inventory, menu, policy);
 
-        SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, timeline, candidates);
+        SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, actualTimeline, opportunities, planningTimeline, candidates);
         liveState = new LiveState(frame, inventory, menu, timing, reactive.player());
         return frame;
     }
