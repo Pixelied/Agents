@@ -21,7 +21,7 @@ import java.util.Map;
 /** Predicts legal place-then-use hostile bed bursts before either bed half exists. */
 public final class BedOpportunityPredictor implements LethalOpportunityPredictor {
     private static final double SERVER_USE_ON_RANGE_BUFFER = 1.0d;
-    private static final int NEARBY_HORIZONTAL_RANGE = 8;
+    private static final int NEARBY_HORIZONTAL_RANGE = 12;
     private static final int NEARBY_VERTICAL_RANGE = 12;
     private static final double BED_COLLISION_HEIGHT = 9.0d / 16.0d;
     private static final int[][] USE_ON_FACES = {
