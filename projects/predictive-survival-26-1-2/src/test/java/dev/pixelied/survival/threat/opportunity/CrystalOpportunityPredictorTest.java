@@ -108,6 +108,43 @@ class CrystalOpportunityPredictorTest {
         assertEquals("false", opportunities.getFirst().evidence().get("visible_crystal"));
     }
 
+    @Test
+    void serverUseOnBufferExtendsCrystalPlacementRangeByOneBlock() {
+        WorldSnapshot.EntitySnapshot attacker = attackerAtWithRanges(
+            new Vec3Snapshot(8.0, 0.0, 0.5),
+            "minecraft:end_crystal",
+            "minecraft:air",
+            4.5,
+            10.0
+        );
+        WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
+
+        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(
+            context(List.of(attacker), List.of(support), SafetyMode.BALANCED)
+        );
+
+        assertEquals(1, opportunities.size());
+        assertEquals("1.0", opportunities.getFirst().evidence().get("server_use_on_range_buffer"));
+    }
+
+    @Test
+    void supportOutsideServerBufferedBlockInteractionRangeDoesNotCreateOpportunity() {
+        WorldSnapshot.EntitySnapshot attacker = attackerAtWithRanges(
+            new Vec3Snapshot(8.5, 0.0, 0.5),
+            "minecraft:end_crystal",
+            "minecraft:air",
+            4.5,
+            10.0
+        );
+        WorldSnapshot.BlockSnapshot support = fullBlock(2, 0, 0, "minecraft:obsidian");
+
+        List<LethalOpportunity> opportunities = new CrystalOpportunityPredictor().predict(
+            context(List.of(attacker), List.of(support), SafetyMode.BALANCED)
+        );
+
+        assertTrue(opportunities.isEmpty());
+    }
+
     private static WorldSnapshot.EntitySnapshot crystalAttacker() {
         return attackerWithHands("minecraft:end_crystal", "minecraft:air");
     }
@@ -117,17 +154,33 @@ class CrystalOpportunityPredictorTest {
     }
 
     private static WorldSnapshot.EntitySnapshot attackerWithHands(String mainHand, String offhand) {
+        return attackerAtWithRanges(
+            new Vec3Snapshot(3.5, 0.0, 0.5),
+            mainHand,
+            offhand,
+            4.5,
+            3.0
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot attackerAtWithRanges(
+        Vec3Snapshot position,
+        String mainHand,
+        String offhand,
+        double blockRange,
+        double attackRange
+    ) {
         return attacker(
             "attacker",
-            new Vec3Snapshot(3.5, 0.0, 0.5),
+            position,
             Map.of(
-                "block_interaction_range", "4.5",
-                "attack_range", "3.0",
+                "block_interaction_range", Double.toString(blockRange),
+                "attack_range", Double.toString(attackRange),
                 "main_hand_item_key", mainHand,
                 "offhand_item_key", offhand,
-                "eye_position_x", "3.5",
+                "eye_position_x", Double.toString(position.x()),
                 "eye_position_y", "1.62",
-                "eye_position_z", "0.5"
+                "eye_position_z", Double.toString(position.z())
             )
         );
     }
