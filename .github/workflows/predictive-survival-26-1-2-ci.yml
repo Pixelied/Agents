@@ -22,6 +22,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
       - name: Apply source-backed Wither spawn explosion fix
         if: github.event_name == 'pull_request'
         shell: bash
@@ -114,12 +120,6 @@ jobs:
           git commit -m 'fix: predict Wither spawn explosion deadline'
           git push origin "HEAD:$HEAD_REF"
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
-
       # setup-gradle validates the checked-in wrapper before any project task executes.
       - name: Validate Gradle 9.5.1 wrapper
         uses: gradle/actions/setup-gradle@v5
@@ -194,9 +194,6 @@ jobs:
             tasks/design-predictive-survival-26-1-2 \
             | tar -xf - -C "$source_root"
 
-          # The repository cleanup moved the canonical design/plan documents into the physical
-          # project tree and removed the old design/* and plan/* branches. Preserve the historical
-          # top-level docs layout in release archives without depending on deleted branches.
           mkdir -p "$source_root/docs/superpowers"
           cp -a "$source_root/projects/predictive-survival-26-1-2/docs/superpowers/." \
             "$source_root/docs/superpowers/"
