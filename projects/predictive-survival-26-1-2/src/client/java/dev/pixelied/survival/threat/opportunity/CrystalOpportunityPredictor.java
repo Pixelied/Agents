@@ -54,6 +54,12 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                 if (!withinRange(eye, supportBox, blockRange)) continue;
                 if (hasObservedBlockAt(context.world().blocks(), x, y + 1, z)) continue;
 
+                AabbSnapshot placementVolume = new AabbSnapshot(
+                    x, y + 1d, z,
+                    x + 1d, y + 3d, z + 1d
+                );
+                if (hasObservedEntityIntersection(context.world().entities(), placementVolume)) continue;
+
                 Vec3Snapshot center = new Vec3Snapshot(x + 0.5d, y + 1d, z + 0.5d);
                 AabbSnapshot placedCrystal = new AabbSnapshot(
                     center.x() - CRYSTAL_HALF_WIDTH,
@@ -126,6 +132,22 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
             }
         }
         return false;
+    }
+
+    private static boolean hasObservedEntityIntersection(
+        List<WorldSnapshot.EntitySnapshot> entities,
+        AabbSnapshot volume
+    ) {
+        for (WorldSnapshot.EntitySnapshot entity : entities) {
+            if (intersects(entity.boundingBox(), volume)) return true;
+        }
+        return false;
+    }
+
+    private static boolean intersects(AabbSnapshot first, AabbSnapshot second) {
+        return first.minX() < second.maxX() && first.maxX() > second.minX()
+            && first.minY() < second.maxY() && first.maxY() > second.minY()
+            && first.minZ() < second.maxZ() && first.maxZ() > second.minZ();
     }
 
     private static boolean holdsCrystal(Map<String, String> properties) {
