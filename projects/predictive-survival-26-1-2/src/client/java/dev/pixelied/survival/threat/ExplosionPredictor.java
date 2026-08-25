@@ -23,7 +23,8 @@ public final class ExplosionPredictor implements ThreatPredictor {
 
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             buildEvent(
-                "explosion:" + entity.id(), entity.position(), entity.velocity(), entity.properties(), context, world
+                "explosion:" + entity.id(), resolveCenter(entity.position(), entity.properties()),
+                entity.velocity(), entity.properties(), context, world
             ).ifPresent(events::add);
         }
         for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
@@ -118,6 +119,13 @@ public final class ExplosionPredictor implements ThreatPredictor {
             && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
     }
 
+    private static Vec3Snapshot resolveCenter(Vec3Snapshot fallback, Map<String, String> properties) {
+        Double x = parseFiniteDouble(properties.get("explosion_center_x"));
+        Double y = parseFiniteDouble(properties.get("explosion_center_y"));
+        Double z = parseFiniteDouble(properties.get("explosion_center_z"));
+        return x == null || y == null || z == null ? fallback : new Vec3Snapshot(x, y, z);
+    }
+
     private static RadiusResolution resolveRadius(Map<String, String> properties, SafetyMode safetyMode) {
         Float exact = parsePositiveFloat(properties.get("explosion_radius"));
         if (exact != null) return new RadiusResolution(new RadiusRange(exact, exact), Confidence.EXACT);
@@ -133,11 +141,16 @@ public final class ExplosionPredictor implements ThreatPredictor {
         }
 
         Float defaultRadius = parsePositiveFloat(properties.get("explosion_radius_default"));
+        Float defaultMin = parseNonNegativeFloat(properties.get("explosion_radius_default_min"));
+        Float defaultMax = parsePositiveFloat(properties.get("explosion_radius_default_max"));
         Float hiddenMin = parseNonNegativeFloat(properties.get("explosion_radius_hidden_min"));
         Float hiddenMax = parsePositiveFloat(properties.get("explosion_radius_hidden_max"));
         if (safetyMode == SafetyMode.SAFE) {
             if (hiddenMin == null || hiddenMax == null || hiddenMin > hiddenMax) return null;
             return new RadiusResolution(new RadiusRange(hiddenMin, hiddenMax), Confidence.BOUNDED);
+        }
+        if (defaultMin != null && defaultMax != null && defaultMin <= defaultMax) {
+            return new RadiusResolution(new RadiusRange(defaultMin, defaultMax), Confidence.POTENTIAL);
         }
         if (defaultRadius == null) return null;
         return new RadiusResolution(new RadiusRange(defaultRadius, defaultRadius), Confidence.POTENTIAL);
@@ -158,6 +171,16 @@ public final class ExplosionPredictor implements ThreatPredictor {
         try {
             float parsed = Float.parseFloat(value);
             return Float.isFinite(parsed) && parsed >= 0f ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Double parseFiniteDouble(String value) {
+        if (value == null) return null;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) ? parsed : null;
         } catch (NumberFormatException ignored) {
             return null;
         }
