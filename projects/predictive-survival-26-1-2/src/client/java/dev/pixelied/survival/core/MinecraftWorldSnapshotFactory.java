@@ -3,7 +3,6 @@ package dev.pixelied.survival.core;
 import dev.pixelied.survival.mixin.AbstractArrowAccessor;
 import dev.pixelied.survival.mixin.FallingBlockEntityAccessor;
 import dev.pixelied.survival.mixin.FireworkRocketAccessor;
-import dev.pixelied.survival.mixin.PrimedTntAccessor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
@@ -21,6 +20,7 @@ import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.EvokerFangs;
 import net.minecraft.world.entity.projectile.FireworkRocketEntity;
@@ -112,10 +112,12 @@ public final class MinecraftWorldSnapshotFactory {
             || entity instanceof FallingBlockEntity
             || entity instanceof PrimedTnt
             || entity instanceof EndCrystal
-            || entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
+            || entity instanceof MinecartTNT) {
             return true;
         }
-        if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) return true;
+        if (entity instanceof Creeper creeper
+            && MinecraftExplosionSnapshotRules.creeperRelevant(creeper.isIgnited(), creeper.getSwellDir())) return true;
+        if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) return true;
         if (entity instanceof LivingEntity living && MinecraftMeleeSnapshotAdapter.isPotentialMeleeCandidate(living)) {
             return true;
         }
@@ -252,28 +254,26 @@ public final class MinecraftWorldSnapshotFactory {
         }
 
         if (entity instanceof PrimedTnt tnt) {
-            properties.put("explosion_radius", Float.toString(((PrimedTntAccessor) (Object) tnt).predictiveSurvival$getExplosionPower()));
-            properties.put("fuse_ticks", Integer.toString(Math.max(0, tnt.getFuse())));
-            properties.put("source_key", "minecraft:explosion");
-            properties.put("scales_with_difficulty", "true");
-        } else if (entity instanceof MinecartTNT minecart && minecart.isPrimed()) {
-            properties.put("explosion_radius_min", "0.0");
-            properties.put("explosion_radius_max", "1088.0");
-            properties.put("fuse_ticks_min", "0");
-            properties.put("fuse_ticks_max", Integer.toString(Math.max(0, minecart.getFuse())));
-            properties.put("source_key", "minecraft:explosion");
-            properties.put("scales_with_difficulty", "true");
+            properties.putAll(MinecraftExplosionSnapshotRules.primedTnt(tnt.getFuse()));
+            putExplosionCenter(properties, tnt.getX(), tnt.getY(0.0625), tnt.getZ());
+        } else if (entity instanceof MinecartTNT minecart) {
+            properties.putAll(MinecraftExplosionSnapshotRules.tntMinecart(minecart.isPrimed(), minecart.getFuse()));
         } else if (entity instanceof EndCrystal) {
             properties.put("explosion_radius", "6");
             properties.put("triggerable", "true");
             properties.put("source_key", "minecraft:explosion");
             properties.put("scales_with_difficulty", "true");
-        } else if (entity instanceof Creeper creeper && creeper.getSwellDir() > 0) {
-            float progress = Math.max(0f, Math.min(1f, creeper.getSwelling(1f)));
-            int conservativeRemaining = Math.max(0, (int) Math.floor((1f - progress) * 28f));
-            properties.put("explosion_radius", creeper.isPowered() ? "6" : "3");
-            properties.put("fuse_ticks", Integer.toString(conservativeRemaining));
-            properties.put("scales_with_difficulty", "true");
+        } else if (entity instanceof Creeper creeper
+            && MinecraftExplosionSnapshotRules.creeperRelevant(creeper.isIgnited(), creeper.getSwellDir())) {
+            properties.putAll(MinecraftExplosionSnapshotRules.creeper(
+                creeper.isPowered(),
+                creeper.isIgnited(),
+                creeper.getSwellDir(),
+                creeper.getSwelling(1f)
+            ));
+        } else if (entity instanceof WitherBoss wither && wither.getInvulnerableTicks() > 0) {
+            properties.putAll(MinecraftExplosionSnapshotRules.witherSpawn(wither.getInvulnerableTicks()));
+            putExplosionCenter(properties, wither.getX(), wither.getEyeY(), wither.getZ());
         }
 
         if (entity instanceof Mob mob) {
@@ -291,6 +291,12 @@ public final class MinecraftWorldSnapshotFactory {
             new AabbSnapshot(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ),
             properties
         );
+    }
+
+    private static void putExplosionCenter(Map<String, String> properties, double x, double y, double z) {
+        properties.put("explosion_center_x", Double.toString(x));
+        properties.put("explosion_center_y", Double.toString(y));
+        properties.put("explosion_center_z", Double.toString(z));
     }
 
     private static void snapshotPotionContents(ItemStack stack, Map<String, String> properties) {
