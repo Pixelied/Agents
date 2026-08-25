@@ -74,6 +74,10 @@ final class MinecraftMeleeSnapshotAdapter {
         properties.put("weapon_key", itemKey(weapon));
         properties.put("main_hand_item_key", itemKey(player.getMainHandItem()));
         properties.put("offhand_item_key", itemKey(player.getOffhandItem()));
+        var eye = player.getEyePosition();
+        properties.put("eye_position_x", Double.toString(eye.x));
+        properties.put("eye_position_y", Double.toString(eye.y));
+        properties.put("eye_position_z", Double.toString(eye.z));
 
         // Server fall state can diverge around movement reconciliation. A conservative remote
         // player bound must include a critical/mace-smash-capable state without guessing it.
