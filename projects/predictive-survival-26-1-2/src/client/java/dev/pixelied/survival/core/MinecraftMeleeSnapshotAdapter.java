@@ -4,6 +4,8 @@ import dev.pixelied.survival.damage.MinecraftDamageAdapter;
 import dev.pixelied.survival.threat.VanillaMobMeleeProfile;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.attribute.BedRule;
+import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -78,6 +80,17 @@ final class MinecraftMeleeSnapshotAdapter {
         properties.put("eye_position_x", Double.toString(eye.x));
         properties.put("eye_position_y", Double.toString(eye.y));
         properties.put("eye_position_z", Double.toString(eye.z));
+        BedRule bedRule = (BedRule)player.level().environmentAttributes().getValue(
+            EnvironmentAttributes.BED_RULE,
+            player.blockPosition()
+        );
+        boolean anchorWorks = (Boolean)player.level().environmentAttributes().getValue(
+            EnvironmentAttributes.RESPAWN_ANCHOR_WORKS,
+            player.blockPosition()
+        );
+        properties.put("bed_explodes", Boolean.toString(bedRule.explodes()));
+        properties.put("anchor_explodes", Boolean.toString(!anchorWorks));
+        properties.put("horizontal_facing", player.getDirection().getSerializedName());
 
         // Server fall state can diverge around movement reconciliation. A conservative remote
         // player bound must include a critical/mace-smash-capable state without guessing it.
