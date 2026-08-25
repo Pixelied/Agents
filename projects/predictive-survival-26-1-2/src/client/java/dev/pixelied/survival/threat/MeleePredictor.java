@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public final class MeleePredictor implements ThreatPredictor {
@@ -46,6 +47,42 @@ public final class MeleePredictor implements ThreatPredictor {
 
         String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
         boolean spear = !mobModel && isSpear(weaponKey, properties);
+        boolean committed = Boolean.parseBoolean(properties.getOrDefault("attack_committed", "false"));
+        TickWindow impact = committed
+            ? committedWindow(properties)
+            : new TickWindow(0L, POTENTIAL_ATTACK_WINDOW_TICKS);
+        Confidence confidence = committed ? Confidence.MATCHED : Confidence.POTENTIAL;
+        return buildProjectedThreatWithoutRange(
+            context,
+            attacker,
+            impact,
+            confidence,
+            (spear ? "spear:" : "melee:") + attacker.id()
+        );
+    }
+
+    /**
+     * Builds the exact direct-hit damage/source semantics without checking whether the attacker is
+     * currently in reach. Callers must independently prove a legal server attack range before using
+     * this for a projected opportunity.
+     */
+    public static Optional<ThreatEvent> buildProjectedThreatWithoutRange(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot attacker,
+        TickWindow impact,
+        Confidence confidence,
+        String eventId
+    ) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(attacker, "attacker");
+        Objects.requireNonNull(impact, "impact");
+        Objects.requireNonNull(confidence, "confidence");
+        Objects.requireNonNull(eventId, "eventId");
+
+        Map<String, String> properties = attacker.properties();
+        boolean mobModel = "mob".equals(properties.get("melee_model"));
+        String weaponKey = properties.getOrDefault("weapon_key", "minecraft:air");
+        boolean spear = !mobModel && isSpear(weaponKey, properties);
         WeaponSnapshot weapon = spear || mobModel ? null : weaponSnapshot(properties);
         DamageRange damage;
         boolean maceSmash = false;
@@ -74,10 +111,10 @@ public final class MeleePredictor implements ThreatPredictor {
             ? "minecraft:spear"
             : maceSmash ? "minecraft:mace_smash" : defaultMeleeSource(attacker);
         String sourceKey = properties.getOrDefault("source_key", defaultSource);
-        float armorEffectivenessAdjustment = parseFiniteFloat(properties.get("armor_effectiveness_adjustment")) == null
-            ? 0f : parseFiniteFloat(properties.get("armor_effectiveness_adjustment"));
-        float blockingDisableSeconds = parseFiniteFloat(properties.get("blocking_disable_seconds")) == null
-            ? 0f : Math.max(0f, parseFiniteFloat(properties.get("blocking_disable_seconds")));
+        Float armorAdjustment = parseFiniteFloat(properties.get("armor_effectiveness_adjustment"));
+        float armorEffectivenessAdjustment = armorAdjustment == null ? 0f : armorAdjustment;
+        Float disableSeconds = parseFiniteFloat(properties.get("blocking_disable_seconds"));
+        float blockingDisableSeconds = disableSeconds == null ? 0f : Math.max(0f, disableSeconds);
         DamageSourceSnapshot source = new DamageSourceSnapshot(
             damage,
             flags,
@@ -91,16 +128,11 @@ public final class MeleePredictor implements ThreatPredictor {
             blockingDisableSeconds
         );
 
-        boolean committed = Boolean.parseBoolean(properties.getOrDefault("attack_committed", "false"));
-        TickWindow impact = committed
-            ? committedWindow(properties)
-            : new TickWindow(0L, POTENTIAL_ATTACK_WINDOW_TICKS);
-        Confidence confidence = committed ? Confidence.MATCHED : Confidence.POTENTIAL;
         boolean canDisableBlocking = Boolean.parseBoolean(properties.getOrDefault("can_disable_blocking", "false"));
         if (!spear && !mobModel) canDisableBlocking = weapon.canDisableBlocking();
 
         return Optional.of(new ThreatEvent(
-            (spear ? "spear:" : "melee:") + attacker.id(),
+            eventId,
             ThreatKind.MELEE,
             impact,
             source,
