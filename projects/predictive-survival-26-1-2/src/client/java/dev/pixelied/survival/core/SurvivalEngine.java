@@ -2,7 +2,7 @@ package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.config.SurvivalConfig;
-import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.VanillaDamageOracle;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.DecisionRecord;
 import dev.pixelied.survival.execution.ExecutionStatus;
@@ -14,9 +14,9 @@ import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalPlan;
 import dev.pixelied.survival.planner.SurvivalPlanner;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
+import dev.pixelied.survival.threat.opportunity.ProtectionContinuity;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
-import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -32,7 +32,7 @@ public final class SurvivalEngine {
     private final DecisionHistory history;
     private final SurvivalPlanner planner;
     private final ContingencyPlanner contingencyPlanner;
-    private final ThreatTimelineSimulator restorationSafetySimulator = new ThreatTimelineSimulator();
+    private final VanillaDamageOracle damageOracle = new VanillaDamageOracle();
     private final Set<SurvivalAction> failedActions = new LinkedHashSet<>();
 
     private Optional<SurvivalPlan> currentPlan = Optional.empty();
@@ -75,16 +75,17 @@ public final class SurvivalEngine {
             "runtime frame"
         );
         updateDangerWindow(frame.timeline());
+        boolean protectionLatchRequired = lethalWithoutDeathProtection(frame);
         runtime.maintainRestoration(
             frame,
             liveConfig.restoreHandState(),
-            lethalWithoutDeathProtection(frame),
+            protectionLatchRequired,
             currentPlan.isPresent()
         );
 
         if (currentPlan.isPresent()) {
             SurvivalAction active = currentPlan.get().action();
-            if (shouldReplaceActivePlan(active, frame)) {
+            if (shouldReplaceActivePlan(active, frame, protectionLatchRequired)) {
                 clearCurrentPlan();
             } else {
                 ExecutionStatus observed = Objects.requireNonNull(runtime.observe(active, frame), "execution status");
@@ -104,13 +105,13 @@ public final class SurvivalEngine {
             }
         }
 
-        planAndStart(frame);
+        planAndStart(frame, protectionLatchRequired);
     }
 
-    private void planAndStart(EngineFrame frame) {
+    private void planAndStart(EngineFrame frame, boolean protectionLatchRequired) {
         int maxAttempts = Math.max(1, frame.context().limits().maxPlannerCandidates());
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
-            List<SurvivalAction> candidates = filteredCandidates(frame.candidates());
+            List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
             ContingencyPlan contingency = contingencyPlanner.plan(
                 frame.context(), frame.timeline(), candidates, config().safetyMode(), config().rescueProfile()
             );
@@ -196,18 +197,15 @@ public final class SurvivalEngine {
     }
 
     private boolean lethalWithoutDeathProtection(EngineFrame frame) {
-        PlayerSnapshot player = frame.context().player();
-        PlayerSnapshot withoutProtection = new PlayerSnapshot(
-            player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
-            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
-            player.hurtState(), DeathProtectionSnapshot.none(), player.boundingBox(), player.position(), player.velocity(),
-            player.equipmentItemKeys(), player.stateProperties()
-        );
-        return !restorationSafetySimulator.simulate(withoutProtection, frame.timeline()).survived();
+        return damageOracle.lethalWithoutDeathProtection(frame.context().player(), frame.planningTimeline());
     }
 
-    private boolean shouldReplaceActivePlan(SurvivalAction active, EngineFrame frame) {
-        List<SurvivalAction> candidates = filteredCandidates(frame.candidates());
+    private boolean shouldReplaceActivePlan(
+        SurvivalAction active,
+        EngineFrame frame,
+        boolean protectionLatchRequired
+    ) {
+        List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
         int remainingServerTicks = Math.max(0, runtime.remainingServerTicks(active, frame));
 
         ContingencyPlan inFlight = contingencyPlanner.planInFlight(
@@ -265,15 +263,19 @@ public final class SurvivalEngine {
             && plan.steps().getFirst().action().equals(action);
     }
 
-    private List<SurvivalAction> filteredCandidates(List<SurvivalAction> candidates) {
+    private List<SurvivalAction> filteredCandidates(EngineFrame frame, boolean protectionLatchRequired) {
         RescuePolicy policy = config().rescuePolicy();
         List<SurvivalAction> filtered = new ArrayList<>();
-        for (SurvivalAction candidate : candidates) {
+        for (SurvivalAction candidate : frame.candidates()) {
             if (candidate == null || failedActions.contains(candidate)) continue;
             if (candidate instanceof SurvivalAction.EquipDeathProtection && !policy.deathProtection()) continue;
             if (candidate instanceof SurvivalAction.RaiseShield && !policy.shields()) continue;
             if (candidate instanceof SurvivalAction.ApplyEffects && !policy.consumables()) continue;
             if (candidate instanceof SurvivalAction.SwapEquipment && !policy.equipment()) continue;
+            if (protectionLatchRequired
+                && !ProtectionContinuity.preservesAuthoritativeProtection(frame.context().player(), candidate)) {
+                continue;
+            }
             // These action types have models for future development but no production-safe route
             // generation/dispatcher yet. Never let stale flags make them dispatchable.
             if (candidate instanceof SurvivalAction.Relocate
