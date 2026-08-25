@@ -76,6 +76,11 @@ final class MinecraftMeleeSnapshotAdapter {
         properties.put("weapon_key", itemKey(weapon));
         properties.put("main_hand_item_key", itemKey(player.getMainHandItem()));
         properties.put("offhand_item_key", itemKey(player.getOffhandItem()));
+        AttackRange mainHandAttackRange = player.getAttackRangeWith(player.getMainHandItem());
+        properties.put("main_hand_attack_min_range", Float.toString(mainHandAttackRange.effectiveMinRange(player)));
+        properties.put("main_hand_attack_max_range", Float.toString(mainHandAttackRange.effectiveMaxRange(player)));
+        properties.put("main_hand_attack_hitbox_margin", Float.toString(mainHandAttackRange.hitboxMargin()));
+        properties.put("main_hand_count", Integer.toString(player.getMainHandItem().getCount()));
         var eye = player.getEyePosition();
         properties.put("eye_position_x", Double.toString(eye.x));
         properties.put("eye_position_y", Double.toString(eye.y));
