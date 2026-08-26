@@ -357,10 +357,24 @@ final class SpearBurstSequenceValidationScenarios {
         return hits.stream().anyMatch(hit -> hit.getEntity() == victim);
     }
 
-    /** Aim the real STAB ray at the victim's current hitbox instead of assuming a horizontal ray. */
+    /**
+     * Aim the real hostile STAB ray at the nearest point of the same AttackRange-inflated hitbox
+     * that vanilla's ProjectileUtil accepts. This instantiates the earliest defensible hostile aim
+     * rather than an arbitrary center ray, while canPiercingHit still delegates legality to vanilla.
+     */
     private static void faceVictim(ServerPlayer attacker, ServerPlayer victim) {
         Vec3 eye = attacker.getEyePosition();
-        Vec3 target = victim.getBoundingBox().getCenter();
+        AttackRange range = attacker.getMainHandItem().get(DataComponents.ATTACK_RANGE);
+        double margin = range == null ? 0d : range.hitboxMargin();
+        var targetBox = victim.getBoundingBox().inflate(margin);
+        Vec3 target = new Vec3(
+            Math.max(targetBox.minX, Math.min(eye.x, targetBox.maxX)),
+            Math.max(targetBox.minY, Math.min(eye.y, targetBox.maxY)),
+            Math.max(targetBox.minZ, Math.min(eye.z, targetBox.maxZ))
+        );
+        if (target.distanceToSqr(eye) <= 1.0E-12d) {
+            target = targetBox.getCenter();
+        }
         Vec3 delta = target.subtract(eye);
         double horizontal = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
         float yaw = (float)(Math.toDegrees(Math.atan2(delta.z, delta.x)) - 90d);
