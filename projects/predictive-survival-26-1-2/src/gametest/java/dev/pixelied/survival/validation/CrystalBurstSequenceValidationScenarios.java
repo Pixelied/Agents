@@ -20,6 +20,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /** Proves protection is established from a legal crystal precursor before any crystal exists. */
 final class CrystalBurstSequenceValidationScenarios {
@@ -57,7 +58,7 @@ final class CrystalBurstSequenceValidationScenarios {
             attacker.setXRot(0f);
             attacker.containerMenu.broadcastChanges();
             BurstSequenceValidationSupport.syncEquipment(victim, attacker);
-            return new Setup(original, center, support, originals, handle);
+            return new Setup(victim.getUUID(), original, center, support, originals, handle);
         });
 
         try {
@@ -69,7 +70,7 @@ final class CrystalBurstSequenceValidationScenarios {
                 && remote.getMainHandItem().is(Items.END_CRYSTAL));
 
             boolean noCrystalBeforeArm = singleplayer.getServer().computeOnServer(server -> {
-                ServerPlayer victim = SurvivalValidationClientGameTest.onlyPlayer(server);
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
                 return ((ServerLevel)victim.level()).getEntitiesOfClass(
                     EndCrystal.class,
                     new AABB(
@@ -90,12 +91,13 @@ final class CrystalBurstSequenceValidationScenarios {
             BurstSequenceValidationSupport.armTotemFromPrecursor(
                 context,
                 singleplayer,
+                setup.victimId(),
                 harness,
                 "crystal_place_break"
             );
 
             boolean stillNoCrystal = singleplayer.getServer().computeOnServer(server -> {
-                ServerPlayer victim = SurvivalValidationClientGameTest.onlyPlayer(server);
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
                 return ((ServerLevel)victim.level()).getEntitiesOfClass(
                     EndCrystal.class,
                     new AABB(
@@ -113,7 +115,7 @@ final class CrystalBurstSequenceValidationScenarios {
             }
 
             Outcome outcome = singleplayer.getServer().computeOnServer(server -> {
-                ServerPlayer victim = SurvivalValidationClientGameTest.onlyPlayer(server);
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
                 ServerPlayer attacker = BurstSequenceValidationSupport.requireAttacker(server, setup.attacker());
                 ServerLevel level = (ServerLevel)victim.level();
                 if (!BurstSequenceValidationSupport.protectedInHand(victim)) {
@@ -157,10 +159,7 @@ final class CrystalBurstSequenceValidationScenarios {
             }
         } finally {
             singleplayer.getServer().runOnServer(server -> {
-                ServerPlayer victim = server.getPlayerList().getPlayers().stream()
-                    .filter(player -> !player.getUUID().equals(setup.attacker().playerId()))
-                    .findFirst()
-                    .orElse(null);
+                ServerPlayer victim = server.getPlayerList().getPlayer(setup.victimId());
                 if (victim != null) {
                     ServerLevel level = (ServerLevel)victim.level();
                     for (Entity entity : level.getEntitiesOfClass(EndCrystal.class, new AABB(
@@ -216,6 +215,7 @@ final class CrystalBurstSequenceValidationScenarios {
     }
 
     private record Setup(
+        UUID victimId,
         Vec3 originalPosition,
         BlockPos center,
         BlockPos support,
