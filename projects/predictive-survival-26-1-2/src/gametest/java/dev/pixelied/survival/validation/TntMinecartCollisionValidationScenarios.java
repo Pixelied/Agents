@@ -24,6 +24,7 @@ final class TntMinecartCollisionValidationScenarios {
     private static final float EPSILON = 0.0001f;
     private static final double POSITION_EPSILON = 0.05d;
     private static final Vec3 COLLISION_VELOCITY = new Vec3(0.5d, 0d, 1.2d);
+    private static final int WALL_LENGTH_X = 5;
 
     private TntMinecartCollisionValidationScenarios() {
     }
@@ -39,7 +40,14 @@ final class TntMinecartCollisionValidationScenarios {
             BlockPos center = BlockPos.containing(victim.getX(), 280d, victim.getZ());
             Map<BlockPos, BlockState> originals = clearArena(level, center);
             BlockPos wall = center.offset(0, 0, 4);
-            level.setBlockAndUpdate(wall, Blocks.OBSIDIAN.defaultBlockState());
+            // The source-valid detonation is a glancing collision: Z drives into the wall while X
+            // remains tangential. A single wall block is only valid for a one/two-tick precursor;
+            // over the full live Totem authority horizon the exact 0.5 X motion legitimately walks
+            // the minecart past that block before Z reaches it. Keep the obstacle continuous across
+            // the actual swept path so a three-plus-tick forecast represents a real collision.
+            for (int dx = 0; dx < WALL_LENGTH_X; dx++) {
+                level.setBlockAndUpdate(wall.offset(dx, 0, 0), Blocks.OBSIDIAN.defaultBlockState());
+            }
 
             BurstSequenceValidationSupport.prepareVictim(victim, 4f);
             victim.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 0.5d);
@@ -72,7 +80,8 @@ final class TntMinecartCollisionValidationScenarios {
             waitForClientPosition(context, setup.center());
             context.waitFor(minecraft -> minecraft.level != null
                 && minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT
-                && minecraft.level.getBlockState(setup.wall()).is(Blocks.OBSIDIAN));
+                && minecraft.level.getBlockState(setup.wall()).is(Blocks.OBSIDIAN)
+                && minecraft.level.getBlockState(setup.wall().offset(WALL_LENGTH_X - 1, 0, 0)).is(Blocks.OBSIDIAN));
 
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
             armTotemFromForecast(context, singleplayer, setup, harness);
