@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -158,11 +159,14 @@ final class TntMinecartCollisionValidationScenarios {
                 cart.setPos(setup.precursorPosition().x, setup.precursorPosition().y, setup.precursorPosition().z);
                 cart.setDeltaMovement(COLLISION_VELOCITY);
                 victim.connection.send(ClientboundEntityPositionSyncPacket.of(cart));
+                // Position sync carries a movement field, but 26.1.2's client handler intentionally
+                // does not apply it. Vanilla tracking sends motion separately when delta changes.
+                victim.connection.send(new ClientboundSetEntityMotionPacket(cart));
             });
 
-            // Let the real client apply vanilla minecart speed limiting once. From the reset
-            // precursor position it cannot reach the wall yet; the resulting clamped state should
-            // forecast the collision on its following tick.
+            // Let the real client process both vanilla position and motion packets. The cart remains
+            // at the precursor position client-side; its synchronized swept motion now reaches the
+            // wall on the next server movement tick and should produce the forecast opportunity.
             context.waitTick();
             context.runOnClient(minecraft -> {
                 if (minecraft.level == null || !(minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT cart)) {
@@ -181,7 +185,7 @@ final class TntMinecartCollisionValidationScenarios {
                         .findFirst()
                         .orElse(null);
                     throw new AssertionError(
-                        "post-clamp unprimed TNT minecart state produced no forecast collision opportunity; "
+                        "synchronized unprimed TNT minecart state produced no forecast collision opportunity; "
                             + "clientPos=" + cart.position()
                             + " clientVelocity=" + cart.getDeltaMovement()
                             + " horizontalCollision=" + cart.horizontalCollision
