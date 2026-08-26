@@ -44,10 +44,14 @@ public final class ServerPlayerAttackRange {
 
     /**
      * Normal entity attack packets use Minecraft's +3 server packet allowance. A piercing weapon
-     * instead uses ServerboundPlayerActionPacket.STAB and raycasts its own AttackRange, extending
-     * only by positive known movement along the chosen stab direction. For adversarial opportunity
-     * modeling the attacker may rotate toward the victim before STAB, so the maximum legal forward
-     * extension is the magnitude of the observed movement vector.
+     * instead uses ServerboundPlayerActionPacket.STAB and ProjectileUtil.getHitEntitiesAlong. In
+     * 26.1.2 that ray extends by max(0, knownMovement dot look), never by the movement magnitude.
+     *
+     * Opportunity modeling cannot assume the hostile player's current look is stable because a
+     * rotation can precede STAB in the same hostile action sequence. We therefore bound the largest
+     * positive movement component of any ray that can point through the target hitbox. The angular
+     * bound uses a sphere enclosing the hitbox plus the weapon margin: conservative for survival,
+     * but it cannot turn unrelated tangential speed into full forward reach.
      */
     public static boolean isWithin(
         Vec3Snapshot eye,
@@ -57,7 +61,12 @@ public final class ServerPlayerAttackRange {
     ) {
         double distance = Math.sqrt(distanceToSqr(eye, target));
         if (isPiercing(profile)) {
-            double forwardExtension = vectorLength(knownMovement);
+            double forwardExtension = maximumForwardExtensionTowardTarget(
+                eye,
+                target,
+                knownMovement,
+                profile.hitboxMargin()
+            );
             double min = profile.minRange() - profile.hitboxMargin();
             double max = profile.maxRange() + profile.hitboxMargin() + forwardExtension;
             return distance >= min && distance <= max;
@@ -98,6 +107,40 @@ public final class ServerPlayerAttackRange {
 
     private static boolean isPiercing(AttackProfile profile) {
         return PIERCING_PROFILE.equals(profile.source());
+    }
+
+    private static double maximumForwardExtensionTowardTarget(
+        Vec3Snapshot eye,
+        AabbSnapshot target,
+        Vec3Snapshot movement,
+        double hitboxMargin
+    ) {
+        double speed = vectorLength(movement);
+        if (speed == 0d) return 0d;
+
+        double centerX = (target.minX() + target.maxX()) * 0.5d;
+        double centerY = (target.minY() + target.maxY()) * 0.5d;
+        double centerZ = (target.minZ() + target.maxZ()) * 0.5d;
+        double dx = centerX - eye.x();
+        double dy = centerY - eye.y();
+        double dz = centerZ - eye.z();
+        double centerDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        double halfX = (target.maxX() - target.minX()) * 0.5d + hitboxMargin;
+        double halfY = (target.maxY() - target.minY()) * 0.5d + hitboxMargin;
+        double halfZ = (target.maxZ() - target.minZ()) * 0.5d + hitboxMargin;
+        double angularRadius = Math.sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ);
+        if (centerDistance <= angularRadius || centerDistance == 0d) {
+            return speed;
+        }
+
+        double cosineToCenter = (movement.x() * dx + movement.y() * dy + movement.z() * dz)
+            / (speed * centerDistance);
+        cosineToCenter = Math.max(-1d, Math.min(1d, cosineToCenter));
+        double centerAngle = Math.acos(cosineToCenter);
+        double halfAngle = Math.asin(Math.min(1d, angularRadius / centerDistance));
+        double minimumAngle = Math.max(0d, centerAngle - halfAngle);
+        return Math.max(0d, speed * Math.cos(minimumAngle));
     }
 
     private static double vectorLength(Vec3Snapshot vector) {
