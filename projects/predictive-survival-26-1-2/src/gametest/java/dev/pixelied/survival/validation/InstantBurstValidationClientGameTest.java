@@ -34,6 +34,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            MeleeBurstSequenceValidationScenarios.validatePlayerCrossesRangeAndAttacksAtFirstLegalTick(
+                context,
+                singleplayer
+            );
         }
     }
 
