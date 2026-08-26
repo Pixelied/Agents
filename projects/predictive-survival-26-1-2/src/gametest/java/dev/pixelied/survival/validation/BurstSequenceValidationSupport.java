@@ -121,8 +121,11 @@ final class BurstSequenceValidationSupport {
      * Lets a newly equipped hostile player reach a source-faithful ready state before the modeled
      * approach begins. 26.1.2 applies equipment attribute modifiers from LivingEntity's normal
      * equipment-update tick, while Player then resets attack charge when it first observes the new
-     * main-hand item. Waiting here models ordinary elapsed time before the precursor; it does not
-     * insert any delay between final range entry and the hostile attack.
+     * main-hand item. A real networked ServerPlayer receives that Player/LivingEntity phase from
+     * ServerGamePacketListenerImpl.tick() -> ServerPlayer.doTick(). The embedded mock connection is
+     * not part of the server's normal connection tick loop, so this helper supplies exactly that
+     * missing player phase once per elapsed GameTest tick. It does not insert any delay between final
+     * range entry and the hostile attack.
      */
     static void waitForReadyAttackState(
         ClientGameTestContext context,
@@ -134,6 +137,7 @@ final class BurstSequenceValidationSupport {
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
             last = singleplayer.getServer().computeOnServer(server -> {
                 ServerPlayer attacker = requireAttacker(server, handle);
+                attacker.doTick();
                 return new AttackReadyState(
                     attacker.getAttackStrengthScale(0.5f),
                     attacker.getCurrentItemAttackStrengthDelay(),
