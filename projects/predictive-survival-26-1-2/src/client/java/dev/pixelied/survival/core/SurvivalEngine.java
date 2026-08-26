@@ -144,20 +144,19 @@ public final class SurvivalEngine {
                 selectedPlan = activeStepPlan(frame, decisionTimeline, selected);
             } else {
                 currentContingency = Optional.empty();
-                if (decisionScenarios.size() > 1) {
-                    // A single-branch fallback would reintroduce the exact bug this branch model is
-                    // meant to prevent: dispatching an action that is safe for one mutually exclusive
-                    // hostile choice but lethal for another. If the bounded universal search cannot
-                    // prove one sequence, do not claim a branch-local action is guaranteed.
-                    clearCurrentPlan();
-                    record(frame, new SurvivalAction.NoAction(), null, contingency.reason());
-                    return;
-                }
-                selectedPlan = planner.plan(frame.context(), decisionTimeline, candidates, config().safetyMode());
+                List<SurvivalAction> fallbackCandidates = decisionScenarios.size() > 1
+                    ? universallySurvivingSingleActions(frame, decisionScenarios, candidates)
+                    : candidates;
+                selectedPlan = planner.plan(
+                    frame.context(), decisionTimeline, fallbackCandidates, config().safetyMode()
+                );
                 selected = selectedPlan.action();
                 if (selected instanceof SurvivalAction.NoAction) {
                     clearCurrentPlan();
-                    record(frame, selected, null, selectedPlan.simulation().reason());
+                    String reason = decisionScenarios.size() > 1 && fallbackCandidates.isEmpty()
+                        ? "no single best-effort action survives every alternative threat branch"
+                        : selectedPlan.simulation().reason();
+                    record(frame, selected, null, reason);
                     return;
                 }
             }
@@ -178,6 +177,30 @@ public final class SurvivalEngine {
         clearCurrentPlan();
         executionStatus = Optional.of(new ExecutionStatus.Failed("all bounded candidates failed execution", false));
         record(frame, new SurvivalAction.NoAction(), executionStatus.get(), "all bounded candidates failed execution");
+    }
+
+    private List<SurvivalAction> universallySurvivingSingleActions(
+        EngineFrame frame,
+        List<ThreatTimeline> scenarios,
+        List<SurvivalAction> candidates
+    ) {
+        int cap = Math.min(frame.context().limits().maxPlannerCandidates(), candidates.size());
+        List<SurvivalAction> universal = new ArrayList<>(cap);
+        for (int i = 0; i < cap; i++) {
+            SurvivalAction candidate = candidates.get(i);
+            boolean survivesEveryBranch = true;
+            for (ThreatTimeline scenario : scenarios) {
+                ActionSimulation simulation = planner.simulate(
+                    frame.context(), scenario, candidate, config().safetyMode()
+                );
+                if (!simulation.feasible() || !simulation.result().survived()) {
+                    survivesEveryBranch = false;
+                    break;
+                }
+            }
+            if (survivesEveryBranch) universal.add(candidate);
+        }
+        return List.copyOf(universal);
     }
 
     private SurvivalPlan activeStepPlan(
