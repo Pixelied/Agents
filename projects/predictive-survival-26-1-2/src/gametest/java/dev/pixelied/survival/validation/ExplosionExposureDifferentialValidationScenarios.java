@@ -104,7 +104,7 @@ final class ExplosionExposureDifferentialValidationScenarios {
                 explosionCenter,
                 new SnapshotOcclusionView(world.blocks())
             );
-            double distance = player.position().distanceTo(centerVec);
+            double distance = minecraft.player.position().distanceTo(centerVec);
             float raw = EXPOSURE.rawEntityDamage(RADIUS, distance, seen);
             return new Prediction(seen, raw);
         });
