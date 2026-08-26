@@ -1,5 +1,6 @@
 package dev.pixelied.survival.validation;
 
+import dev.pixelied.survival.core.AabbSnapshot;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.threat.opportunity.OpportunityFamily;
@@ -18,6 +19,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.MaceItem;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.LinkedHashMap;
@@ -184,7 +186,10 @@ final class MeleeBurstSequenceValidationScenarios {
                     opportunity,
                     fastestProtectionAuthorityTick,
                     attackerSnapshot.position(),
-                    attackerSnapshot.velocity()
+                    attackerSnapshot.velocity(),
+                    frame.context().player().position(),
+                    frame.context().player().velocity(),
+                    frame.context().player().boundingBox()
                 );
             });
             if (precursor.activeMelee()) {
@@ -205,6 +210,8 @@ final class MeleeBurstSequenceValidationScenarios {
                         + entryTick + " authority=" + precursor.fastestProtectionAuthorityTick()
                         + " observedPosition=" + precursor.observedPosition()
                         + " observedVelocity=" + precursor.observedVelocity()
+                        + " targetPosition=" + precursor.targetPosition()
+                        + " targetVelocity=" + precursor.targetVelocity()
                 );
             }
 
@@ -227,19 +234,29 @@ final class MeleeBurstSequenceValidationScenarios {
 
                 Vec3 observedPosition = toVec3(precursor.observedPosition());
                 Vec3 observedVelocity = toVec3(precursor.observedVelocity());
+                Vec3 targetPosition = toVec3(precursor.targetPosition());
+                Vec3 targetVelocity = toVec3(precursor.targetVelocity());
                 attacker.teleportTo(observedPosition.x, observedPosition.y, observedPosition.z);
                 attacker.setDeltaMovement(observedVelocity);
                 attacker.fallDistance = variant.fallDistance();
-                if (attacker.isWithinAttackRange(attacker.getMainHandItem(), victim.getBoundingBox(), 3.0d)) {
-                    throw new AssertionError("server attacker was already attackable from the captured " + variant.id() + " precursor state");
+                if (attacker.isWithinAttackRange(
+                    attacker.getMainHandItem(),
+                    toAabb(precursor.targetBoundingBox()),
+                    3.0d
+                )) {
+                    throw new AssertionError(
+                        "server attacker was already attackable from the captured " + variant.id() + " precursor state"
+                    );
                 }
 
                 for (int tick = 1; tick <= entryTick; tick++) {
                     Vec3 projected = observedPosition.add(observedVelocity.scale(tick));
+                    Vec3 targetDelta = targetVelocity.scale(tick);
                     attacker.teleportTo(projected.x, projected.y, projected.z);
+                    AABB projectedTarget = toAabb(translate(precursor.targetBoundingBox(), targetDelta));
                     boolean inRange = attacker.isWithinAttackRange(
                         attacker.getMainHandItem(),
-                        victim.getBoundingBox(),
+                        projectedTarget,
                         3.0d
                     );
                     if (tick < entryTick && inRange) {
@@ -248,6 +265,8 @@ final class MeleeBurstSequenceValidationScenarios {
                                 + " predicted=" + entryTick
                                 + " observedPosition=" + precursor.observedPosition()
                                 + " observedVelocity=" + precursor.observedVelocity()
+                                + " targetPosition=" + precursor.targetPosition()
+                                + " targetVelocity=" + precursor.targetVelocity()
                         );
                     }
                     if (tick == entryTick && !inRange) {
@@ -255,8 +274,21 @@ final class MeleeBurstSequenceValidationScenarios {
                             "server " + variant.id() + " range was still illegal at predictor entry tick " + entryTick
                                 + "; observedPosition=" + precursor.observedPosition()
                                 + " observedVelocity=" + precursor.observedVelocity()
+                                + " targetPosition=" + precursor.targetPosition()
+                                + " targetVelocity=" + precursor.targetVelocity()
                         );
                     }
+                }
+
+                Vec3 projectedVictim = targetPosition.add(targetVelocity.scale(entryTick));
+                victim.teleportTo(projectedVictim.x, projectedVictim.y, projectedVictim.z);
+                if (!attacker.isWithinAttackRange(attacker.getMainHandItem(), victim.getBoundingBox(), 3.0d)) {
+                    throw new AssertionError(
+                        "real server victim box did not match captured-motion range entry for " + variant.id()
+                            + "; predictedTick=" + entryTick
+                            + " targetPosition=" + precursor.targetPosition()
+                            + " targetVelocity=" + precursor.targetVelocity()
+                    );
                 }
 
                 victim.invulnerableTime = 0;
@@ -351,6 +383,17 @@ final class MeleeBurstSequenceValidationScenarios {
         return new Vec3(snapshot.x(), snapshot.y(), snapshot.z());
     }
 
+    private static AABB toAabb(AabbSnapshot box) {
+        return new AABB(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ());
+    }
+
+    private static AabbSnapshot translate(AabbSnapshot box, Vec3 delta) {
+        return new AabbSnapshot(
+            box.minX() + delta.x, box.minY() + delta.y, box.minZ() + delta.z,
+            box.maxX() + delta.x, box.maxY() + delta.y, box.maxZ() + delta.z
+        );
+    }
+
     private static Map<BlockPos, BlockState> clearArena(ServerLevel level, BlockPos center) {
         Map<BlockPos, BlockState> originals = new LinkedHashMap<>();
         for (int dx = -4; dx <= 4; dx++) {
@@ -402,7 +445,10 @@ final class MeleeBurstSequenceValidationScenarios {
         LethalOpportunity opportunity,
         long fastestProtectionAuthorityTick,
         Vec3Snapshot observedPosition,
-        Vec3Snapshot observedVelocity
+        Vec3Snapshot observedVelocity,
+        Vec3Snapshot targetPosition,
+        Vec3Snapshot targetVelocity,
+        AabbSnapshot targetBoundingBox
     ) {
     }
 
