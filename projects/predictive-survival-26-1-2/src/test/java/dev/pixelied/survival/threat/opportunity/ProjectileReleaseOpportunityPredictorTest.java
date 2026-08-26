@@ -96,7 +96,15 @@ class ProjectileReleaseOpportunityPredictorTest {
     }
 
     private static List<LethalOpportunity> predict(WorldSnapshot.EntitySnapshot attacker, float health) {
-        return new ProjectileReleaseOpportunityPredictor().predict(context(attacker, health));
+        try {
+            Class<?> type = Class.forName(
+                "dev.pixelied.survival.threat.opportunity.ProjectileReleaseOpportunityPredictor"
+            );
+            Object instance = type.getDeclaredConstructor().newInstance();
+            return ((LethalOpportunityPredictor) instance).predict(context(attacker, health));
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("projectile release opportunity predictor is not implemented", exception);
+        }
     }
 
     private static LethalOpportunity only(List<LethalOpportunity> opportunities) {
