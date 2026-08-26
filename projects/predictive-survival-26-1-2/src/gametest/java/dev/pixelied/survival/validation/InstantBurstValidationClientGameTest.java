@@ -17,6 +17,7 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            ChargedAnchorBurstSequenceValidationScenarios.validateChargedAnchorImmediateUse(context, singleplayer);
         }
     }
 
