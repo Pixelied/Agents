@@ -7,9 +7,10 @@ import dev.pixelied.survival.core.WorldSnapshot;
 import java.util.Map;
 import java.util.Optional;
 
-/** Source-faithful 26.1.2 server validation for player attack packets. */
+/** Source-faithful 26.1.2 server validation for player attack and piercing-weapon reach. */
 public final class ServerPlayerAttackRange {
     public static final double ATTACK_PACKET_BUFFER = 3.0d;
+    private static final String PIERCING_PROFILE = "piercing_weapon";
 
     private ServerPlayerAttackRange() {
     }
@@ -25,7 +26,7 @@ public final class ServerPlayerAttackRange {
         Optional<Vec3Snapshot> eye = eyePosition(attacker);
         Optional<AttackProfile> profile = attackProfile(attacker.properties());
         if (eye.isPresent() && profile.isPresent()) {
-            return isWithin(eye.get(), target, profile.get());
+            return isWithin(eye.get(), target, profile.get(), attacker.velocity());
         }
 
         double reach = nonNegativeDouble(attacker.properties().get("attack_range"))
@@ -38,23 +39,54 @@ public final class ServerPlayerAttackRange {
         AabbSnapshot target,
         AttackProfile profile
     ) {
+        return isWithin(eye, target, profile, new Vec3Snapshot(0d, 0d, 0d));
+    }
+
+    /**
+     * Normal entity attack packets use Minecraft's +3 server packet allowance. A piercing weapon
+     * (the 26.1.2 spear family) instead uses ServerboundPlayerActionPacket.STAB and raycasts its
+     * own AttackRange, extending only by positive known movement along the chosen stab direction.
+     * For adversarial opportunity modeling the attacker may rotate toward the victim before STAB,
+     * so the maximum legal forward extension is the magnitude of the observed movement vector.
+     */
+    public static boolean isWithin(
+        Vec3Snapshot eye,
+        AabbSnapshot target,
+        AttackProfile profile,
+        Vec3Snapshot knownMovement
+    ) {
         double distance = Math.sqrt(distanceToSqr(eye, target));
+        if (isPiercing(profile)) {
+            double forwardExtension = vectorLength(knownMovement);
+            double min = profile.minRange() - profile.hitboxMargin();
+            double max = profile.maxRange() + profile.hitboxMargin() + forwardExtension;
+            return distance >= min && distance <= max;
+        }
+
         double min = profile.minRange() - profile.hitboxMargin() - ATTACK_PACKET_BUFFER;
         double max = profile.maxRange() + profile.hitboxMargin() + ATTACK_PACKET_BUFFER;
         return distance >= min && distance <= max;
+    }
+
+    public static double serverBuffer(AttackProfile profile) {
+        return isPiercing(profile) ? 0d : ATTACK_PACKET_BUFFER;
     }
 
     public static Optional<AttackProfile> attackProfile(Map<String, String> properties) {
         Optional<Double> entityRange = nonNegativeDouble(properties.get("attack_range"));
         if (entityRange.isEmpty()) return Optional.empty();
 
+        boolean piercing = Boolean.parseBoolean(properties.getOrDefault("piercing_weapon", "false"))
+            || isVanillaSpear(properties.get("weapon_key"));
+        String source = piercing ? PIERCING_PROFILE : "current_main_hand";
+
         Optional<Double> min = nonNegativeDouble(properties.get("main_hand_attack_min_range"));
         Optional<Double> max = nonNegativeDouble(properties.get("main_hand_attack_max_range"));
         Optional<Double> margin = nonNegativeDouble(properties.get("main_hand_attack_hitbox_margin"));
         if (min.isEmpty() || max.isEmpty() || margin.isEmpty() || min.get() > max.get()) {
-            return Optional.of(new AttackProfile(0d, entityRange.get(), 0d, "default_entity_range"));
+            return Optional.of(new AttackProfile(0d, entityRange.get(), 0d, piercing ? PIERCING_PROFILE : "default_entity_range"));
         }
-        return Optional.of(new AttackProfile(min.get(), max.get(), margin.get(), "current_main_hand"));
+        return Optional.of(new AttackProfile(min.get(), max.get(), margin.get(), source));
     }
 
     public static Optional<Vec3Snapshot> eyePosition(WorldSnapshot.EntitySnapshot attacker) {
@@ -63,6 +95,20 @@ public final class ServerPlayerAttackRange {
         Optional<Double> z = finiteDouble(attacker.properties().get("eye_position_z"));
         if (x.isEmpty() || y.isEmpty() || z.isEmpty()) return Optional.empty();
         return Optional.of(new Vec3Snapshot(x.get(), y.get(), z.get()));
+    }
+
+    private static boolean isPiercing(AttackProfile profile) {
+        return PIERCING_PROFILE.equals(profile.source());
+    }
+
+    private static boolean isVanillaSpear(String weaponKey) {
+        return weaponKey != null
+            && weaponKey.startsWith("minecraft:")
+            && weaponKey.endsWith("_spear");
+    }
+
+    private static double vectorLength(Vec3Snapshot vector) {
+        return Math.sqrt(vector.x() * vector.x() + vector.y() * vector.y() + vector.z() * vector.z());
     }
 
     private static double distanceToSqr(Vec3Snapshot point, AabbSnapshot box) {
