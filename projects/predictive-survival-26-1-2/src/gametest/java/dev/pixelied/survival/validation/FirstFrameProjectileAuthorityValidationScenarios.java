@@ -81,10 +81,47 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
                 outcomes.add(runFamily(context, singleplayer, victimId, origin, attacker, family));
             }
 
-            throw new AssertionError("FIRST_FRAME_PROJECTILE_AUTHORITY_RESULTS " + outcomes);
+            assertMeasuredAuthorityClassification(outcomes);
         } finally {
             cleanupAll(context, singleplayer, victimId, origin, attacker);
         }
+    }
+
+    private static void assertMeasuredAuthorityClassification(List<ProbeOutcome> outcomes) {
+        if (outcomes.size() != LaunchFamily.values().length) {
+            throw new AssertionError("expected one authority outcome per launch family: " + outcomes);
+        }
+        for (ProbeOutcome outcome : outcomes) {
+            if (!outcome.precursorProtected()) {
+                throw new AssertionError(outcome.family() + " precursor-prearmed path must survive: " + outcome);
+            }
+        }
+
+        ProbeOutcome bow = requireOutcome(outcomes, LaunchFamily.BOW.id);
+        if (!bow.firstEntityPath().guaranteedAuthorityLead()) {
+            throw new AssertionError("Bow must retain measured first-projectile authority lead: " + bow);
+        }
+
+        for (LaunchFamily family : List.of(
+            LaunchFamily.CROSSBOW_ARROW,
+            LaunchFamily.CROSSBOW_FIREWORK,
+            LaunchFamily.WIND_CHARGE,
+            LaunchFamily.SPLASH_HARMING
+        )) {
+            ProbeOutcome outcome = requireOutcome(outcomes, family.id);
+            if (outcome.firstEntityPath().guaranteedAuthorityLead()) {
+                throw new AssertionError(
+                    family.id + " unexpectedly gained first-projectile authority lead; reevaluate precursor modeling: " + outcome
+                );
+            }
+        }
+    }
+
+    private static ProbeOutcome requireOutcome(List<ProbeOutcome> outcomes, String family) {
+        for (ProbeOutcome outcome : outcomes) {
+            if (family.equals(outcome.family())) return outcome;
+        }
+        throw new AssertionError("missing first-frame authority outcome for " + family + ": " + outcomes);
     }
 
     private static ProbeOutcome runFamily(
