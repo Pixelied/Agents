@@ -74,6 +74,23 @@ class TntMinecartOpportunityPredictorTest {
     }
 
     @Test
+    void collisionTwoTicksAheadIsForecastBeforeOnePacketProtectionDeadline() {
+        WorldSnapshot.EntitySnapshot cart = minecart(
+            new Vec3Snapshot(1.4, 0.0, 0.5),
+            new Vec3Snapshot(0.8, 0.0, 0.0),
+            false,
+            0.0,
+            true
+        );
+        WorldSnapshot.BlockSnapshot wall = fullBlock(3, 0, 0);
+
+        LethalOpportunity opportunity = only(predict(List.of(cart), List.of(wall), SafetyMode.BALANCED));
+
+        assertEquals("forecast_horizontal_collision", opportunity.evidence().get("trigger"));
+        assertEquals(2, opportunity.projectedThreat().impact().earliest());
+    }
+
+    @Test
     void nextTickPathThroughCompoundShapeGapDoesNotInventCollision() {
         WorldSnapshot.EntitySnapshot cart = new WorldSnapshot.EntitySnapshot(
             "cart",
