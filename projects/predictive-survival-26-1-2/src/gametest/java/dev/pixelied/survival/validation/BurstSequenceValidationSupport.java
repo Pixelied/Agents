@@ -59,15 +59,16 @@ final class BurstSequenceValidationSupport {
     static void armTotemFromPrecursor(
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer,
+        UUID victimId,
         RuntimeHarness harness,
         String id
     ) {
-        ensureSelectedSlot(context, singleplayer, 0, id + "_pre_arm");
+        ensureSelectedSlot(context, singleplayer, victimId, 0, id + "_pre_arm");
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
             context.runOnClient(minecraft -> harness.engine().tick());
             context.waitTick();
             boolean protectedOnServer = singleplayer.getServer().computeOnServer(server ->
-                protectedInHand(SurvivalValidationClientGameTest.onlyPlayer(server))
+                protectedInHand(requireVictim(server, victimId))
             );
             if (protectedOnServer) return;
         }
@@ -89,6 +90,7 @@ final class BurstSequenceValidationSupport {
     static void ensureSelectedSlot(
         ClientGameTestContext context,
         TestSingleplayerContext singleplayer,
+        UUID victimId,
         int slot,
         String id
     ) {
@@ -103,7 +105,7 @@ final class BurstSequenceValidationSupport {
         context.waitFor(minecraft -> minecraft.player != null && minecraft.player.getInventory().getSelectedSlot() == slot);
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
             boolean confirmed = singleplayer.getServer().computeOnServer(server ->
-                SurvivalValidationClientGameTest.onlyPlayer(server).getInventory().getSelectedSlot() == slot
+                requireVictim(server, victimId).getInventory().getSelectedSlot() == slot
             );
             if (confirmed) return;
             context.waitTick();
@@ -133,6 +135,12 @@ final class BurstSequenceValidationSupport {
         attacker.setNoGravity(true);
         attacker.setDeltaMovement(Vec3.ZERO);
         return new AttackerHandle(attacker.getUUID(), attacker.getId());
+    }
+
+    static ServerPlayer requireVictim(net.minecraft.server.MinecraftServer server, UUID victimId) {
+        ServerPlayer player = server.getPlayerList().getPlayer(victimId);
+        if (player == null) throw new AssertionError("gametest victim disappeared during burst sequence");
+        return player;
     }
 
     static ServerPlayer requireAttacker(net.minecraft.server.MinecraftServer server, AttackerHandle handle) {
