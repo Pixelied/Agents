@@ -2,22 +2,28 @@ package dev.pixelied.survival.threat.opportunity;
 
 import dev.pixelied.survival.core.AabbSnapshot;
 import dev.pixelied.survival.core.Confidence;
+import dev.pixelied.survival.core.DamageRange;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
+import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.VanillaDamageOracle;
 import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.threat.ExplosionSpec;
 import dev.pixelied.survival.threat.ExplosionThreatFactory;
 import dev.pixelied.survival.threat.SnapshotOcclusionView;
 import dev.pixelied.survival.timeline.ThreatEvent;
+import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /** Predicts legal place-then-break End Crystal bursts before the crystal entity exists. */
 public final class CrystalOpportunityPredictor implements LethalOpportunityPredictor {
@@ -28,6 +34,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
     private static final double CRYSTAL_HEIGHT = 2.0d;
     private static final double SERVER_USE_ON_RANGE_BUFFER = 1.0d;
     private static final double SERVER_ATTACK_RANGE_BUFFER = 3.0d;
+    private static final float MAX_END_CRYSTAL_RAW_DAMAGE = 85f;
 
     private final ExplosionThreatFactory explosionFactory = new ExplosionThreatFactory();
     private final VanillaDamageOracle damageOracle = new VanillaDamageOracle();
@@ -37,6 +44,8 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
         if (context == null) throw new NullPointerException("context");
         List<LethalOpportunity> result = new ArrayList<>();
         SnapshotOcclusionView world = new SnapshotOcclusionView(context.world().blocks());
+        int narrowPhaseBudget = context.limits().maxOpportunities();
+        int narrowPhaseEvaluations = 0;
 
         for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
             if (!"minecraft:player".equals(attacker.typeKey())) continue;
@@ -76,12 +85,15 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                 );
                 if (!withinServerAttackRange(eye, placedCrystal, attackProfile)) continue;
 
-                long reactionTicks = Math.max(
-                    0L,
-                    context.timing().nextPacketProcessingWindow().latest() - context.timing().clientTick()
-                );
-                long latest = Math.min(reactionTicks, context.limits().maxProjectileHorizonTicks());
-                TickWindow impact = new TickWindow(0, latest);
+                if (narrowPhaseEvaluations >= narrowPhaseBudget) {
+                    if (result.size() >= context.limits().maxOpportunities()) result.removeLast();
+                    result.add(overflowOpportunity(context, attacker, visibleCrystal));
+                    return List.copyOf(result);
+                }
+                narrowPhaseEvaluations++;
+
+                long reactionTicks = reactionTicks(context);
+                TickWindow impact = new TickWindow(0, reactionTicks);
                 String id = "opportunity:crystal:" + attacker.id() + ":" + x + "," + y + "," + z;
                 ExplosionSpec spec = new ExplosionSpec(
                     center,
@@ -127,6 +139,58 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
             }
         }
         return List.copyOf(result);
+    }
+
+    private static LethalOpportunity overflowOpportunity(
+        PredictionContext context,
+        WorldSnapshot.EntitySnapshot attacker,
+        boolean visibleCrystal
+    ) {
+        String id = "opportunity:crystal:overflow:" + attacker.id();
+        DamageSourceSnapshot damage = new DamageSourceSnapshot(
+            new DamageRange(0f, MAX_END_CRYSTAL_RAW_DAMAGE),
+            Set.of(DamageFlag.IS_EXPLOSION),
+            true,
+            1f,
+            false,
+            Optional.empty(),
+            "minecraft:explosion"
+        );
+        ThreatEvent projected = new ThreatEvent(
+            id,
+            ThreatKind.EXPLOSION,
+            new TickWindow(0, reactionTicks(context)),
+            damage,
+            Confidence.POTENTIAL,
+            Optional.empty(),
+            Optional.empty(),
+            true,
+            true,
+            true,
+            false
+        );
+        return new LethalOpportunity(
+            id,
+            OpportunityFamily.CRYSTAL,
+            projected,
+            Confidence.POTENTIAL,
+            visibleCrystal ? 2 : 3,
+            Map.of(
+                "attacker_id", attacker.id(),
+                "visible_crystal", Boolean.toString(visibleCrystal),
+                "budget_overflow", "true",
+                "narrow_phase_budget", Integer.toString(context.limits().maxOpportunities()),
+                "unscanned_candidates", "true"
+            )
+        );
+    }
+
+    private static long reactionTicks(PredictionContext context) {
+        long reactionTicks = Math.max(
+            0L,
+            context.timing().nextPacketProcessingWindow().latest() - context.timing().clientTick()
+        );
+        return Math.min(reactionTicks, context.limits().maxProjectileHorizonTicks());
     }
 
     private static AttackProfile postPlacementAttackProfile(Map<String, String> properties, double entityRange) {
