@@ -20,7 +20,9 @@ public final class SnapshotOcclusionView implements OcclusionView {
     }
 
     SnapshotOcclusionView(List<WorldSnapshot.BlockSnapshot> blocks, List<CoverCandidate> candidates) {
-        this.blocks = List.copyOf(Objects.requireNonNull(blocks, "blocks"));
+        this.blocks = Objects.requireNonNull(blocks, "blocks").stream()
+            .filter(WorldSnapshot.BlockSnapshot::collision)
+            .toList();
         this.candidates = List.copyOf(Objects.requireNonNull(candidates, "candidates"));
     }
 
@@ -29,7 +31,6 @@ public final class SnapshotOcclusionView implements OcclusionView {
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
         for (WorldSnapshot.BlockSnapshot block : blocks) {
-            if (!block.collision()) continue;
             if (!block.collisionBoxes().isEmpty()) {
                 for (AabbSnapshot component : block.collisionBoxes()) {
                     if (intersects(from, to, component)) return true;
