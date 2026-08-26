@@ -150,10 +150,13 @@ final class CrystalBurstSequenceValidationScenarios {
             });
 
             if (!outcome.attackAccepted()) throw new AssertionError("immediate hostile crystal break was rejected");
-            SurvivalValidationClientGameTest.assertClose("crystal_zero_delay_pop", 1f, outcome.health(), EPSILON);
             if (!outcome.protectionConsumed()) {
-                throw new AssertionError("crystal zero-delay sequence did not consume protection");
+                throw new AssertionError(
+                    "crystal zero-delay sequence did not consume protection; health=" + outcome.health()
+                        + " crystalRemoved=" + outcome.crystalRemoved()
+                );
             }
+            SurvivalValidationClientGameTest.assertClose("crystal_zero_delay_pop", 1f, outcome.health(), EPSILON);
             if (!outcome.crystalRemoved()) {
                 throw new AssertionError("crystal zero-delay sequence did not remove crystal");
             }
