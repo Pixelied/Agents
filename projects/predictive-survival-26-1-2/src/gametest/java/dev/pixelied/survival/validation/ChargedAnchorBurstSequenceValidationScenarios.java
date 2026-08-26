@@ -1,6 +1,6 @@
 package dev.pixelied.survival.validation;
 
-import dev.pixelied.survival.threat.opportunity.OpportunityFamily;
+import dev.pixelied.survival.timeline.ThreatKind;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.BlockPos;
@@ -16,6 +16,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -69,23 +70,26 @@ final class ChargedAnchorBurstSequenceValidationScenarios {
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
             context.computeOnClient(minecraft -> {
                 var frame = harness.runtime().capture();
-                boolean anchorOpportunity = frame.opportunities().stream()
-                    .anyMatch(opportunity -> opportunity.family() == OpportunityFamily.RESPAWN_ANCHOR);
-                if (!anchorOpportunity) {
+                List<String> chargedAnchorThreats = frame.actualTimeline().events().stream()
+                    .filter(event -> event.kind() == ThreatKind.EXPLOSION)
+                    .filter(event -> event.id().startsWith("explosion:block:minecraft:respawn_anchor:"))
+                    .map(event -> event.id())
+                    .toList();
+                if (chargedAnchorThreats.isEmpty()) {
                     throw new AssertionError(
-                        "pre-arm frame had no charged-anchor opportunity; opportunities="
-                            + frame.opportunities().stream()
-                                .map(opportunity -> opportunity.family() + ":" + opportunity.id())
-                                .toList()
-                    );
-                }
-                if (!frame.actualTimeline().events().isEmpty()) {
-                    throw new AssertionError(
-                        "charged-anchor precursor is contaminated by active threats: "
+                        "pre-arm frame had no actual charged-anchor explosion threat; actual="
                             + frame.actualTimeline().events().stream()
                                 .map(event -> event.kind() + ":" + event.id())
                                 .toList()
                     );
+                }
+                List<String> unrelated = frame.actualTimeline().events().stream()
+                    .filter(event -> !(event.kind() == ThreatKind.EXPLOSION
+                        && event.id().startsWith("explosion:block:minecraft:respawn_anchor:")))
+                    .map(event -> event.kind() + ":" + event.id())
+                    .toList();
+                if (!unrelated.isEmpty()) {
+                    throw new AssertionError("charged-anchor runtime fixture has unrelated active threats: " + unrelated);
                 }
                 return null;
             });
@@ -103,7 +107,7 @@ final class ChargedAnchorBurstSequenceValidationScenarios {
                 ServerPlayer attacker = BurstSequenceValidationSupport.requireAttacker(server, setup.attacker());
                 ServerLevel level = (ServerLevel)victim.level();
                 if (!BurstSequenceValidationSupport.protectedInHand(victim)) {
-                    throw new AssertionError("server lost precursor-established protection before charged-anchor use");
+                    throw new AssertionError("server lost charged-anchor protection before final use");
                 }
                 BlockState charged = level.getBlockState(setup.anchor());
                 if (!charged.is(Blocks.RESPAWN_ANCHOR)
