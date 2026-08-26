@@ -52,10 +52,10 @@ final class TntMinecartBurningArrowValidationScenarios {
             cart.setDeltaMovement(Vec3.ZERO);
             level.addFreshEntity(cart);
 
-            // 4.5 blocks center-to-center at 1.5 blocks/tick is a three-tick precursor. The
-            // GameTest deliberately spends one client tick processing packets before capture, so
-            // the production predictor must still see the remaining two-tick authority window.
-            Vec3 arrowPosition = new Vec3(center.getX() - 4.0d, center.getY() + 0.35d, center.getZ() + 2.2d);
+            // Use the real entity boxes, not center distance, to place the arrow just outside the
+            // first-tick sweep but inside the second. Arrow max-X is ~centerX-2.75 while minecart
+            // min-X is ~centerX+0.01, leaving ~2.76 blocks of surface gap at 1.5 blocks/tick.
+            Vec3 arrowPosition = new Vec3(center.getX() - 3.0d, center.getY() + 0.35d, center.getZ() + 2.2d);
             Arrow arrow = new Arrow(
                 level,
                 arrowPosition.x,
@@ -201,9 +201,9 @@ final class TntMinecartBurningArrowValidationScenarios {
                 victim.connection.send(new ClientboundSetEntityMotionPacket(arrow));
             });
 
-            // Spend one real client tick processing the vanilla packets and projectile simulation.
-            // The arrow began three ticks away, so a valid opportunity must still have enough lead
-            // to complete the fastest one-packet Totem route from this captured frame.
+            // Spend one real client tick processing the vanilla packets. The synchronized snapshot
+            // remains outside an immediate one-tick hit but inside the two-tick Totem authority
+            // horizon, so the opportunity must be early enough for a guaranteed route.
             context.waitTick();
             context.runOnClient(minecraft -> {
                 if (minecraft.level == null || !(minecraft.level.getEntity(setup.arrowId()) instanceof Arrow arrow)) {
