@@ -1,5 +1,6 @@
 package dev.pixelied.survival.validation;
 
+import dev.pixelied.survival.threat.opportunity.OpportunityFamily;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.BlockPos;
@@ -12,6 +13,7 @@ import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.ServerExplosion;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -88,6 +90,33 @@ final class CrystalBurstSequenceValidationScenarios {
             }
 
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
+            PreArmDiagnostics preArm = context.computeOnClient(minecraft -> {
+                var frame = harness.runtime().capture();
+                boolean crystalOpportunity = frame.opportunities().stream()
+                    .anyMatch(opportunity -> opportunity.family() == OpportunityFamily.CRYSTAL);
+                String actualThreats = frame.actualTimeline().events().stream()
+                    .map(event -> event.kind() + ":" + event.id())
+                    .toList()
+                    .toString();
+                String opportunities = frame.opportunities().stream()
+                    .map(opportunity -> opportunity.family() + ":" + opportunity.id())
+                    .toList()
+                    .toString();
+                return new PreArmDiagnostics(crystalOpportunity, actualThreats, opportunities);
+            });
+            if (!preArm.crystalOpportunity()) {
+                throw new AssertionError(
+                    "pre-arm frame had no crystal opportunity; actual=" + preArm.actualThreats()
+                        + " opportunities=" + preArm.opportunities()
+                );
+            }
+            if (!"[]".equals(preArm.actualThreats())) {
+                throw new AssertionError(
+                    "crystal precursor test is contaminated by an already-active threat; actual="
+                        + preArm.actualThreats() + " opportunities=" + preArm.opportunities()
+                );
+            }
+
             BurstSequenceValidationSupport.armTotemFromPrecursor(
                 context,
                 singleplayer,
@@ -140,12 +169,22 @@ final class CrystalBurstSequenceValidationScenarios {
                 EndCrystal crystal = level.getEntitiesOfClass(EndCrystal.class, placementBox).stream()
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("real EndCrystalItem placement created no crystal"));
+                float seenPercent = ServerExplosion.getSeenPercent(crystal.position(), victim);
+                double normalizedDistance = Math.sqrt(victim.distanceToSqr(crystal.position())) / 12.0d;
+                double power = (1.0d - normalizedDistance) * seenPercent;
+                float rawDamage = (float)(((power * power + power) / 2.0d) * 7.0d * 12.0d + 1.0d);
+                Vec3 victimPosition = victim.position();
+                Vec3 crystalPosition = crystal.position();
                 boolean accepted = crystal.hurtServer(level, attacker.damageSources().playerAttack(attacker), 1f);
                 return new Outcome(
                     accepted,
                     victim.getHealth(),
                     BurstSequenceValidationSupport.protectionConsumed(victim),
-                    crystal.isRemoved()
+                    crystal.isRemoved(),
+                    seenPercent,
+                    rawDamage,
+                    victimPosition,
+                    crystalPosition
                 );
             });
 
@@ -153,10 +192,18 @@ final class CrystalBurstSequenceValidationScenarios {
             if (!outcome.protectionConsumed()) {
                 throw new AssertionError(
                     "crystal zero-delay sequence did not consume protection; health=" + outcome.health()
+                        + " seen=" + outcome.seenPercent() + " raw=" + outcome.rawDamage()
+                        + " victim=" + outcome.victimPosition() + " crystal=" + outcome.crystalPosition()
                         + " crystalRemoved=" + outcome.crystalRemoved()
                 );
             }
-            SurvivalValidationClientGameTest.assertClose("crystal_zero_delay_pop", 1f, outcome.health(), EPSILON);
+            if (Math.abs(1f - outcome.health()) > EPSILON) {
+                throw new AssertionError(
+                    "crystal_zero_delay_pop expected=1.0 actual=" + outcome.health()
+                        + " seen=" + outcome.seenPercent() + " raw=" + outcome.rawDamage()
+                        + " victim=" + outcome.victimPosition() + " crystal=" + outcome.crystalPosition()
+                );
+            }
             if (!outcome.crystalRemoved()) {
                 throw new AssertionError("crystal zero-delay sequence did not remove crystal");
             }
@@ -227,11 +274,22 @@ final class CrystalBurstSequenceValidationScenarios {
     ) {
     }
 
+    private record PreArmDiagnostics(
+        boolean crystalOpportunity,
+        String actualThreats,
+        String opportunities
+    ) {
+    }
+
     private record Outcome(
         boolean attackAccepted,
         float health,
         boolean protectionConsumed,
-        boolean crystalRemoved
+        boolean crystalRemoved,
+        float seenPercent,
+        float rawDamage,
+        Vec3 victimPosition,
+        Vec3 crystalPosition
     ) {
     }
 }
