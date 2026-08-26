@@ -22,6 +22,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            TntMinecartBurstSequenceValidationScenarios.validateForecastCollisionArmsBeforeUnprimedBurst(
+                context,
+                singleplayer
+            );
         }
     }
 
