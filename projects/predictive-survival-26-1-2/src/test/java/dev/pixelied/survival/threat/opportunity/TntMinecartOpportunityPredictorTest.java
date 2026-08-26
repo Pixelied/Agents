@@ -123,19 +123,37 @@ class TntMinecartOpportunityPredictorTest {
             0.0,
             true
         );
-        WorldSnapshot.EntitySnapshot arrow = new WorldSnapshot.EntitySnapshot(
-            "arrow",
-            "minecraft:arrow",
+        WorldSnapshot.EntitySnapshot arrow = arrow(
             new Vec3Snapshot(3.0, 0.35, 0.5),
-            new Vec3Snapshot(-1.0, 0.0, 0.0),
-            new AabbSnapshot(2.95, 0.30, 0.45, 3.05, 0.40, 0.55),
-            Map.of("on_fire", "true")
+            new Vec3Snapshot(-1.0, 0.0, 0.0)
         );
 
         LethalOpportunity opportunity = only(predict(List.of(cart, arrow), List.of(), SafetyMode.BALANCED));
 
         assertEquals("burning_arrow", opportunity.evidence().get("trigger"));
         assertEquals("1.0", opportunity.evidence().get("projectile_speed_sqr"));
+        assertEquals(1, opportunity.projectedThreat().impact().earliest());
+    }
+
+    @Test
+    void burningArrowTwoTicksAwayIsForecastBeforeOnePacketProtectionDeadline() {
+        WorldSnapshot.EntitySnapshot cart = minecart(
+            new Vec3Snapshot(2.0, 0.0, 0.5),
+            new Vec3Snapshot(0.0, 0.0, 0.0),
+            false,
+            0.0,
+            true
+        );
+        WorldSnapshot.EntitySnapshot arrow = arrow(
+            new Vec3Snapshot(4.0, 0.35, 0.5),
+            new Vec3Snapshot(-1.0, 0.0, 0.0)
+        );
+
+        LethalOpportunity opportunity = only(predict(List.of(cart, arrow), List.of(), SafetyMode.BALANCED));
+
+        assertEquals("burning_arrow", opportunity.evidence().get("trigger"));
+        assertEquals(2, opportunity.projectedThreat().impact().earliest());
+        assertEquals("2", opportunity.evidence().get("projectile_collision_tick"));
     }
 
     @Test
@@ -223,6 +241,20 @@ class TntMinecartOpportunityPredictorTest {
                 position.x() + 0.49, position.y() + 0.7, position.z() + 0.49
             ),
             minecartProperties(horizontalCollision, fallDistance, tntExplodes)
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot arrow(Vec3Snapshot position, Vec3Snapshot velocity) {
+        return new WorldSnapshot.EntitySnapshot(
+            "arrow",
+            "minecraft:arrow",
+            position,
+            velocity,
+            new AabbSnapshot(
+                position.x() - 0.05, position.y() - 0.05, position.z() - 0.05,
+                position.x() + 0.05, position.y() + 0.05, position.z() + 0.05
+            ),
+            Map.of("on_fire", "true")
         );
     }
 
