@@ -37,6 +37,7 @@ import dev.pixelied.survival.threat.opportunity.CrystalOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.RespawnAnchorOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.TntMinecartOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.MeleeApproachOpportunityPredictor;
+import dev.pixelied.survival.threat.opportunity.ProjectileReleaseOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunityRegistry;
 import dev.pixelied.survival.threat.opportunity.OpportunityTimelineAssembler;
@@ -114,7 +115,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             new BedOpportunityPredictor(),
             new RespawnAnchorOpportunityPredictor(),
             new TntMinecartOpportunityPredictor(),
-            new MeleeApproachOpportunityPredictor()
+            new MeleeApproachOpportunityPredictor(),
+            new ProjectileReleaseOpportunityPredictor()
         ));
         this.opportunityTimelineAssembler = new OpportunityTimelineAssembler();
         this.candidateGenerator = new SurvivalCandidateGenerator();
@@ -243,7 +245,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         } else if (action instanceof SurvivalAction.RaiseShield) {
             status = shieldExecutor.observe(executionContext(state));
         } else {
-            status = nonTotemExecutor.observe(nonTotemContext(state));
+            status = nonTotemExecutor.observe(action, nonTotemContext(state));
         }
         return dispatchIfNeeded(status, state.timing());
     }
