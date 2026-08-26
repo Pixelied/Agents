@@ -22,7 +22,10 @@ import java.util.UUID;
 final class TntMinecartBurstSequenceValidationScenarios {
     private static final float EPSILON = 0.0001f;
     private static final double POSITION_EPSILON = 0.05d;
-    private static final Vec3 COLLISION_VELOCITY = new Vec3(0d, 0d, 1.2d);
+    // MinecartTNT checks horizontal speed after Entity.move() zeros the collided axis. Keep a
+    // tangential component so this is a real vanilla glancing-collision detonation, not a head-on
+    // impact whose post-collision speed becomes zero.
+    private static final Vec3 COLLISION_VELOCITY = new Vec3(0.5d, 0d, 1.2d);
 
     private TntMinecartBurstSequenceValidationScenarios() {
     }
@@ -44,7 +47,9 @@ final class TntMinecartBurstSequenceValidationScenarios {
             victim.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 0.5d);
 
             MinecartTNT cart = new MinecartTNT(EntityType.TNT_MINECART, level);
-            Vec3 cartPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 2.0d);
+            // Off-rail minecart motion is server-clamped. Starting close to the wall guarantees the
+            // real server tick reaches it even after that clamp while still leaving a visible precursor.
+            Vec3 cartPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 2.4d);
             cart.setPos(cartPosition.x, cartPosition.y, cartPosition.z);
             cart.setNoGravity(true);
             cart.setDeltaMovement(Vec3.ZERO);
@@ -91,7 +96,7 @@ final class TntMinecartBurstSequenceValidationScenarios {
             });
 
             if (!outcome.cartRemoved()) {
-                throw new AssertionError("vanilla TNT minecart collision path did not explode/remove the unprimed cart");
+                throw new AssertionError("vanilla TNT minecart glancing-collision path did not explode/remove the unprimed cart");
             }
             if (!outcome.horizontalCollision()) {
                 throw new AssertionError("TNT minecart did not report the source-required horizontal collision");
@@ -150,6 +155,7 @@ final class TntMinecartBurstSequenceValidationScenarios {
 
             context.waitFor(minecraft -> minecraft.level != null
                 && minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT cart
+                && cart.getDeltaMovement().x > 0.4d
                 && cart.getDeltaMovement().z > 1.0d
                 && !cart.isPrimed());
 
