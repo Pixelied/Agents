@@ -12,6 +12,7 @@ import dev.pixelied.survival.execution.ExecutionStatus;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.threat.opportunity.OpportunityFamily;
+import dev.pixelied.survival.threat.opportunity.OpportunityTimelineAssembler;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
@@ -32,7 +33,12 @@ class OpportunityAlternativeBranchEngineTest {
         ThreatEvent first = threat("opportunity:bed:attacker:first", 10f);
         ThreatEvent second = threat("opportunity:bed:attacker:second", 30f);
         List<LethalOpportunity> alternatives = List.of(opportunity(first), opportunity(second));
-        ThreatTimeline union = new ThreatTimeline(List.of(first, second));
+        ThreatTimeline actual = new ThreatTimeline(List.of());
+        ThreatTimeline planning = new OpportunityTimelineAssembler().assemble(
+            actual,
+            alternatives,
+            EngineLimits.defaults().maxThreats()
+        );
         SurvivalAction.EquipDeathProtection protection = new SurvivalAction.EquipDeathProtection(
             DeathProtectionSnapshot.ProtectionItem.deterministicNoOp(),
             SurvivalAction.Hand.MAIN_HAND,
@@ -51,9 +57,9 @@ class OpportunityAlternativeBranchEngineTest {
         );
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(
             context,
-            new ThreatTimeline(List.of()),
+            actual,
             alternatives,
-            union,
+            planning,
             List.of(protection)
         );
         FakeRuntime runtime = new FakeRuntime(frame);
