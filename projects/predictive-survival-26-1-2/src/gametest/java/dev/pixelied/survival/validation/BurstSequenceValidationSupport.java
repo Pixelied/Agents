@@ -19,6 +19,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -116,6 +117,38 @@ final class BurstSequenceValidationSupport {
         );
     }
 
+    /**
+     * Lets a newly equipped hostile player reach a source-faithful ready state before the modeled
+     * approach begins. 26.1.2 applies equipment attribute modifiers from LivingEntity's normal
+     * equipment-update tick, while Player then resets attack charge when it first observes the new
+     * main-hand item. Waiting here models ordinary elapsed time before the precursor; it does not
+     * insert any delay between final range entry and the hostile attack.
+     */
+    static void waitForReadyAttackState(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        AttackerHandle handle,
+        String id
+    ) {
+        AttackReadyState last = null;
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            last = singleplayer.getServer().computeOnServer(server -> {
+                ServerPlayer attacker = requireAttacker(server, handle);
+                return new AttackReadyState(
+                    attacker.getAttackStrengthScale(0.5f),
+                    attacker.getCurrentItemAttackStrengthDelay(),
+                    attacker.getAttributeValue(Attributes.ATTACK_DAMAGE),
+                    attacker.getMainHandItem().copy()
+                );
+            });
+            if (last.attackStrength() >= 0.99f && last.attackDamage() > 1.0d) return;
+            context.waitTick();
+        }
+        throw new AssertionError(
+            "mock attacker never reached ready weapon state for " + id + "; last=" + last
+        );
+    }
+
     static boolean protectedInHand(ServerPlayer player) {
         return player.getMainHandItem().is(Items.TOTEM_OF_UNDYING)
             || player.getOffhandItem().is(Items.TOTEM_OF_UNDYING);
@@ -206,6 +239,14 @@ final class BurstSequenceValidationSupport {
     static void removeMockAttacker(net.minecraft.server.MinecraftServer server, AttackerHandle handle) {
         ServerPlayer attacker = server.getPlayerList().getPlayer(handle.playerId());
         if (attacker != null) server.getPlayerList().remove(attacker);
+    }
+
+    private record AttackReadyState(
+        float attackStrength,
+        float attackDelay,
+        double attackDamage,
+        ItemStack mainHand
+    ) {
     }
 
     record RuntimeHarness(MinecraftSurvivalRuntime runtime, SurvivalEngine engine) {
