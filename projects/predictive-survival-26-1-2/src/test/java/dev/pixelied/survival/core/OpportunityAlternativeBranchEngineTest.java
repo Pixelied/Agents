@@ -24,22 +24,83 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class OpportunityAlternativeBranchEngineTest {
     @Test
     void sameActorAlternativeActionsDoNotStackAsIndependentThreats() {
         PlayerSnapshot player = player();
-        ThreatEvent first = threat("opportunity:bed:attacker:first", 10f);
-        ThreatEvent second = threat("opportunity:bed:attacker:second", 30f);
+        ThreatEvent first = threat("opportunity:bed:attacker:first", 10f, 0);
+        ThreatEvent second = threat("opportunity:bed:attacker:second", 30f, 0);
         List<LethalOpportunity> alternatives = List.of(opportunity(first), opportunity(second));
+        SurvivalAction.EquipDeathProtection protection = protection();
+        FakeRuntime runtime = new FakeRuntime(frame(player, alternatives, List.of(protection)));
+        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(32));
+
+        engine.tick();
+
+        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, runtime.started);
+    }
+
+    @Test
+    void candidateMustProtectEveryAlternativeBranchNotOnlyTheFirst() {
+        PlayerSnapshot player = player();
+        ThreatEvent first = threat("opportunity:bed:attacker:first", 10f, 3);
+        ThreatEvent second = threat("opportunity:bed:attacker:second", 30f, 3);
+        List<LethalOpportunity> alternatives = List.of(opportunity(first), opportunity(second));
+        SurvivalAction branchOnly = new BranchOnlyAction(first.id());
+        FakeRuntime runtime = new FakeRuntime(frame(player, alternatives, List.of(branchOnly, protection())));
+        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(32));
+
+        engine.tick();
+
+        assertInstanceOf(
+            SurvivalAction.EquipDeathProtection.class,
+            runtime.started,
+            "an action that saves only one hypothetical branch must never outrank protection that survives every branch"
+        );
+    }
+
+    @Test
+    void individuallyNonlethalAlternativesDoNotFalselyArmProtectionLatch() {
+        PlayerSnapshot player = player();
+        ThreatEvent first = threat("opportunity:bed:attacker:first", 3f, 0);
+        ThreatEvent second = threat("opportunity:bed:attacker:second", 3f, 11);
+        List<LethalOpportunity> alternatives = List.of(opportunity(first), opportunity(second));
+        FakeRuntime runtime = new FakeRuntime(frame(player, alternatives, List.of()));
+        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(32));
+
+        engine.tick();
+
+        assertFalse(
+            runtime.lastLethalWithoutProtection,
+            "mutually exclusive nonlethal alternatives must not become a fake cumulative lethal latch"
+        );
+    }
+
+    private static SurvivalEngine.EngineFrame frame(
+        PlayerSnapshot player,
+        List<LethalOpportunity> alternatives,
+        List<SurvivalAction> candidates
+    ) {
         ThreatTimeline actual = new ThreatTimeline(List.of());
         ThreatTimeline planning = new OpportunityTimelineAssembler().assemble(
             actual,
             alternatives,
             EngineLimits.defaults().maxThreats()
         );
-        SurvivalAction.EquipDeathProtection protection = new SurvivalAction.EquipDeathProtection(
+        PredictionContext context = new PredictionContext(
+            player,
+            WorldSnapshot.empty(),
+            new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
+            EngineLimits.defaults()
+        );
+        return new SurvivalEngine.EngineFrame(context, actual, alternatives, planning, candidates);
+    }
+
+    private static SurvivalAction.EquipDeathProtection protection() {
+        return new SurvivalAction.EquipDeathProtection(
             DeathProtectionSnapshot.ProtectionItem.deterministicNoOp(),
             SurvivalAction.Hand.MAIN_HAND,
             1,
@@ -49,25 +110,6 @@ class OpportunityAlternativeBranchEngineTest {
             1,
             1
         );
-        PredictionContext context = new PredictionContext(
-            player,
-            WorldSnapshot.empty(),
-            new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
-            EngineLimits.defaults()
-        );
-        SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(
-            context,
-            actual,
-            alternatives,
-            planning,
-            List.of(protection)
-        );
-        FakeRuntime runtime = new FakeRuntime(frame);
-        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(32));
-
-        engine.tick();
-
-        assertInstanceOf(SurvivalAction.EquipDeathProtection.class, runtime.started);
     }
 
     private static LethalOpportunity opportunity(ThreatEvent event) {
@@ -81,7 +123,7 @@ class OpportunityAlternativeBranchEngineTest {
         );
     }
 
-    private static ThreatEvent threat(String id, float rawDamage) {
+    private static ThreatEvent threat(String id, float rawDamage, long tick) {
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
             Set.of(),
@@ -94,7 +136,7 @@ class OpportunityAlternativeBranchEngineTest {
         return new ThreatEvent(
             id,
             ThreatKind.OTHER,
-            new TickWindow(0, 0),
+            new TickWindow(tick, tick),
             damage,
             Confidence.POTENTIAL,
             Optional.empty(),
@@ -126,9 +168,28 @@ class OpportunityAlternativeBranchEngineTest {
         );
     }
 
+    private record BranchOnlyAction(String removedId) implements SurvivalAction {
+        @Override public int requiredServerTicks() { return 0; }
+        @Override public boolean legal() { return true; }
+        @Override public boolean authoritativePrerequisitesSatisfied() { return true; }
+        @Override public double reliability() { return 1d; }
+        @Override public int consumableCost() { return 0; }
+        @Override public int disruptionCost() { return 0; }
+        @Override public boolean deliberateDamage() { return false; }
+        @Override public PlayerSnapshot apply(PlayerSnapshot player) { return player; }
+
+        @Override
+        public ThreatTimeline applyTimeline(ThreatTimeline timeline) {
+            return new ThreatTimeline(timeline.events().stream()
+                .filter(event -> !event.id().equals(removedId))
+                .toList());
+        }
+    }
+
     private static final class FakeRuntime implements SurvivalEngine.RuntimeAdapter {
         private final SurvivalEngine.EngineFrame frame;
         private SurvivalAction started;
+        private boolean lastLethalWithoutProtection;
 
         private FakeRuntime(SurvivalEngine.EngineFrame frame) {
             this.frame = frame;
@@ -137,6 +198,16 @@ class OpportunityAlternativeBranchEngineTest {
         @Override
         public SurvivalEngine.EngineFrame capture() {
             return frame;
+        }
+
+        @Override
+        public void maintainRestoration(
+            SurvivalEngine.EngineFrame ignored,
+            boolean restorationEnabled,
+            boolean lethalWithoutProtection,
+            boolean survivalActionActive
+        ) {
+            lastLethalWithoutProtection = lethalWithoutProtection;
         }
 
         @Override
