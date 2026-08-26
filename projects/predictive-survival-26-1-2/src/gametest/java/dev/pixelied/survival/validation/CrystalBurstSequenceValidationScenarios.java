@@ -54,7 +54,7 @@ final class CrystalBurstSequenceValidationScenarios {
             attacker.getInventory().setSelectedSlot(0);
             attacker.getInventory().setItem(0, new ItemStack(Items.END_CRYSTAL, 2));
             attacker.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
-            attacker.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 1.2d);
+            attacker.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 7.0d);
             attacker.setDeltaMovement(Vec3.ZERO);
             attacker.setYRot(0f);
             attacker.setXRot(0f);
