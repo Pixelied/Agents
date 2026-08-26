@@ -66,7 +66,7 @@ final class SpearBurstSequenceValidationScenarios {
             attacker.setNoGravity(true);
             attacker.setDeltaMovement(Vec3.ZERO);
             attacker.setKnownMovement(Vec3.ZERO);
-            faceVictim(attacker);
+            faceVictim(attacker, victim);
 
             Vec3 approachVelocity = new Vec3(0d, 0d, -APPROACH_PER_TICK);
             Vec3 initialPosition = findTicksOutsideStabRange(
@@ -82,7 +82,7 @@ final class SpearBurstSequenceValidationScenarios {
             attacker.teleportTo(initialPosition.x, initialPosition.y, initialPosition.z);
             attacker.setDeltaMovement(Vec3.ZERO);
             attacker.setKnownMovement(Vec3.ZERO);
-            faceVictim(attacker);
+            faceVictim(attacker, victim);
             attacker.containerMenu.broadcastChanges();
             BurstSequenceValidationSupport.syncEquipment(victim, attacker);
             victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
@@ -128,7 +128,7 @@ final class SpearBurstSequenceValidationScenarios {
                 );
                 attacker.setDeltaMovement(setup.approachVelocity());
                 attacker.setKnownMovement(setup.approachVelocity());
-                faceVictim(attacker);
+                faceVictim(attacker, victim);
                 victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
                 victim.connection.send(new ClientboundSetEntityMotionPacket(attacker));
                 BurstSequenceValidationSupport.syncEquipment(victim, attacker);
@@ -236,7 +236,7 @@ final class SpearBurstSequenceValidationScenarios {
                 attacker.setDeltaMovement(observedVelocity);
                 attacker.setKnownMovement(observedVelocity);
                 victim.teleportTo(targetPosition.x, targetPosition.y, targetPosition.z);
-                faceVictim(attacker);
+                faceVictim(attacker, victim);
                 if (canPiercingHit(attacker, victim)) {
                     throw new AssertionError("server spear could already STAB from the captured precursor state");
                 }
@@ -247,7 +247,7 @@ final class SpearBurstSequenceValidationScenarios {
                     attacker.teleportTo(projected.x, projected.y, projected.z);
                     attacker.setKnownMovement(observedVelocity);
                     victim.teleportTo(projectedTarget.x, projectedTarget.y, projectedTarget.z);
-                    faceVictim(attacker);
+                    faceVictim(attacker, victim);
                     boolean inRange = canPiercingHit(attacker, victim);
                     if (tick < entryTick && inRange) {
                         throw new AssertionError(
@@ -320,7 +320,7 @@ final class SpearBurstSequenceValidationScenarios {
             double outsideZ = victimZ + distance;
             attacker.teleportTo(x, y, outsideZ);
             attacker.setKnownMovement(approachVelocity);
-            faceVictim(attacker);
+            faceVictim(attacker, victim);
             if (canPiercingHit(attacker, victim)) continue;
 
             boolean valid = true;
@@ -328,7 +328,7 @@ final class SpearBurstSequenceValidationScenarios {
                 Vec3 projected = new Vec3(x, y, outsideZ).add(approachVelocity.scale(tick));
                 attacker.teleportTo(projected.x, projected.y, projected.z);
                 attacker.setKnownMovement(approachVelocity);
-                faceVictim(attacker);
+                faceVictim(attacker, victim);
                 boolean inRange = canPiercingHit(attacker, victim);
                 if (tick < entryTicks && inRange) {
                     valid = false;
@@ -357,10 +357,17 @@ final class SpearBurstSequenceValidationScenarios {
         return hits.stream().anyMatch(hit -> hit.getEntity() == victim);
     }
 
-    private static void faceVictim(ServerPlayer attacker) {
-        attacker.setYRot(180f);
-        attacker.setYHeadRot(180f);
-        attacker.setXRot(0f);
+    /** Aim the real STAB ray at the victim's current hitbox instead of assuming a horizontal ray. */
+    private static void faceVictim(ServerPlayer attacker, ServerPlayer victim) {
+        Vec3 eye = attacker.getEyePosition();
+        Vec3 target = victim.getBoundingBox().getCenter();
+        Vec3 delta = target.subtract(eye);
+        double horizontal = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+        float yaw = (float)(Math.toDegrees(Math.atan2(delta.z, delta.x)) - 90d);
+        float pitch = (float)(-Math.toDegrees(Math.atan2(delta.y, horizontal)));
+        attacker.setYRot(yaw);
+        attacker.setYHeadRot(yaw);
+        attacker.setXRot(pitch);
     }
 
     private static Vec3 toVec3(Vec3Snapshot snapshot) {
