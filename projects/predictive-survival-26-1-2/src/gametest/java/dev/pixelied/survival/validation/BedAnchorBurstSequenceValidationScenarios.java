@@ -322,8 +322,8 @@ final class BedAnchorBurstSequenceValidationScenarios {
                 return new BedOutcome(
                     victim.getHealth(),
                     BurstSequenceValidationSupport.protectionConsumed(victim),
-                    level.getBlockState(foot).isAir(),
-                    level.getBlockState(head).isAir()
+                    !level.getBlockState(foot).is(Blocks.RED_BED),
+                    !level.getBlockState(head).is(Blocks.RED_BED)
                 );
             });
 
@@ -332,7 +332,7 @@ final class BedAnchorBurstSequenceValidationScenarios {
             }
             SurvivalValidationClientGameTest.assertClose("bed_zero_delay_pop", 1f, outcome.health(), EPSILON);
             if (!outcome.footRemoved() || !outcome.headRemoved()) {
-                throw new AssertionError("exploding bed did not remove both halves before entity damage");
+                throw new AssertionError("exploding bed left a bed half present after the bad-respawn explosion");
             }
         } finally {
             singleplayer.getServer().runOnServer(server -> {
