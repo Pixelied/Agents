@@ -50,7 +50,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             String tntExplodes = properties.getOrDefault("tnt_explodes", "unknown");
             if ("false".equals(tntExplodes)) continue;
 
-            Trigger trigger = earliestTrigger(cart, context.world());
+            Trigger trigger = earliestTrigger(cart, context);
             if (trigger == null) continue;
 
             RadiusRange radius = radiusFor(trigger.speedSqr(), context.safetyMode(), properties);
@@ -98,6 +98,9 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             evidence.put("explosion_radius_min", Float.toString(radius.min()));
             evidence.put("explosion_radius_max", Float.toString(radius.max()));
             evidence.put("tnt_explodes", tntExplodes);
+            if ("forecast_horizontal_collision".equals(trigger.name())) {
+                evidence.put("forecast_horizon_ticks", Long.toString(minimumProtectionAuthorityHorizon(context)));
+            }
             if (trigger.projectileSpeedSqr() != null) {
                 evidence.put("projectile_speed_sqr", Double.toString(trigger.projectileSpeedSqr()));
             }
@@ -120,7 +123,8 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
         return List.copyOf(result);
     }
 
-    private static Trigger earliestTrigger(WorldSnapshot.EntitySnapshot cart, WorldSnapshot world) {
+    private static Trigger earliestTrigger(WorldSnapshot.EntitySnapshot cart, PredictionContext context) {
+        WorldSnapshot world = context.world();
         double horizontalSpeedSqr = horizontalSpeedSqr(cart.velocity());
         if (Boolean.parseBoolean(cart.properties().getOrDefault("horizontal_collision", "false"))
             && horizontalSpeedSqr >= HORIZONTAL_COLLISION_SPEED_SQR) {
@@ -144,18 +148,35 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
 
         Vec3Snapshot horizontalVelocity = new Vec3Snapshot(cart.velocity().x(), 0d, cart.velocity().z());
         if (horizontalSpeedSqr >= HORIZONTAL_COLLISION_SPEED_SQR) {
-            OptionalDouble collision = firstCollisionFraction(cart.boundingBox(), horizontalVelocity, world.blocks());
-            if (collision.isPresent()) {
+            long horizon = minimumProtectionAuthorityHorizon(context);
+            for (long tick = 1L; tick <= horizon; tick++) {
+                double completedTicks = tick - 1d;
+                AabbSnapshot tickStart = translate(cart.boundingBox(), scale(horizontalVelocity, completedTicks));
+                OptionalDouble collision = firstCollisionFraction(tickStart, horizontalVelocity, world.blocks());
+                if (collision.isEmpty()) continue;
+                double movementFraction = completedTicks + collision.getAsDouble();
                 return Trigger.exact(
                     "forecast_horizontal_collision",
-                    1L,
-                    collision.getAsDouble(),
+                    tick,
+                    movementFraction,
                     horizontalSpeedSqr,
                     null
                 );
             }
         }
         return null;
+    }
+
+    /**
+     * Forecast only as far as the fastest new death-protection route must be authoritative. A
+     * hotbar Totem costs one server processing tick after the current outbound packet window; a
+     * collision beyond that bound does not need to latch yet and would make motion extrapolation
+     * unnecessarily speculative.
+     */
+    private static long minimumProtectionAuthorityHorizon(PredictionContext context) {
+        long completion = context.timing().deadline(1).completionWindow().latest();
+        long relative = Math.max(1L, completion - context.timing().clientTick());
+        return Math.min(relative, context.limits().maxProjectileHorizonTicks());
     }
 
     private static Trigger burningArrowTrigger(
@@ -415,8 +436,8 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
         Integer randomFuseMax
     ) {
         private Trigger {
-            if (!Double.isFinite(movementFraction) || movementFraction < 0d || movementFraction > 1d) {
-                throw new IllegalArgumentException("movementFraction must be in [0, 1]");
+            if (!Double.isFinite(movementFraction) || movementFraction < 0d) {
+                throw new IllegalArgumentException("movementFraction must be finite and non-negative");
             }
         }
 
