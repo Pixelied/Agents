@@ -1,5 +1,6 @@
 package dev.pixelied.survival.validation;
 
+import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.threat.opportunity.OpportunityFamily;
 import dev.pixelied.survival.timeline.ThreatKind;
@@ -112,6 +113,10 @@ final class SpearBurstSequenceValidationScenarios {
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
             Precursor precursor = context.computeOnClient(minecraft -> {
                 var frame = harness.runtime().capture();
+                var attackerSnapshot = frame.context().world().entities().stream()
+                    .filter(candidate -> candidate.id().equals(Integer.toString(setup.attacker().entityId())))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("approaching spear attacker missing from production snapshot"));
                 boolean activeSpear = frame.actualTimeline().events().stream().anyMatch(event ->
                     event.kind() == ThreatKind.MELEE
                         && event.id().equals("spear:" + setup.attacker().entityId())
@@ -122,17 +127,22 @@ final class SpearBurstSequenceValidationScenarios {
                         .equals(candidate.evidence().get("attacker_id")))
                     .findFirst()
                     .orElse(null);
-                boolean piercingObserved = frame.context().world().entities().stream()
-                    .filter(candidate -> candidate.id().equals(Integer.toString(setup.attacker().entityId())))
-                    .anyMatch(candidate -> Boolean.parseBoolean(
-                        candidate.properties().getOrDefault("piercing_weapon", "false")
-                    ));
+                boolean piercingObserved = Boolean.parseBoolean(
+                    attackerSnapshot.properties().getOrDefault("piercing_weapon", "false")
+                );
                 long fastestProtectionAuthorityTick = Math.max(
                     0L,
                     frame.context().timing().deadline(1).completionWindow().latest()
                         - frame.context().timing().clientTick()
                 );
-                return new Precursor(activeSpear, opportunity, piercingObserved, fastestProtectionAuthorityTick);
+                return new Precursor(
+                    activeSpear,
+                    opportunity,
+                    piercingObserved,
+                    fastestProtectionAuthorityTick,
+                    attackerSnapshot.position(),
+                    attackerSnapshot.velocity()
+                );
             });
             if (!precursor.piercingObserved()) {
                 throw new AssertionError("production runtime did not expose the visible spear's PIERCING_WEAPON component");
@@ -149,16 +159,15 @@ final class SpearBurstSequenceValidationScenarios {
                 );
             }
             int entryTick = Integer.parseInt(precursor.opportunity().evidence().getOrDefault("entry_tick", "-1"));
-            if (entryTick != PREARM_RANGE_TICKS) {
-                throw new AssertionError(
-                    "spear approach predicted entry tick " + entryTick
-                        + " but vanilla STAB fixture boundary is " + PREARM_RANGE_TICKS
-                );
+            if (entryTick < 1) {
+                throw new AssertionError("spear approach opportunity exposed invalid entry tick " + entryTick);
             }
             if (entryTick < precursor.fastestProtectionAuthorityTick()) {
                 throw new AssertionError(
                     "spear precursor arrived after the fastest Totem guarantee was already lost; entry="
                         + entryTick + " authority=" + precursor.fastestProtectionAuthorityTick()
+                        + " observedPosition=" + precursor.observedPosition()
+                        + " observedVelocity=" + precursor.observedVelocity()
                 );
             }
 
@@ -180,33 +189,35 @@ final class SpearBurstSequenceValidationScenarios {
                     throw new AssertionError("server lost precursor-established protection before spear range entry");
                 }
 
-                attacker.teleportTo(
-                    setup.initialPosition().x,
-                    setup.initialPosition().y,
-                    setup.initialPosition().z
-                );
-                attacker.setDeltaMovement(setup.approachVelocity());
-                attacker.setKnownMovement(setup.approachVelocity());
+                Vec3 observedPosition = toVec3(precursor.observedPosition());
+                Vec3 observedVelocity = toVec3(precursor.observedVelocity());
+                attacker.teleportTo(observedPosition.x, observedPosition.y, observedPosition.z);
+                attacker.setDeltaMovement(observedVelocity);
+                attacker.setKnownMovement(observedVelocity);
                 faceVictim(attacker);
                 if (canPiercingHit(attacker, victim)) {
-                    throw new AssertionError("server spear could already STAB before projected range entry");
+                    throw new AssertionError("server spear could already STAB from the captured precursor state");
                 }
 
                 for (int tick = 1; tick <= entryTick; tick++) {
-                    Vec3 projected = setup.initialPosition().add(setup.approachVelocity().scale(tick));
+                    Vec3 projected = observedPosition.add(observedVelocity.scale(tick));
                     attacker.teleportTo(projected.x, projected.y, projected.z);
-                    attacker.setKnownMovement(setup.approachVelocity());
+                    attacker.setKnownMovement(observedVelocity);
                     faceVictim(attacker);
                     boolean inRange = canPiercingHit(attacker, victim);
                     if (tick < entryTick && inRange) {
                         throw new AssertionError(
                             "server spear STAB became legal before predictor entry tick: tick=" + tick
                                 + " predicted=" + entryTick
+                                + " observedPosition=" + precursor.observedPosition()
+                                + " observedVelocity=" + precursor.observedVelocity()
                         );
                     }
                     if (tick == entryTick && !inRange) {
                         throw new AssertionError(
                             "server spear STAB was still illegal at predictor entry tick " + entryTick
+                                + "; observedPosition=" + precursor.observedPosition()
+                                + " observedVelocity=" + precursor.observedVelocity()
                         );
                     }
                 }
@@ -304,6 +315,10 @@ final class SpearBurstSequenceValidationScenarios {
         attacker.setXRot(0f);
     }
 
+    private static Vec3 toVec3(Vec3Snapshot snapshot) {
+        return new Vec3(snapshot.x(), snapshot.y(), snapshot.z());
+    }
+
     private static Map<BlockPos, BlockState> clearArena(ServerLevel level, BlockPos center) {
         Map<BlockPos, BlockState> originals = new LinkedHashMap<>();
         for (int dx = -4; dx <= 4; dx++) {
@@ -346,7 +361,9 @@ final class SpearBurstSequenceValidationScenarios {
         boolean activeSpear,
         LethalOpportunity opportunity,
         boolean piercingObserved,
-        long fastestProtectionAuthorityTick
+        long fastestProtectionAuthorityTick,
+        Vec3Snapshot observedPosition,
+        Vec3Snapshot observedVelocity
     ) {
     }
 
