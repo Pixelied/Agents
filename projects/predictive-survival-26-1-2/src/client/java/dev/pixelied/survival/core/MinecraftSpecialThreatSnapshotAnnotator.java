@@ -2,10 +2,12 @@ package dev.pixelied.survival.core;
 
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Guardian;
 import net.minecraft.world.entity.monster.warden.Warden;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.EvokerFangs;
 
 import java.util.ArrayList;
@@ -38,6 +40,12 @@ public final class MinecraftSpecialThreatSnapshotAnnotator {
         if (live == null) return snapshot;
 
         Map<String, String> properties = new LinkedHashMap<>(snapshot.properties());
+        if (live instanceof Player remotePlayer && remotePlayer != player) {
+            properties.put(
+                "piercing_weapon",
+                Boolean.toString(remotePlayer.getMainHandItem().has(DataComponents.PIERCING_WEAPON))
+            );
+        }
         if (live instanceof Guardian guardian) {
             LivingEntity target = guardian.getActiveAttackTarget();
             properties.put(

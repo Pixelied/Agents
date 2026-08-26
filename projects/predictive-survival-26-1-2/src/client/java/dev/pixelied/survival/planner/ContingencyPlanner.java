@@ -49,14 +49,30 @@ public final class ContingencyPlanner {
         SafetyMode safetyMode,
         RescueProfile profile
     ) {
-        Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
+        return planAcrossScenarios(context, List.of(timeline), candidates, safetyMode, profile);
+    }
+
+    /**
+     * Finds one bounded rescue sequence that survives every supplied alternative threat scenario.
+     * The scenarios are alternatives, not cumulative events: each candidate sequence is replayed
+     * independently against every branch and is guaranteed only when every branch survives.
+     */
+    public ContingencyPlan planAcrossScenarios(
+        PredictionContext context,
+        List<ThreatTimeline> scenarios,
+        List<SurvivalAction> candidates,
+        SafetyMode safetyMode,
+        RescueProfile profile
+    ) {
+        Objects.requireNonNull(context, "context");
+        scenarios = validatedScenarios(scenarios);
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(safetyMode, "safetyMode");
         Objects.requireNonNull(profile, "profile");
 
-        TimelineResult baseline = timelineSimulator.simulate(context.player(), timeline);
-        if (baseline.survived()) return ContingencyPlan.baseline(baseline);
+        ScenarioBaseline baseline = baseline(context, scenarios);
+        if (baseline.allSurvived()) return ContingencyPlan.baseline(baseline.representative());
 
         int candidateCap = Math.min(context.limits().maxPlannerCandidates(), candidates.size());
         List<SurvivalAction> legal = new ArrayList<>(candidateCap);
@@ -64,14 +80,14 @@ public final class ContingencyPlanner {
             SurvivalAction action = Objects.requireNonNull(candidates.get(i), "candidate");
             if (isSequenceAction(action) && hardConstraintFailure(action, safetyMode) == null) legal.add(action);
         }
-        if (legal.isEmpty()) return ContingencyPlan.baseline(baseline);
+        if (legal.isEmpty()) return ContingencyPlan.baseline(baseline.representative());
 
         SearchBudget budget = new SearchBudget(maxEvaluations);
         for (int depth = 1; depth <= maxDepth; depth++) {
             List<SequenceEvaluation> survivors = new ArrayList<>();
             enumerate(
                 context,
-                timeline,
+                scenarios,
                 legal,
                 profile,
                 depth,
@@ -92,7 +108,9 @@ public final class ContingencyPlanner {
                     budget.truncated(),
                     budget.truncated()
                         ? "guaranteed sequence found before bounded search truncation"
-                        : "guaranteed bounded rescue sequence"
+                        : scenarios.size() == 1
+                            ? "guaranteed bounded rescue sequence"
+                            : "guaranteed bounded rescue sequence across all alternative threat branches"
                 );
             }
             if (budget.truncated()) break;
@@ -100,13 +118,15 @@ public final class ContingencyPlanner {
 
         return new ContingencyPlan(
             List.of(),
-            baseline,
+            baseline.representative(),
             false,
             budget.evaluations(),
             budget.truncated(),
             budget.truncated()
                 ? "sequence search truncated before any guarantee was found"
-                : "no guaranteed rescue sequence"
+                : scenarios.size() == 1
+                    ? "no guaranteed rescue sequence"
+                    : "no rescue sequence survives every alternative threat branch"
         );
     }
 
@@ -124,18 +144,37 @@ public final class ContingencyPlanner {
         SurvivalAction active,
         int remainingServerTicks
     ) {
-        Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
+        return planInFlightAcrossScenarios(
+            context, List.of(timeline), candidates, safetyMode, profile, active, remainingServerTicks
+        );
+    }
+
+    /**
+     * Progress-aware variant of {@link #planAcrossScenarios}. The same already-dispatched prefix
+     * and any continuation must survive every alternative branch before it is treated as a guarantee.
+     */
+    public ContingencyPlan planInFlightAcrossScenarios(
+        PredictionContext context,
+        List<ThreatTimeline> scenarios,
+        List<SurvivalAction> candidates,
+        SafetyMode safetyMode,
+        RescueProfile profile,
+        SurvivalAction active,
+        int remainingServerTicks
+    ) {
+        Objects.requireNonNull(context, "context");
+        scenarios = validatedScenarios(scenarios);
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(safetyMode, "safetyMode");
         Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(active, "active");
         if (remainingServerTicks < 0) throw new IllegalArgumentException("remainingServerTicks must be non-negative");
 
-        TimelineResult baseline = timelineSimulator.simulate(context.player(), timeline);
-        if (baseline.survived()) return ContingencyPlan.baseline(baseline);
+        ScenarioBaseline baseline = baseline(context, scenarios);
+        if (baseline.allSurvived()) return ContingencyPlan.baseline(baseline.representative());
         if (!isSequenceAction(active) || hardConstraintFailure(active, safetyMode) != null) {
-            return new ContingencyPlan(List.of(), baseline, false, 0, false,
+            return new ContingencyPlan(List.of(), baseline.representative(), false, 0, false,
                 "active action is not eligible for bounded in-flight planning");
         }
 
@@ -154,7 +193,7 @@ public final class ContingencyPlanner {
 
         for (int totalDepth = 1; totalDepth <= maxDepth; totalDepth++) {
             enumerateInFlight(
-                context, timeline, legal, profile, totalDepth, prefix, remainingServerTicks, budget, survivors
+                context, scenarios, legal, profile, totalDepth, prefix, remainingServerTicks, budget, survivors
             );
             if (!survivors.isEmpty()) {
                 SequenceEvaluation best = survivors.stream().min(preference(profile)).orElseThrow();
@@ -162,23 +201,27 @@ public final class ContingencyPlanner {
                     best.steps(), best.result(), true, budget.evaluations(), budget.truncated(),
                     budget.truncated()
                         ? "guaranteed in-flight sequence found before bounded search truncation"
-                        : "guaranteed progress-aware in-flight rescue sequence"
+                        : scenarios.size() == 1
+                            ? "guaranteed progress-aware in-flight rescue sequence"
+                            : "guaranteed progress-aware rescue sequence across all alternative threat branches"
                 );
             }
             if (budget.truncated()) break;
         }
 
         return new ContingencyPlan(
-            List.of(), baseline, false, budget.evaluations(), budget.truncated(),
+            List.of(), baseline.representative(), false, budget.evaluations(), budget.truncated(),
             budget.truncated()
                 ? "in-flight sequence search truncated before any guarantee was found"
-                : "no guaranteed in-flight rescue sequence"
+                : scenarios.size() == 1
+                    ? "no guaranteed in-flight rescue sequence"
+                    : "no in-flight rescue sequence survives every alternative threat branch"
         );
     }
 
     private void enumerateInFlight(
         PredictionContext context,
-        ThreatTimeline timeline,
+        List<ThreatTimeline> scenarios,
         List<SurvivalAction> candidates,
         RescueProfile profile,
         int targetDepth,
@@ -189,13 +232,8 @@ public final class ContingencyPlanner {
     ) {
         if (budget.truncated()) return;
         if (prefix.size() == targetDepth) {
-            if (!budget.tryEvaluate()) return;
-            TimelineResult result = timelineSimulator.simulateWithActivations(
-                context.player(), timeline, prefix.stream()
-                    .map(step -> new ThreatTimelineSimulator.TimedActivation(step.activationTick(), step.action()::apply))
-                    .toList()
-            );
-            if (result.survived()) survivors.add(new SequenceEvaluation(List.copyOf(prefix), result));
+            simulateAcrossScenarios(context, scenarios, prefix, budget)
+                .ifPresent(result -> survivors.add(new SequenceEvaluation(List.copyOf(prefix), result)));
             return;
         }
 
@@ -204,7 +242,7 @@ public final class ContingencyPlanner {
             long activationTick = saturatingAdd(previousActivationTick, activationDelay(context, action));
             prefix.add(new PlannedStep(action, activationTick));
             enumerateInFlight(
-                context, timeline, candidates, profile, targetDepth, prefix, activationTick, budget, survivors
+                context, scenarios, candidates, profile, targetDepth, prefix, activationTick, budget, survivors
             );
             prefix.removeLast();
             if (budget.truncated()) return;
@@ -213,7 +251,7 @@ public final class ContingencyPlanner {
 
     private void enumerate(
         PredictionContext context,
-        ThreatTimeline timeline,
+        List<ThreatTimeline> scenarios,
         List<SurvivalAction> candidates,
         RescueProfile profile,
         int targetDepth,
@@ -224,17 +262,8 @@ public final class ContingencyPlanner {
     ) {
         if (budget.truncated()) return;
         if (prefix.size() == targetDepth) {
-            if (!budget.tryEvaluate()) return;
-            TimelineResult result = timelineSimulator.simulateWithActivations(
-                context.player(),
-                timeline,
-                prefix.stream()
-                    .map(step -> new ThreatTimelineSimulator.TimedActivation(step.activationTick(), step.action()::apply))
-                    .toList()
-            );
-            if (result.survived()) {
-                survivors.add(new SequenceEvaluation(List.copyOf(prefix), result));
-            }
+            simulateAcrossScenarios(context, scenarios, prefix, budget)
+                .ifPresent(result -> survivors.add(new SequenceEvaluation(List.copyOf(prefix), result)));
             return;
         }
 
@@ -242,10 +271,58 @@ public final class ContingencyPlanner {
             if (conflictsWithPrefix(prefix, action)) continue;
             long activationTick = saturatingAdd(previousActivationTick, activationDelay(context, action));
             prefix.add(new PlannedStep(action, activationTick));
-            enumerate(context, timeline, candidates, profile, targetDepth, prefix, activationTick, budget, survivors);
+            enumerate(context, scenarios, candidates, profile, targetDepth, prefix, activationTick, budget, survivors);
             prefix.removeLast();
             if (budget.truncated()) return;
         }
+    }
+
+    private Optional<TimelineResult> simulateAcrossScenarios(
+        PredictionContext context,
+        List<ThreatTimeline> scenarios,
+        List<PlannedStep> prefix,
+        SearchBudget budget
+    ) {
+        List<ThreatTimelineSimulator.TimedActivation> activations = prefix.stream()
+            .map(step -> new ThreatTimelineSimulator.TimedActivation(step.activationTick(), step.action()::apply))
+            .toList();
+        TimelineResult worst = null;
+        for (ThreatTimeline scenario : scenarios) {
+            if (!budget.tryEvaluate()) return Optional.empty();
+            TimelineResult result = timelineSimulator.simulateWithActivations(
+                context.player(), scenario, activations
+            );
+            if (!result.survived()) return Optional.empty();
+            if (worst == null || effectiveHealth(result) < effectiveHealth(worst)) worst = result;
+        }
+        return Optional.of(Objects.requireNonNull(worst, "scenario result"));
+    }
+
+    private ScenarioBaseline baseline(PredictionContext context, List<ThreatTimeline> scenarios) {
+        TimelineResult firstLethal = null;
+        TimelineResult worstSurvivor = null;
+        for (ThreatTimeline scenario : scenarios) {
+            TimelineResult result = timelineSimulator.simulate(context.player(), scenario);
+            if (!result.survived()) {
+                if (firstLethal == null) firstLethal = result;
+            } else if (worstSurvivor == null || effectiveHealth(result) < effectiveHealth(worstSurvivor)) {
+                worstSurvivor = result;
+            }
+        }
+        if (firstLethal != null) return new ScenarioBaseline(false, firstLethal);
+        return new ScenarioBaseline(true, Objects.requireNonNull(worstSurvivor, "baseline result"));
+    }
+
+    private static List<ThreatTimeline> validatedScenarios(List<ThreatTimeline> scenarios) {
+        Objects.requireNonNull(scenarios, "scenarios");
+        if (scenarios.isEmpty()) throw new IllegalArgumentException("at least one threat scenario is required");
+        List<ThreatTimeline> copy = new ArrayList<>(scenarios.size());
+        for (ThreatTimeline scenario : scenarios) copy.add(Objects.requireNonNull(scenario, "scenario"));
+        return List.copyOf(copy);
+    }
+
+    private static float effectiveHealth(TimelineResult result) {
+        return result.finalHealth() + result.finalAbsorption();
     }
 
     private static boolean conflictsWithPrefix(List<PlannedStep> prefix, SurvivalAction action) {
@@ -441,6 +518,12 @@ public final class ContingencyPlanner {
 
         private boolean samePhysicalLocation(SourceResource other) {
             return location.equals(other.location);
+        }
+    }
+
+    private record ScenarioBaseline(boolean allSurvived, TimelineResult representative) {
+        private ScenarioBaseline {
+            representative = Objects.requireNonNull(representative, "representative");
         }
     }
 

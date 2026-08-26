@@ -187,27 +187,36 @@ final class MinecraftTriggerableExplosionSnapshotFactory {
             }
         } else if (state.getBlock() instanceof RespawnAnchorBlock) {
             boolean works = (Boolean) level.environmentAttributes().getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, pos);
-            if (works || state.getValue(RespawnAnchorBlock.CHARGE) <= 0) return null;
+            int charge = state.getValue(RespawnAnchorBlock.CHARGE);
+            if (works) return null;
 
-            properties.put("explosion_radius", "5");
-            properties.put("triggerable", "true");
-            properties.put("source_key", "minecraft:bad_respawn_point");
-            properties.put("scales_with_difficulty", "true");
-            properties.put("pre_explosion_remove_group", "anchor:" + pos.toShortString());
+            properties.put("anchor_explodes", "true");
+            properties.put("anchor_charge", Integer.toString(charge));
+            if (charge > 0) {
+                properties.put("explosion_radius", "5");
+                properties.put("triggerable", "true");
+                properties.put("source_key", "minecraft:bad_respawn_point");
+                properties.put("scales_with_difficulty", "true");
+                properties.put("pre_explosion_remove_group", "anchor:" + pos.toShortString());
+            }
         } else {
             return null;
         }
 
-        boolean collision = !state.getCollisionShape(level, pos).isEmpty();
-        properties.put(
-            "full_collision_cube",
-            Boolean.toString(state.isCollisionShapeFullBlock(level, pos))
+        var collisionShape = state.getCollisionShape(level, pos);
+        boolean collision = !collisionShape.isEmpty();
+        MinecraftCollisionShapeSnapshot.write(
+            properties,
+            collisionShape,
+            state.isCollisionShapeFullBlock(level, pos)
         );
+        List<AabbSnapshot> collisionBoxes = MinecraftCollisionShapeSnapshot.capture(collisionShape, pos);
         Vec3 center = pos.getCenter();
         return new WorldSnapshot.BlockSnapshot(
             new Vec3Snapshot(center.x, center.y, center.z),
             BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
             collision,
+            collisionBoxes,
             properties
         );
     }

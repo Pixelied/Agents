@@ -22,8 +22,10 @@ import net.minecraft.world.phys.Vec3;
 
 final class MinecartTntValidationScenarios {
     private static final EngineLimits LIMITS = EngineLimits.defaults();
-    private static final float MIN_OPAQUE_EXPLOSION_RADIUS = 0f;
-    private static final float MAX_OPAQUE_EXPLOSION_RADIUS = 1088f;
+    private static final float DEFAULT_RADIUS_MIN = 4f;
+    private static final float DEFAULT_RADIUS_MAX = 11.5f;
+    private static final float HIDDEN_RADIUS_MIN = 0f;
+    private static final float HIDDEN_RADIUS_MAX = 1088f;
 
     private MinecartTntValidationScenarios() {
     }
@@ -78,17 +80,26 @@ final class MinecartTntValidationScenarios {
 
                 int fuseMin = parseInt(snapshot, "fuse_ticks_min");
                 int fuseMax = parseInt(snapshot, "fuse_ticks_max");
-                float radiusMin = parseFloat(snapshot, "explosion_radius_min");
-                float radiusMax = parseFloat(snapshot, "explosion_radius_max");
+                float defaultMin = parseFloat(snapshot, "explosion_radius_default_min");
+                float defaultMax = parseFloat(snapshot, "explosion_radius_default_max");
+                float hiddenMin = parseFloat(snapshot, "explosion_radius_hidden_min");
+                float hiddenMax = parseFloat(snapshot, "explosion_radius_hidden_max");
                 if (fuseMin != 0 || fuseMax <= 0 || fuseMax > 80) {
                     throw new AssertionError("unsafe TNT minecart fuse bounds: " + snapshot.properties());
                 }
-                if (Math.abs(radiusMin - MIN_OPAQUE_EXPLOSION_RADIUS) > 0.0001f
-                    || radiusMax < MAX_OPAQUE_EXPLOSION_RADIUS) {
+                if (Math.abs(defaultMin - DEFAULT_RADIUS_MIN) > 0.0001f
+                    || Math.abs(defaultMax - DEFAULT_RADIUS_MAX) > 0.0001f) {
                     throw new AssertionError(
-                        "TNT minecart client cannot observe hidden explosion NBT, so radius bounds must cover the full "
-                            + "vanilla-legal interval " + MIN_OPAQUE_EXPLOSION_RADIUS + ".."
-                            + MAX_OPAQUE_EXPLOSION_RADIUS + ": " + snapshot.properties()
+                        "balanced TNT minecart defaults must preserve vanilla base/speed randomness "
+                            + DEFAULT_RADIUS_MIN + ".." + DEFAULT_RADIUS_MAX + ": " + snapshot.properties()
+                    );
+                }
+                if (Math.abs(hiddenMin - HIDDEN_RADIUS_MIN) > 0.0001f
+                    || hiddenMax < HIDDEN_RADIUS_MAX
+                    || !Boolean.parseBoolean(snapshot.properties().getOrDefault("server_hidden_explosion_power", "false"))) {
+                    throw new AssertionError(
+                        "TNT minecart hidden-NBT bounds must remain explicit and cover "
+                            + HIDDEN_RADIUS_MIN + ".." + HIDDEN_RADIUS_MAX + ": " + snapshot.properties()
                     );
                 }
                 if (!Boolean.parseBoolean(snapshot.properties().getOrDefault("scales_with_difficulty", "false"))) {
@@ -105,15 +116,20 @@ final class MinecartTntValidationScenarios {
                     .filter(candidate -> candidate.id().equals("explosion:" + entityId))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("primed TNT minecart produced no explosion threat"));
-                if (event.confidence() != Confidence.BOUNDED) {
-                    throw new AssertionError("TNT minecart threat must remain bounded, got " + event.confidence());
+                if (event.confidence() != Confidence.POTENTIAL) {
+                    throw new AssertionError(
+                        "balanced TNT minecart threat must expose hidden-power uncertainty as POTENTIAL, got "
+                            + event.confidence()
+                    );
                 }
                 if (event.impact().earliest() != 0 || event.impact().latest() != fuseMax) {
                     throw new AssertionError(
                         "TNT minecart impact window did not preserve conservative fuse bounds: " + event.impact()
                     );
                 }
-                if (event.damage().rawDamage().max() <= 0f || !event.damage().scalesWithDifficulty()) {
+                if (event.damage().rawDamage().max() <= 0f
+                    || event.damage().rawDamage().max() <= event.damage().rawDamage().min()
+                    || !event.damage().scalesWithDifficulty()) {
                     throw new AssertionError("TNT minecart explosion threat did not carry damaging vanilla semantics");
                 }
             });
