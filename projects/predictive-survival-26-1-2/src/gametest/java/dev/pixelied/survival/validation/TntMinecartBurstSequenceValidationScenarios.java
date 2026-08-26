@@ -44,11 +44,14 @@ final class TntMinecartBurstSequenceValidationScenarios {
             victim.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 0.5d);
 
             MinecartTNT cart = new MinecartTNT(EntityType.TNT_MINECART, level);
-            cart.setPos(center.getX() + 0.5d, center.getY(), center.getZ() + 2.0d);
+            Vec3 cartPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 2.0d);
+            cart.setPos(cartPosition.x, cartPosition.y, cartPosition.z);
             cart.setNoGravity(true);
             cart.setDeltaMovement(Vec3.ZERO);
             level.addFreshEntity(cart);
-            return new Setup(victim.getUUID(), originalPosition, center, wall, cart.getId(), originals);
+            return new Setup(
+                victim.getUUID(), originalPosition, center, wall, cartPosition, cart.getId(), originals
+            );
         });
 
         try {
@@ -57,45 +60,8 @@ final class TntMinecartBurstSequenceValidationScenarios {
                 && minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT
                 && minecraft.level.getBlockState(setup.wall()).is(Blocks.OBSIDIAN));
 
-            singleplayer.getServer().runOnServer(server -> {
-                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
-                Entity entity = ((ServerLevel) victim.level()).getEntity(setup.cartId());
-                if (!(entity instanceof MinecartTNT cart)) {
-                    throw new AssertionError("TNT minecart disappeared before precursor motion sync");
-                }
-                if (cart.isPrimed()) throw new AssertionError("collision precursor cart unexpectedly primed");
-                cart.setDeltaMovement(COLLISION_VELOCITY);
-                victim.connection.send(new ClientboundSetEntityMotionPacket(cart));
-                cart.setDeltaMovement(Vec3.ZERO);
-            });
-
-            context.waitFor(minecraft -> minecraft.level != null
-                && minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT cart
-                && cart.getDeltaMovement().z > 1.0d
-                && !cart.isPrimed());
-
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
-            context.runOnClient(minecraft -> {
-                var frame = harness.runtime().capture();
-                boolean opportunity = frame.opportunities().stream().anyMatch(candidate ->
-                    candidate.family() == OpportunityFamily.TNT_MINECART
-                        && "forecast_horizontal_collision".equals(candidate.evidence().get("trigger"))
-                );
-                if (!opportunity) {
-                    throw new AssertionError(
-                        "unprimed TNT minecart collision precursor produced no forecast opportunity: "
-                            + frame.opportunities()
-                    );
-                }
-            });
-
-            BurstSequenceValidationSupport.armTotemFromPrecursor(
-                context,
-                singleplayer,
-                setup.victimId(),
-                harness,
-                "tnt_minecart_forecast_collision"
-            );
+            armTotemFromForecastCollision(context, singleplayer, setup, harness);
 
             Outcome outcome = singleplayer.getServer().computeOnServer(server -> {
                 ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
@@ -111,6 +77,7 @@ final class TntMinecartBurstSequenceValidationScenarios {
                     throw new AssertionError("server lost precursor-established protection before TNT minecart collision");
                 }
 
+                cart.setPos(setup.cartPosition().x, setup.cartPosition().y, setup.cartPosition().z);
                 victim.invulnerableTime = 0;
                 victim.setHealth(4f);
                 cart.setDeltaMovement(COLLISION_VELOCITY);
@@ -154,6 +121,79 @@ final class TntMinecartBurstSequenceValidationScenarios {
         }
     }
 
+    private static void armTotemFromForecastCollision(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        Setup setup,
+        BurstSequenceValidationSupport.RuntimeHarness harness
+    ) {
+        BurstSequenceValidationSupport.ensureSelectedSlot(
+            context,
+            singleplayer,
+            setup.victimId(),
+            0,
+            "tnt_minecart_forecast_collision_pre_arm"
+        );
+
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
+                Entity entity = ((ServerLevel) victim.level()).getEntity(setup.cartId());
+                if (!(entity instanceof MinecartTNT cart)) {
+                    throw new AssertionError("TNT minecart disappeared while maintaining collision precursor");
+                }
+                if (cart.isPrimed()) throw new AssertionError("collision precursor cart unexpectedly primed");
+                cart.setPos(setup.cartPosition().x, setup.cartPosition().y, setup.cartPosition().z);
+                cart.setDeltaMovement(COLLISION_VELOCITY);
+                victim.connection.send(new ClientboundSetEntityMotionPacket(cart));
+            });
+
+            context.waitFor(minecraft -> minecraft.level != null
+                && minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT cart
+                && cart.getDeltaMovement().z > 1.0d
+                && !cart.isPrimed());
+
+            context.runOnClient(minecraft -> {
+                var frame = harness.runtime().capture();
+                boolean opportunity = frame.opportunities().stream().anyMatch(candidate ->
+                    candidate.family() == OpportunityFamily.TNT_MINECART
+                        && "forecast_horizontal_collision".equals(candidate.evidence().get("trigger"))
+                );
+                if (!opportunity) {
+                    var snapshot = frame.context().world().entities().stream()
+                        .filter(entity -> entity.id().equals(Integer.toString(setup.cartId())))
+                        .findFirst()
+                        .orElse(null);
+                    throw new AssertionError(
+                        "unprimed TNT minecart collision precursor produced no forecast opportunity; snapshot="
+                            + snapshot + " opportunities=" + frame.opportunities()
+                    );
+                }
+                harness.engine().tick();
+            });
+
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
+                Entity entity = ((ServerLevel) victim.level()).getEntity(setup.cartId());
+                if (entity instanceof MinecartTNT cart) {
+                    cart.setPos(setup.cartPosition().x, setup.cartPosition().y, setup.cartPosition().z);
+                    cart.setDeltaMovement(Vec3.ZERO);
+                }
+            });
+            context.waitTick();
+
+            boolean protectedOnServer = singleplayer.getServer().computeOnServer(server ->
+                BurstSequenceValidationSupport.protectedInHand(
+                    BurstSequenceValidationSupport.requireVictim(server, setup.victimId())
+                )
+            );
+            if (protectedOnServer) return;
+        }
+        throw new AssertionError(
+            "production engine did not establish server-authoritative protection from TNT minecart collision precursor"
+        );
+    }
+
     private static Map<BlockPos, BlockState> clearArena(ServerLevel level, BlockPos center) {
         Map<BlockPos, BlockState> originals = new LinkedHashMap<>();
         for (int dx = -4; dx <= 4; dx++) {
@@ -186,6 +226,7 @@ final class TntMinecartBurstSequenceValidationScenarios {
         Vec3 originalPosition,
         BlockPos center,
         BlockPos wall,
+        Vec3 cartPosition,
         int cartId,
         Map<BlockPos, BlockState> originals
     ) {
