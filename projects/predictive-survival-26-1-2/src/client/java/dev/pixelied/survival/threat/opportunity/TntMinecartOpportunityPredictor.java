@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 
 /** Predicts source-confirmed TNT-minecart detonation paths before the minecart is primed or explodes. */
 public final class TntMinecartOpportunityPredictor implements LethalOpportunityPredictor {
@@ -30,6 +31,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
     private static final int RANDOM_SHORT_FUSE_MIN = 0;
     private static final int RANDOM_SHORT_FUSE_MAX = 38;
     private static final int RANDOM_SHORT_FUSE_SCHEDULING_MAX = 39;
+    private static final double SWEEP_EPSILON = 1.0E-12d;
 
     private final ExplosionThreatFactory explosionFactory = new ExplosionThreatFactory();
     private final VanillaDamageOracle damageOracle = new VanillaDamageOracle();
@@ -53,7 +55,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
 
             RadiusRange radius = radiusFor(trigger.speedSqr(), context.safetyMode(), properties);
             if (radius.max() <= 0f) continue;
-            Vec3Snapshot center = add(cart.position(), scale(cart.velocity(), trigger.impact().earliest()));
+            Vec3Snapshot center = add(cart.position(), scale(cart.velocity(), trigger.movementFraction()));
             TickWindow impact = trigger.impact();
             String id = "opportunity:tnt_minecart:" + cart.id() + ":" + trigger.name();
             ExplosionSpec spec = new ExplosionSpec(
@@ -92,6 +94,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             evidence.put("trigger_tick", Long.toString(trigger.impact().earliest()));
             evidence.put("trigger_tick_latest", Long.toString(trigger.impact().latest()));
             evidence.put("trigger_speed_sqr", Double.toString(trigger.speedSqr()));
+            evidence.put("movement_fraction", Double.toString(trigger.movementFraction()));
             evidence.put("explosion_radius_min", Float.toString(radius.min()));
             evidence.put("explosion_radius_max", Float.toString(radius.max()));
             evidence.put("tnt_explodes", tntExplodes);
@@ -121,7 +124,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
         double horizontalSpeedSqr = horizontalSpeedSqr(cart.velocity());
         if (Boolean.parseBoolean(cart.properties().getOrDefault("horizontal_collision", "false"))
             && horizontalSpeedSqr >= HORIZONTAL_COLLISION_SPEED_SQR) {
-            return Trigger.exact("horizontal_collision", 0L, horizontalSpeedSqr, null);
+            return Trigger.exact("horizontal_collision", 0L, 0d, horizontalSpeedSqr, null);
         }
 
         Trigger arrow = burningArrowTrigger(cart, world.entities());
@@ -131,16 +134,26 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
         if (destructiveProjectile != null) return destructiveProjectile;
 
         Double fallDistance = finiteDouble(cart.properties().get("fall_distance"));
-        if (fallDistance != null && fallDistance >= 3d && cart.velocity().y() < 0d
-            && collidesWithWorld(cart.boundingBox(), cart.velocity(), world.blocks())) {
-            double fallPower = fallDistance / 10d;
-            return Trigger.exact("fall_impact", 1L, fallPower * fallPower, null);
+        if (fallDistance != null && fallDistance >= 3d && cart.velocity().y() < 0d) {
+            OptionalDouble collision = firstCollisionFraction(cart.boundingBox(), cart.velocity(), world.blocks());
+            if (collision.isPresent()) {
+                double fallPower = fallDistance / 10d;
+                return Trigger.exact("fall_impact", 1L, collision.getAsDouble(), fallPower * fallPower, null);
+            }
         }
 
         Vec3Snapshot horizontalVelocity = new Vec3Snapshot(cart.velocity().x(), 0d, cart.velocity().z());
-        if (horizontalSpeedSqr >= HORIZONTAL_COLLISION_SPEED_SQR
-            && collidesWithWorld(cart.boundingBox(), horizontalVelocity, world.blocks())) {
-            return Trigger.exact("forecast_horizontal_collision", 1L, horizontalSpeedSqr, null);
+        if (horizontalSpeedSqr >= HORIZONTAL_COLLISION_SPEED_SQR) {
+            OptionalDouble collision = firstCollisionFraction(cart.boundingBox(), horizontalVelocity, world.blocks());
+            if (collision.isPresent()) {
+                return Trigger.exact(
+                    "forecast_horizontal_collision",
+                    1L,
+                    collision.getAsDouble(),
+                    horizontalSpeedSqr,
+                    null
+                );
+            }
         }
         return null;
     }
@@ -154,7 +167,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             if (!Boolean.parseBoolean(projectile.properties().getOrDefault("on_fire", "false"))) continue;
             if (!relativeProjectileSweepHits(projectile, cart)) continue;
             double speedSqr = lengthSqr(projectile.velocity());
-            return Trigger.exact("burning_arrow", 0L, speedSqr, speedSqr);
+            return Trigger.exact("burning_arrow", 0L, 0d, speedSqr, speedSqr);
         }
         return null;
     }
@@ -172,6 +185,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             return new Trigger(
                 "destructive_burning_projectile",
                 new TickWindow(0L, RANDOM_SHORT_FUSE_SCHEDULING_MAX),
+                0d,
                 MAX_EXPLOSION_SPEED * MAX_EXPLOSION_SPEED,
                 projectileSpeedSqr,
                 RANDOM_SHORT_FUSE_MIN,
@@ -206,23 +220,72 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
         return segmentIntersects(projectile.position(), add(projectile.position(), relativeVelocity), expandedTarget);
     }
 
-    private static boolean collidesWithWorld(
+    private static OptionalDouble firstCollisionFraction(
         AabbSnapshot box,
         Vec3Snapshot delta,
         List<WorldSnapshot.BlockSnapshot> blocks
     ) {
         AabbSnapshot swept = swept(box, delta);
+        double earliest = Double.POSITIVE_INFINITY;
         for (WorldSnapshot.BlockSnapshot block : blocks) {
             if (!block.collision()) continue;
             if (!block.collisionBoxes().isEmpty()) {
                 for (AabbSnapshot component : block.collisionBoxes()) {
-                    if (intersects(swept, component)) return true;
+                    if (!intersectsOrTouches(swept, component)) continue;
+                    double fraction = sweptCollisionFraction(box, delta, component);
+                    if (fraction < earliest) earliest = fraction;
                 }
                 continue;
             }
-            if (intersects(swept, unitCube(block.position()))) return true;
+            AabbSnapshot cube = unitCube(block.position());
+            if (!intersectsOrTouches(swept, cube)) continue;
+            double fraction = sweptCollisionFraction(box, delta, cube);
+            if (fraction < earliest) earliest = fraction;
         }
-        return false;
+        return Double.isFinite(earliest) ? OptionalDouble.of(earliest) : OptionalDouble.empty();
+    }
+
+    private static double sweptCollisionFraction(AabbSnapshot moving, Vec3Snapshot delta, AabbSnapshot obstacle) {
+        if (intersects(moving, obstacle)) return 0d;
+        double[] range = {0d, 1d};
+        if (!sweepAxis(moving.minX(), moving.maxX(), obstacle.minX(), obstacle.maxX(), delta.x(), range)) {
+            return Double.POSITIVE_INFINITY;
+        }
+        if (!sweepAxis(moving.minY(), moving.maxY(), obstacle.minY(), obstacle.maxY(), delta.y(), range)) {
+            return Double.POSITIVE_INFINITY;
+        }
+        if (!sweepAxis(moving.minZ(), moving.maxZ(), obstacle.minZ(), obstacle.maxZ(), delta.z(), range)) {
+            return Double.POSITIVE_INFINITY;
+        }
+        return range[0] >= 0d && range[0] <= 1d && range[0] <= range[1]
+            ? range[0]
+            : Double.POSITIVE_INFINITY;
+    }
+
+    private static boolean sweepAxis(
+        double movingMin,
+        double movingMax,
+        double obstacleMin,
+        double obstacleMax,
+        double delta,
+        double[] range
+    ) {
+        if (Math.abs(delta) < SWEEP_EPSILON) {
+            return movingMax > obstacleMin && movingMin < obstacleMax;
+        }
+
+        double entry;
+        double exit;
+        if (delta > 0d) {
+            entry = (obstacleMin - movingMax) / delta;
+            exit = (obstacleMax - movingMin) / delta;
+        } else {
+            entry = (obstacleMax - movingMin) / delta;
+            exit = (obstacleMin - movingMax) / delta;
+        }
+        range[0] = Math.max(range[0], entry);
+        range[1] = Math.min(range[1], exit);
+        return range[0] <= range[1];
     }
 
     private static RadiusRange radiusFor(
@@ -296,6 +359,12 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             && first.minZ() < second.maxZ() && first.maxZ() > second.minZ();
     }
 
+    private static boolean intersectsOrTouches(AabbSnapshot first, AabbSnapshot second) {
+        return first.minX() <= second.maxX() && first.maxX() >= second.minX()
+            && first.minY() <= second.maxY() && first.maxY() >= second.minY()
+            && first.minZ() <= second.maxZ() && first.maxZ() >= second.minZ();
+    }
+
     private static boolean segmentIntersects(Vec3Snapshot from, Vec3Snapshot to, AabbSnapshot box) {
         double[] range = {0d, 1d};
         return slab(from.x(), to.x() - from.x(), box.minX(), box.maxX(), range)
@@ -305,7 +374,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
     }
 
     private static boolean slab(double origin, double direction, double min, double max, double[] range) {
-        if (Math.abs(direction) < 1.0E-12d) return origin >= min && origin <= max;
+        if (Math.abs(direction) < SWEEP_EPSILON) return origin >= min && origin <= max;
         double first = (min - origin) / direction;
         double second = (max - origin) / direction;
         if (first > second) {
@@ -318,8 +387,8 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
         return range[0] <= range[1];
     }
 
-    private static Vec3Snapshot scale(Vec3Snapshot vector, long ticks) {
-        return new Vec3Snapshot(vector.x() * ticks, vector.y() * ticks, vector.z() * ticks);
+    private static Vec3Snapshot scale(Vec3Snapshot vector, double factor) {
+        return new Vec3Snapshot(vector.x() * factor, vector.y() * factor, vector.z() * factor);
     }
 
     private static Vec3Snapshot add(Vec3Snapshot first, Vec3Snapshot second) {
@@ -339,13 +408,34 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
     private record Trigger(
         String name,
         TickWindow impact,
+        double movementFraction,
         double speedSqr,
         Double projectileSpeedSqr,
         Integer randomFuseMin,
         Integer randomFuseMax
     ) {
-        private static Trigger exact(String name, long tick, double speedSqr, Double projectileSpeedSqr) {
-            return new Trigger(name, new TickWindow(tick, tick), speedSqr, projectileSpeedSqr, null, null);
+        private Trigger {
+            if (!Double.isFinite(movementFraction) || movementFraction < 0d || movementFraction > 1d) {
+                throw new IllegalArgumentException("movementFraction must be in [0, 1]");
+            }
+        }
+
+        private static Trigger exact(
+            String name,
+            long tick,
+            double movementFraction,
+            double speedSqr,
+            Double projectileSpeedSqr
+        ) {
+            return new Trigger(
+                name,
+                new TickWindow(tick, tick),
+                movementFraction,
+                speedSqr,
+                projectileSpeedSqr,
+                null,
+                null
+            );
         }
     }
 
