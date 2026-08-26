@@ -121,6 +121,7 @@ final class MinecraftFallCorridorSnapshotFactory {
                 block.position(),
                 block.blockId(),
                 true,
+                MinecraftCollisionShapeSnapshot.capture(shape, pos),
                 properties
             ));
         }
@@ -168,12 +169,14 @@ final class MinecraftFallCorridorSnapshotFactory {
                         collisionShape,
                         state.isCollisionShapeFullBlock(level, pos)
                     );
+                    List<AabbSnapshot> collisionBoxes = MinecraftCollisionShapeSnapshot.capture(collisionShape, pos);
 
                     Vec3 center = pos.getCenter();
                     output.add(new WorldSnapshot.BlockSnapshot(
                         new Vec3Snapshot(center.x, center.y, center.z),
                         BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
                         collision,
+                        collisionBoxes,
                         properties
                     ));
                 }

@@ -1,14 +1,32 @@
 package dev.pixelied.survival.core;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** Serializes the conservative AABB envelope of a vanilla block collision shape. */
+/** Serializes vanilla block collision geometry for deterministic prediction. */
 final class MinecraftCollisionShapeSnapshot {
     private MinecraftCollisionShapeSnapshot() {
+    }
+
+    static List<AabbSnapshot> capture(VoxelShape shape, BlockPos pos) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(pos, "pos");
+        List<AabbSnapshot> boxes = new ArrayList<>();
+        shape.forAllBoxes((minX, minY, minZ, maxX, maxY, maxZ) -> boxes.add(new AabbSnapshot(
+            pos.getX() + minX,
+            pos.getY() + minY,
+            pos.getZ() + minZ,
+            pos.getX() + maxX,
+            pos.getY() + maxY,
+            pos.getZ() + maxZ
+        )));
+        return List.copyOf(boxes);
     }
 
     static void write(Map<String, String> properties, VoxelShape shape, boolean fullCollisionCube) {

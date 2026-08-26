@@ -25,7 +25,7 @@ import java.util.function.Predicate;
 
 /** Captures the fixed nearby block cube without thousands of ClientLevel lookups per frame. */
 final class MinecraftNearbyBlockSnapshotFactory {
-    private static final int HORIZONTAL_RANGE = 8;
+    private static final int HORIZONTAL_RANGE = 12;
     private static final int VERTICAL_RANGE = 12;
     private static final Predicate<BlockState> NON_AIR = state -> !state.isAir();
     private static final Comparator<WorldSnapshot.BlockSnapshot> VANILLA_SCAN_ORDER = Comparator
@@ -109,6 +109,7 @@ final class MinecraftNearbyBlockSnapshotFactory {
 
     private static WorldSnapshot.BlockSnapshot snapshot(ClientLevel level, BlockPos pos, BlockState state) {
         Map<String, String> properties = new LinkedHashMap<>();
+        properties.put("replaceable", Boolean.toString(state.canBeReplaced()));
         var collisionShape = state.getCollisionShape(level, pos);
         boolean collision = !collisionShape.isEmpty();
         MinecraftCollisionShapeSnapshot.write(
@@ -116,6 +117,7 @@ final class MinecraftNearbyBlockSnapshotFactory {
             collisionShape,
             state.isCollisionShapeFullBlock(level, pos)
         );
+        List<AabbSnapshot> collisionBoxes = MinecraftCollisionShapeSnapshot.capture(collisionShape, pos);
 
         if (state.getBlock() instanceof BedBlock) {
             BedRule rule = (BedRule) level.environmentAttributes().getValue(EnvironmentAttributes.BED_RULE, pos);
@@ -132,7 +134,10 @@ final class MinecraftNearbyBlockSnapshotFactory {
             }
         } else if (state.getBlock() instanceof RespawnAnchorBlock) {
             boolean works = (Boolean) level.environmentAttributes().getValue(EnvironmentAttributes.RESPAWN_ANCHOR_WORKS, pos);
-            if (!works && state.getValue(RespawnAnchorBlock.CHARGE) > 0) {
+            int charge = state.getValue(RespawnAnchorBlock.CHARGE);
+            properties.put("anchor_explodes", Boolean.toString(!works));
+            properties.put("anchor_charge", Integer.toString(charge));
+            if (!works && charge > 0) {
                 properties.put("explosion_radius", "5");
                 properties.put("triggerable", "true");
                 properties.put("source_key", "minecraft:bad_respawn_point");
@@ -146,6 +151,7 @@ final class MinecraftNearbyBlockSnapshotFactory {
             new Vec3Snapshot(center.x, center.y, center.z),
             BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
             collision,
+            collisionBoxes,
             properties
         );
     }
