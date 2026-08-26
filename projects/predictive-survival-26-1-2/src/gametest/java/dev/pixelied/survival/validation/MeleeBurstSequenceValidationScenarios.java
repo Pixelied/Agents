@@ -82,7 +82,6 @@ final class MeleeBurstSequenceValidationScenarios {
             attacker.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
             attacker.setNoGravity(true);
             attacker.setDeltaMovement(Vec3.ZERO);
-            attacker.fallDistance = variant.fallDistance();
 
             Vec3 approachVelocity = new Vec3(0d, 0d, -APPROACH_PER_TICK);
             Vec3 initialPosition = findTicksOutsideAttackRange(
@@ -92,8 +91,11 @@ final class MeleeBurstSequenceValidationScenarios {
                 approachVelocity,
                 PREARM_RANGE_TICKS
             );
+            // Keep the hostile player stationary while the newly equipped weapon goes through the
+            // real server equipment-update tick and attack cooldown. The approach begins only after
+            // waitForReadyAttackState confirms that the weapon is actually capable of a lethal hit.
             attacker.teleportTo(initialPosition.x, initialPosition.y, initialPosition.z);
-            attacker.setDeltaMovement(approachVelocity);
+            attacker.setDeltaMovement(Vec3.ZERO);
             attacker.containerMenu.broadcastChanges();
             BurstSequenceValidationSupport.syncEquipment(victim, attacker);
             victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
@@ -113,6 +115,35 @@ final class MeleeBurstSequenceValidationScenarios {
         try {
             waitForClientPosition(context, setup.center());
             BurstSequenceValidationSupport.waitForClientAttacker(context, setup.attacker());
+            context.waitFor(minecraft -> minecraft.level != null
+                && minecraft.level.getEntity(setup.attacker().entityId()) instanceof net.minecraft.world.entity.player.Player remote
+                && remote.getMainHandItem().is(variant.item())
+                && Math.abs(remote.getX() - setup.initialPosition().x) <= POSITION_EPSILON
+                && Math.abs(remote.getY() - setup.initialPosition().y) <= POSITION_EPSILON
+                && Math.abs(remote.getZ() - setup.initialPosition().z) <= POSITION_EPSILON);
+
+            BurstSequenceValidationSupport.waitForReadyAttackState(
+                context,
+                singleplayer,
+                setup.attacker(),
+                variant.id()
+            );
+
+            // Start the hostile approach only after the source-faithful ready state exists.
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
+                ServerPlayer attacker = BurstSequenceValidationSupport.requireAttacker(server, setup.attacker());
+                attacker.teleportTo(
+                    setup.initialPosition().x,
+                    setup.initialPosition().y,
+                    setup.initialPosition().z
+                );
+                attacker.setDeltaMovement(setup.approachVelocity());
+                attacker.fallDistance = variant.fallDistance();
+                victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
+                victim.connection.send(new ClientboundSetEntityMotionPacket(attacker));
+                BurstSequenceValidationSupport.syncEquipment(victim, attacker);
+            });
             context.waitFor(minecraft -> {
                 if (minecraft.level == null) return false;
                 if (!(minecraft.level.getEntity(setup.attacker().entityId()) instanceof net.minecraft.world.entity.player.Player remote)) {
@@ -242,6 +273,12 @@ final class MeleeBurstSequenceValidationScenarios {
                 );
             });
 
+            if (outcome.attackStrength() < 0.99f) {
+                throw new AssertionError(
+                    variant.id() + " hostile hit lost full attack charge before impact; strength="
+                        + outcome.attackStrength()
+                );
+            }
             if (variant.expectMaceSmash() && !outcome.maceSmashReady()) {
                 throw new AssertionError("mace range-entry fixture did not satisfy vanilla smash preconditions");
             }
