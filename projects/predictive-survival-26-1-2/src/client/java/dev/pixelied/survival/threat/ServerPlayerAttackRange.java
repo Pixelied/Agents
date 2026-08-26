@@ -44,10 +44,10 @@ public final class ServerPlayerAttackRange {
 
     /**
      * Normal entity attack packets use Minecraft's +3 server packet allowance. A piercing weapon
-     * (the 26.1.2 spear family) instead uses ServerboundPlayerActionPacket.STAB and raycasts its
-     * own AttackRange, extending only by positive known movement along the chosen stab direction.
-     * For adversarial opportunity modeling the attacker may rotate toward the victim before STAB,
-     * so the maximum legal forward extension is the magnitude of the observed movement vector.
+     * instead uses ServerboundPlayerActionPacket.STAB and raycasts its own AttackRange, extending
+     * only by positive known movement along the chosen stab direction. For adversarial opportunity
+     * modeling the attacker may rotate toward the victim before STAB, so the maximum legal forward
+     * extension is the magnitude of the observed movement vector.
      */
     public static boolean isWithin(
         Vec3Snapshot eye,
@@ -76,8 +76,7 @@ public final class ServerPlayerAttackRange {
         Optional<Double> entityRange = nonNegativeDouble(properties.get("attack_range"));
         if (entityRange.isEmpty()) return Optional.empty();
 
-        boolean piercing = Boolean.parseBoolean(properties.getOrDefault("piercing_weapon", "false"))
-            || isVanillaSpear(properties.get("weapon_key"));
+        boolean piercing = Boolean.parseBoolean(properties.getOrDefault("piercing_weapon", "false"));
         String source = piercing ? PIERCING_PROFILE : "current_main_hand";
 
         Optional<Double> min = nonNegativeDouble(properties.get("main_hand_attack_min_range"));
@@ -99,12 +98,6 @@ public final class ServerPlayerAttackRange {
 
     private static boolean isPiercing(AttackProfile profile) {
         return PIERCING_PROFILE.equals(profile.source());
-    }
-
-    private static boolean isVanillaSpear(String weaponKey) {
-        return weaponKey != null
-            && weaponKey.startsWith("minecraft:")
-            && weaponKey.endsWith("_spear");
     }
 
     private static double vectorLength(Vec3Snapshot vector) {
