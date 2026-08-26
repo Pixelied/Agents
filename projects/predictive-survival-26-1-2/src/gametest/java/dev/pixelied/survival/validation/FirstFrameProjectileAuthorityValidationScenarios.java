@@ -93,7 +93,6 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
         LaunchFamily family
     ) {
         prepareTrial(context, singleplayer, victimId, origin, attacker, family);
-        awaitPrecursor(context, attacker.entityId(), family);
         int firstProjectileId = launch(singleplayer, victimId, attacker.playerId(), family, origin.position());
         RaceObservation firstEntity = measureActualLeadTime(
             context, singleplayer, victimId, firstProjectileId, family
@@ -101,7 +100,6 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
         cleanupTrial(context, singleplayer, victimId, origin, attacker);
 
         prepareTrial(context, singleplayer, victimId, origin, attacker, family);
-        awaitPrecursor(context, attacker.entityId(), family);
         singleplayer.getServer().runOnServer(server -> {
             ServerPlayer victim = requirePlayer(server, victimId, "victim");
             victim.setHealth(1f);
@@ -141,6 +139,17 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
         ensureSelectedSlot(context, singleplayer, victimId, 0, family.id + "_selected_slot");
         context.waitFor(minecraft -> minecraft.player != null
             && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING));
+
+        // A real player has the source item equipped before the release/use packet. Waiting for
+        // the tracked equipment first prevents a synthetic same-tick equipment/use-data race in
+        // the embedded mock player from hiding a legitimately observable precursor.
+        awaitHeldPrecursor(context, singleplayer, attacker, family);
+        if (family == LaunchFamily.BOW) {
+            singleplayer.getServer().runOnServer(server ->
+                requirePlayer(server, attacker.playerId(), "attacker").startUsingItem(InteractionHand.MAIN_HAND)
+            );
+            awaitBowUsePrecursor(context, singleplayer, attacker);
+        }
     }
 
     private static void resetVictim(ServerPlayer victim, VictimOrigin origin) {
@@ -188,7 +197,6 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
         };
         attacker.getInventory().setItem(0, held);
         attacker.containerMenu.broadcastChanges();
-        if (family == LaunchFamily.BOW) attacker.startUsingItem(InteractionHand.MAIN_HAND);
     }
 
     private static void positionAttacker(ServerPlayer attacker, ServerPlayer victim, Vec3 victimPosition) {
@@ -199,18 +207,19 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
         attacker.lookAt(EntityAnchorArgument.Anchor.EYES, victim.getEyePosition());
     }
 
-    private static void awaitPrecursor(
+    private static void awaitHeldPrecursor(
         ClientGameTestContext context,
-        int attackerEntityId,
+        TestSingleplayerContext singleplayer,
+        AttackerHandle attacker,
         LaunchFamily family
     ) {
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
             boolean visible = context.computeOnClient(minecraft -> {
                 if (minecraft.level == null) return false;
-                if (!(minecraft.level.getEntity(attackerEntityId) instanceof Player remote)) return false;
+                if (!(minecraft.level.getEntity(attacker.entityId()) instanceof Player remote)) return false;
                 ItemStack held = remote.getMainHandItem();
                 return switch (family) {
-                    case BOW -> held.is(Items.BOW) && remote.isUsingItem();
+                    case BOW -> held.is(Items.BOW);
                     case CROSSBOW_ARROW -> held.is(Items.CROSSBOW)
                         && held.getOrDefault(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.EMPTY)
                             .contains(Items.ARROW);
@@ -225,7 +234,54 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
             if (visible) return;
             context.waitTick();
         }
-        throw new AssertionError("client never observed source-confirmed precursor for " + family.id);
+        String diagnostics = precursorDiagnostics(context, singleplayer, attacker);
+        throw new AssertionError(
+            "client never observed held-item precursor for " + family.id + "; " + diagnostics
+        );
+    }
+
+    private static void awaitBowUsePrecursor(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        AttackerHandle attacker
+    ) {
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            boolean visible = context.computeOnClient(minecraft -> {
+                if (minecraft.level == null) return false;
+                if (!(minecraft.level.getEntity(attacker.entityId()) instanceof Player remote)) return false;
+                return remote.getMainHandItem().is(Items.BOW) && remote.isUsingItem();
+            });
+            if (visible) return;
+            context.waitTick();
+        }
+        String diagnostics = precursorDiagnostics(context, singleplayer, attacker);
+        throw new AssertionError("client never observed Bow use precursor; " + diagnostics);
+    }
+
+    private static String precursorDiagnostics(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        AttackerHandle attacker
+    ) {
+        String client = context.computeOnClient(minecraft -> {
+            if (minecraft.level == null) return "clientLevel=null";
+            Entity entity = minecraft.level.getEntity(attacker.entityId());
+            if (!(entity instanceof Player remote)) return "clientEntity=" + entity;
+            return "clientHeld=" + remote.getMainHandItem()
+                + " clientUsing=" + remote.isUsingItem()
+                + " clientUsedHand=" + (remote.isUsingItem() ? remote.getUsedItemHand() : "none")
+                + " clientUseTicks=" + remote.getTicksUsingItem()
+                + " clientPos=" + remote.position();
+        });
+        String server = singleplayer.getServer().computeOnServer(minecraftServer -> {
+            ServerPlayer remote = requirePlayer(minecraftServer, attacker.playerId(), "attacker");
+            return "serverHeld=" + remote.getMainHandItem()
+                + " serverUsing=" + remote.isUsingItem()
+                + " serverUsedHand=" + (remote.isUsingItem() ? remote.getUsedItemHand() : "none")
+                + " serverUseTicks=" + remote.getTicksUsingItem()
+                + " serverPos=" + remote.position();
+        });
+        return client + " " + server;
     }
 
     private static int launch(
