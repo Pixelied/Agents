@@ -65,11 +65,16 @@ public final class MeleeApproachOpportunityPredictor implements LethalOpportunit
                 ServerPlayerAttackRange.AttackProfile attackProfile = profileResult.get();
 
                 // The actual-threat timeline owns attackers that are already server-attackable now.
-                if (ServerPlayerAttackRange.isWithin(eye, context.player().boundingBox(), attackProfile)) continue;
+                if (ServerPlayerAttackRange.isWithin(
+                    eye,
+                    context.player().boundingBox(),
+                    attackProfile,
+                    attacker.velocity()
+                )) continue;
 
                 entryTick = firstPlayerEntryTick(context, attacker, eye, attackProfile);
                 if (entryTick < 1) continue;
-                rangeEvidence.put("server_attack_range_buffer", Double.toString(ServerPlayerAttackRange.ATTACK_PACKET_BUFFER));
+                rangeEvidence.put("server_attack_range_buffer", Double.toString(ServerPlayerAttackRange.serverBuffer(attackProfile)));
                 rangeEvidence.put("attack_min_range", Double.toString(attackProfile.minRange()));
                 rangeEvidence.put("attack_max_range", Double.toString(attackProfile.maxRange()));
                 rangeEvidence.put("attack_hitbox_margin", Double.toString(attackProfile.hitboxMargin()));
@@ -140,7 +145,7 @@ public final class MeleeApproachOpportunityPredictor implements LethalOpportunit
                 context.player().boundingBox(),
                 scale(context.player().velocity(), tick)
             );
-            if (ServerPlayerAttackRange.isWithin(projectedEye, projectedTarget, profile)) return tick;
+            if (ServerPlayerAttackRange.isWithin(projectedEye, projectedTarget, profile, attacker.velocity())) return tick;
         }
         return -1;
     }
