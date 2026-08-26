@@ -2,6 +2,7 @@ package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.config.SurvivalConfig;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
 import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
@@ -26,6 +27,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class OpportunityAlternativeBranchEngineTest {
     @Test
@@ -79,6 +81,28 @@ class OpportunityAlternativeBranchEngineTest {
         );
     }
 
+    @Test
+    void deathProtectionIsNotDispatchedWhenAnotherLethalBranchBypassesIt() {
+        PlayerSnapshot player = player();
+        ThreatEvent normal = threat("opportunity:bed:attacker:normal", 30f, 0);
+        ThreatEvent bypass = threat(
+            "opportunity:bed:attacker:bypass",
+            30f,
+            0,
+            Set.of(DamageFlag.BYPASSES_INVULNERABILITY)
+        );
+        List<LethalOpportunity> alternatives = List.of(opportunity(normal), opportunity(bypass));
+        FakeRuntime runtime = new FakeRuntime(frame(player, alternatives, List.of(protection())));
+        SurvivalEngine engine = new SurvivalEngine(SurvivalConfig.defaults(), runtime, new DecisionHistory(32));
+
+        engine.tick();
+
+        assertNull(
+            runtime.started,
+            "death protection that fails any lethal alternative branch must not be dispatched as though the first branch were sufficient"
+        );
+    }
+
     private static SurvivalEngine.EngineFrame frame(
         PlayerSnapshot player,
         List<LethalOpportunity> alternatives,
@@ -124,9 +148,13 @@ class OpportunityAlternativeBranchEngineTest {
     }
 
     private static ThreatEvent threat(String id, float rawDamage, long tick) {
+        return threat(id, rawDamage, tick, Set.of());
+    }
+
+    private static ThreatEvent threat(String id, float rawDamage, long tick, Set<DamageFlag> flags) {
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
-            Set.of(),
+            flags,
             false,
             1f,
             false,
