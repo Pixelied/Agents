@@ -40,13 +40,24 @@ public record WorldSnapshot(
         Vec3Snapshot position,
         String blockId,
         boolean collision,
+        List<AabbSnapshot> collisionBoxes,
         Map<String, String> properties
     ) {
         public BlockSnapshot {
             position = Objects.requireNonNull(position, "position");
             blockId = Objects.requireNonNull(blockId, "blockId");
+            collisionBoxes = List.copyOf(Objects.requireNonNull(collisionBoxes, "collisionBoxes"));
             properties = Map.copyOf(Objects.requireNonNull(properties, "properties"));
             if (blockId.isBlank()) throw new IllegalArgumentException("blockId must not be blank");
+        }
+
+        public BlockSnapshot(
+            Vec3Snapshot position,
+            String blockId,
+            boolean collision,
+            Map<String, String> properties
+        ) {
+            this(position, blockId, collision, List.of(), properties);
         }
     }
 }

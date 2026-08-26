@@ -13,11 +13,11 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 
-final class ThreatOverflowCondenser {
+public final class ThreatOverflowCondenser {
     private ThreatOverflowCondenser() {
     }
 
-    static List<ThreatEvent> cap(List<ThreatEvent> ordered, int maxThreats, String overflowId) {
+    public static List<ThreatEvent> cap(List<ThreatEvent> ordered, int maxThreats, String overflowId) {
         if (ordered.size() <= maxThreats) return List.copyOf(ordered);
         if (maxThreats <= 0) throw new IllegalArgumentException("maxThreats must be positive");
 

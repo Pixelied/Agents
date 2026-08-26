@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Objects;
 
 public final class SurvivalPlanner {
+    private static final String IMMEDIATE_PROTECTION_BEST_EFFORT_REASON =
+        "best effort: protection cannot be guaranteed from current observation before immediate potential threat";
+
     private final ThreatTimelineSimulator timelineSimulator;
 
     public SurvivalPlanner() {
@@ -157,7 +160,7 @@ public final class SurvivalPlanner {
                     return accepted(
                         action,
                         immediateResult,
-                        "best effort: immediate potential threat may beat server authority",
+                        IMMEDIATE_PROTECTION_BEST_EFFORT_REASON,
                         DeadlineStatus.BEST_EFFORT
                     );
                 }
@@ -184,7 +187,7 @@ public final class SurvivalPlanner {
         ThreatTimeline transformedTimeline = action.applyTimeline(timeline);
         TimelineResult result = timelineSimulator.simulate(action.apply(context.player()), transformedTimeline);
         String reason = deadlineStatus == DeadlineStatus.BEST_EFFORT
-            ? "best effort: immediate potential threat may beat server authority"
+            ? IMMEDIATE_PROTECTION_BEST_EFFORT_REASON
             : "ok";
         return accepted(action, result, reason, deadlineStatus);
     }
