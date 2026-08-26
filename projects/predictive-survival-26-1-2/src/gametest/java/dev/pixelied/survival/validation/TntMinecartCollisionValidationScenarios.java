@@ -44,7 +44,12 @@ final class TntMinecartCollisionValidationScenarios {
             BurstSequenceValidationSupport.prepareVictim(victim, 4f);
             victim.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 0.5d);
 
-            Vec3 precursorPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 2.0d);
+            // Begin several synchronized motion ticks before the wall. The acceptance loop advances
+            // this exact visible precursor by one COLLISION_VELOCITY step at a time until it first
+            // enters the live packet-authority horizon. This avoids baking CI RTT/tick jitter into
+            // a fixed "two ticks away" fixture while still requiring the first actionable frame to
+            // be early enough for a guaranteed Totem route.
+            Vec3 precursorPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() - 2.2d);
             Vec3 triggerPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 3.4d);
             MinecartTNT cart = new MinecartTNT(EntityType.TNT_MINECART, level);
             cart.setPos(precursorPosition.x, precursorPosition.y, precursorPosition.z);
@@ -149,14 +154,21 @@ final class TntMinecartCollisionValidationScenarios {
         );
 
         for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            Vec3 approachPosition = setup.precursorPosition().add(COLLISION_VELOCITY.scale(tick));
+            if (approachPosition.z >= setup.triggerPosition().z) {
+                throw new AssertionError(
+                    "moving TNT minecart crossed the trigger position before a guaranteed forecast could arm protection"
+                );
+            }
+
             singleplayer.getServer().runOnServer(server -> {
                 ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
                 Entity entity = ((ServerLevel)victim.level()).getEntity(setup.cartId());
                 if (!(entity instanceof MinecartTNT cart)) {
-                    throw new AssertionError("TNT minecart disappeared while maintaining collision precursor");
+                    throw new AssertionError("TNT minecart disappeared while advancing collision precursor");
                 }
                 if (cart.isPrimed()) throw new AssertionError("collision precursor cart unexpectedly primed");
-                cart.setPos(setup.precursorPosition().x, setup.precursorPosition().y, setup.precursorPosition().z);
+                cart.setPos(approachPosition.x, approachPosition.y, approachPosition.z);
                 cart.setDeltaMovement(COLLISION_VELOCITY);
                 victim.connection.send(ClientboundEntityPositionSyncPacket.of(cart));
                 // Position sync carries a movement field, but 26.1.2's client handler intentionally
@@ -164,9 +176,6 @@ final class TntMinecartCollisionValidationScenarios {
                 victim.connection.send(new ClientboundSetEntityMotionPacket(cart));
             });
 
-            // Let the real client process both vanilla position and motion packets. The synchronized
-            // state should now forecast the wall early enough for the fastest Totem route to become
-            // server-authoritative before the collision tick.
             context.waitTick();
             context.runOnClient(minecraft -> {
                 if (minecraft.level == null || !(minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT cart)) {
@@ -180,20 +189,10 @@ final class TntMinecartCollisionValidationScenarios {
                     .filter(candidate -> "forecast_horizontal_collision".equals(candidate.evidence().get("trigger")))
                     .findFirst()
                     .orElse(null);
-                if (opportunity == null) {
-                    var snapshot = frame.context().world().entities().stream()
-                        .filter(candidate -> candidate.id().equals(Integer.toString(setup.cartId())))
-                        .findFirst()
-                        .orElse(null);
-                    throw new AssertionError(
-                        "synchronized unprimed TNT minecart state produced no forecast collision opportunity; "
-                            + "clientPos=" + cart.position()
-                            + " clientVelocity=" + cart.getDeltaMovement()
-                            + " horizontalCollision=" + cart.horizontalCollision
-                            + " snapshot=" + snapshot
-                            + " opportunities=" + frame.opportunities()
-                    );
-                }
+
+                // Being outside the bounded authority horizon is expected on the early approach
+                // frames. The next synchronized position advances one real velocity tick closer.
+                if (opportunity == null) return;
 
                 long fastestProtectionAuthorityTick = Math.max(
                     0L,
@@ -202,7 +201,7 @@ final class TntMinecartCollisionValidationScenarios {
                 );
                 if (opportunity.projectedThreat().impact().earliest() < fastestProtectionAuthorityTick) {
                     throw new AssertionError(
-                        "TNT minecart forecast was observed only after the fastest Totem guarantee was already lost; "
+                        "TNT minecart entered the forecast only after the fastest Totem guarantee was already lost; "
                             + "impact=" + opportunity.projectedThreat().impact()
                             + " authorityTick=" + fastestProtectionAuthorityTick
                             + " evidence=" + opportunity.evidence()
@@ -213,11 +212,15 @@ final class TntMinecartCollisionValidationScenarios {
                 harness.engine().tick();
             });
 
+            // Park at the current observed position between frames so the integrated server cannot
+            // physically collide while the outbound selection is crossing the real client/server
+            // boundary. If protection is not authoritative yet, the next frame advances the visible
+            // cart by one velocity tick and re-evaluates the in-flight route.
             singleplayer.getServer().runOnServer(server -> {
                 ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
                 Entity entity = ((ServerLevel)victim.level()).getEntity(setup.cartId());
                 if (entity instanceof MinecartTNT cart) {
-                    cart.setPos(setup.precursorPosition().x, setup.precursorPosition().y, setup.precursorPosition().z);
+                    cart.setPos(approachPosition.x, approachPosition.y, approachPosition.z);
                     cart.setDeltaMovement(Vec3.ZERO);
                 }
             });
