@@ -5,9 +5,9 @@
   "scope": "projects/predictive-survival-26-1-2",
   "owner": "openai-survival-instant-burst-c74e",
   "state": "active",
-  "intent": "Execute the approved Predictive Survival 26.1.2 instant-burst implementation plan from the canonical good baseline, using regression-first TDD and exact-runtime verification without importing PR #40 production code.",
-  "claimed_at": "2026-08-25T13:47:02+00:00",
-  "heartbeat_at": "2026-08-26T00:34:53+00:00",
-  "expires_at": "2026-08-26T04:34:53+00:00",
-  "generation": 6
+  "intent": "Continue executing the approved Predictive Survival 26.1.2 instant-burst implementation plan from the canonical good baseline, using regression-first TDD and exact-runtime verification without importing PR #40 production code.",
+  "claimed_at": "2026-08-26T09:01:00+00:00",
+  "heartbeat_at": "2026-08-26T09:01:00+00:00",
+  "expires_at": "2026-08-26T13:01:00+00:00",
+  "generation": 7
 }
