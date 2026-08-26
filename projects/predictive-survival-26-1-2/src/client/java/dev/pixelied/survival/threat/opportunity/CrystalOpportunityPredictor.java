@@ -19,6 +19,7 @@ import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +44,11 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
     public List<LethalOpportunity> predict(PredictionContext context) {
         if (context == null) throw new NullPointerException("context");
         List<LethalOpportunity> result = new ArrayList<>();
-        SnapshotOcclusionView world = new SnapshotOcclusionView(context.world().blocks());
+        List<WorldSnapshot.BlockSnapshot> blocks = context.world().blocks();
+        Set<BlockCell> observedBlockCells = blockCells(blocks);
+        SnapshotOcclusionView world = new SnapshotOcclusionView(
+            blocks.stream().filter(WorldSnapshot.BlockSnapshot::collision).toList()
+        );
         int narrowPhaseBudget = context.limits().maxOpportunities();
         int narrowPhaseEvaluations = 0;
 
@@ -58,14 +63,14 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
             if (eye == null || blockRange == null || entityRange == null) continue;
             AttackProfile attackProfile = postPlacementAttackProfile(attacker.properties(), entityRange);
 
-            for (WorldSnapshot.BlockSnapshot support : context.world().blocks()) {
+            for (WorldSnapshot.BlockSnapshot support : blocks) {
                 if (!isCrystalSupport(support.blockId())) continue;
                 int x = (int)Math.floor(support.position().x());
                 int y = (int)Math.floor(support.position().y());
                 int z = (int)Math.floor(support.position().z());
                 AabbSnapshot supportBox = new AabbSnapshot(x, y, z, x + 1d, y + 1d, z + 1d);
                 if (!withinRange(eye, supportBox, blockRange + SERVER_USE_ON_RANGE_BUFFER)) continue;
-                if (hasObservedBlockAt(context.world().blocks(), x, y + 1, z)) continue;
+                if (hasObservedBlockAt(observedBlockCells, x, y + 1, z)) continue;
 
                 AabbSnapshot placementVolume = new AabbSnapshot(
                     x, y + 1d, z,
@@ -237,20 +242,20 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
         return distance >= min && distance <= max;
     }
 
-    private static boolean hasObservedBlockAt(
-        List<WorldSnapshot.BlockSnapshot> blocks,
-        int x,
-        int y,
-        int z
-    ) {
+    private static Set<BlockCell> blockCells(List<WorldSnapshot.BlockSnapshot> blocks) {
+        Set<BlockCell> result = new HashSet<>(Math.max(16, blocks.size() * 2));
         for (WorldSnapshot.BlockSnapshot block : blocks) {
-            if ((int)Math.floor(block.position().x()) == x
-                && (int)Math.floor(block.position().y()) == y
-                && (int)Math.floor(block.position().z()) == z) {
-                return true;
-            }
+            result.add(new BlockCell(
+                (int)Math.floor(block.position().x()),
+                (int)Math.floor(block.position().y()),
+                (int)Math.floor(block.position().z())
+            ));
         }
-        return false;
+        return result;
+    }
+
+    private static boolean hasObservedBlockAt(Set<BlockCell> blocks, int x, int y, int z) {
+        return blocks.contains(new BlockCell(x, y, z));
     }
 
     private static boolean hasObservedEntityIntersection(
@@ -330,6 +335,9 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private record BlockCell(int x, int y, int z) {
     }
 
     private record AttackProfile(double minRange, double maxRange, double hitboxMargin, String source) {
