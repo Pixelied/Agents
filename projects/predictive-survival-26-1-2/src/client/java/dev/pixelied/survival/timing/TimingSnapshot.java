@@ -37,6 +37,18 @@ public record TimingSnapshot(
     }
 
     /**
+     * Conservative age of an inbound synchronized observation relative to current server state.
+     * The center is one-way latency; jitter widens both sides and the latest side carries one
+     * additional scheduling/tick-phase safety tick.
+     */
+    public TickWindow observationAgeWindow() {
+        double centerMs = rttMs / 2d;
+        long earliest = floorServerTicks(Math.max(0d, centerMs - jitterMs));
+        long latest = saturatingAdd(ceilServerTicks(centerMs + jitterMs), 1L);
+        return new TickWindow(earliest, Math.max(earliest, latest));
+    }
+
+    /**
      * Conservative server-to-client return time used when a vanilla optimistic container click can
      * succeed silently. Minecraft 26.1.2 sends corrections on disagreement but no ACK for an exact
      * client prediction, so silence is meaningful only after the correction path could have arrived.
@@ -68,6 +80,10 @@ public record TimingSnapshot(
             throw new IllegalArgumentException("impact window precedes timing snapshot");
         }
         return impact;
+    }
+
+    private static long floorServerTicks(double millis) {
+        return Math.max(0L, (long) Math.floor(millis / SERVER_TICK_MS));
     }
 
     private static long ceilServerTicks(double millis) {

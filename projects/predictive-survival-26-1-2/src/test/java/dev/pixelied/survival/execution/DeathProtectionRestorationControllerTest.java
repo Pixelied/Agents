@@ -40,6 +40,31 @@ class DeathProtectionRestorationControllerTest {
     }
 
     @Test
+    void opportunityRefreshKeepsRestorationGraceResetUntilRiskIsGone() {
+        DeathProtectionRestorationController controller = new DeathProtectionRestorationController();
+        InventorySlotSnapshot original = slot(0, "minecraft:diamond_sword", 11, 1, false);
+        InventorySlotSnapshot protection = slot(1, "minecraft:totem_of_undying", 22, 1, true);
+        InventorySnapshot protectedInventory = inventory(1, original, protection);
+        controller.arm(new RestorationCheckpoint.Hotbar(0, 1, original, protection, 100));
+
+        assertTrue(controller.update(true, true, false, context(protectedInventory, 101, false)).isEmpty());
+        assertTrue(controller.update(true, true, false, context(protectedInventory, 102, false)).isEmpty());
+
+        assertTrue(controller.update(true, false, false, context(protectedInventory, 103, false)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(protectedInventory, 104, false)).isEmpty());
+
+        assertTrue(controller.update(true, true, false, context(protectedInventory, 105, false)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(protectedInventory, 106, false)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(protectedInventory, 107, false)).isEmpty());
+
+        ExecutionCommand.SelectHotbar restore = assertInstanceOf(
+            ExecutionCommand.SelectHotbar.class,
+            controller.update(true, false, false, context(protectedInventory, 108, false)).orElseThrow()
+        );
+        assertEquals(0, restore.hotbarIndex());
+    }
+
+    @Test
     void chainedHotbarEmergencyRoutesComposeBackToOriginalSelection() {
         DeathProtectionRestorationController controller = new DeathProtectionRestorationController();
         InventorySlotSnapshot sword = slot(0, "minecraft:diamond_sword", 11, 1, false);

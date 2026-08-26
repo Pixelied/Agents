@@ -124,7 +124,7 @@ final class LiveExplosionScalingValidationScenarios {
             if (!(entity instanceof PrimedTnt tnt)) {
                 throw new AssertionError("server TNT disappeared before difficulty scaling validation");
             }
-            Vec3 center = tnt.position();
+            Vec3 center = new Vec3(tnt.getX(), tnt.getY(0.0625), tnt.getZ());
             float seen = ServerExplosion.getSeenPercent(center, player);
             double distance = Math.sqrt(player.distanceToSqr(center));
             float rawDamage = EXPOSURE.rawEntityDamage(4f, distance, seen);
@@ -162,7 +162,7 @@ final class LiveExplosionScalingValidationScenarios {
             if (!(entity instanceof PrimedTnt tnt)) {
                 throw new AssertionError("server TNT disappeared before difficulty scaling validation");
             }
-            Vec3 center = tnt.position();
+            Vec3 center = new Vec3(tnt.getX(), tnt.getY(0.0625), tnt.getZ());
             tnt.discard();
             player.invulnerableTime = 0;
             player.setHealth(20f);
