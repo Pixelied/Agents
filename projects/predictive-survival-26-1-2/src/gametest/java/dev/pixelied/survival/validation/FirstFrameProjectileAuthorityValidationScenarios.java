@@ -16,6 +16,8 @@ import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -23,6 +25,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.BowItem;
@@ -145,9 +148,12 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
         // the embedded mock player from hiding a legitimately observable precursor.
         awaitHeldPrecursor(context, singleplayer, attacker, family);
         if (family == LaunchFamily.BOW) {
-            singleplayer.getServer().runOnServer(server ->
-                requirePlayer(server, attacker.playerId(), "attacker").startUsingItem(InteractionHand.MAIN_HAND)
-            );
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer victim = requirePlayer(server, victimId, "victim");
+                ServerPlayer remote = requirePlayer(server, attacker.playerId(), "attacker");
+                remote.startUsingItem(InteractionHand.MAIN_HAND);
+                syncEntityDataToObserver(victim, remote);
+            });
             awaitBowUsePrecursor(context, singleplayer, attacker);
         }
     }
@@ -197,6 +203,25 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
         };
         attacker.getInventory().setItem(0, held);
         attacker.containerMenu.broadcastChanges();
+        syncEquipmentToObserver(victim, attacker);
+    }
+
+    private static void syncEquipmentToObserver(ServerPlayer observer, ServerPlayer remote) {
+        observer.connection.send(new ClientboundSetEquipmentPacket(
+            remote.getId(),
+            List.of(
+                com.mojang.datafixers.util.Pair.of(EquipmentSlot.MAINHAND, remote.getMainHandItem().copy()),
+                com.mojang.datafixers.util.Pair.of(EquipmentSlot.OFFHAND, remote.getOffhandItem().copy())
+            )
+        ));
+    }
+
+    private static void syncEntityDataToObserver(ServerPlayer observer, ServerPlayer remote) {
+        List<net.minecraft.network.syncher.SynchedEntityData.DataValue<?>> values =
+            remote.getEntityData().getNonDefaultValues();
+        if (values != null && !values.isEmpty()) {
+            observer.connection.send(new ClientboundSetEntityDataPacket(remote.getId(), values));
+        }
     }
 
     private static void positionAttacker(ServerPlayer attacker, ServerPlayer victim, Vec3 victimPosition) {
