@@ -4,6 +4,7 @@ import dev.pixelied.survival.damage.MinecraftDamageAdapter;
 import dev.pixelied.survival.threat.VanillaMobMeleeProfile;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -76,6 +77,11 @@ final class MinecraftMeleeSnapshotAdapter {
         properties.put("weapon_key", itemKey(weapon));
         properties.put("main_hand_item_key", itemKey(player.getMainHandItem()));
         properties.put("offhand_item_key", itemKey(player.getOffhandItem()));
+        properties.put("using_item", Boolean.toString(player.isUsingItem()));
+        properties.put("used_hand", player.isUsingItem()
+            ? (player.getUsedItemHand() == InteractionHand.OFF_HAND ? "off_hand" : "main_hand")
+            : "none");
+        properties.put("client_observed_use_ticks", Integer.toString(Math.max(0, player.getTicksUsingItem())));
         AttackRange mainHandAttackRange = player.getAttackRangeWith(player.getMainHandItem());
         properties.put("main_hand_attack_min_range", Float.toString(mainHandAttackRange.effectiveMinRange(player)));
         properties.put("main_hand_attack_max_range", Float.toString(mainHandAttackRange.effectiveMaxRange(player)));
