@@ -16,6 +16,6 @@
     "github-coordination"
   ],
   "registered_at": "2026-08-25T13:30:00+00:00",
-  "state": "available",
-  "state_reason": "Approved architecture and implementation plan are ready; waiting for the active Predictive Survival generation-5 project lease to become available before production edits."
+  "state": "busy",
+  "state_reason": "Generation-7 Predictive Survival lease active; continuing approved instant-burst plan at Task 11 timing and coverage gates."
 }
