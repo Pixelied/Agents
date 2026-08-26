@@ -42,6 +42,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            SpearBurstSequenceValidationScenarios.validatePiercingSpearCrossesRayAndStabsAtFirstLegalTick(
+                context,
+                singleplayer
+            );
         }
     }
 
