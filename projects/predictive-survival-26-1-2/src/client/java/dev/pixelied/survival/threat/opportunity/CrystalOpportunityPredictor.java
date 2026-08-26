@@ -49,7 +49,7 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
         SnapshotOcclusionView world = new SnapshotOcclusionView(
             blocks.stream().filter(WorldSnapshot.BlockSnapshot::collision).toList()
         );
-        int narrowPhaseBudget = context.limits().maxOpportunities();
+        int narrowPhaseBudget = familyNarrowPhaseBudget(context);
         int narrowPhaseEvaluations = 0;
 
         for (WorldSnapshot.EntitySnapshot attacker : context.world().entities()) {
@@ -184,10 +184,14 @@ public final class CrystalOpportunityPredictor implements LethalOpportunityPredi
                 "attacker_id", attacker.id(),
                 "visible_crystal", Boolean.toString(visibleCrystal),
                 "budget_overflow", "true",
-                "narrow_phase_budget", Integer.toString(context.limits().maxOpportunities()),
+                "narrow_phase_budget", Integer.toString(familyNarrowPhaseBudget(context)),
                 "unscanned_candidates", "true"
             )
         );
+    }
+
+    private static int familyNarrowPhaseBudget(PredictionContext context) {
+        return Math.max(1, context.limits().maxOpportunities() / OpportunityFamily.values().length);
     }
 
     private static long reactionTicks(PredictionContext context) {
