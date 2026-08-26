@@ -2,7 +2,6 @@ package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.config.SurvivalConfig;
-import dev.pixelied.survival.damage.VanillaDamageOracle;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.DecisionRecord;
 import dev.pixelied.survival.execution.ExecutionStatus;
@@ -14,6 +13,7 @@ import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.planner.SurvivalPlan;
 import dev.pixelied.survival.planner.SurvivalPlanner;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
+import dev.pixelied.survival.threat.opportunity.OpportunityRiskEvaluator;
 import dev.pixelied.survival.threat.opportunity.ProtectionContinuity;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
@@ -32,7 +32,7 @@ public final class SurvivalEngine {
     private final DecisionHistory history;
     private final SurvivalPlanner planner;
     private final ContingencyPlanner contingencyPlanner;
-    private final VanillaDamageOracle damageOracle = new VanillaDamageOracle();
+    private final OpportunityRiskEvaluator opportunityRiskEvaluator = new OpportunityRiskEvaluator();
     private final Set<SurvivalAction> failedActions = new LinkedHashSet<>();
 
     private Optional<SurvivalPlan> currentPlan = Optional.empty();
@@ -74,8 +74,12 @@ public final class SurvivalEngine {
             runtime.capture(liveConfig.rescuePolicy(), liveConfig.safetyMode()),
             "runtime frame"
         );
-        updateDangerWindow(frame.timeline());
-        boolean protectionLatchRequired = lethalWithoutDeathProtection(frame);
+        OpportunityRiskEvaluator.RiskAssessment risk = opportunityRiskEvaluator.assess(
+            frame.context(), frame.actualTimeline(), frame.opportunities()
+        );
+        ThreatTimeline decisionTimeline = risk.criticalTimeline().orElse(frame.timeline());
+        updateDangerWindow(decisionTimeline);
+        boolean protectionLatchRequired = risk.requiresDeathProtection();
         runtime.maintainRestoration(
             frame,
             liveConfig.restoreHandState(),
@@ -85,7 +89,7 @@ public final class SurvivalEngine {
 
         if (currentPlan.isPresent()) {
             SurvivalAction active = currentPlan.get().action();
-            if (shouldReplaceActivePlan(active, frame, protectionLatchRequired)) {
+            if (shouldReplaceActivePlan(active, frame, protectionLatchRequired, decisionTimeline)) {
                 clearCurrentPlan();
             } else {
                 ExecutionStatus observed = Objects.requireNonNull(runtime.observe(active, frame), "execution status");
@@ -105,15 +109,20 @@ public final class SurvivalEngine {
             }
         }
 
-        planAndStart(frame, protectionLatchRequired);
+        planAndStart(frame, protectionLatchRequired, decisionTimeline);
     }
 
-    private void planAndStart(EngineFrame frame, boolean protectionLatchRequired) {
+    private void planAndStart(
+        EngineFrame frame,
+        boolean protectionLatchRequired,
+        ThreatTimeline decisionTimeline
+    ) {
         int maxAttempts = Math.max(1, frame.context().limits().maxPlannerCandidates());
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
+            candidates = latchCandidates(frame, candidates, protectionLatchRequired);
             ContingencyPlan contingency = contingencyPlanner.plan(
-                frame.context(), frame.timeline(), candidates, config().safetyMode(), config().rescueProfile()
+                frame.context(), decisionTimeline, candidates, config().safetyMode(), config().rescueProfile()
             );
 
             SurvivalAction selected;
@@ -126,10 +135,10 @@ public final class SurvivalEngine {
                     return;
                 }
                 selected = contingency.steps().getFirst().action();
-                selectedPlan = activeStepPlan(frame, selected);
+                selectedPlan = activeStepPlan(frame, decisionTimeline, selected);
             } else {
                 currentContingency = Optional.empty();
-                selectedPlan = planner.plan(frame.context(), frame.timeline(), candidates, config().safetyMode());
+                selectedPlan = planner.plan(frame.context(), decisionTimeline, candidates, config().safetyMode());
                 selected = selectedPlan.action();
                 if (selected instanceof SurvivalAction.NoAction) {
                     clearCurrentPlan();
@@ -156,9 +165,13 @@ public final class SurvivalEngine {
         record(frame, new SurvivalAction.NoAction(), executionStatus.get(), "all bounded candidates failed execution");
     }
 
-    private SurvivalPlan activeStepPlan(EngineFrame frame, SurvivalAction action) {
+    private SurvivalPlan activeStepPlan(
+        EngineFrame frame,
+        ThreatTimeline decisionTimeline,
+        SurvivalAction action
+    ) {
         ActionSimulation simulation = planner.simulate(
-            frame.context(), frame.timeline(), action, config().safetyMode()
+            frame.context(), decisionTimeline, action, config().safetyMode()
         );
         return new SurvivalPlan(action, simulation, 1, List.of(simulation));
     }
@@ -196,28 +209,26 @@ public final class SurvivalEngine {
         clearCurrentPlan();
     }
 
-    private boolean lethalWithoutDeathProtection(EngineFrame frame) {
-        return damageOracle.lethalWithoutDeathProtection(frame.context().player(), frame.planningTimeline());
-    }
-
     private boolean shouldReplaceActivePlan(
         SurvivalAction active,
         EngineFrame frame,
-        boolean protectionLatchRequired
+        boolean protectionLatchRequired,
+        ThreatTimeline decisionTimeline
     ) {
         if (protectionLatchRequired
             && !ProtectionContinuity.preservesAuthoritativeProtection(frame.context().player(), active)) {
             return true;
         }
         List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
+        candidates = latchCandidates(frame, candidates, protectionLatchRequired);
         int remainingServerTicks = Math.max(0, runtime.remainingServerTicks(active, frame));
 
         ContingencyPlan inFlight = contingencyPlanner.planInFlight(
-            frame.context(), frame.timeline(), candidates, config().safetyMode(), config().rescueProfile(),
+            frame.context(), decisionTimeline, candidates, config().safetyMode(), config().rescueProfile(),
             active, remainingServerTicks
         );
         ContingencyPlan replacement = contingencyPlanner.plan(
-            frame.context(), frame.timeline(), candidates, config().safetyMode(), config().rescueProfile()
+            frame.context(), decisionTimeline, candidates, config().safetyMode(), config().rescueProfile()
         );
 
         boolean inFlightKeepsActive = startsWith(inFlight, active);
@@ -245,7 +256,7 @@ public final class SurvivalEngine {
         }
 
         var refreshedSingle = planner.simulateInFlight(
-            frame.context(), frame.timeline(), active, config().safetyMode(), remainingServerTicks
+            frame.context(), decisionTimeline, active, config().safetyMode(), remainingServerTicks
         );
         if (refreshedSingle.feasible() && refreshedSingle.result().survived()) {
             currentContingency = Optional.empty();
@@ -253,7 +264,7 @@ public final class SurvivalEngine {
         }
 
         SurvivalPlan singleReplacement = planner.plan(
-            frame.context(), frame.timeline(), candidates, config().safetyMode()
+            frame.context(), decisionTimeline, candidates, config().safetyMode()
         );
         boolean replace = !(singleReplacement.action() instanceof SurvivalAction.NoAction)
             && !singleReplacement.action().equals(active);
@@ -290,6 +301,20 @@ public final class SurvivalEngine {
             filtered.add(candidate);
         }
         return List.copyOf(filtered);
+    }
+
+    private static List<SurvivalAction> latchCandidates(
+        EngineFrame frame,
+        List<SurvivalAction> candidates,
+        boolean protectionLatchRequired
+    ) {
+        if (!protectionLatchRequired || frame.context().player().deathProtection().anyHandAvailable()) {
+            return candidates;
+        }
+        List<SurvivalAction> protection = candidates.stream()
+            .filter(SurvivalAction.EquipDeathProtection.class::isInstance)
+            .toList();
+        return protection.isEmpty() ? candidates : List.copyOf(protection);
     }
 
     private void updateDangerWindow(ThreatTimeline timeline) {
