@@ -36,6 +36,7 @@ final class SpearBurstSequenceValidationScenarios {
     private static final double RANGE_SCAN_STEP = 0.025d;
     private static final double APPROACH_PER_TICK = 0.25d;
     private static final double VELOCITY_EPSILON = 0.02d;
+    private static final int PREARM_RANGE_TICKS = 4;
 
     private SpearBurstSequenceValidationScenarios() {
     }
@@ -66,7 +67,13 @@ final class SpearBurstSequenceValidationScenarios {
             faceVictim(attacker);
 
             Vec3 approachVelocity = new Vec3(0d, 0d, -APPROACH_PER_TICK);
-            Vec3 initialPosition = findOneTickOutsideStabRange(attacker, victim, center, approachVelocity);
+            Vec3 initialPosition = findTicksOutsideStabRange(
+                attacker,
+                victim,
+                center,
+                approachVelocity,
+                PREARM_RANGE_TICKS
+            );
             attacker.teleportTo(initialPosition.x, initialPosition.y, initialPosition.z);
             attacker.setDeltaMovement(approachVelocity);
             attacker.setKnownMovement(approachVelocity);
@@ -120,7 +127,12 @@ final class SpearBurstSequenceValidationScenarios {
                     .anyMatch(candidate -> Boolean.parseBoolean(
                         candidate.properties().getOrDefault("piercing_weapon", "false")
                     ));
-                return new Precursor(activeSpear, opportunity, piercingObserved);
+                long fastestProtectionAuthorityTick = Math.max(
+                    0L,
+                    frame.context().timing().deadline(1).completionWindow().latest()
+                        - frame.context().timing().clientTick()
+                );
+                return new Precursor(activeSpear, opportunity, piercingObserved, fastestProtectionAuthorityTick);
             });
             if (!precursor.piercingObserved()) {
                 throw new AssertionError("production runtime did not expose the visible spear's PIERCING_WEAPON component");
@@ -137,8 +149,17 @@ final class SpearBurstSequenceValidationScenarios {
                 );
             }
             int entryTick = Integer.parseInt(precursor.opportunity().evidence().getOrDefault("entry_tick", "-1"));
-            if (entryTick < 1) {
-                throw new AssertionError("spear approach opportunity exposed invalid entry tick " + entryTick);
+            if (entryTick != PREARM_RANGE_TICKS) {
+                throw new AssertionError(
+                    "spear approach predicted entry tick " + entryTick
+                        + " but vanilla STAB fixture boundary is " + PREARM_RANGE_TICKS
+                );
+            }
+            if (entryTick < precursor.fastestProtectionAuthorityTick()) {
+                throw new AssertionError(
+                    "spear precursor arrived after the fastest Totem guarantee was already lost; entry="
+                        + entryTick + " authority=" + precursor.fastestProtectionAuthorityTick()
+                );
             }
 
             BurstSequenceValidationSupport.armTotemFromPrecursor(
@@ -226,11 +247,12 @@ final class SpearBurstSequenceValidationScenarios {
         }
     }
 
-    private static Vec3 findOneTickOutsideStabRange(
+    private static Vec3 findTicksOutsideStabRange(
         ServerPlayer attacker,
         ServerPlayer victim,
         BlockPos center,
-        Vec3 approachVelocity
+        Vec3 approachVelocity,
+        int entryTicks
     ) {
         double x = center.getX() + 0.5d;
         double y = center.getY();
@@ -240,15 +262,26 @@ final class SpearBurstSequenceValidationScenarios {
             attacker.teleportTo(x, y, outsideZ);
             attacker.setKnownMovement(approachVelocity);
             faceVictim(attacker);
-            boolean outside = !canPiercingHit(attacker, victim);
+            if (canPiercingHit(attacker, victim)) continue;
 
-            attacker.teleportTo(x, y, outsideZ + approachVelocity.z);
-            attacker.setKnownMovement(approachVelocity);
-            faceVictim(attacker);
-            boolean oneTickInRange = canPiercingHit(attacker, victim);
-            if (outside && oneTickInRange) return new Vec3(x, y, outsideZ);
+            boolean valid = true;
+            for (int tick = 1; tick <= entryTicks; tick++) {
+                Vec3 projected = new Vec3(x, y, outsideZ).add(approachVelocity.scale(tick));
+                attacker.teleportTo(projected.x, projected.y, projected.z);
+                attacker.setKnownMovement(approachVelocity);
+                faceVictim(attacker);
+                boolean inRange = canPiercingHit(attacker, victim);
+                if (tick < entryTicks && inRange) {
+                    valid = false;
+                    break;
+                }
+                if (tick == entryTicks && !inRange) valid = false;
+            }
+            if (valid) return new Vec3(x, y, outsideZ);
         }
-        throw new AssertionError("could not resolve a one-tick spear STAB boundary from vanilla ray rules");
+        throw new AssertionError(
+            "could not resolve a " + entryTicks + "-tick spear STAB boundary from vanilla ray rules"
+        );
     }
 
     private static boolean canPiercingHit(ServerPlayer attacker, ServerPlayer victim) {
@@ -312,7 +345,8 @@ final class SpearBurstSequenceValidationScenarios {
     private record Precursor(
         boolean activeSpear,
         LethalOpportunity opportunity,
-        boolean piercingObserved
+        boolean piercingObserved,
+        long fastestProtectionAuthorityTick
     ) {
     }
 
