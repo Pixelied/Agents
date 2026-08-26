@@ -205,6 +205,10 @@ public final class SurvivalEngine {
         EngineFrame frame,
         boolean protectionLatchRequired
     ) {
+        if (protectionLatchRequired
+            && !ProtectionContinuity.preservesAuthoritativeProtection(frame.context().player(), active)) {
+            return true;
+        }
         List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
         int remainingServerTicks = Math.max(0, runtime.remainingServerTicks(active, frame));
 
