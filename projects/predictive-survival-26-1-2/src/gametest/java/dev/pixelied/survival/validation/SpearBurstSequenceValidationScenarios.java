@@ -65,6 +65,7 @@ final class SpearBurstSequenceValidationScenarios {
             attacker.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
             attacker.setNoGravity(true);
             attacker.setDeltaMovement(Vec3.ZERO);
+            attacker.setKnownMovement(Vec3.ZERO);
             faceVictim(attacker);
 
             Vec3 approachVelocity = new Vec3(0d, 0d, -APPROACH_PER_TICK);
@@ -75,9 +76,12 @@ final class SpearBurstSequenceValidationScenarios {
                 approachVelocity,
                 PREARM_RANGE_TICKS
             );
+            // Keep the attacker stationary while the newly equipped spear goes through the real
+            // equipment-update tick and attack-charge recovery. The STAB approach begins only
+            // after waitForReadyAttackState confirms a source-faithful ready weapon state.
             attacker.teleportTo(initialPosition.x, initialPosition.y, initialPosition.z);
-            attacker.setDeltaMovement(approachVelocity);
-            attacker.setKnownMovement(approachVelocity);
+            attacker.setDeltaMovement(Vec3.ZERO);
+            attacker.setKnownMovement(Vec3.ZERO);
             faceVictim(attacker);
             attacker.containerMenu.broadcastChanges();
             BurstSequenceValidationSupport.syncEquipment(victim, attacker);
@@ -98,6 +102,37 @@ final class SpearBurstSequenceValidationScenarios {
         try {
             waitForClientPosition(context, setup.center());
             BurstSequenceValidationSupport.waitForClientAttacker(context, setup.attacker());
+            context.waitFor(minecraft -> minecraft.level != null
+                && minecraft.level.getEntity(setup.attacker().entityId()) instanceof net.minecraft.world.entity.player.Player remote
+                && remote.getMainHandItem().is(Items.NETHERITE_SPEAR)
+                && Math.abs(remote.getX() - setup.initialPosition().x) <= POSITION_EPSILON
+                && Math.abs(remote.getY() - setup.initialPosition().y) <= POSITION_EPSILON
+                && Math.abs(remote.getZ() - setup.initialPosition().z) <= POSITION_EPSILON);
+
+            BurstSequenceValidationSupport.waitForReadyAttackState(
+                context,
+                singleplayer,
+                setup.attacker(),
+                "piercing_spear"
+            );
+
+            // Begin the hostile STAB approach only after the server-side weapon state is fully
+            // ready, then synchronize the exact position/motion consumed by the production runtime.
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
+                ServerPlayer attacker = BurstSequenceValidationSupport.requireAttacker(server, setup.attacker());
+                attacker.teleportTo(
+                    setup.initialPosition().x,
+                    setup.initialPosition().y,
+                    setup.initialPosition().z
+                );
+                attacker.setDeltaMovement(setup.approachVelocity());
+                attacker.setKnownMovement(setup.approachVelocity());
+                faceVictim(attacker);
+                victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
+                victim.connection.send(new ClientboundSetEntityMotionPacket(attacker));
+                BurstSequenceValidationSupport.syncEquipment(victim, attacker);
+            });
             context.waitFor(minecraft -> {
                 if (minecraft.level == null) return false;
                 if (!(minecraft.level.getEntity(setup.attacker().entityId()) instanceof net.minecraft.world.entity.player.Player remote)) {
