@@ -77,7 +77,9 @@ public final class SurvivalEngine {
             "runtime frame"
         );
         RiskDecision risk = riskDecision(frame);
-        updateDangerWindow(risk.timeline());
+        // Fingerprint every observed/planning branch identity so a changed alternative invalidates
+        // failed-action suppression even when a different branch remains the representative risk.
+        updateDangerWindow(frame.planningTimeline());
         runtime.maintainRestoration(
             frame,
             liveConfig.restoreHandState(),
@@ -87,7 +89,13 @@ public final class SurvivalEngine {
 
         if (currentPlan.isPresent()) {
             SurvivalAction active = currentPlan.get().action();
-            if (shouldReplaceActivePlan(active, frame, risk.protectionLatchRequired(), risk.timeline())) {
+            if (shouldReplaceActivePlan(
+                active,
+                frame,
+                risk.protectionLatchRequired(),
+                risk.scenarios(),
+                risk.timeline()
+            )) {
                 clearCurrentPlan();
             } else {
                 ExecutionStatus observed = Objects.requireNonNull(runtime.observe(active, frame), "execution status");
@@ -107,19 +115,20 @@ public final class SurvivalEngine {
             }
         }
 
-        planAndStart(frame, risk.protectionLatchRequired(), risk.timeline());
+        planAndStart(frame, risk.protectionLatchRequired(), risk.scenarios(), risk.timeline());
     }
 
     private void planAndStart(
         EngineFrame frame,
         boolean protectionLatchRequired,
+        List<ThreatTimeline> decisionScenarios,
         ThreatTimeline decisionTimeline
     ) {
         int maxAttempts = Math.max(1, frame.context().limits().maxPlannerCandidates());
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
-            ContingencyPlan contingency = contingencyPlanner.plan(
-                frame.context(), decisionTimeline, candidates, config().safetyMode(), config().rescueProfile()
+            ContingencyPlan contingency = contingencyPlanner.planAcrossScenarios(
+                frame.context(), decisionScenarios, candidates, config().safetyMode(), config().rescueProfile()
             );
 
             SurvivalAction selected;
@@ -135,6 +144,15 @@ public final class SurvivalEngine {
                 selectedPlan = activeStepPlan(frame, decisionTimeline, selected);
             } else {
                 currentContingency = Optional.empty();
+                if (decisionScenarios.size() > 1) {
+                    // A single-branch fallback would reintroduce the exact bug this branch model is
+                    // meant to prevent: dispatching an action that is safe for one mutually exclusive
+                    // hostile choice but lethal for another. If the bounded universal search cannot
+                    // prove one sequence, do not claim a branch-local action is guaranteed.
+                    clearCurrentPlan();
+                    record(frame, new SurvivalAction.NoAction(), null, contingency.reason());
+                    return;
+                }
                 selectedPlan = planner.plan(frame.context(), decisionTimeline, candidates, config().safetyMode());
                 selected = selectedPlan.action();
                 if (selected instanceof SurvivalAction.NoAction) {
@@ -211,14 +229,21 @@ public final class SurvivalEngine {
             boolean lethal = damageOracle.lethalWithoutDeathProtection(
                 frame.context().player(), frame.planningTimeline()
             );
-            return new RiskDecision(lethal, frame.planningTimeline());
+            return new RiskDecision(lethal, frame.planningTimeline(), List.of(frame.planningTimeline()));
         }
+
         OpportunityRiskEvaluator.RiskAssessment assessment = opportunityRiskEvaluator.assess(
             frame.context(), frame.actualTimeline(), frame.opportunities()
         );
+        if (assessment.lethalScenarios().isEmpty()) {
+            // Hypothetical alternatives that are individually nonlethal must not become lethal merely
+            // because the planning assembler contains several mutually exclusive options at once.
+            return new RiskDecision(false, frame.actualTimeline(), List.of(frame.actualTimeline()));
+        }
         return new RiskDecision(
             assessment.requiresDeathProtection(),
-            assessment.criticalTimeline().orElse(frame.planningTimeline())
+            assessment.criticalTimeline().orElseThrow(),
+            assessment.lethalScenarios()
         );
     }
 
@@ -226,6 +251,7 @@ public final class SurvivalEngine {
         SurvivalAction active,
         EngineFrame frame,
         boolean protectionLatchRequired,
+        List<ThreatTimeline> decisionScenarios,
         ThreatTimeline decisionTimeline
     ) {
         if (protectionLatchRequired
@@ -235,12 +261,12 @@ public final class SurvivalEngine {
         List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
         int remainingServerTicks = Math.max(0, runtime.remainingServerTicks(active, frame));
 
-        ContingencyPlan inFlight = contingencyPlanner.planInFlight(
-            frame.context(), decisionTimeline, candidates, config().safetyMode(), config().rescueProfile(),
+        ContingencyPlan inFlight = contingencyPlanner.planInFlightAcrossScenarios(
+            frame.context(), decisionScenarios, candidates, config().safetyMode(), config().rescueProfile(),
             active, remainingServerTicks
         );
-        ContingencyPlan replacement = contingencyPlanner.plan(
-            frame.context(), decisionTimeline, candidates, config().safetyMode(), config().rescueProfile()
+        ContingencyPlan replacement = contingencyPlanner.planAcrossScenarios(
+            frame.context(), decisionScenarios, candidates, config().safetyMode(), config().rescueProfile()
         );
 
         boolean inFlightKeepsActive = startsWith(inFlight, active);
@@ -264,6 +290,13 @@ public final class SurvivalEngine {
             // The danger moved away while an action was already dispatched. There is no generic,
             // server-safe cancellation route for every action, so reconcile the in-flight action.
             currentContingency = Optional.of(replacement);
+            return false;
+        }
+
+        if (decisionScenarios.size() > 1) {
+            // The action is already on the wire and there is no universal replacement. Do not switch
+            // to another action justified by only one branch; keep reconciling the dispatched work.
+            currentContingency = Optional.empty();
             return false;
         }
 
@@ -413,9 +446,15 @@ public final class SurvivalEngine {
         return builder.toString();
     }
 
-    private record RiskDecision(boolean protectionLatchRequired, ThreatTimeline timeline) {
+    private record RiskDecision(
+        boolean protectionLatchRequired,
+        ThreatTimeline timeline,
+        List<ThreatTimeline> scenarios
+    ) {
         private RiskDecision {
             timeline = Objects.requireNonNull(timeline, "timeline");
+            scenarios = List.copyOf(Objects.requireNonNull(scenarios, "scenarios"));
+            if (scenarios.isEmpty()) throw new IllegalArgumentException("risk scenarios must not be empty");
         }
     }
 
