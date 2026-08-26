@@ -19,13 +19,14 @@ Classification:
 | TNT minecart | `MinecartTNT.tick/hurtServer/destroy/causeFallDamage` | cart motion/collision/fall/incoming burning projectile or primed fuse | opportunity-modeled | `TntMinecartOpportunityPredictor`; primed countdown stays actual timeline |
 | Player melee | `Player.attack` | attacker motion/LOS/range/weapon | opportunity-modeled | `MeleeApproachOpportunityPredictor`; already-in-range stays `MeleePredictor` |
 | Mace | `Player.attack` mace-smash branch | player melee state + mace/fall uncertainty | opportunity-modeled | same approach predictor, shared `MeleePredictor` formula |
-| Kinetic spear | player spear attack path and spear components | player melee state + relative motion/spear state | opportunity-modeled | same approach predictor, shared spear damage path |
+| Piercing spear STAB | `ServerboundPlayerActionPacket.STAB`, `PiercingWeapon.attack`, `ProjectileUtil.getHitEntitiesAlong`, `AttackRange` | visible spear + attacker/target motion + first legal hostile STAB ray | opportunity-modeled | `MeleeApproachOpportunityPredictor`; `ServerPlayerAttackRange` uses the 26.1.2 positive `knownMovement · look` extension over feasible hostile rays, not movement magnitude; exact-runtime pre-arm/pop proof |
+| Kinetic spear use | `KineticWeapon.damageEntities` | visible spear/use state + relative motion once synchronized | actual-lead-time | separate from STAB; current melee modeling fails closed when exact kinetic fields are unavailable, and this audit does not claim exact-runtime validation of the delayed kinetic-use path |
 | Mob melee | `MeleeAttackGoal.tick/checkAndPerformAttack`, `MeleeAttack` | mob motion/LOS/range/vehicle box | opportunity-modeled | projected first legal range-entry tick using `MobMeleeRange`; damage reused from `MeleePredictor` |
 | Arrow / spectral arrow | `AbstractArrow.onHitEntity` | spawned projectile | actual-lead-time | `ProjectilePredictor` |
 | Bow | `BowItem.releaseUsing` -> arrow | spawned arrow; remote use state is also observable | actual-lead-time | exact runtime probe proves first-projectile observation still leaves authority lead; no precursor predictor |
 | Loaded crossbow arrow | `CrossbowItem.use` -> arrow | visible loaded crossbow | opportunity-modeled | `ProjectileReleaseOpportunityPredictor` |
 | Trident | `ThrownTrident.onHitEntity` | spawned trident | no-observable-precursor | actual `ProjectilePredictor`; no hidden pre-release guess |
-| Thrown spear plan candidate | supplied source has `SpearAttack/SpearApproach/SpearRetreat/SpearUseGoal` but no separate thrown-spear projectile entity | N/A | actual-lead-time | no projectile predictor; spear remains kinetic melee |
+| Thrown spear plan candidate | supplied source has `SpearAttack/SpearApproach/SpearRetreat/SpearUseGoal` but no separate thrown-spear projectile entity | N/A | actual-lead-time | no separate projectile predictor; spear damage remains item-action/raycast handling rather than a fabricated thrown projectile |
 | Llama spit | `LlamaSpit.onHitEntity` | spawned spit | no-observable-precursor | `ProjectilePredictor` after spawn |
 | Fireball / small fireball | `AbstractHurtingProjectile` subclasses | spawned projectile | no-observable-precursor | `ProjectilePredictor` + followups |
 | Dragon fireball | `DragonFireball` impact -> `AreaEffectCloud` | spawned projectile/cloud | no-observable-precursor | projectile + cloud modeling |
@@ -49,6 +50,20 @@ Classification:
 | Contact / fire / cactus / berry / environment | block/entity contact and environment damage paths | current AABB + nearby environment | actual-lead-time | contact annotator + `EnvironmentPredictorRegistry` |
 | Reactive damage | source-specific accepted-hit followups | initiating threat + observable reactive state where available | actual-lead-time | `ReactiveDamagePredictor` with causal prerequisites |
 | Poison / Wither / periodic status | effect tick path | synchronized current effect + cadence | actual-lead-time | status timeline; first application tied to causal source when known |
+
+## Exact instant-burst authority result
+
+`InstantBurstValidationClientGameTest` drives the production client snapshot/runtime against an integrated 26.1.2 server and requires protection to become server-authoritative before the real hostile damage path. The suite covers:
+
+- End Crystal placement followed immediately by the server crystal-break explosion path.
+- Uncharged respawn-anchor charge + detonation without an observation gap, plus an already-charged anchor immediate-use case.
+- Explosive bed placement + use without an observation gap.
+- Unprimed TNT minecart glancing-collision prediction and a separate burning-arrow ignition path.
+- Primed TNT whose client-visible fuse must be aged by live network timing rather than treated as exact server time.
+- Ordinary player melee and mace smash at the first legal server-range-entry tick.
+- Netherite spear `PiercingWeapon.attack` / STAB at the first legal adversarial ray through the vanilla `AttackRange` hitbox margin.
+
+The STAB proof is intentionally separate from `KineticWeapon.damageEntities`. Vanilla extends the STAB ray only by `max(0, knownMovement · look)`, so the production reach helper rejects full forward credit for tangential movement. A deterministic regression guards that rule, while the integrated-server fixture still delegates final legality to vanilla `ProjectileUtil.getHitEntitiesAlong`.
 
 ## Exact player-launch authority result
 
