@@ -13,6 +13,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
             waitForServerClientLoaded(context, singleplayer);
             ExplosionExposureDifferentialValidationScenarios.validateExactCollisionShapeExposure(context, singleplayer);
             CrystalBurstSequenceValidationScenarios.validatePrecursorThenZeroDelayPlaceBreak(context, singleplayer);
+            BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
+                context,
+                singleplayer
+            );
         }
     }
 
