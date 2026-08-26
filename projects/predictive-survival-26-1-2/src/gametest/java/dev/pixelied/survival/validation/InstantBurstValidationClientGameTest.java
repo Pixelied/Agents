@@ -26,7 +26,7 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
-            TntMinecartBurstSequenceValidationScenarios.validateBurningArrowArmsBeforeUnprimedBurst(
+            TntMinecartBurningArrowValidationScenarios.validateBurningArrowArmsBeforeUnprimedBurst(
                 context,
                 singleplayer
             );
