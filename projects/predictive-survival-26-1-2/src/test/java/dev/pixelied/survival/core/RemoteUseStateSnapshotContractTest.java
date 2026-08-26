@@ -19,4 +19,19 @@ class RemoteUseStateSnapshotContractTest {
         assertTrue(source.contains("properties.put(\"used_hand\", player.isUsingItem()"));
         assertTrue(source.contains("properties.put(\"client_observed_use_ticks\", Integer.toString(Math.max(0, player.getTicksUsingItem())));"));
     }
+
+    @Test
+    void remotePlayerSnapshotPublishesObservableInstantReleaseComponentsForBothHands() throws Exception {
+        String source = Files.readString(Path.of(
+            "src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java"
+        ));
+
+        assertTrue(source.contains("putProjectileReleaseItemProperties(properties, \"main_hand_\", player.getMainHandItem());"));
+        assertTrue(source.contains("putProjectileReleaseItemProperties(properties, \"off_hand_\", player.getOffhandItem());"));
+        assertTrue(source.contains("prefix + \"crossbow_projectile_kind\""));
+        assertTrue(source.contains("prefix + \"crossbow_firework_explosions\""));
+        assertTrue(source.contains("prefix + \"potion_instant_damage\""));
+        assertTrue(source.contains("DataComponents.CHARGED_PROJECTILES"));
+        assertTrue(source.contains("DataComponents.POTION_CONTENTS"));
+    }
 }
