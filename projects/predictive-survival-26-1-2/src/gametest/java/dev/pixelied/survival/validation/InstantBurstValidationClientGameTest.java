@@ -30,6 +30,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            NetworkAgedFuseValidationScenarios.validateDelayedTntObservationContainsAuthoritativeDetonation(
+                context,
+                singleplayer
+            );
         }
     }
 
