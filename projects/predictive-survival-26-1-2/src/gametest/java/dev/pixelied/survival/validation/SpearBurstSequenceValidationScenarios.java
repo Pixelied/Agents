@@ -176,7 +176,9 @@ final class SpearBurstSequenceValidationScenarios {
                     piercingObserved,
                     fastestProtectionAuthorityTick,
                     attackerSnapshot.position(),
-                    attackerSnapshot.velocity()
+                    attackerSnapshot.velocity(),
+                    frame.context().player().position(),
+                    frame.context().player().velocity()
                 );
             });
             if (!precursor.piercingObserved()) {
@@ -203,6 +205,8 @@ final class SpearBurstSequenceValidationScenarios {
                         + entryTick + " authority=" + precursor.fastestProtectionAuthorityTick()
                         + " observedPosition=" + precursor.observedPosition()
                         + " observedVelocity=" + precursor.observedVelocity()
+                        + " targetPosition=" + precursor.targetPosition()
+                        + " targetVelocity=" + precursor.targetVelocity()
                 );
             }
 
@@ -226,9 +230,12 @@ final class SpearBurstSequenceValidationScenarios {
 
                 Vec3 observedPosition = toVec3(precursor.observedPosition());
                 Vec3 observedVelocity = toVec3(precursor.observedVelocity());
+                Vec3 targetPosition = toVec3(precursor.targetPosition());
+                Vec3 targetVelocity = toVec3(precursor.targetVelocity());
                 attacker.teleportTo(observedPosition.x, observedPosition.y, observedPosition.z);
                 attacker.setDeltaMovement(observedVelocity);
                 attacker.setKnownMovement(observedVelocity);
+                victim.teleportTo(targetPosition.x, targetPosition.y, targetPosition.z);
                 faceVictim(attacker);
                 if (canPiercingHit(attacker, victim)) {
                     throw new AssertionError("server spear could already STAB from the captured precursor state");
@@ -236,8 +243,10 @@ final class SpearBurstSequenceValidationScenarios {
 
                 for (int tick = 1; tick <= entryTick; tick++) {
                     Vec3 projected = observedPosition.add(observedVelocity.scale(tick));
+                    Vec3 projectedTarget = targetPosition.add(targetVelocity.scale(tick));
                     attacker.teleportTo(projected.x, projected.y, projected.z);
                     attacker.setKnownMovement(observedVelocity);
+                    victim.teleportTo(projectedTarget.x, projectedTarget.y, projectedTarget.z);
                     faceVictim(attacker);
                     boolean inRange = canPiercingHit(attacker, victim);
                     if (tick < entryTick && inRange) {
@@ -246,6 +255,8 @@ final class SpearBurstSequenceValidationScenarios {
                                 + " predicted=" + entryTick
                                 + " observedPosition=" + precursor.observedPosition()
                                 + " observedVelocity=" + precursor.observedVelocity()
+                                + " targetPosition=" + precursor.targetPosition()
+                                + " targetVelocity=" + precursor.targetVelocity()
                         );
                     }
                     if (tick == entryTick && !inRange) {
@@ -253,6 +264,8 @@ final class SpearBurstSequenceValidationScenarios {
                             "server spear STAB was still illegal at predictor entry tick " + entryTick
                                 + "; observedPosition=" + precursor.observedPosition()
                                 + " observedVelocity=" + precursor.observedVelocity()
+                                + " targetPosition=" + precursor.targetPosition()
+                                + " targetVelocity=" + precursor.targetVelocity()
                         );
                     }
                 }
@@ -398,7 +411,9 @@ final class SpearBurstSequenceValidationScenarios {
         boolean piercingObserved,
         long fastestProtectionAuthorityTick,
         Vec3Snapshot observedPosition,
-        Vec3Snapshot observedVelocity
+        Vec3Snapshot observedVelocity,
+        Vec3Snapshot targetPosition,
+        Vec3Snapshot targetVelocity
     ) {
     }
 
