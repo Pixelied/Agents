@@ -38,14 +38,14 @@ final class TntMinecartCollisionValidationScenarios {
             Vec3 originalPosition = victim.position();
             BlockPos center = BlockPos.containing(victim.getX(), 280d, victim.getZ());
             Map<BlockPos, BlockState> originals = clearArena(level, center);
-            BlockPos wall = center.offset(0, 0, 3);
+            BlockPos wall = center.offset(0, 0, 4);
             level.setBlockAndUpdate(wall, Blocks.OBSIDIAN.defaultBlockState());
 
             BurstSequenceValidationSupport.prepareVictim(victim, 4f);
             victim.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 0.5d);
 
             Vec3 precursorPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 2.0d);
-            Vec3 triggerPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 2.4d);
+            Vec3 triggerPosition = new Vec3(center.getX() + 0.5d, center.getY(), center.getZ() + 3.4d);
             MinecartTNT cart = new MinecartTNT(EntityType.TNT_MINECART, level);
             cart.setPos(precursorPosition.x, precursorPosition.y, precursorPosition.z);
             cart.setNoGravity(true);
@@ -164,9 +164,9 @@ final class TntMinecartCollisionValidationScenarios {
                 victim.connection.send(new ClientboundSetEntityMotionPacket(cart));
             });
 
-            // Let the real client process both vanilla position and motion packets. The cart remains
-            // at the precursor position client-side; its synchronized swept motion now reaches the
-            // wall on the next server movement tick and should produce the forecast opportunity.
+            // Let the real client process both vanilla position and motion packets. The synchronized
+            // state should now forecast the wall early enough for the fastest Totem route to become
+            // server-authoritative before the collision tick.
             context.waitTick();
             context.runOnClient(minecraft -> {
                 if (minecraft.level == null || !(minecraft.level.getEntity(setup.cartId()) instanceof MinecartTNT cart)) {
@@ -175,11 +175,12 @@ final class TntMinecartCollisionValidationScenarios {
                 if (cart.isPrimed()) throw new AssertionError("client collision precursor unexpectedly primed");
 
                 var frame = harness.runtime().capture();
-                boolean opportunity = frame.opportunities().stream().anyMatch(candidate ->
-                    candidate.family() == OpportunityFamily.TNT_MINECART
-                        && "forecast_horizontal_collision".equals(candidate.evidence().get("trigger"))
-                );
-                if (!opportunity) {
+                var opportunity = frame.opportunities().stream()
+                    .filter(candidate -> candidate.family() == OpportunityFamily.TNT_MINECART)
+                    .filter(candidate -> "forecast_horizontal_collision".equals(candidate.evidence().get("trigger")))
+                    .findFirst()
+                    .orElse(null);
+                if (opportunity == null) {
                     var snapshot = frame.context().world().entities().stream()
                         .filter(candidate -> candidate.id().equals(Integer.toString(setup.cartId())))
                         .findFirst()
@@ -191,6 +192,22 @@ final class TntMinecartCollisionValidationScenarios {
                             + " horizontalCollision=" + cart.horizontalCollision
                             + " snapshot=" + snapshot
                             + " opportunities=" + frame.opportunities()
+                    );
+                }
+
+                long fastestProtectionAuthorityTick = Math.max(
+                    0L,
+                    frame.context().timing().deadline(1).completionWindow().latest()
+                        - frame.context().timing().clientTick()
+                );
+                if (opportunity.projectedThreat().impact().earliest() < fastestProtectionAuthorityTick) {
+                    throw new AssertionError(
+                        "TNT minecart forecast was observed only after the fastest Totem guarantee was already lost; "
+                            + "impact=" + opportunity.projectedThreat().impact()
+                            + " authorityTick=" + fastestProtectionAuthorityTick
+                            + " evidence=" + opportunity.evidence()
+                            + " clientPos=" + cart.position()
+                            + " clientVelocity=" + cart.getDeltaMovement()
                     );
                 }
                 harness.engine().tick();
