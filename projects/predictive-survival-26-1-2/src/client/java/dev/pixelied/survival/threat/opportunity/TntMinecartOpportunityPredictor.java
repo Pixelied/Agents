@@ -31,6 +31,9 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
     private static final int RANDOM_SHORT_FUSE_MIN = 0;
     private static final int RANDOM_SHORT_FUSE_MAX = 38;
     private static final int RANDOM_SHORT_FUSE_SCHEDULING_MAX = 39;
+    private static final double ARROW_AIR_INERTIA = 0.99d;
+    private static final double ARROW_WATER_INERTIA = 0.6d;
+    private static final double ARROW_GRAVITY = 0.05d;
     private static final double SWEEP_EPSILON = 1.0E-12d;
 
     private final ExplosionThreatFactory explosionFactory = new ExplosionThreatFactory();
@@ -103,6 +106,8 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             }
             if (trigger.projectileSpeedSqr() != null) {
                 evidence.put("projectile_speed_sqr", Double.toString(trigger.projectileSpeedSqr()));
+                evidence.put("projectile_collision_tick", Long.toString(trigger.impact().earliest()));
+                evidence.put("projectile_forecast_horizon_ticks", Long.toString(minimumProtectionAuthorityHorizon(context)));
             }
             if (trigger.randomFuseMin() != null) {
                 evidence.put("random_fuse_min", Integer.toString(trigger.randomFuseMin()));
@@ -131,7 +136,8 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             return Trigger.exact("horizontal_collision", 0L, 0d, horizontalSpeedSqr, null);
         }
 
-        Trigger arrow = burningArrowTrigger(cart, world.entities());
+        long protectionHorizon = minimumProtectionAuthorityHorizon(context);
+        Trigger arrow = burningArrowTrigger(cart, world, protectionHorizon);
         if (arrow != null) return arrow;
 
         Trigger destructiveProjectile = destructiveBurningProjectileTrigger(cart, world.entities());
@@ -148,8 +154,7 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
 
         Vec3Snapshot horizontalVelocity = new Vec3Snapshot(cart.velocity().x(), 0d, cart.velocity().z());
         if (horizontalSpeedSqr >= HORIZONTAL_COLLISION_SPEED_SQR) {
-            long horizon = minimumProtectionAuthorityHorizon(context);
-            for (long tick = 1L; tick <= horizon; tick++) {
+            for (long tick = 1L; tick <= protectionHorizon; tick++) {
                 double completedTicks = tick - 1d;
                 AabbSnapshot tickStart = translate(cart.boundingBox(), scale(horizontalVelocity, completedTicks));
                 OptionalDouble collision = firstCollisionFraction(tickStart, horizontalVelocity, world.blocks());
@@ -179,16 +184,82 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
         return Math.min(relative, context.limits().maxProjectileHorizonTicks());
     }
 
+    /**
+     * Uses the exact short-horizon 26.1.2 AbstractArrow update order: this tick moves by the current
+     * velocity, then air/water inertia is applied, then gravity. Captured collision geometry may
+     * intercept the arrow before the cart, in which case no burning-arrow detonation opportunity is
+     * emitted for that trajectory.
+     */
     private static Trigger burningArrowTrigger(
         WorldSnapshot.EntitySnapshot cart,
-        List<WorldSnapshot.EntitySnapshot> entities
+        WorldSnapshot world,
+        long horizon
     ) {
-        for (WorldSnapshot.EntitySnapshot projectile : entities) {
+        Trigger best = null;
+        for (WorldSnapshot.EntitySnapshot projectile : world.entities()) {
             if (projectile == cart || !isAbstractArrow(projectile)) continue;
             if (!Boolean.parseBoolean(projectile.properties().getOrDefault("on_fire", "false"))) continue;
-            if (!relativeProjectileSweepHits(projectile, cart)) continue;
-            double speedSqr = lengthSqr(projectile.velocity());
-            return Trigger.exact("burning_arrow", 0L, 0d, speedSqr, speedSqr);
+
+            ProjectileCollision collision = firstArrowCartCollision(projectile, cart, world.blocks(), horizon);
+            if (collision == null) continue;
+            double speedSqr = lengthSqr(collision.impactVelocity());
+            double cartMovementFraction = collision.tick() - 1d + collision.fraction();
+            Trigger candidate = Trigger.exact(
+                "burning_arrow",
+                collision.tick(),
+                cartMovementFraction,
+                speedSqr,
+                speedSqr
+            );
+            if (best == null
+                || candidate.impact().earliest() < best.impact().earliest()
+                || candidate.impact().earliest() == best.impact().earliest()
+                    && candidate.speedSqr() > best.speedSqr()) {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static ProjectileCollision firstArrowCartCollision(
+        WorldSnapshot.EntitySnapshot projectile,
+        WorldSnapshot.EntitySnapshot cart,
+        List<WorldSnapshot.BlockSnapshot> blocks,
+        long horizon
+    ) {
+        if (horizon < 1L) return null;
+
+        AabbSnapshot projectileBox = projectile.boundingBox();
+        AabbSnapshot cartBox = cart.boundingBox();
+        Vec3Snapshot projectileVelocity = projectile.velocity();
+        Vec3Snapshot cartVelocity = cart.velocity();
+        boolean noGravity = Boolean.parseBoolean(projectile.properties().getOrDefault("no_gravity", "false"));
+        boolean inWater = Boolean.parseBoolean(projectile.properties().getOrDefault("in_water", "false"));
+
+        for (long tick = 1L; tick <= horizon; tick++) {
+            Vec3Snapshot relativeVelocity = new Vec3Snapshot(
+                projectileVelocity.x() - cartVelocity.x(),
+                projectileVelocity.y() - cartVelocity.y(),
+                projectileVelocity.z() - cartVelocity.z()
+            );
+            double entityFraction = sweptCollisionFraction(projectileBox, relativeVelocity, cartBox);
+            OptionalDouble blockFraction = firstCollisionFraction(projectileBox, projectileVelocity, blocks);
+            if (Double.isFinite(entityFraction)
+                && (blockFraction.isEmpty() || entityFraction <= blockFraction.getAsDouble() + SWEEP_EPSILON)) {
+                return new ProjectileCollision(tick, entityFraction, projectileVelocity);
+            }
+
+            projectileBox = translate(projectileBox, projectileVelocity);
+            cartBox = translate(cartBox, cartVelocity);
+            double inertia = inWater ? ARROW_WATER_INERTIA : ARROW_AIR_INERTIA;
+            projectileVelocity = scale(projectileVelocity, inertia);
+            if (!noGravity) {
+                projectileVelocity = new Vec3Snapshot(
+                    projectileVelocity.x(),
+                    projectileVelocity.y() - ARROW_GRAVITY,
+                    projectileVelocity.z()
+                );
+            }
         }
         return null;
     }
@@ -423,6 +494,19 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
             return Double.isFinite(parsed) ? parsed : null;
         } catch (NumberFormatException ignored) {
             return null;
+        }
+    }
+
+    private record ProjectileCollision(
+        long tick,
+        double fraction,
+        Vec3Snapshot impactVelocity
+    ) {
+        private ProjectileCollision {
+            if (tick < 1L) throw new IllegalArgumentException("tick must be positive");
+            if (!Double.isFinite(fraction) || fraction < 0d || fraction > 1d) {
+                throw new IllegalArgumentException("fraction must be within [0,1]");
+            }
         }
     }
 
