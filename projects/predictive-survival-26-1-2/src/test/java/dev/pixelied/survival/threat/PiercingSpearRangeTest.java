@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Guards the distinct 26.1.2 ServerboundPlayerActionPacket.STAB reach path. */
@@ -44,6 +45,27 @@ class PiercingSpearRangeTest {
         assertEquals(new TickWindow(1, 1), opportunity.projectedThreat().impact());
         assertEquals("minecraft:spear", opportunity.projectedThreat().damage().sourceKey());
         assertEquals("piercing_weapon", opportunity.evidence().get("attack_profile"));
+    }
+
+    @Test
+    void piercingSpearKnownMovementExtendsOnlyAlongTheChosenStabRay() {
+        Vec3Snapshot eye = new Vec3Snapshot(0.0, 1.62, 0.0);
+        AabbSnapshot target = new AabbSnapshot(-0.3, 0.0, 5.0, 0.3, 1.8, 5.6);
+        ServerPlayerAttackRange.AttackProfile profile =
+            new ServerPlayerAttackRange.AttackProfile(2.0, 4.5, 0.125, "piercing_weapon");
+
+        assertFalse(ServerPlayerAttackRange.isWithin(
+            eye,
+            target,
+            profile,
+            new Vec3Snapshot(1.0, 0.0, 0.0)
+        ));
+        assertTrue(ServerPlayerAttackRange.isWithin(
+            eye,
+            target,
+            profile,
+            new Vec3Snapshot(0.0, 0.0, 0.5)
+        ));
     }
 
     private static WorldSnapshot.EntitySnapshot piercingSpearAttacker() {
