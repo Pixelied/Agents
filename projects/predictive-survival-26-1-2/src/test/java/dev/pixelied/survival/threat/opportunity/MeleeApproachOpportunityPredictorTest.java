@@ -54,6 +54,27 @@ class MeleeApproachOpportunityPredictorTest {
     }
 
     @Test
+    void lethalMobCanAttackOnFirstProjectedRangeEntryTick() {
+        WorldSnapshot.EntitySnapshot attacker = mobAttacker(
+            new Vec3Snapshot(3.0, 0.0, 0.3),
+            new Vec3Snapshot(-1.5, 0.0, 0.0),
+            Map.of(
+                "direct_damage", "8",
+                "mob_attack_range_min", "0",
+                "mob_attack_range_max", "1"
+            )
+        );
+
+        LethalOpportunity opportunity = only(predict(attacker, EngineLimits.defaults()));
+
+        assertEquals(OpportunityFamily.MELEE, opportunity.family());
+        assertEquals(new TickWindow(1, 1), opportunity.projectedThreat().impact());
+        assertEquals("minecraft:mob_attack", opportunity.projectedThreat().damage().sourceKey());
+        assertEquals("mob", opportunity.evidence().get("attack_profile"));
+        assertEquals("1", opportunity.evidence().get("entry_tick"));
+    }
+
+    @Test
     void approachingKineticSpearReusesExistingSpearDamageRange() {
         WorldSnapshot.EntitySnapshot attacker = attacker(
             new Vec3Snapshot(10.0, 0.0, 0.3),
@@ -204,6 +225,37 @@ class MeleeApproachOpportunityPredictorTest {
         return new WorldSnapshot.EntitySnapshot(
             "attacker",
             "minecraft:player",
+            position,
+            velocity,
+            new AabbSnapshot(
+                position.x() - 0.3, position.y(), position.z() - 0.3,
+                position.x() + 0.3, position.y() + 1.8, position.z() + 0.3
+            ),
+            Map.copyOf(properties)
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot mobAttacker(
+        Vec3Snapshot position,
+        Vec3Snapshot velocity,
+        Map<String, String> overrides
+    ) {
+        Map<String, String> properties = new LinkedHashMap<>();
+        properties.put("melee_capable", "true");
+        properties.put("melee_model", "mob");
+        properties.put("direct_damage", "8");
+        properties.put("weapon_key", "minecraft:air");
+        properties.put("line_of_sight", "true");
+        properties.put("scales_with_difficulty", "false");
+        properties.put("source_key", "minecraft:mob_attack");
+        properties.put("mob_attack_range_min", "0");
+        properties.put("mob_attack_range_max", "1");
+        properties.put("mob_attack_box_deflate", "0");
+        properties.putAll(overrides);
+
+        return new WorldSnapshot.EntitySnapshot(
+            "mob-attacker",
+            "minecraft:zombie",
             position,
             velocity,
             new AabbSnapshot(
