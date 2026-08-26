@@ -245,7 +245,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         } else if (action instanceof SurvivalAction.RaiseShield) {
             status = shieldExecutor.observe(executionContext(state));
         } else {
-            status = nonTotemExecutor.observe(action, nonTotemContext(state));
+            status = nonTotemExecutor.observe(nonTotemContext(state));
         }
         return dispatchIfNeeded(status, state.timing());
     }
