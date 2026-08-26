@@ -30,6 +30,7 @@ final class MeleeBurstSequenceValidationScenarios {
     private static final double RANGE_SCAN_STEP = 0.05d;
     private static final double APPROACH_PER_TICK = 0.25d;
     private static final double VELOCITY_EPSILON = 0.02d;
+    private static final int PREARM_RANGE_TICKS = 4;
 
     private MeleeBurstSequenceValidationScenarios() {
     }
@@ -82,8 +83,14 @@ final class MeleeBurstSequenceValidationScenarios {
             attacker.setDeltaMovement(Vec3.ZERO);
             attacker.fallDistance = variant.fallDistance();
 
-            Vec3 initialPosition = findOneTickOutsideAttackRange(attacker, victim, center);
             Vec3 approachVelocity = new Vec3(0d, 0d, -APPROACH_PER_TICK);
+            Vec3 initialPosition = findTicksOutsideAttackRange(
+                attacker,
+                victim,
+                center,
+                approachVelocity,
+                PREARM_RANGE_TICKS
+            );
             attacker.teleportTo(initialPosition.x, initialPosition.y, initialPosition.z);
             attacker.setDeltaMovement(approachVelocity);
             attacker.containerMenu.broadcastChanges();
@@ -131,7 +138,12 @@ final class MeleeBurstSequenceValidationScenarios {
                         .equals(candidate.evidence().get("attacker_id")))
                     .findFirst()
                     .orElse(null);
-                return new Precursor(activeMelee, opportunity);
+                long fastestProtectionAuthorityTick = Math.max(
+                    0L,
+                    frame.context().timing().deadline(1).completionWindow().latest()
+                        - frame.context().timing().clientTick()
+                );
+                return new Precursor(activeMelee, opportunity, fastestProtectionAuthorityTick);
             });
             if (precursor.activeMelee()) {
                 throw new AssertionError(variant.id() + " approach test began with an already-active melee threat");
@@ -140,8 +152,17 @@ final class MeleeBurstSequenceValidationScenarios {
                 throw new AssertionError(variant.id() + " approaching attacker produced no melee opportunity before range entry");
             }
             int entryTick = Integer.parseInt(precursor.opportunity().evidence().getOrDefault("entry_tick", "-1"));
-            if (entryTick < 1) {
-                throw new AssertionError(variant.id() + " approach opportunity exposed invalid entry tick " + entryTick);
+            if (entryTick != PREARM_RANGE_TICKS) {
+                throw new AssertionError(
+                    variant.id() + " approach predicted entry tick " + entryTick
+                        + " but vanilla fixture boundary is " + PREARM_RANGE_TICKS
+                );
+            }
+            if (entryTick < precursor.fastestProtectionAuthorityTick()) {
+                throw new AssertionError(
+                    variant.id() + " precursor arrived after the fastest Totem guarantee was already lost; entry="
+                        + entryTick + " authority=" + precursor.fastestProtectionAuthorityTick()
+                );
             }
 
             BurstSequenceValidationSupport.armTotemFromPrecursor(
@@ -238,10 +259,12 @@ final class MeleeBurstSequenceValidationScenarios {
         }
     }
 
-    private static Vec3 findOneTickOutsideAttackRange(
+    private static Vec3 findTicksOutsideAttackRange(
         ServerPlayer attacker,
         ServerPlayer victim,
-        BlockPos center
+        BlockPos center,
+        Vec3 approachVelocity,
+        int entryTicks
     ) {
         double x = center.getX() + 0.5d;
         double y = center.getY();
@@ -249,22 +272,28 @@ final class MeleeBurstSequenceValidationScenarios {
         for (double distance = 3.0d; distance <= 12.0d; distance += RANGE_SCAN_STEP) {
             double outsideZ = victimZ + distance;
             attacker.teleportTo(x, y, outsideZ);
-            boolean outside = !attacker.isWithinAttackRange(
-                attacker.getMainHandItem(),
-                victim.getBoundingBox(),
-                3.0d
-            );
-            attacker.teleportTo(x, y, outsideZ - APPROACH_PER_TICK);
-            boolean oneTickInRange = attacker.isWithinAttackRange(
-                attacker.getMainHandItem(),
-                victim.getBoundingBox(),
-                3.0d
-            );
-            if (outside && oneTickInRange) {
-                return new Vec3(x, y, outsideZ);
+            if (attacker.isWithinAttackRange(attacker.getMainHandItem(), victim.getBoundingBox(), 3.0d)) continue;
+
+            boolean valid = true;
+            for (int tick = 1; tick <= entryTicks; tick++) {
+                Vec3 projected = new Vec3(x, y, outsideZ).add(approachVelocity.scale(tick));
+                attacker.teleportTo(projected.x, projected.y, projected.z);
+                boolean inRange = attacker.isWithinAttackRange(
+                    attacker.getMainHandItem(),
+                    victim.getBoundingBox(),
+                    3.0d
+                );
+                if (tick < entryTicks && inRange) {
+                    valid = false;
+                    break;
+                }
+                if (tick == entryTicks && !inRange) valid = false;
             }
+            if (valid) return new Vec3(x, y, outsideZ);
         }
-        throw new AssertionError("could not resolve a one-tick player attack-range boundary from vanilla server rules");
+        throw new AssertionError(
+            "could not resolve a " + entryTicks + "-tick player attack-range boundary from vanilla server rules"
+        );
     }
 
     private static Map<BlockPos, BlockState> clearArena(ServerLevel level, BlockPos center) {
@@ -315,7 +344,8 @@ final class MeleeBurstSequenceValidationScenarios {
 
     private record Precursor(
         boolean activeMelee,
-        LethalOpportunity opportunity
+        LethalOpportunity opportunity,
+        long fastestProtectionAuthorityTick
     ) {
     }
 
