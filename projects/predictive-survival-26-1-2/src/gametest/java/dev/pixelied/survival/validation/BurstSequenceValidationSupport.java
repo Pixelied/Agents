@@ -72,8 +72,47 @@ final class BurstSequenceValidationSupport {
             );
             if (protectedOnServer) return;
         }
+
+        String clientDiagnostics = context.computeOnClient(minecraft -> {
+            var frame = harness.runtime().capture();
+            String inventory;
+            if (minecraft.player == null) {
+                inventory = "player=null";
+            } else {
+                inventory = "selected=" + minecraft.player.getInventory().getSelectedSlot()
+                    + ",slot0=" + minecraft.player.getInventory().getItem(0)
+                    + ",slot1=" + minecraft.player.getInventory().getItem(1)
+                    + ",main=" + minecraft.player.getMainHandItem()
+                    + ",off=" + minecraft.player.getOffhandItem();
+            }
+            return "actual=" + frame.actualTimeline().events().stream()
+                .map(event -> event.kind() + ":" + event.id())
+                .toList()
+                + ",opportunities=" + frame.opportunities().stream()
+                    .map(opportunity -> opportunity.family() + ":" + opportunity.id())
+                    .toList()
+                + ",planning=" + frame.planningTimeline().events().stream()
+                    .map(event -> event.kind() + ":" + event.id())
+                    .toList()
+                + ",candidates=" + frame.candidates().stream()
+                    .map(action -> action.getClass().getSimpleName() + ":" + action)
+                    .toList()
+                + ",currentPlan=" + harness.engine().currentPlan()
+                + ",executionStatus=" + harness.engine().executionStatus()
+                + ",history=" + harness.engine().history().snapshot()
+                + ",inventory={" + inventory + "}";
+        });
+        String serverDiagnostics = singleplayer.getServer().computeOnServer(server -> {
+            ServerPlayer victim = requireVictim(server, victimId);
+            return "selected=" + victim.getInventory().getSelectedSlot()
+                + ",slot0=" + victim.getInventory().getItem(0)
+                + ",slot1=" + victim.getInventory().getItem(1)
+                + ",main=" + victim.getMainHandItem()
+                + ",off=" + victim.getOffhandItem();
+        });
         throw new AssertionError(
-            "production engine did not establish server-authoritative protection from " + id + " precursor"
+            "production engine did not establish server-authoritative protection from " + id
+                + " precursor; client={" + clientDiagnostics + "}; server={" + serverDiagnostics + "}"
         );
     }
 
