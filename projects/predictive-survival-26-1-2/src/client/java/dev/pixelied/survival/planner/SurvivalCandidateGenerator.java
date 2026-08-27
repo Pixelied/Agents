@@ -197,14 +197,14 @@ public final class SurvivalCandidateGenerator {
         if (index == inventory.selectedHotbarIndex()) return true;
         return index != 40
             && menu.menuSlotForInventoryIndex(index).isPresent()
-            && menu.menuSlotForInventoryIndex(inventory.selectedHotbarIndex()).isPresent();
+            && menu.menuSlotForInventoryIndex(inventory.selectedHotbarIndex().isPresent();
     }
 
     private static boolean canRouteToOffHand(InventorySlotSnapshot source, MenuSlotMap menu) {
         int index = source.inventoryIndex();
         if (index == 40) return true;
         return menu.menuSlotForInventoryIndex(index).isPresent()
-            && menu.menuSlotForInventoryIndex(40).isPresent();
+           && menu.menuSlotForInventoryIndex(40).isPresent();
     }
 
     private static void addProtectionCandidate(
@@ -290,7 +290,7 @@ public final class SurvivalCandidateGenerator {
 
         InventorySlotSnapshot offhand = inventory.slot(40).orElse(null);
         boolean heldOffhandShield = offhand != null
-            && offhand.count() > 0
+           && offhand.count() > 0
             && "minecraft:shield".equals(offhand.stackKey())
             && offhand.blockingProfile().isPresent()
             && !offhand.blockingOnCooldown();
@@ -454,8 +454,7 @@ public final class SurvivalCandidateGenerator {
         SurvivalItemRoute route,
         EquippableSurvivalSnapshot equippable
     ) {
-        if (!equippable.usable() || !equippable.armorPiece().isPresent()) return;
-
+        if (!equippable.usable() || !equippable.armorPiece().present()) return;
         ArmorPieceSnapshot piece = equippable.armorPiece();
         MitigationSnapshot mitigationAfter = replaceArmorPiece(context.player().mitigation(), piece);
         String equipmentSlot = piece.slot().name().toLowerCase(Locale.ROOT);
