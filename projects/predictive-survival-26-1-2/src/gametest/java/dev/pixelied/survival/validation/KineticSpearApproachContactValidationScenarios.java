@@ -93,7 +93,7 @@ final class KineticSpearApproachContactValidationScenarios {
         });
 
         try {
-            waitForClientApproach(context, setup.attacker());
+            waitForClientApproachAndInventory(context, setup.attacker());
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
 
             PreArm preArm = context.computeOnClient(minecraft -> {
@@ -115,6 +115,13 @@ final class KineticSpearApproachContactValidationScenarios {
                     .anyMatch(event -> event.id().equals(approach.projectedThreat().id()));
                 boolean equipCandidate = frame.candidates().stream()
                     .anyMatch(SurvivalAction.EquipDeathProtection.class::isInstance);
+                String inventory = minecraft.player == null
+                    ? "player=null"
+                    : "selected=" + minecraft.player.getInventory().getSelectedSlot()
+                        + ",slot0=" + minecraft.player.getInventory().getItem(0)
+                        + ",slot1=" + minecraft.player.getInventory().getItem(1)
+                        + ",main=" + minecraft.player.getMainHandItem()
+                        + ",off=" + minecraft.player.getOffhandItem();
                 return new PreArm(
                     currentSpearThreat,
                     approach,
@@ -124,7 +131,8 @@ final class KineticSpearApproachContactValidationScenarios {
                     snapshot.properties().getOrDefault("spear_kinetic_delay_ticks", "missing"),
                     frame.actualTimeline().events().toString(),
                     frame.opportunities().toString(),
-                    frame.candidates().toString()
+                    frame.candidates().toString(),
+                    inventory
                 );
             });
 
@@ -290,19 +298,23 @@ final class KineticSpearApproachContactValidationScenarios {
         }
     }
 
-    private static void waitForClientApproach(
+    private static void waitForClientApproachAndInventory(
         ClientGameTestContext context,
         BurstSequenceValidationSupport.AttackerHandle attacker
     ) {
         context.waitFor(minecraft -> {
-            if (minecraft.level == null) return false;
+            if (minecraft.player == null || minecraft.level == null) return false;
             Entity entity = minecraft.level.getEntity(attacker.entityId());
             if (!(entity instanceof net.minecraft.world.entity.player.Player remote)) return false;
             return remote.getMainHandItem().is(Items.NETHERITE_SPEAR)
                 && remote.getMainHandItem().has(DataComponents.KINETIC_WEAPON)
                 && remote.isUsingItem()
                 && remote.getUsedItemHand() == InteractionHand.MAIN_HAND
-                && remote.getDeltaMovement().lengthSqr() >= APPROACH_SPEED_PER_TICK * APPROACH_SPEED_PER_TICK * 0.5d;
+                && remote.getDeltaMovement().lengthSqr() >= APPROACH_SPEED_PER_TICK * APPROACH_SPEED_PER_TICK * 0.5d
+                && minecraft.player.getInventory().getSelectedSlot() == 0
+                && minecraft.player.getInventory().getItem(0).is(Items.STICK)
+                && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING)
+                && minecraft.player.getOffhandItem().isEmpty();
         });
     }
 
@@ -381,7 +393,8 @@ final class KineticSpearApproachContactValidationScenarios {
         String kineticDelayTicks,
         String actualThreats,
         String opportunities,
-        String candidates
+        String candidates,
+        String inventory
     ) {
     }
 
