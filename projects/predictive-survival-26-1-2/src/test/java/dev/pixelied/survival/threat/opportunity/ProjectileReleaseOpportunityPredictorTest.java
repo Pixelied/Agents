@@ -77,11 +77,36 @@ class ProjectileReleaseOpportunityPredictorTest {
     }
 
     @Test
-    void bowIsNotPrearmedBecauseRuntimeProbeProvedActualProjectileLeadSufficient() {
-        assertTrue(predict(attacker(Map.of(
+    void synchronizedBowUseCreatesBoundedReleaseOpportunityAfterAuthorityProbeLostItsGuarantee() {
+        LethalOpportunity opportunity = only(predict(attacker(Map.of(
             "main_hand_item_key", "minecraft:bow",
             "using_item", "true",
             "used_hand", "main_hand",
+            "client_observed_use_ticks", "3"
+        )), 1f));
+
+        assertEquals("bow_arrow", opportunity.evidence().get("release_family"));
+        assertEquals("main_hand", opportunity.evidence().get("hand"));
+        assertEquals("3", opportunity.evidence().get("client_observed_use_ticks"));
+        assertTrue(opportunity.projectedThreat().damage().rawDamage().max() >= 1f);
+    }
+
+    @Test
+    void heldBowWithoutSynchronizedUseDoesNotInventReleaseOpportunity() {
+        assertTrue(predict(attacker(Map.of(
+            "main_hand_item_key", "minecraft:bow",
+            "using_item", "false",
+            "used_hand", "none",
+            "client_observed_use_ticks", "0"
+        )), 1f).isEmpty());
+    }
+
+    @Test
+    void bowUseOnTheOtherHandDoesNotInventMainHandRelease() {
+        assertTrue(predict(attacker(Map.of(
+            "main_hand_item_key", "minecraft:bow",
+            "using_item", "true",
+            "used_hand", "off_hand",
             "client_observed_use_ticks", "20"
         )), 1f).isEmpty());
     }
