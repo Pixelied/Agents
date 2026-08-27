@@ -182,6 +182,30 @@ final class BowReleasePrecursorValidationScenarios {
             // advances from authoritative use tick 1 -> 2. Protection must already be recognized on
             // the server here, one tick before BowItem's first legal release at tick 3.
             context.runOnClient(minecraft -> harness.engine().tick());
+            EngineDiagnostics diagnostics = context.computeOnClient(minecraft -> {
+                var frame = harness.runtime().lastFrame()
+                    .orElseThrow(() -> new AssertionError("engine tick did not retain its Bow decision frame"));
+                int selected = minecraft.player == null ? -1 : minecraft.player.getInventory().getSelectedSlot();
+                String inventory = minecraft.player == null
+                    ? "player=null"
+                    : "selected=" + selected
+                        + ",slot0=" + minecraft.player.getInventory().getItem(0)
+                        + ",slot1=" + minecraft.player.getInventory().getItem(1)
+                        + ",main=" + minecraft.player.getMainHandItem()
+                        + ",off=" + minecraft.player.getOffhandItem();
+                return new EngineDiagnostics(
+                    selected,
+                    harness.engine().currentPlan().toString(),
+                    harness.engine().executionStatus().toString(),
+                    harness.engine().history().snapshot().toString(),
+                    frame.context().timing().toString(),
+                    frame.actualTimeline().events().toString(),
+                    frame.opportunities().toString(),
+                    frame.planningTimeline().events().toString(),
+                    frame.candidates().toString(),
+                    inventory
+                );
+            });
             singleplayer.getServer().runOnServer(server ->
                 BurstSequenceValidationSupport.requireAttacker(server, setup.attacker()).doTick()
             );
@@ -202,7 +226,7 @@ final class BowReleasePrecursorValidationScenarios {
             if (!preRelease.protectedOnServer()) {
                 throw new AssertionError(
                     "production engine failed to establish server-authoritative protection before first legal Bow release; "
-                        + preRelease
+                        + preRelease + "; engine=" + diagnostics
                 );
             }
 
@@ -369,6 +393,20 @@ final class BowReleasePrecursorValidationScenarios {
         String clientObservedUseTicks,
         String opportunities,
         String candidates
+    ) {
+    }
+
+    private record EngineDiagnostics(
+        int clientSelectedSlot,
+        String currentPlan,
+        String executionStatus,
+        String history,
+        String timing,
+        String actualThreats,
+        String opportunities,
+        String planningThreats,
+        String candidates,
+        String inventory
     ) {
     }
 
