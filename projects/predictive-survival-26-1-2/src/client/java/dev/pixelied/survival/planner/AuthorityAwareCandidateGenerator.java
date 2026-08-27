@@ -1,6 +1,7 @@
 package dev.pixelied.survival.planner;
 
 import dev.pixelied.survival.config.RescuePolicy;
+import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
 import dev.pixelied.survival.inventory.InventorySnapshot;
@@ -42,6 +43,40 @@ public final class AuthorityAwareCandidateGenerator {
             .min()
             .orElse(context.timing().nextPacketProcessingWindow().latest());
         InventorySnapshot projectedInventory = equipment.conservativeInventoryAt(inventory, damageDeadline);
-        return delegate.generate(context, timeline, projectedInventory, menu, policy);
+        PredictionContext projectedContext = withGuaranteedProtection(context, equipment, damageDeadline);
+        return delegate.generate(projectedContext, timeline, projectedInventory, menu, policy);
+    }
+
+    private static PredictionContext withGuaranteedProtection(
+        PredictionContext context,
+        EquipmentAuthorityProjection equipment,
+        long serverTick
+    ) {
+        PlayerSnapshot player = context.player();
+        PlayerSnapshot projectedPlayer = new PlayerSnapshot(
+            player.health(),
+            player.absorption(),
+            player.playerInvulnerable(),
+            player.abilityInvulnerable(),
+            player.deadOrDying(),
+            player.difficulty(),
+            player.mitigation(),
+            player.statusEffects(),
+            player.blocking(),
+            player.hurtState(),
+            equipment.guaranteedDeathProtectionAt(serverTick),
+            player.boundingBox(),
+            player.position(),
+            player.velocity(),
+            player.equipmentItemKeys(),
+            player.stateProperties()
+        );
+        return new PredictionContext(
+            projectedPlayer,
+            context.world(),
+            context.timing(),
+            context.limits(),
+            context.safetyMode()
+        );
     }
 }
