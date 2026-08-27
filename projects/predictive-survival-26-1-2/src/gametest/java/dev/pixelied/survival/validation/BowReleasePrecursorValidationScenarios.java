@@ -10,13 +10,10 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
-import net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
@@ -27,7 +24,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -61,9 +57,12 @@ final class BowReleasePrecursorValidationScenarios {
             attacker.getInventory().clearContent();
             attacker.getInventory().setSelectedSlot(0);
             ItemStack bow = new ItemStack(Items.BOW);
-            // This scenario proves the Bow release precursor, not generic melee prediction. A zero
-            // AttackRange is a valid synchronized 26.1.2 component and leaves Bow release unchanged.
-            bow.set(DataComponents.ATTACK_RANGE, new AttackRange(0f, 0f, 0f, 0f, 0f, 1f));
+            // This scenario proves the Bow release precursor, not generic melee prediction. Normal
+            // ServerboundAttackPacket validation adds a 3-block buffer to the held AttackRange, so
+            // zero reach would still admit this close hit. A 4-block minimum makes the 0.32-block
+            // eye-to-AABB distance genuinely illegal (minimum after buffer = 1 block) while Bow
+            // projectile release remains unchanged.
+            bow.set(DataComponents.ATTACK_RANGE, new AttackRange(4f, 4f, 4f, 4f, 0f, 1f));
             attacker.getInventory().setItem(0, bow);
             attacker.getInventory().setItem(1, new ItemStack(Items.ARROW, 16));
             attacker.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
@@ -72,15 +71,6 @@ final class BowReleasePrecursorValidationScenarios {
             attacker.setXRot(0f);
             attacker.setYRot(0f);
             attacker.setYHeadRot(0f);
-
-            // Generic player melee uses the synchronized ENTITY_INTERACTION_RANGE attribute rather
-            // than the held item's ATTACK_RANGE. Zero it only on this mock attacker so the exact
-            // runtime scenario isolates Bow release while retaining the production melee model.
-            AttributeInstance meleeReach = attacker.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
-            if (meleeReach == null) {
-                throw new AssertionError("hostile Bow fixture attacker lacks ENTITY_INTERACTION_RANGE");
-            }
-            meleeReach.setBaseValue(0d);
 
             // At three draw ticks the 26.1.2 Bow speed is only ~0.3225 blocks/tick. Keep the
             // victim's near AABB face 0.32 blocks from the attacker's eye: just inside first-tick
@@ -91,7 +81,6 @@ final class BowReleasePrecursorValidationScenarios {
             BurstSequenceValidationSupport.syncEquipment(victim, attacker);
             victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
             victim.connection.send(new ClientboundSetEntityMotionPacket(attacker));
-            victim.connection.send(new ClientboundUpdateAttributesPacket(attacker.getId(), List.of(meleeReach)));
 
             return new Setup(
                 victim.getUUID(),
@@ -105,7 +94,6 @@ final class BowReleasePrecursorValidationScenarios {
 
         try {
             waitForClientBaseline(context, setup);
-            assertClientMeleeRangeIsolated(context, setup.attacker());
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
 
             // Begin a real server-side Bow use and advance exactly one LivingEntity use tick before
@@ -354,35 +342,6 @@ final class BowReleasePrecursorValidationScenarios {
                 && minecraft.player.getInventory().getItem(0).is(Items.STICK)
                 && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING)
                 && minecraft.player.getOffhandItem().isEmpty();
-        });
-    }
-
-    private static void assertClientMeleeRangeIsolated(
-        ClientGameTestContext context,
-        BurstSequenceValidationSupport.AttackerHandle attacker
-    ) {
-        context.waitFor(minecraft -> {
-            if (minecraft.level == null) return false;
-            Entity entity = minecraft.level.getEntity(attacker.entityId());
-            if (!(entity instanceof net.minecraft.world.entity.player.Player remote)) return false;
-            AttributeInstance remoteRange = remote.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
-            return remoteRange != null && Math.abs(remoteRange.getValue()) <= 1.0e-9d;
-        });
-        context.runOnClient(minecraft -> {
-            if (minecraft.level == null) {
-                throw new AssertionError("client level disappeared while validating Bow melee isolation");
-            }
-            Entity entity = minecraft.level.getEntity(attacker.entityId());
-            if (!(entity instanceof net.minecraft.world.entity.player.Player remote)) {
-                throw new AssertionError("remote hostile Bow fixture attacker disappeared before capture");
-            }
-            AttributeInstance remoteRange = remote.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
-            if (remoteRange == null || Math.abs(remoteRange.getValue()) > 1.0e-9d) {
-                throw new AssertionError(
-                    "remote hostile Bow fixture did not synchronize zero melee reach; range="
-                        + (remoteRange == null ? "missing" : remoteRange.getValue())
-                );
-            }
         });
     }
 
