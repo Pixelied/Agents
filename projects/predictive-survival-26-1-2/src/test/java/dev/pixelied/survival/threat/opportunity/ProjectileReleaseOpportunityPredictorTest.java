@@ -92,6 +92,21 @@ class ProjectileReleaseOpportunityPredictorTest {
     }
 
     @Test
+    void bowUsePrearmsBeforeMinimumLegalReleaseWhenAuthorityLeadIsRequired() {
+        LethalOpportunity opportunity = only(predict(attacker(Map.of(
+            "main_hand_item_key", "minecraft:bow",
+            "using_item", "true",
+            "used_hand", "main_hand",
+            "client_observed_use_ticks", "0"
+        )), 1f));
+
+        assertEquals("bow_arrow", opportunity.evidence().get("release_family"));
+        assertEquals(2L, opportunity.projectedThreat().impact().earliest());
+        assertEquals("1", opportunity.evidence().get("server_use_elapsed_max"));
+        assertEquals("3", opportunity.evidence().get("earliest_lethal_use_tick"));
+    }
+
+    @Test
     void heldBowWithoutSynchronizedUseDoesNotInventReleaseOpportunity() {
         assertTrue(predict(attacker(Map.of(
             "main_hand_item_key", "minecraft:bow",
