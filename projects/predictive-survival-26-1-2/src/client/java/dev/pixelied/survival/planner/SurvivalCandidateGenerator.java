@@ -71,6 +71,23 @@ public final class SurvivalCandidateGenerator {
         ThreatTimeline timeline,
         InventorySnapshot inventory,
         MenuSlotMap menu,
+        RescuePolicy policy,
+        dev.pixelied.survival.execution.EquipmentAuthorityProjection equipment
+    ) {
+        Objects.requireNonNull(equipment, "equipment");
+        long damageDeadline = timeline.events().stream()
+            .mapToLong(event -> event.impact().earliest())
+            .min()
+            .orElse(context.timing().nextPacketProcessingWindow().latest());
+        InventorySnapshot protectionInventory = equipment.conservativeInventoryAt(inventory, damageDeadline);
+        return generate(context, timeline, protectionInventory, menu, policy);
+    }
+
+    public List<SurvivalAction> generate(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
         RescuePolicy policy
     ) {
         Objects.requireNonNull(context, "context");
@@ -180,14 +197,14 @@ public final class SurvivalCandidateGenerator {
         if (index == inventory.selectedHotbarIndex()) return true;
         return index != 40
             && menu.menuSlotForInventoryIndex(index).isPresent()
-            && menu.menuSlotForInventoryIndex(inventory.selectedHotbarIndex()).isPresent();
+            && menu.menuSlotForInventoryIndex(inventory.selectedHotbarIndex().isPresent();
     }
 
     private static boolean canRouteToOffHand(InventorySlotSnapshot source, MenuSlotMap menu) {
         int index = source.inventoryIndex();
         if (index == 40) return true;
         return menu.menuSlotForInventoryIndex(index).isPresent()
-            && menu.menuSlotForInventoryIndex(40).isPresent();
+           && menu.menuSlotForInventoryIndex(40).isPresent();
     }
 
     private static void addProtectionCandidate(
@@ -273,14 +290,14 @@ public final class SurvivalCandidateGenerator {
 
         InventorySlotSnapshot offhand = inventory.slot(40).orElse(null);
         boolean heldOffhandShield = offhand != null
-            && offhand.count() > 0
+           && offhand.count() > 0
             && "minecraft:shield".equals(offhand.stackKey())
             && offhand.blockingProfile().isPresent()
             && !offhand.blockingOnCooldown();
         boolean activeOffhand = inventory.activeOffhandShield() && heldOffhandShield;
         InventorySlotSnapshot selected = inventory.slot(inventory.selectedHotbarIndex()).orElse(null);
         boolean selectedMainhandShield = selected != null
-            && selected.count() > 0
+           && selected.count() > 0
             && "minecraft:shield".equals(selected.stackKey())
             && selected.blockingProfile().isPresent()
             && !selected.blockingOnCooldown();
@@ -325,7 +342,7 @@ public final class SurvivalCandidateGenerator {
         if (!policy.inventoryRouting() || !policy.mainHandTakeover()) return;
         inventory.slots().values().stream()
             .filter(slot -> slot.count() > 0)
-            .filter(slot -> "minecraft:shield".equals(slot.stackKey()))
+            .filter(slot -> "minecraft:shield".equals(slot.stackKey())
             .filter(slot -> slot.blockingProfile().isPresent() && !slot.blockingOnCooldown())
             .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
             .map(slot -> new java.util.AbstractMap.SimpleImmutableEntry<>(
@@ -371,7 +388,7 @@ public final class SurvivalCandidateGenerator {
             itemRoutePlanner.route(
                 inventory, menu, slot, policy.inventoryRouting(), policy.mainHandTakeover(),
                 context.timing().containerFollowupRouteTicks()
-            ).ifPresent(route -> addRoutedItemCandidates(candidates, context, slot, route, policy));
+           ).ifPresent(route -> addRoutedItemCandidates(candidates, context, slot, route, policy));
         }
     }
 
@@ -437,7 +454,8 @@ public final class SurvivalCandidateGenerator {
         SurvivalItemRoute route,
         EquippableSurvivalSnapshot equippable
     ) {
-        if (!equippable.usable() || !equippable.armorPiece().present()) return;
+        if (!equippable.usable() || !equippable.armorPiece().isPresent()) return;
+
         ArmorPieceSnapshot piece = equippable.armorPiece();
         MitigationSnapshot mitigationAfter = replaceArmorPiece(context.player().mitigation(), piece);
         String equipmentSlot = piece.slot().name().toLowerCase(Locale.ROOT);
