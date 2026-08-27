@@ -55,6 +55,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            KineticSpearValidationScenarios.validateSynchronizedKineticMetadataReachesProductionFrame(
+                context,
+                singleplayer
+            );
         }
     }
 
