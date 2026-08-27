@@ -9,6 +9,7 @@ import net.minecraft.world.entity.monster.Guardian;
 import net.minecraft.world.entity.monster.warden.Warden;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.EvokerFangs;
+import net.minecraft.world.item.component.KineticWeapon;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,10 +42,36 @@ public final class MinecraftSpecialThreatSnapshotAnnotator {
 
         Map<String, String> properties = new LinkedHashMap<>(snapshot.properties());
         if (live instanceof Player remotePlayer && remotePlayer != player) {
+            var mainHand = remotePlayer.getMainHandItem();
             properties.put(
                 "piercing_weapon",
-                Boolean.toString(remotePlayer.getMainHandItem().has(DataComponents.PIERCING_WEAPON))
+                Boolean.toString(mainHand.has(DataComponents.PIERCING_WEAPON))
             );
+
+            // KINETIC_WEAPON is network-synchronized in 26.1.2, so these component values are
+            // authoritative client-observable inputs. Deliberately do not invent the remote
+            // player's server-only known speed, attack-damage base, or recent-contact map here.
+            KineticWeapon kinetic = mainHand.get(DataComponents.KINETIC_WEAPON);
+            if (kinetic != null) {
+                properties.put("spear_kinetic", "true");
+                properties.put(
+                    "spear_kinetic_contact_cooldown_ticks",
+                    Integer.toString(kinetic.contactCooldownTicks())
+                );
+                properties.put("spear_kinetic_delay_ticks", Integer.toString(kinetic.delayTicks()));
+                properties.put("spear_damage_multiplier", Float.toString(kinetic.damageMultiplier()));
+                kinetic.damageConditions().ifPresent(condition -> {
+                    properties.put(
+                        "spear_damage_max_use_ticks",
+                        Integer.toString(condition.maxDurationTicks())
+                    );
+                    properties.put("spear_damage_min_speed", Float.toString(condition.minSpeed()));
+                    properties.put(
+                        "spear_damage_min_relative_speed",
+                        Float.toString(condition.minRelativeSpeed())
+                    );
+                });
+            }
         }
         if (live instanceof Guardian guardian) {
             LivingEntity target = guardian.getActiveAttackTarget();
