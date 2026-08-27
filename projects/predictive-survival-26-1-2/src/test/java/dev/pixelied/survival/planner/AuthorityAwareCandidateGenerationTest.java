@@ -60,7 +60,7 @@ class AuthorityAwareCandidateGenerationTest {
             1L
         );
 
-        List<SurvivalAction> candidates = new SurvivalCandidateGenerator().generate(
+        List<SurvivalAction> candidates = new AuthorityAwareCandidateGenerator().generate(
             context(),
             timeline(3),
             inventory,
