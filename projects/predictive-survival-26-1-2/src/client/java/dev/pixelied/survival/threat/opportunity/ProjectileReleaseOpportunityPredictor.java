@@ -24,14 +24,17 @@ import java.util.Optional;
 /**
  * Pre-arms against player-launched projectile families whose exact-runtime authority probe proved
  * that first-projectile observation can arrive too late for server-authoritative death protection.
- * Bow is intentionally excluded because the same probe proved a guaranteed authority tick before
- * damage at the tested minimum legal draw/range.
+ * Bow requires synchronized active-use evidence; merely holding one never creates an opportunity.
  */
 public final class ProjectileReleaseOpportunityPredictor implements LethalOpportunityPredictor {
+    private static final String BOW = "minecraft:bow";
     private static final String CROSSBOW = "minecraft:crossbow";
     private static final String WIND_CHARGE = "minecraft:wind_charge";
     private static final String SPLASH_POTION = "minecraft:splash_potion";
 
+    private static final int BOW_MIN_LEGAL_USE_TICKS = 3;
+    private static final int BOW_FULL_DRAW_TICKS = 20;
+    private static final double ARROW_BASE_DAMAGE = 2.0d;
     private static final double CROSSBOW_ARROW_SPEED = 3.15d;
     private static final double CROSSBOW_FIREWORK_SPEED = 1.6d;
     private static final double WIND_CHARGE_SPEED = 1.5d;
@@ -74,7 +77,9 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         String item = properties.getOrDefault(hand.itemKeyProperty, "minecraft:air");
         Release release = null;
 
-        if (CROSSBOW.equals(item)) {
+        if (BOW.equals(item)) {
+            release = bowRelease(context, properties, hand).orElse(null);
+        } else if (CROSSBOW.equals(item)) {
             String projectileKind = properties.getOrDefault(hand.prefix + "crossbow_projectile_kind", "none");
             if ("arrow".equals(projectileKind)) {
                 release = new Release(
@@ -179,6 +184,62 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         ));
     }
 
+    private static Optional<Release> bowRelease(
+        PredictionContext context,
+        Map<String, String> properties,
+        Hand hand
+    ) {
+        if (!Boolean.parseBoolean(properties.getOrDefault("using_item", "false"))) return Optional.empty();
+        if (!hand.evidence.equals(properties.getOrDefault("used_hand", "none"))) return Optional.empty();
+        Integer observedUseTicks = nonNegativeInt(properties.get("client_observed_use_ticks"));
+        if (observedUseTicks == null) return Optional.empty();
+
+        TickWindow age = context.timing().observationAgeWindow();
+        long serverElapsedMax = saturatingAdd(observedUseTicks.longValue(), age.latest());
+        if (serverElapsedMax < BOW_MIN_LEGAL_USE_TICKS) return Optional.empty();
+
+        int boundedUseTicks = serverElapsedMax >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)serverElapsedMax;
+        float power = bowPowerForTime(boundedUseTicks);
+        double speed = power * 3.0d;
+        float rawDamage = bowArrowRawDamage(power, speed);
+        Map<String, String> evidence = new LinkedHashMap<>();
+        evidence.put("client_observed_use_ticks", Integer.toString(observedUseTicks));
+        evidence.put("observation_age_min", Long.toString(age.earliest()));
+        evidence.put("observation_age_max", Long.toString(age.latest()));
+        evidence.put("server_use_elapsed_max", Long.toString(serverElapsedMax));
+        evidence.put("bow_power_max", Float.toString(power));
+        return Optional.of(new Release(
+            "bow_arrow",
+            speed,
+            rawDamage,
+            EnumSet.of(DamageFlag.IS_PROJECTILE),
+            "minecraft:arrow",
+            true,
+            evidence
+        ));
+    }
+
+    /** Mirrors Minecraft 26.1.2 BowItem.getPowerForTime. */
+    private static float bowPowerForTime(int timeHeld) {
+        float power = timeHeld / 20.0f;
+        power = (power * power + power * 2.0f) / 3.0f;
+        return Math.min(power, 1.0f);
+    }
+
+    /**
+     * Baseline vanilla 26.1.2 arrow damage for the visible draw power. Full draw is critical, so
+     * include AbstractArrow's maximum critical random addition. Visible enchantment widening is a
+     * separate release-profile task and must not be guessed here.
+     */
+    private static float bowArrowRawDamage(float power, double speed) {
+        long base = (long)Math.ceil(Math.max(0d, speed * ARROW_BASE_DAMAGE));
+        long damage = base;
+        if (power >= 1.0f) {
+            damage += base / 2L + 1L;
+        }
+        return damage >= Float.MAX_VALUE ? Float.MAX_VALUE : (float)damage;
+    }
+
     private static long reactionTicks(PredictionContext context) {
         long reactionTicks = Math.max(
             0L,
@@ -228,6 +289,10 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
     private static float fireworkRawDamage(int explosions) {
         double value = 5d + 2d * explosions;
         return value >= Float.MAX_VALUE ? Float.MAX_VALUE : (float)value;
+    }
+
+    private static long saturatingAdd(long value, long increment) {
+        return increment > 0L && value > Long.MAX_VALUE - increment ? Long.MAX_VALUE : value + increment;
     }
 
     private static Double finiteDouble(String value) {
