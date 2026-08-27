@@ -71,23 +71,6 @@ public final class SurvivalCandidateGenerator {
         ThreatTimeline timeline,
         InventorySnapshot inventory,
         MenuSlotMap menu,
-        RescuePolicy policy,
-        dev.pixelied.survival.execution.EquipmentAuthorityProjection equipment
-    ) {
-        Objects.requireNonNull(equipment, "equipment");
-        long damageDeadline = timeline.events().stream()
-            .mapToLong(event -> event.impact().earliest())
-            .min()
-            .orElse(context.timing().nextPacketProcessingWindow().latest());
-        InventorySnapshot protectionInventory = equipment.conservativeInventoryAt(inventory, damageDeadline);
-        return generate(context, timeline, protectionInventory, menu, policy);
-    }
-
-    public List<SurvivalAction> generate(
-        PredictionContext context,
-        ThreatTimeline timeline,
-        InventorySnapshot inventory,
-        MenuSlotMap menu,
         RescuePolicy policy
     ) {
         Objects.requireNonNull(context, "context");
@@ -197,14 +180,14 @@ public final class SurvivalCandidateGenerator {
         if (index == inventory.selectedHotbarIndex()) return true;
         return index != 40
             && menu.menuSlotForInventoryIndex(index).isPresent()
-            && menu.menuSlotForInventoryIndex(inventory.selectedHotbarIndex().isPresent();
+            && menu.menuSlotForInventoryIndex(inventory.selectedHotbarIndex()).isPresent();
     }
 
     private static boolean canRouteToOffHand(InventorySlotSnapshot source, MenuSlotMap menu) {
         int index = source.inventoryIndex();
         if (index == 40) return true;
         return menu.menuSlotForInventoryIndex(index).isPresent()
-           && menu.menuSlotForInventoryIndex(40).isPresent();
+            && menu.menuSlotForInventoryIndex(40).isPresent();
     }
 
     private static void addProtectionCandidate(
@@ -290,7 +273,7 @@ public final class SurvivalCandidateGenerator {
 
         InventorySlotSnapshot offhand = inventory.slot(40).orElse(null);
         boolean heldOffhandShield = offhand != null
-           && offhand.count() > 0
+            && offhand.count() > 0
             && "minecraft:shield".equals(offhand.stackKey())
             && offhand.blockingProfile().isPresent()
             && !offhand.blockingOnCooldown();
