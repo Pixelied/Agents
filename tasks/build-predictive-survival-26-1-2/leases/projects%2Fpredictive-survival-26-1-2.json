@@ -3,11 +3,11 @@
   "protocol_version": "1.0",
   "task_id": "build-predictive-survival-26-1-2",
   "scope": "projects/predictive-survival-26-1-2",
-  "owner": "openai-survival-instant-burst-c74e",
+  "owner": "openai-survival-runtime-5f6c",
   "state": "active",
-  "intent": "Continue executing the approved Predictive Survival 26.1.2 instant-burst implementation plan from the canonical good baseline, using regression-first TDD and exact-runtime verification without importing PR #40 production code.",
-  "claimed_at": "2026-08-26T09:01:00+00:00",
-  "heartbeat_at": "2026-08-26T09:01:00+00:00",
-  "expires_at": "2026-08-26T13:01:00+00:00",
-  "generation": 7
+  "intent": "Execute the approved Predictive Survival 26.1.2 deep-audit runtime state-machine plan from the current canonical project head using regression-first TDD, supplied 26.1.2 source verification, exact-runtime GameTests, and no direct writes to canonical/main implementation state.",
+  "claimed_at": "2026-08-27T14:02:00+00:00",
+  "heartbeat_at": "2026-08-27T14:02:00+00:00",
+  "expires_at": "2026-08-27T18:02:00+00:00",
+  "generation": 8
 }
