@@ -38,10 +38,12 @@ public final class AuthorityAwareCandidateGenerator {
         Objects.requireNonNull(policy, "policy");
         Objects.requireNonNull(equipment, "equipment");
 
-        long damageDeadline = timeline.events().stream()
+        var earliestRelativeImpact = timeline.events().stream()
             .mapToLong(event -> event.impact().earliest())
-            .min()
-            .orElse(context.timing().nextPacketProcessingWindow().latest());
+            .min();
+        long damageDeadline = earliestRelativeImpact.isPresent()
+            ? saturatingAdd(context.timing().clientTick(), earliestRelativeImpact.getAsLong())
+            : context.timing().nextPacketProcessingWindow().latest();
         InventorySnapshot projectedInventory = equipment.conservativeInventoryAt(inventory, damageDeadline);
         PredictionContext projectedContext = withGuaranteedProtection(context, equipment, damageDeadline);
         return delegate.generate(projectedContext, timeline, projectedInventory, menu, policy);
@@ -78,5 +80,11 @@ public final class AuthorityAwareCandidateGenerator {
             context.limits(),
             context.safetyMode()
         );
+    }
+
+    private static long saturatingAdd(long value, long increment) {
+        return increment > 0L && value > Long.MAX_VALUE - increment
+            ? Long.MAX_VALUE
+            : value + increment;
     }
 }
