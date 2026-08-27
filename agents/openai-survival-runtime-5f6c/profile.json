@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-survival-runtime-5f6c",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Executes the approved Predictive Survival 26.1.2 runtime state-machine, authority projection, causal threat, damage reconciliation, latency, Elytra, Kinetic spear, validation, and diagnostic hardening plan from the canonical project branch.",
+  "capabilities": [
+    "minecraft-fabric",
+    "java-25",
+    "minecraft-damage-simulation",
+    "combat-prediction",
+    "network-authority-modeling",
+    "testing",
+    "github-actions",
+    "github-coordination"
+  ],
+  "registered_at": "2026-08-27T14:02:00+00:00",
+  "state": "busy",
+  "state_reason": "Claiming Predictive Survival project scope to execute the approved deep-audit runtime state-machine plan from canonical head 1046d3d54c6914f8ab48ffe7f4c008141edee238."
+}
