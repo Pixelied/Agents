@@ -33,7 +33,6 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
     private static final String SPLASH_POTION = "minecraft:splash_potion";
 
     private static final int BOW_MIN_LEGAL_USE_TICKS = 3;
-    private static final int BOW_FULL_DRAW_TICKS = 20;
     private static final double ARROW_BASE_DAMAGE = 2.0d;
     private static final double CROSSBOW_ARROW_SPEED = 3.15d;
     private static final double CROSSBOW_FIREWORK_SPEED = 1.6d;
@@ -86,6 +85,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                     "crossbow_arrow",
                     CROSSBOW_ARROW_SPEED,
                     CROSSBOW_ARROW_RAW_DAMAGE,
+                    0L,
                     EnumSet.of(DamageFlag.IS_PROJECTILE),
                     "minecraft:arrow",
                     true,
@@ -99,6 +99,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                         "crossbow_firework",
                         CROSSBOW_FIREWORK_SPEED,
                         raw,
+                        0L,
                         EnumSet.of(DamageFlag.IS_EXPLOSION),
                         "minecraft:fireworks",
                         true,
@@ -114,6 +115,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                 "wind_charge",
                 WIND_CHARGE_SPEED,
                 WIND_CHARGE_RAW_DAMAGE,
+                0L,
                 EnumSet.of(DamageFlag.IS_PROJECTILE),
                 "minecraft:wind_charge",
                 true,
@@ -126,6 +128,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                     "splash_harming",
                     SPLASH_POTION_SPEED,
                     instantDamage,
+                    0L,
                     EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
                     "minecraft:indirect_magic",
                     false,
@@ -138,7 +141,8 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
             return Optional.empty();
         }
 
-        TickWindow impact = new TickWindow(0L, reactionTicks(context));
+        long latestImpact = saturatingAdd(release.earliestImpactTicks, reactionTicks(context));
+        TickWindow impact = new TickWindow(release.earliestImpactTicks, Math.max(release.earliestImpactTicks, latestImpact));
         String id = "opportunity:projectile_release:" + attacker.id() + ':' + release.family + ':' + hand.evidence;
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(release.rawDamage),
@@ -173,6 +177,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         evidence.put("hand", hand.evidence);
         evidence.put("first_tick_speed", Double.toString(release.speed));
         evidence.put("first_tick_reach", "true");
+        evidence.put("release_earliest_impact_ticks", Long.toString(release.earliestImpactTicks));
         evidence.putAll(release.evidence);
         return Optional.of(new LethalOpportunity(
             id,
@@ -196,9 +201,11 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
 
         TickWindow age = context.timing().observationAgeWindow();
         long serverElapsedMax = saturatingAdd(observedUseTicks.longValue(), age.latest());
-        if (serverElapsedMax < BOW_MIN_LEGAL_USE_TICKS) return Optional.empty();
-
-        int boundedUseTicks = serverElapsedMax >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)serverElapsedMax;
+        long earliestModeledUseTick = Math.max(BOW_MIN_LEGAL_USE_TICKS, serverElapsedMax);
+        long earliestImpactTicks = Math.max(0L, BOW_MIN_LEGAL_USE_TICKS - serverElapsedMax);
+        int boundedUseTicks = earliestModeledUseTick >= Integer.MAX_VALUE
+            ? Integer.MAX_VALUE
+            : (int)earliestModeledUseTick;
         float power = bowPowerForTime(boundedUseTicks);
         double speed = power * 3.0d;
         float rawDamage = bowArrowRawDamage(power, speed);
@@ -207,11 +214,13 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         evidence.put("observation_age_min", Long.toString(age.earliest()));
         evidence.put("observation_age_max", Long.toString(age.latest()));
         evidence.put("server_use_elapsed_max", Long.toString(serverElapsedMax));
+        evidence.put("earliest_lethal_use_tick", Long.toString(earliestModeledUseTick));
         evidence.put("bow_power_max", Float.toString(power));
         return Optional.of(new Release(
             "bow_arrow",
             speed,
             rawDamage,
+            earliestImpactTicks,
             EnumSet.of(DamageFlag.IS_PROJECTILE),
             "minecraft:arrow",
             true,
@@ -344,12 +353,14 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         String family,
         double speed,
         float rawDamage,
+        long earliestImpactTicks,
         EnumSet<DamageFlag> flags,
         String sourceKey,
         boolean blockable,
         Map<String, String> evidence
     ) {
         private Release {
+            if (earliestImpactTicks < 0L) throw new IllegalArgumentException("earliestImpactTicks must be non-negative");
             flags = flags.clone();
             evidence = Map.copyOf(evidence);
         }
