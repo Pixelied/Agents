@@ -16,6 +16,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            ProtectionOffhandAuthorityRaceValidationScenarios.validateOptimisticLocalOffhandDoesNotCountAsServerProtection(
+                context,
+                singleplayer
+            );
             CrystalBurstSequenceValidationScenarios.validatePrecursorThenZeroDelayPlaceBreak(context, singleplayer);
             BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
                 context,
