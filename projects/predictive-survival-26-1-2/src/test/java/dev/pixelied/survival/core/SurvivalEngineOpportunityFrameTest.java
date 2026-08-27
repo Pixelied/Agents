@@ -81,7 +81,8 @@ class SurvivalEngineOpportunityFrameTest {
         );
 
         assertTrue(actual.events().isEmpty(), "no EndCrystal threat exists in the actual timeline yet");
-        assertEquals(1, generated.requiredServerTicks(), "hotbar protection route must stay one server tick");
+        assertEquals(0, generated.requiredServerTicks(),
+            "hotbar selection becomes authoritative in the packet handler; TimingSnapshot already charges packet transit");
         assertEquals(generated.hand(), chosen.hand());
         assertEquals(DeadlineStatus.BEST_EFFORT, plan.simulation().deadlineStatus());
         assertTrue(plan.simulation().result().survived());
