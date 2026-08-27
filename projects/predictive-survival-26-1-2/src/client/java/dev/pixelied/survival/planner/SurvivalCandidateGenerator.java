@@ -213,8 +213,10 @@ public final class SurvivalCandidateGenerator {
             .orElseThrow(() -> new IllegalStateException("death-protection route has no source inventory slot"));
         DeathProtectionSnapshot.ProtectionItem item = protectionItem(routedSlot);
 
+        // ServerboundSetCarriedItem is authoritative as soon as the server handles the packet;
+        // TimingSnapshot already accounts for that packet-processing window, so no extra tick is due.
         int requiredServerTicks = route instanceof DeathProtectionRoute.HotbarSelect
-            ? 1
+            ? 0
             : context.timing().serverCorrectionReturnTicks();
         candidates.add(new SurvivalAction.EquipDeathProtection(
             item,
