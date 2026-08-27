@@ -6,6 +6,7 @@ import dev.pixelied.survival.threat.opportunity.OpportunityFamily;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
@@ -17,6 +18,7 @@ import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.AttackRange;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -54,7 +56,11 @@ final class BowReleasePrecursorValidationScenarios {
             ServerPlayer attacker = BurstSequenceValidationSupport.requireAttacker(server, handle);
             attacker.getInventory().clearContent();
             attacker.getInventory().setSelectedSlot(0);
-            attacker.getInventory().setItem(0, new ItemStack(Items.BOW));
+            ItemStack bow = new ItemStack(Items.BOW);
+            // This scenario proves the Bow release precursor, not generic melee prediction. A zero
+            // AttackRange is a valid synchronized 26.1.2 component and leaves Bow release unchanged.
+            bow.set(DataComponents.ATTACK_RANGE, new AttackRange(0f, 0f, 0f, 0f, 0f, 1f));
+            attacker.getInventory().setItem(0, bow);
             attacker.getInventory().setItem(1, new ItemStack(Items.ARROW, 16));
             attacker.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
             attacker.setNoGravity(true);
@@ -64,9 +70,9 @@ final class BowReleasePrecursorValidationScenarios {
             attacker.setYHeadRot(0f);
 
             // At three draw ticks the 26.1.2 Bow speed is only ~0.3225 blocks/tick. Keep the
-            // victim's near AABB face 0.30 blocks from the attacker's eye so the very first legal
-            // release is physically capable of reaching the target on its first projectile tick.
-            Vec3 attackerPosition = new Vec3(victimPosition.x, victimPosition.y, victimPosition.z - 0.6d);
+            // victim's near AABB face 0.32 blocks from the attacker's eye: just inside first-tick
+            // projectile reach while keeping the two 0.6-block-wide player AABBs non-overlapping.
+            Vec3 attackerPosition = new Vec3(victimPosition.x, victimPosition.y, victimPosition.z - 0.62d);
             attacker.teleportTo(attackerPosition.x, attackerPosition.y, attackerPosition.z);
             attacker.containerMenu.broadcastChanges();
             BurstSequenceValidationSupport.syncEquipment(victim, attacker);
@@ -119,15 +125,15 @@ final class BowReleasePrecursorValidationScenarios {
 
             Precursor precursor = context.computeOnClient(minecraft -> {
                 var frame = harness.runtime().capture();
+                String attackerId = Integer.toString(setup.attacker().entityId());
                 var attackerSnapshot = frame.context().world().entities().stream()
-                    .filter(candidate -> candidate.id().equals(Integer.toString(setup.attacker().entityId())))
+                    .filter(candidate -> candidate.id().equals(attackerId))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Bow attacker missing from production world snapshot"));
                 LethalOpportunity opportunity = frame.opportunities().stream()
                     .filter(candidate -> candidate.family() == OpportunityFamily.PROJECTILE)
                     .filter(candidate -> "bow_arrow".equals(candidate.evidence().get("release_family")))
-                    .filter(candidate -> Integer.toString(setup.attacker().entityId())
-                        .equals(candidate.evidence().get("attacker_id")))
+                    .filter(candidate -> attackerId.equals(candidate.evidence().get("attacker_id")))
                     .findFirst()
                     .orElse(null);
                 boolean planningContainsBow = opportunity != null && frame.planningTimeline().events().stream()
@@ -135,13 +141,18 @@ final class BowReleasePrecursorValidationScenarios {
                 boolean equipCandidate = frame.candidates().stream()
                     .anyMatch(SurvivalAction.EquipDeathProtection.class::isInstance);
                 boolean liveArrowThreat = frame.actualTimeline().events().stream()
-                    .anyMatch(event -> event.id().startsWith("projectile:")
-                        && event.id().contains(Integer.toString(setup.attacker().entityId())));
+                    .anyMatch(event -> event.id().startsWith("projectile:") && event.id().contains(attackerId));
+                boolean meleeContamination = frame.actualTimeline().events().stream()
+                    .anyMatch(event -> event.id().equals("melee:" + attackerId));
+                boolean crammingContamination = frame.actualTimeline().events().stream()
+                    .anyMatch(event -> event.id().startsWith("env:cramming:"));
                 return new Precursor(
                     opportunity,
                     planningContainsBow,
                     equipCandidate,
                     liveArrowThreat,
+                    meleeContamination,
+                    crammingContamination,
                     attackerSnapshot.properties().getOrDefault("using_item", "missing"),
                     attackerSnapshot.properties().getOrDefault("used_hand", "missing"),
                     attackerSnapshot.properties().getOrDefault("client_observed_use_ticks", "missing"),
@@ -155,6 +166,12 @@ final class BowReleasePrecursorValidationScenarios {
             }
             if (precursor.liveArrowThreat()) {
                 throw new AssertionError("Bow precursor was observed only after a projectile already existed");
+            }
+            if (precursor.meleeContamination()) {
+                throw new AssertionError("Bow precursor fixture leaked an unrelated generic-melee threat: " + precursor);
+            }
+            if (precursor.crammingContamination()) {
+                throw new AssertionError("Bow precursor fixture leaked an unrelated entity-cramming threat: " + precursor);
             }
             if (precursor.opportunity() == null) {
                 throw new AssertionError(
@@ -388,6 +405,8 @@ final class BowReleasePrecursorValidationScenarios {
         boolean planningContainsBow,
         boolean equipCandidate,
         boolean liveArrowThreat,
+        boolean meleeContamination,
+        boolean crammingContamination,
         String usingItem,
         String usedHand,
         String clientObservedUseTicks,
