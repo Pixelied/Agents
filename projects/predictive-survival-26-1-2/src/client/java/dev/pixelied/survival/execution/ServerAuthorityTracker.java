@@ -26,6 +26,7 @@ public final class ServerAuthorityTracker {
     private MitigationSnapshot confirmedMitigation = MitigationSnapshot.none();
     private final List<PendingEquipmentMutation> pendingEquipment = new ArrayList<>();
     private long equipmentEpoch;
+    private long lastServerEvidenceRevision = -1L;
 
     public ServerAuthorityTracker(int initialSelectedSlot) {
         validateHotbar(initialSelectedSlot);
@@ -111,6 +112,46 @@ public final class ServerAuthorityTracker {
         pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
     }
 
+    /**
+     * Reconciles hand contents only from clientbound evidence recorded after vanilla applied it.
+     * The first observation establishes the evidence revision already represented by the
+     * constructor snapshot; later observations may advance confirmed offhand contents only when a
+     * newer slot-40 packet matches the current inventory snapshot exactly.
+     */
+    public void observeServerEvidence(
+        ServerStateEvidenceSnapshot evidence,
+        InventorySnapshot observedInventory
+    ) {
+        Objects.requireNonNull(evidence, "evidence");
+        Objects.requireNonNull(observedInventory, "observedInventory");
+        requireEquipmentTracking();
+
+        if (lastServerEvidenceRevision < 0L) {
+            lastServerEvidenceRevision = evidence.revision();
+            return;
+        }
+        long previousRevision = lastServerEvidenceRevision;
+        if (evidence.revision() <= previousRevision) return;
+        lastServerEvidenceRevision = evidence.revision();
+        if (!evidence.known()) return;
+
+        ServerStateEvidenceSnapshot.StackEvidence offhandEvidence = evidence.inventorySlots().get(40);
+        if (offhandEvidence == null || offhandEvidence.revision() <= previousRevision) return;
+
+        InventorySlotSnapshot observedOffHand = requireSlot(observedInventory, 40);
+        if (!offhandEvidence.matches(
+            observedOffHand.stackKey(),
+            observedOffHand.componentFingerprint(),
+            observedOffHand.count()
+        )) {
+            return;
+        }
+        if (!confirmedOffHand.sameContents(observedOffHand)) {
+            confirmedOffHand = observedOffHand;
+            nextEquipmentEpoch();
+        }
+    }
+
     public int confirmedSelectedSlot(int localSelectedSlot, long currentTick) {
         validateHotbar(localSelectedSlot);
         if (currentTick < 0L) throw new IllegalArgumentException("currentTick must be non-negative");
@@ -139,10 +180,10 @@ public final class ServerAuthorityTracker {
         if (currentServerTick < 0L) throw new IllegalArgumentException("currentServerTick must be non-negative");
         requireEquipmentTracking();
 
+        observeServerEvidence(MinecraftServerStateEvidence.snapshot(), observedInventory);
         advanceEquipmentAuthority(currentServerTick);
         if (pendingEquipment.isEmpty() && observedInventory.selectedHotbarIndex() == confirmedSelectedSlot) {
             confirmedMainHand = requireSlot(observedInventory, confirmedSelectedSlot);
-            confirmedOffHand = requireSlot(observedInventory, 40);
             confirmedMitigation = observedMitigation;
         }
         return new EquipmentAuthorityProjection(
@@ -196,6 +237,7 @@ public final class ServerAuthorityTracker {
         pendingSelectedConfirmTick = Long.MAX_VALUE;
         clearUseSession();
         pendingEquipment.clear();
+        lastServerEvidenceRevision = -1L;
     }
 
     private void initializeEquipment(InventorySnapshot inventory, MitigationSnapshot mitigation) {
