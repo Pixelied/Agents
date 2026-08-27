@@ -299,7 +299,12 @@ final class BowReleasePrecursorValidationScenarios {
             if (outcome.protectedOnServer()) {
                 throw new AssertionError("first-legal-tick Bow arrow never consumed server-authoritative protection: " + outcome);
             }
-            SurvivalValidationClientGameTest.assertClose("bow_first_legal_release_pop", 1f, outcome.health(), EPSILON);
+            // LivingEntity sets post-protection health to 1.0, then Totem applies Regeneration II
+            // for 900 ticks. This scenario observes after the next runtime tick; Regeneration II
+            // checks duration 900 before decrementing, and 900 % (50 >> 1) == 0, so vanilla heals
+            // one point immediately on that first effect tick. The same-call Totem GameTest still
+            // separately proves the transient 1.0 health state before any effect tick runs.
+            SurvivalValidationClientGameTest.assertClose("bow_first_legal_release_pop", 2f, outcome.health(), EPSILON);
         } finally {
             singleplayer.getServer().runOnServer(server -> {
                 ServerPlayer victim = server.getPlayerList().getPlayer(setup.victimId());
