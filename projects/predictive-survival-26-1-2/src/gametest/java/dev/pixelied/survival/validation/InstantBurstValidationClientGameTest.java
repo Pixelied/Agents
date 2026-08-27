@@ -59,7 +59,7 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
-            KineticSpearValidationScenarios.validateFirstKineticDamageTickPopsWhileDiscreteStabIsUnready(
+            KineticSpearApproachContactValidationScenarios.validateFirstKineticDamageTickPopsWhileDiscreteStabIsUnready(
                 context,
                 singleplayer
             );
