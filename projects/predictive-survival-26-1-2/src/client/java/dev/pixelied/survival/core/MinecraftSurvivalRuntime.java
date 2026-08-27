@@ -7,6 +7,7 @@ import dev.pixelied.survival.execution.DeathProtectionRestorationController;
 import dev.pixelied.survival.execution.ExecutionCommand;
 import dev.pixelied.survival.execution.ExecutionContext;
 import dev.pixelied.survival.execution.ExecutionStatus;
+import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
 import dev.pixelied.survival.execution.MinecraftCommandDispatcher;
 import dev.pixelied.survival.execution.NonTotemActionExecutor;
 import dev.pixelied.survival.execution.NonTotemExecutionContext;
@@ -15,9 +16,9 @@ import dev.pixelied.survival.execution.ShieldActionExecutor;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
 import dev.pixelied.survival.inventory.MinecraftInventorySnapshotFactory;
+import dev.pixelied.survival.planner.AuthorityAwareCandidateGenerator;
 import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.planner.SurvivalAction;
-import dev.pixelied.survival.planner.SurvivalCandidateGenerator;
 import dev.pixelied.survival.threat.AreaEffectCloudAttributionTracker;
 import dev.pixelied.survival.threat.EnvironmentPredictorRegistry;
 import dev.pixelied.survival.threat.EvokerFangsPredictor;
@@ -70,7 +71,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final ThreatPredictorRegistry predictors;
     private final LethalOpportunityRegistry opportunityPredictors;
     private final OpportunityTimelineAssembler opportunityTimelineAssembler;
-    private final SurvivalCandidateGenerator candidateGenerator;
+    private final AuthorityAwareCandidateGenerator candidateGenerator;
     private final DeathProtectionActionExecutor protectionExecutor;
     private final DeathProtectionRestorationController restorationController;
     private final ShieldActionExecutor shieldExecutor;
@@ -119,7 +120,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             new ProjectileReleaseOpportunityPredictor()
         ));
         this.opportunityTimelineAssembler = new OpportunityTimelineAssembler();
-        this.candidateGenerator = new SurvivalCandidateGenerator();
+        this.candidateGenerator = new AuthorityAwareCandidateGenerator();
         this.protectionExecutor = new DeathProtectionActionExecutor();
         this.restorationController = new DeathProtectionRestorationController();
         this.shieldExecutor = new ShieldActionExecutor();
@@ -156,18 +157,19 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         TimingSnapshot timing = timingEstimator.snapshot(clientTick);
 
         InventorySnapshot rawInventory = inventorySnapshots.captureInventory(player);
-        if (authority == null) authority = new ServerAuthorityTracker(rawInventory.selectedHotbarIndex());
-        authority.observeUntrackedLocalSelection(rawInventory.selectedHotbarIndex(), timing);
-        int confirmedSelected = authority.confirmedSelectedSlot(rawInventory.selectedHotbarIndex(), clientTick);
-        InventorySnapshot inventory = new InventorySnapshot(
-            confirmedSelected,
-            rawInventory.slots(),
-            rawInventory.activeOffhandShield()
+        PlayerSnapshot rawPlayer = playerSnapshots.capture(player);
+        if (authority == null) authority = new ServerAuthorityTracker(rawInventory, rawPlayer.mitigation());
+        authority.observeUntrackedLocalSelection(rawInventory, timing);
+        EquipmentAuthorityProjection equipment = authority.equipmentProjection(
+            rawInventory,
+            rawPlayer.mitigation(),
+            clientTick
         );
+        InventorySnapshot inventory = equipment.conservativeInventoryAt(rawInventory, clientTick);
         MenuSlotMap menu = inventorySnapshots.captureMenu(player);
 
-        PlayerSnapshot rawPlayer = playerSnapshots.capture(player);
-        PlayerSnapshot contactPlayer = contactHazardSnapshots.annotate(player, rawPlayer);
+        PlayerSnapshot authorityPlayer = withAuthoritativeDeathProtection(rawPlayer, equipment, clientTick);
+        PlayerSnapshot contactPlayer = contactHazardSnapshots.annotate(player, authorityPlayer);
         PlayerSnapshot playerSnapshot = withConservativeBlocking(contactPlayer, player, timing);
         WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
         WorldSnapshot specialWorld = specialThreatSnapshots.annotate(minecraft.level, player, rawWorld);
@@ -184,7 +186,14 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         ThreatTimeline actualTimeline = new ThreatTimeline(predicted);
         List<LethalOpportunity> opportunities = opportunityPredictors.predictAll(context);
         ThreatTimeline planningTimeline = opportunityTimelineAssembler.assemble(actualTimeline, opportunities, limits.maxThreats());
-        List<SurvivalAction> candidates = candidateGenerator.generate(context, planningTimeline, inventory, menu, policy);
+        List<SurvivalAction> candidates = candidateGenerator.generate(
+            context,
+            planningTimeline,
+            rawInventory,
+            menu,
+            policy,
+            equipment
+        );
 
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, actualTimeline, opportunities, planningTimeline, candidates);
         liveState = new LiveState(frame, inventory, menu, timing, reactive.player());
@@ -309,6 +318,19 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
         BlockingSnapshot conservative = blocking.withElapsedUseTicks(confirmedTicks);
         return withHeadYaw(snapshot, conservative, player.getYHeadRot());
+    }
+
+    private static PlayerSnapshot withAuthoritativeDeathProtection(
+        PlayerSnapshot player,
+        EquipmentAuthorityProjection equipment,
+        long serverTick
+    ) {
+        return new PlayerSnapshot(
+            player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
+            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
+            player.hurtState(), equipment.guaranteedDeathProtectionAt(serverTick), player.boundingBox(),
+            player.position(), player.velocity(), player.equipmentItemKeys(), player.stateProperties()
+        );
     }
 
     private static PlayerSnapshot withHeadYaw(PlayerSnapshot player, BlockingSnapshot blocking, float headYaw) {
