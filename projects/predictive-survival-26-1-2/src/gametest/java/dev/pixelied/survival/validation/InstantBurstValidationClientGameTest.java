@@ -12,6 +12,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
             context.waitFor(minecraft -> minecraft.player != null && minecraft.level != null);
             waitForServerClientLoaded(context, singleplayer);
             ExplosionExposureDifferentialValidationScenarios.validateExactCollisionShapeExposure(context, singleplayer);
+            ProtectionAuthorityRaceValidationScenarios.validateOptimisticLocalHotbarDoesNotCountAsServerProtection(
+                context,
+                singleplayer
+            );
             CrystalBurstSequenceValidationScenarios.validatePrecursorThenZeroDelayPlaceBreak(context, singleplayer);
             BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
                 context,
