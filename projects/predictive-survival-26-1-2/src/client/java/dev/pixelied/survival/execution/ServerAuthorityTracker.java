@@ -1,9 +1,14 @@
 package dev.pixelied.survival.execution;
 
 import dev.pixelied.survival.core.Vec3Snapshot;
+import dev.pixelied.survival.damage.MitigationSnapshot;
+import dev.pixelied.survival.inventory.InventorySlotSnapshot;
+import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.planner.SurvivalAction;
 import dev.pixelied.survival.timing.TimingSnapshot;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public final class ServerAuthorityTracker {
@@ -15,9 +20,21 @@ public final class ServerAuthorityTracker {
     private SurvivalAction.Hand pendingUseHand;
     private long pendingUseServerStartTick = Long.MAX_VALUE;
 
+    private boolean equipmentTrackingInitialized;
+    private InventorySlotSnapshot confirmedMainHand;
+    private InventorySlotSnapshot confirmedOffHand;
+    private MitigationSnapshot confirmedMitigation = MitigationSnapshot.none();
+    private final List<PendingEquipmentMutation> pendingEquipment = new ArrayList<>();
+    private long equipmentEpoch;
+
     public ServerAuthorityTracker(int initialSelectedSlot) {
         validateHotbar(initialSelectedSlot);
         this.confirmedSelectedSlot = initialSelectedSlot;
+    }
+
+    public ServerAuthorityTracker(InventorySnapshot initialInventory, MitigationSnapshot initialMitigation) {
+        this(Objects.requireNonNull(initialInventory, "initialInventory").selectedHotbarIndex());
+        initializeEquipment(initialInventory, initialMitigation);
     }
 
     public void sentHotbarSelection(int targetSlot, TimingSnapshot timing) {
@@ -27,10 +44,69 @@ public final class ServerAuthorityTracker {
         pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
     }
 
+    public void sentHotbarSelection(
+        int targetSlot,
+        TimingSnapshot timing,
+        InventorySnapshot inventoryBeforeDispatch,
+        PendingEquipmentMutation.Origin origin
+    ) {
+        validateHotbar(targetSlot);
+        Objects.requireNonNull(timing, "timing");
+        Objects.requireNonNull(inventoryBeforeDispatch, "inventoryBeforeDispatch");
+        Objects.requireNonNull(origin, "origin");
+        requireEquipmentTracking();
+
+        InventorySlotSnapshot before = projectedMainHandAfterQueuedMutations();
+        InventorySlotSnapshot after = requireSlot(inventoryBeforeDispatch, targetSlot);
+        pendingEquipment.add(new PendingEquipmentMutation(
+            SurvivalAction.Hand.MAIN_HAND,
+            before,
+            after,
+            timing.nextPacketProcessingWindow(),
+            origin,
+            nextEquipmentEpoch()
+        ));
+        sentHotbarSelection(targetSlot, timing);
+    }
+
     public void observeUntrackedLocalSelection(int localSelectedSlot, TimingSnapshot timing) {
         validateHotbar(localSelectedSlot);
         Objects.requireNonNull(timing, "timing");
         if (localSelectedSlot == confirmedSelectedSlot || pendingSelectedSlot != null) return;
+        pendingSelectedSlot = localSelectedSlot;
+        pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
+    }
+
+    /**
+     * Rich selection observation used by the survival runtime. A selection that differs from both
+     * the confirmed slot and the latest tracked target is newer user intent, not noise to ignore.
+     */
+    public void observeUntrackedLocalSelection(InventorySnapshot localInventory, TimingSnapshot timing) {
+        Objects.requireNonNull(localInventory, "localInventory");
+        Objects.requireNonNull(timing, "timing");
+        requireEquipmentTracking();
+        int localSelectedSlot = localInventory.selectedHotbarIndex();
+        validateHotbar(localSelectedSlot);
+
+        int latestTrackedTarget = pendingEquipment.isEmpty()
+            ? confirmedSelectedSlot
+            : pendingEquipment.getLast().after().inventoryIndex();
+        if (localSelectedSlot == latestTrackedTarget) return;
+        if (pendingEquipment.isEmpty() && localSelectedSlot == confirmedSelectedSlot) return;
+
+        InventorySlotSnapshot before = projectedMainHandAfterQueuedMutations();
+        InventorySlotSnapshot after = requireSlot(localInventory, localSelectedSlot);
+        pendingEquipment.add(new PendingEquipmentMutation(
+            SurvivalAction.Hand.MAIN_HAND,
+            before,
+            after,
+            timing.nextPacketProcessingWindow(),
+            PendingEquipmentMutation.Origin.USER,
+            nextEquipmentEpoch()
+        ));
+
+        // Preserve the legacy scalar projection for execution code. The newer user packet is the
+        // latest selected-slot target, but the rich queue retains packets that were already sent.
         pendingSelectedSlot = localSelectedSlot;
         pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
     }
@@ -47,6 +123,36 @@ public final class ServerAuthorityTracker {
         pendingSelectedConfirmTick = Long.MAX_VALUE;
         if (localSelectedSlot == target) confirmedSelectedSlot = target;
         return confirmedSelectedSlot;
+    }
+
+    /**
+     * Current bounded server-authority equipment projection. Mutations whose conservative latest
+     * server-effect tick has passed are committed in wire order before the projection is returned.
+     */
+    public EquipmentAuthorityProjection equipmentProjection(
+        InventorySnapshot observedInventory,
+        MitigationSnapshot observedMitigation,
+        long currentServerTick
+    ) {
+        Objects.requireNonNull(observedInventory, "observedInventory");
+        Objects.requireNonNull(observedMitigation, "observedMitigation");
+        if (currentServerTick < 0L) throw new IllegalArgumentException("currentServerTick must be non-negative");
+        requireEquipmentTracking();
+
+        advanceEquipmentAuthority(currentServerTick);
+        if (pendingEquipment.isEmpty() && observedInventory.selectedHotbarIndex() == confirmedSelectedSlot) {
+            confirmedMainHand = requireSlot(observedInventory, confirmedSelectedSlot);
+            confirmedOffHand = requireSlot(observedInventory, 40);
+            confirmedMitigation = observedMitigation;
+        }
+        return new EquipmentAuthorityProjection(
+            confirmedSelectedSlot,
+            confirmedMainHand,
+            confirmedOffHand,
+            List.copyOf(pendingEquipment),
+            equipmentEpoch,
+            confirmedMitigation
+        );
     }
 
     public void sentUseItem(SurvivalAction.Hand hand, TimingSnapshot timing) {
@@ -89,6 +195,62 @@ public final class ServerAuthorityTracker {
         pendingSelectedSlot = null;
         pendingSelectedConfirmTick = Long.MAX_VALUE;
         clearUseSession();
+        pendingEquipment.clear();
+    }
+
+    private void initializeEquipment(InventorySnapshot inventory, MitigationSnapshot mitigation) {
+        confirmedMainHand = requireSlot(inventory, inventory.selectedHotbarIndex());
+        confirmedOffHand = requireSlot(inventory, 40);
+        confirmedMitigation = Objects.requireNonNull(mitigation, "mitigation");
+        equipmentTrackingInitialized = true;
+        equipmentEpoch = 0L;
+        pendingEquipment.clear();
+    }
+
+    private void advanceEquipmentAuthority(long currentServerTick) {
+        while (!pendingEquipment.isEmpty()) {
+            PendingEquipmentMutation mutation = pendingEquipment.getFirst();
+            if (currentServerTick < mutation.authorityWindow().latest()) return;
+            applyConfirmed(mutation);
+            pendingEquipment.removeFirst();
+        }
+    }
+
+    private void applyConfirmed(PendingEquipmentMutation mutation) {
+        if (mutation.hand() == SurvivalAction.Hand.MAIN_HAND) {
+            confirmedSelectedSlot = mutation.after().inventoryIndex();
+            confirmedMainHand = mutation.after();
+        } else {
+            confirmedOffHand = mutation.after();
+        }
+        mutation.mitigationAfter().ifPresent(value -> confirmedMitigation = value);
+    }
+
+    private InventorySlotSnapshot projectedMainHandAfterQueuedMutations() {
+        for (int i = pendingEquipment.size() - 1; i >= 0; i--) {
+            PendingEquipmentMutation mutation = pendingEquipment.get(i);
+            if (mutation.hand() == SurvivalAction.Hand.MAIN_HAND) return mutation.after();
+        }
+        return confirmedMainHand;
+    }
+
+    private long nextEquipmentEpoch() {
+        if (equipmentEpoch == Long.MAX_VALUE) throw new IllegalStateException("equipment authority epoch exhausted");
+        return ++equipmentEpoch;
+    }
+
+    private void requireEquipmentTracking() {
+        if (!equipmentTrackingInitialized) {
+            throw new IllegalStateException("rich equipment authority tracking was not initialized from an inventory snapshot");
+        }
+    }
+
+    private static InventorySlotSnapshot requireSlot(InventorySnapshot inventory, int index) {
+        return inventory.slot(index).orElseGet(() -> emptySlot(index));
+    }
+
+    private static InventorySlotSnapshot emptySlot(int index) {
+        return new InventorySlotSnapshot(index, "minecraft:air", 0, false);
     }
 
     private void clearUseSession() {

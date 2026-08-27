@@ -136,28 +136,29 @@ public record EquipmentAuthorityProjection(
 
     private List<FeasibleState> feasibleStatesAt(long serverTick) {
         if (serverTick < 0L) throw new IllegalArgumentException("serverTick must be non-negative");
-        List<FeasibleState> states = List.of(new FeasibleState(
-            confirmedMainHand,
-            confirmedOffHand,
-            confirmedMitigation
-        ));
+        FeasibleState initial = new FeasibleState(confirmedMainHand, confirmedOffHand, confirmedMitigation);
+        if (pending.isEmpty()) return List.of(initial);
 
+        // Equipment packets share the client connection and therefore have a fixed wire order. At
+        // a given tick the server can only have processed a prefix of the queue; it cannot apply a
+        // later restore/user packet while an earlier emergency packet remains unprocessed.
+        int guaranteedPrefix = 0;
+        int possiblePrefix = 0;
         for (PendingEquipmentMutation mutation : pending) {
-            List<FeasibleState> next = new ArrayList<>(Math.min(MAX_FEASIBLE_STATES, states.size() * 2));
-            for (FeasibleState state : states) {
-                if (mutation.definitelyBefore(serverTick)) {
-                    addDistinct(next, state);
-                } else if (mutation.definitelyAfter(serverTick)) {
-                    addDistinct(next, apply(state, mutation));
-                } else {
-                    addDistinct(next, state);
-                    addDistinct(next, apply(state, mutation));
-                }
-                if (next.size() >= MAX_FEASIBLE_STATES) break;
-            }
-            states = List.copyOf(next);
+            if (serverTick >= mutation.authorityWindow().latest()) guaranteedPrefix++;
+            if (serverTick >= mutation.authorityWindow().earliest()) possiblePrefix++;
         }
-        return states;
+        possiblePrefix = Math.max(guaranteedPrefix, possiblePrefix);
+
+        List<FeasibleState> prefixes = new ArrayList<>(Math.min(MAX_FEASIBLE_STATES, possiblePrefix - guaranteedPrefix + 1));
+        FeasibleState state = initial;
+        for (int i = 0; i < guaranteedPrefix; i++) state = apply(state, pending.get(i));
+        addDistinct(prefixes, state);
+        for (int i = guaranteedPrefix; i < possiblePrefix && prefixes.size() < MAX_FEASIBLE_STATES; i++) {
+            state = apply(state, pending.get(i));
+            addDistinct(prefixes, state);
+        }
+        return List.copyOf(prefixes);
     }
 
     private static FeasibleState apply(FeasibleState state, PendingEquipmentMutation mutation) {
