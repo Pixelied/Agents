@@ -1,17 +1,21 @@
 package dev.pixelied.survival.validation;
 
+import dev.pixelied.survival.core.MinecraftSnapshotFactory;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantments;
 
 import java.util.UUID;
 
 /** Exact-runtime proof that client-only armor prediction cannot manufacture server mitigation. */
 final class MitigationAuthorityRaceValidationScenarios {
     private static final int CHEST_INVENTORY_INDEX = 38;
+    private static final int PROTECTION_LEVEL = 4;
     private static final double EPSILON = 1.0E-6d;
 
     private MitigationAuthorityRaceValidationScenarios() {
@@ -52,22 +56,44 @@ final class MitigationAuthorityRaceValidationScenarios {
             }
 
             context.runOnClient(minecraft -> {
-                if (minecraft.player == null) throw new AssertionError("client victim disappeared before armor race");
-                // Deliberately mutate only LocalPlayer inventory. No game-mode/container click is
-                // dispatched, so the server never receives an armor change from this test.
-                minecraft.player.getInventory().setItem(
-                    CHEST_INVENTORY_INDEX,
-                    new ItemStack(Items.DIAMOND_CHESTPLATE)
-                );
+                if (minecraft.player == null || minecraft.level == null) {
+                    throw new AssertionError("client victim/level disappeared before armor race");
+                }
+                // Deliberately mutate only LocalPlayer's shared EntityEquipment. No game-mode or
+                // container-click path is dispatched, so the integrated server receives nothing.
+                // Client LivingEntity does not run the server-only attribute recomputation pass,
+                // but MinecraftEquipmentAdapter still observes this equipped stack and its visible
+                // Protection enchantment. That is the actual optimistic mitigation input we need
+                // the runtime authority layer to reject.
+                ItemStack chestplate = new ItemStack(Items.DIAMOND_CHESTPLATE);
+                var protection = minecraft.level.registryAccess()
+                    .lookupOrThrow(Registries.ENCHANTMENT)
+                    .getOrThrow(Enchantments.PROTECTION);
+                chestplate.enchant(protection, PROTECTION_LEVEL);
+                minecraft.player.getInventory().setItem(CHEST_INVENTORY_INDEX, chestplate);
             });
 
-            // Let vanilla's normal client LivingEntity equipment-update tick apply the locally
-            // rendered chestplate attributes. The race is meaningful only after raw local armor is
-            // genuinely non-zero rather than merely changing inventory bytes.
             context.waitFor(minecraft -> minecraft.player != null
-                && minecraft.player.getInventory().getItem(CHEST_INVENTORY_INDEX).is(Items.DIAMOND_CHESTPLATE)
-                && minecraft.player.getAttributeValue(Attributes.ARMOR) > EPSILON
-                && minecraft.player.getAttributeValue(Attributes.ARMOR_TOUGHNESS) > EPSILON);
+                && minecraft.player.getInventory().getItem(CHEST_INVENTORY_INDEX).is(Items.DIAMOND_CHESTPLATE));
+
+            RawClientMitigation rawClient = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null) throw new AssertionError("client victim disappeared during raw armor snapshot");
+                var mitigation = new MinecraftSnapshotFactory().capture(minecraft.player).mitigation();
+                int protection = mitigation.armorPieces().stream()
+                    .mapToInt(piece -> piece.protectionEnchantments().protection())
+                    .sum();
+                return new RawClientMitigation(
+                    minecraft.player.getAttributeValue(Attributes.ARMOR),
+                    minecraft.player.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
+                    mitigation.armorPieces().size(),
+                    protection
+                );
+            });
+            if (rawClient.armorPieces() != 1 || rawClient.protectionLevel() != PROTECTION_LEVEL) {
+                throw new AssertionError(
+                    "armor race failed to establish client-only enchanted mitigation input: " + rawClient
+                );
+            }
 
             ServerState serverState = singleplayer.getServer().computeOnServer(server -> {
                 var victim = BurstSequenceValidationSupport.requireVictim(server, victimId);
@@ -85,27 +111,26 @@ final class MitigationAuthorityRaceValidationScenarios {
 
             RaceFrame race = context.computeOnClient(minecraft -> {
                 if (minecraft.player == null) throw new AssertionError("client victim disappeared during armor race");
-                double rawArmor = minecraft.player.getAttributeValue(Attributes.ARMOR);
-                double rawToughness = minecraft.player.getAttributeValue(Attributes.ARMOR_TOUGHNESS);
                 var frame = harness.runtime().capture();
                 var mitigation = frame.context().player().mitigation();
+                int protection = mitigation.armorPieces().stream()
+                    .mapToInt(piece -> piece.protectionEnchantments().protection())
+                    .sum();
                 return new RaceFrame(
-                    rawArmor,
-                    rawToughness,
                     mitigation.armor(),
                     mitigation.toughness(),
-                    mitigation.armorPieces().size()
+                    mitigation.armorPieces().size(),
+                    protection
                 );
             });
 
-            if (race.rawClientArmor() <= EPSILON || race.rawClientToughness() <= EPSILON) {
-                throw new AssertionError("armor race failed to establish optimistic local mitigation: " + race);
-            }
             if (race.authoritativeArmor() > EPSILON
                 || race.authoritativeToughness() > EPSILON
-                || race.authoritativeArmorPieces() != 0) {
+                || race.authoritativeArmorPieces() != 0
+                || race.authoritativeProtectionLevel() != 0) {
                 throw new AssertionError(
-                    "runtime credited client-only armor before server authority: " + race
+                    "runtime credited client-only enchanted armor before server authority; raw="
+                        + rawClient + " authoritative=" + race
                 );
             }
 
@@ -138,24 +163,29 @@ final class MitigationAuthorityRaceValidationScenarios {
                 }
             });
             context.waitFor(minecraft -> minecraft.player != null
-                && minecraft.player.getInventory().getItem(CHEST_INVENTORY_INDEX).isEmpty()
-                && minecraft.player.getAttributeValue(Attributes.ARMOR) <= EPSILON
-                && minecraft.player.getAttributeValue(Attributes.ARMOR_TOUGHNESS) <= EPSILON);
+                && minecraft.player.getInventory().getItem(CHEST_INVENTORY_INDEX).isEmpty());
         }
     }
 
     private record Baseline(float armor, float toughness, int armorPieces) {
     }
 
+    private record RawClientMitigation(
+        double rawArmorAttribute,
+        double rawToughnessAttribute,
+        int armorPieces,
+        int protectionLevel
+    ) {
+    }
+
     private record ServerState(boolean chestEmpty, double armor, double toughness) {
     }
 
     private record RaceFrame(
-        double rawClientArmor,
-        double rawClientToughness,
         float authoritativeArmor,
         float authoritativeToughness,
-        int authoritativeArmorPieces
+        int authoritativeArmorPieces,
+        int authoritativeProtectionLevel
     ) {
     }
 }
