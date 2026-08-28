@@ -37,8 +37,8 @@ class MinecraftSurvivalRuntimeOpportunityContractTest {
         assertTrue(runtime.contains("private final AuthorityAwareCandidateGenerator candidateGenerator;"));
         assertTrue(runtime.contains("new ServerAuthorityTracker(rawInventory, rawPlayer.mitigation())"));
         assertTrue(runtime.contains("authority.observeUntrackedLocalSelection(rawInventory, timing)"));
-        assertTrue(runtime.contains("equipment.guaranteedDeathProtectionAt(serverTick)"));
-        assertTrue(runtime.contains("rawInventory,\n            menu,\n            policy,\n            equipment"));
+        assertTrue(runtime.contains("popTracker.projectedDeathProtectionAt(equipment, clientTick)"));
+        assertTrue(runtime.contains("rawInventory,\n            menu,\n            policy,\n            equipment,\n            popTracker"));
         assertTrue(runtime.contains(
             "new SurvivalEngine.EngineFrame(context, actualTimeline, opportunities, planningTimeline, candidates)"
         ));
