@@ -98,14 +98,10 @@ public final class NonTotemActionExecutor {
             );
         }
 
-        if (action instanceof SurvivalAction.Relocate relocate) {
-            if (near(context.player().position(), relocate.targetPosition())) {
-                return new ExecutionStatus.Confirmed("relocation target is already observed");
-            }
-            pending = directPending(action, context, relocate.apply(context.player()), null);
-            return new ExecutionStatus.WaitingForServer(
-                "waiting for server-observed relocation",
-                new ExecutionCommand.MoveToward(relocate.targetPosition())
+        if (action instanceof SurvivalAction.Relocate) {
+            return new ExecutionStatus.Failed(
+                "relocation has no server-authoritative movement executor",
+                true
             );
         }
 
