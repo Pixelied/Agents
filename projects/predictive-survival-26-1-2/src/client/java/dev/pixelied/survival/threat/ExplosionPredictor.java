@@ -28,7 +28,16 @@ public final class ExplosionPredictor implements ThreatPredictor {
             ).ifPresent(events::add);
         }
         for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
-            OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(context.world().blocks(), block);
+            // Nearby block capture intentionally contains every non-air block needed by collision,
+            // fall, and explosion models. Reject blocks with no explosion radius metadata before
+            // doing any event-specific occlusion work; rebuilding a collision view for ordinary
+            // terrain turns the fixed nearby cube into quadratic per-frame work.
+            if (resolveRadius(block.properties(), context.safetyMode()) == null) continue;
+            OcclusionView eventWorld = withoutPreExplosionRemovedBlocks(
+                context.world().blocks(),
+                block,
+                world
+            );
             buildEvent(
                 "explosion:block:" + block.blockId() + ":" + block.position(), block.position(),
                 new Vec3Snapshot(0, 0, 0), block.properties(), context, eventWorld
@@ -104,10 +113,11 @@ public final class ExplosionPredictor implements ThreatPredictor {
 
     private static OcclusionView withoutPreExplosionRemovedBlocks(
         List<WorldSnapshot.BlockSnapshot> blocks,
-        WorldSnapshot.BlockSnapshot source
+        WorldSnapshot.BlockSnapshot source,
+        OcclusionView defaultWorld
     ) {
         String group = source.properties().get("pre_explosion_remove_group");
-        if (group == null || group.isBlank()) return new SnapshotOcclusionView(blocks, List.of());
+        if (group == null || group.isBlank()) return defaultWorld;
         List<WorldSnapshot.BlockSnapshot> filtered = blocks.stream()
             .filter(block -> !group.equals(block.properties().get("pre_explosion_remove_group")))
             .toList();
