@@ -203,9 +203,14 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         long serverElapsedMax = saturatingAdd(observedUseTicks.longValue(), age.latest());
         long earliestModeledUseTick = Math.max(BOW_MIN_LEGAL_USE_TICKS, serverElapsedMax);
         long earliestImpactTicks = Math.max(0L, BOW_MIN_LEGAL_USE_TICKS - serverElapsedMax);
-        int boundedUseTicks = earliestModeledUseTick >= Integer.MAX_VALUE
+        long latestImpactTicks = saturatingAdd(earliestImpactTicks, reactionTicks(context));
+        long latestModeledUseTick = Math.max(
+            BOW_MIN_LEGAL_USE_TICKS,
+            saturatingAdd(serverElapsedMax, latestImpactTicks)
+        );
+        int boundedUseTicks = latestModeledUseTick >= Integer.MAX_VALUE
             ? Integer.MAX_VALUE
-            : (int)earliestModeledUseTick;
+            : (int)latestModeledUseTick;
         float power = bowPowerForTime(boundedUseTicks);
         double speed = power * 3.0d;
         float rawDamage = bowArrowRawDamage(power, speed);
@@ -215,6 +220,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         evidence.put("observation_age_max", Long.toString(age.latest()));
         evidence.put("server_use_elapsed_max", Long.toString(serverElapsedMax));
         evidence.put("earliest_lethal_use_tick", Long.toString(earliestModeledUseTick));
+        evidence.put("latest_modeled_use_tick", Long.toString(latestModeledUseTick));
         evidence.put("bow_power_max", Float.toString(power));
         return Optional.of(new Release(
             "bow_arrow",
