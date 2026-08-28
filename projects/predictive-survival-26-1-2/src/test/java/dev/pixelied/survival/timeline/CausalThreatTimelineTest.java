@@ -33,8 +33,8 @@ class CausalThreatTimelineTest {
             5f,
             new HurtState(DamageRange.exact(5f), 20, Confidence.EXACT)
         );
-        ThreatEvent crystalA = event("explosion:101", 4f, 0);
-        ThreatEvent crystalB = event("explosion:102", 10f, 21);
+        ThreatEvent crystalA = event("explosion:101", 4f, new TickWindow(0, 0));
+        ThreatEvent crystalB = event("explosion:102", 10f, new TickWindow(21, 21));
         ThreatTimeline flat = new ThreatTimeline(List.of(crystalA, crystalB));
 
         TimelineResult flatResult = simulator.simulate(start, flat);
@@ -64,8 +64,8 @@ class CausalThreatTimelineTest {
     @Test
     void mutuallyDestructiveSameTickCrystalsCannotConsumeTwoProtections() {
         PlayerSnapshot start = playerWithProtection(5f);
-        ThreatEvent crystalA = event("explosion:201", 10f, 0);
-        ThreatEvent crystalB = event("explosion:202", 20f, 0);
+        ThreatEvent crystalA = event("explosion:201", 10f, new TickWindow(0, 0));
+        ThreatEvent crystalB = event("explosion:202", 20f, new TickWindow(0, 0));
         ThreatTimeline flat = new ThreatTimeline(List.of(crystalA, crystalB));
 
         TimelineResult flatResult = simulator.simulate(start, flat);
@@ -94,7 +94,52 @@ class CausalThreatTimelineTest {
         assertTrue(causalResult.finalHealth() > 0f);
     }
 
-    private static ThreatEvent event(String id, float rawDamage, long tick) {
+    @Test
+    void independentAnchorSourcesRemainIndependentWithoutExplicitRemoval() {
+        PlayerSnapshot start = playerWithProtection(5f);
+        ThreatEvent anchorA = event("anchor:301", 10f, new TickWindow(0, 0));
+        ThreatEvent anchorB = event("anchor:302", 20f, new TickWindow(0, 0));
+        CausalThreatTimeline causal = new CausalThreatTimeline(
+            new ThreatTimeline(List.of(anchorA, anchorB)),
+            Map.of(
+                anchorA.id(), "block:anchor:10,64,10",
+                anchorB.id(), "block:anchor:11,64,10"
+            ),
+            Map.of()
+        );
+
+        TimelineResult result = simulator.simulate(start, causal);
+
+        assertFalse(result.survived(),
+            "a neighboring charged anchor must remain a separate triggerable source when no transition removes it");
+        assertEquals(2, result.eventResults().size());
+        assertEquals(1, result.consumedDeathProtectionCount());
+        assertEquals("anchor:302", result.firstLethalEventId().orElseThrow());
+    }
+
+    @Test
+    void explosionCanSpawnShortenedFuseTntThreatWithItsOwnSourceIdentity() {
+        PlayerSnapshot start = playerWithHurtState(5f, HurtState.unknown());
+        ThreatEvent trigger = event("explosion:401", 0f, new TickWindow(0, 0));
+        // Vanilla explosion-primed TNT uses random.nextInt(fuse / 4) + fuse / 8;
+        // with the vanilla 80-tick TNT fuse this is a conservative [10, 29] window.
+        ThreatEvent spawnedTnt = event("explosion:tnt:402", 10f, new TickWindow(10, 29));
+        CausalThreatTimeline causal = new CausalThreatTimeline(
+            new ThreatTimeline(List.of(trigger)),
+            Map.of(trigger.id(), "entity:401"),
+            Map.of(
+                trigger.id(), List.of(new ThreatTransition.SpawnThreat("entity:primed_tnt:402", spawnedTnt))
+            )
+        );
+
+        TimelineResult result = simulator.simulate(start, causal);
+
+        assertFalse(result.survived(), "spawned shortened-fuse TNT must enter the same causal simulation branch");
+        assertEquals(2, result.eventResults().size());
+        assertEquals("explosion:tnt:402", result.firstLethalEventId().orElseThrow());
+    }
+
+    private static ThreatEvent event(String id, float rawDamage, TickWindow impact) {
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
             Set.of(),
@@ -107,7 +152,7 @@ class CausalThreatTimelineTest {
         return new ThreatEvent(
             id,
             ThreatKind.EXPLOSION,
-            new TickWindow(tick, tick),
+            impact,
             damage,
             Confidence.EXACT,
             Optional.empty(),
