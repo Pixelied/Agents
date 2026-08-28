@@ -43,6 +43,52 @@ public final class ThreatTimelineSimulator {
         return simulateInternal(start, timeline, List.of());
     }
 
+    public TimelineResult simulate(PlayerSnapshot start, CausalThreatTimeline timeline) {
+        java.util.Objects.requireNonNull(timeline, "timeline");
+        return simulate(start, deterministicSourceRemovalProjection(timeline));
+    }
+
+    private static ThreatTimeline deterministicSourceRemovalProjection(CausalThreatTimeline causal) {
+        List<ThreatEvent> ordered = new ArrayList<>(causal.timeline().events());
+        ordered.sort(BASE_ORDER);
+        List<ThreatEvent> remaining = new ArrayList<>(ordered.size());
+        Set<String> removedSources = new HashSet<>();
+
+        for (ThreatEvent event : ordered) {
+            if (removedSources.contains(causal.sourceId(event))) continue;
+            remaining.add(event);
+
+            // A transition attached to an accepted-damage prerequisite cannot be proven to occur in
+            // this deterministic pre-pass. Preserve the later source until branch-local simulation
+            // can establish that prerequisite.
+            if (event.requiresAcceptedEventId().isPresent()) continue;
+            for (ThreatTransition transition : causal.transitionsAfter(event.id())) {
+                if (transition instanceof ThreatTransition.RemoveSource remove) {
+                    if (removalGuaranteedBeforeTarget(causal, event, remove.sourceId())) {
+                        removedSources.add(remove.sourceId());
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "causal transition requires branch-local simulation: " + transition.getClass().getSimpleName()
+                    );
+                }
+            }
+        }
+        return new ThreatTimeline(remaining);
+    }
+
+    private static boolean removalGuaranteedBeforeTarget(
+        CausalThreatTimeline causal,
+        ThreatEvent trigger,
+        String targetSourceId
+    ) {
+        for (ThreatEvent target : causal.timeline().events()) {
+            if (!causal.sourceId(target).equals(targetSourceId)) continue;
+            if (trigger.impact().latest() >= target.impact().earliest()) return false;
+        }
+        return true;
+    }
+
     public TimelineResult simulateWithActivation(
         PlayerSnapshot start,
         ThreatTimeline timeline,
