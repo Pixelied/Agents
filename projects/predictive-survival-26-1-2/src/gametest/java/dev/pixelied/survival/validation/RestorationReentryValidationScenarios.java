@@ -81,7 +81,7 @@ final class RestorationReentryValidationScenarios {
                 var captured = harness.runtime().capture();
                 TimingSnapshot timing = captured.context().timing();
                 long oldRestoreEligible = Math.max(
-                    captured.context().currentServerTick(),
+                    timing.clientTick(),
                     timing.nextPacketProcessingWindow().latest()
                 );
                 long outbound = Math.max(0L, timing.nextPacketProcessingWindow().latest() - timing.clientTick());
