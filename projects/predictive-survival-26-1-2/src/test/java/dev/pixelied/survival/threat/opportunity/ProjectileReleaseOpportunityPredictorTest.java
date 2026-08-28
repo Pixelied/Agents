@@ -105,6 +105,20 @@ class ProjectileReleaseOpportunityPredictorTest {
     }
 
     @Test
+    void bowPowerEnchantmentWidensVisibleReleaseDamage() {
+        LethalOpportunity opportunity = only(predict(attacker(Map.of(
+            "main_hand_item_key", "minecraft:bow",
+            "main_hand_bow_power_enchantment_level", "5",
+            "using_item", "true",
+            "used_hand", "main_hand",
+            "client_observed_use_ticks", "3"
+        )), 3f));
+
+        assertEquals(3f, opportunity.projectedThreat().damage().rawDamage().max());
+        assertEquals("5", opportunity.evidence().get("bow_power_enchantment_level"));
+    }
+
+    @Test
     void bowUsePrearmsBeforeMinimumLegalReleaseWhenAuthorityLeadIsRequired() {
         LethalOpportunity opportunity = only(predict(attacker(Map.of(
             "main_hand_item_key", "minecraft:bow",
