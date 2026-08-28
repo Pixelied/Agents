@@ -40,6 +40,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 singleplayer
             );
             CrystalBurstSequenceValidationScenarios.validatePrecursorThenZeroDelayPlaceBreak(context, singleplayer);
+            ExplosionCausalityValidationScenarios.validateAdjacentObservedCrystalsNeedOnlyOneProtection(
+                context,
+                singleplayer
+            );
             BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
                 context,
                 singleplayer
