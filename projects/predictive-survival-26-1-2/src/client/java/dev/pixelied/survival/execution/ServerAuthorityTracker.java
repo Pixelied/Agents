@@ -81,10 +81,10 @@ public final class ServerAuthorityTracker {
 
     /**
      * Rich local hand observation used by the survival runtime. A selection change is bounded by
-     * the outbound server-processing window. A same-slot content change is different: 26.1.2
-     * container prediction mutates the local menu before sending the click, an exact accepted
-     * prediction can be silent, and a disagreement is learned only when the correction returns.
-     * Therefore same-slot contents remain uncertain through the correction-return deadline.
+     * the outbound server-processing window. A same-slot main-hand or offhand content change is
+     * different: 26.1.2 container prediction mutates the local menu before sending the click, an
+     * exact accepted prediction can be silent, and a disagreement is learned only when the
+     * correction returns. Therefore content changes remain uncertain through that return deadline.
      */
     public void observeUntrackedLocalSelection(InventorySnapshot localInventory, TimingSnapshot timing) {
         Objects.requireNonNull(localInventory, "localInventory");
@@ -93,32 +93,39 @@ public final class ServerAuthorityTracker {
         int localSelectedSlot = localInventory.selectedHotbarIndex();
         validateHotbar(localSelectedSlot);
 
-        InventorySlotSnapshot before = projectedMainHandAfterQueuedMutations();
-        InventorySlotSnapshot after = requireSlot(localInventory, localSelectedSlot);
-        boolean selectionChanged = localSelectedSlot != before.inventoryIndex();
-        boolean sameSlotContentsChanged = !selectionChanged && !before.sameContents(after);
-        if (!selectionChanged && !sameSlotContentsChanged) return;
+        InventorySlotSnapshot mainBefore = projectedMainHandAfterQueuedMutations();
+        InventorySlotSnapshot mainAfter = requireSlot(localInventory, localSelectedSlot);
+        boolean selectionChanged = localSelectedSlot != mainBefore.inventoryIndex();
+        boolean sameSlotContentsChanged = !selectionChanged && !mainBefore.sameContents(mainAfter);
+        if (selectionChanged || sameSlotContentsChanged) {
+            pendingEquipment.add(new PendingEquipmentMutation(
+                SurvivalAction.Hand.MAIN_HAND,
+                mainBefore,
+                mainAfter,
+                selectionChanged ? timing.nextPacketProcessingWindow() : contentAuthorityWindow(timing),
+                PendingEquipmentMutation.Origin.USER,
+                nextEquipmentEpoch()
+            ));
 
-        TickWindow authorityWindow = selectionChanged
-            ? timing.nextPacketProcessingWindow()
-            : new TickWindow(
-                timing.nextPacketProcessingWindow().earliest(),
-                timing.containerPredictionSettleTick()
-            );
-        pendingEquipment.add(new PendingEquipmentMutation(
-            SurvivalAction.Hand.MAIN_HAND,
-            before,
-            after,
-            authorityWindow,
-            PendingEquipmentMutation.Origin.USER,
-            nextEquipmentEpoch()
-        ));
+            if (selectionChanged) {
+                // Preserve the legacy scalar projection for execution code. The newer user packet is
+                // the latest selected-slot target, while the rich queue retains packets already sent.
+                pendingSelectedSlot = localSelectedSlot;
+                pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
+            }
+        }
 
-        if (selectionChanged) {
-            // Preserve the legacy scalar projection for execution code. The newer user packet is the
-            // latest selected-slot target, while the rich queue retains packets already sent.
-            pendingSelectedSlot = localSelectedSlot;
-            pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
+        InventorySlotSnapshot offBefore = projectedOffHandAfterQueuedMutations();
+        InventorySlotSnapshot offAfter = requireSlot(localInventory, 40);
+        if (!offBefore.sameContents(offAfter)) {
+            pendingEquipment.add(new PendingEquipmentMutation(
+                SurvivalAction.Hand.OFF_HAND,
+                offBefore,
+                offAfter,
+                contentAuthorityWindow(timing),
+                PendingEquipmentMutation.Origin.USER,
+                nextEquipmentEpoch()
+            ));
         }
     }
 
@@ -155,7 +162,7 @@ public final class ServerAuthorityTracker {
                 observedMainHand.componentFingerprint(),
                 observedMainHand.count()
             )) {
-                int resolvedPrefix = resolvedSameSlotUserPrefix(observedMainHand);
+                int resolvedPrefix = resolvedUserContentPrefix(SurvivalAction.Hand.MAIN_HAND, observedMainHand);
                 if (!confirmedMainHand.sameContents(observedMainHand)) {
                     confirmedMainHand = observedMainHand;
                     authorityChanged = true;
@@ -174,9 +181,16 @@ public final class ServerAuthorityTracker {
                 observedOffHand.stackKey(),
                 observedOffHand.componentFingerprint(),
                 observedOffHand.count()
-            ) && !confirmedOffHand.sameContents(observedOffHand)) {
-                confirmedOffHand = observedOffHand;
-                authorityChanged = true;
+            )) {
+                int resolvedPrefix = resolvedUserContentPrefix(SurvivalAction.Hand.OFF_HAND, observedOffHand);
+                if (!confirmedOffHand.sameContents(observedOffHand)) {
+                    confirmedOffHand = observedOffHand;
+                    authorityChanged = true;
+                }
+                if (resolvedPrefix > 0) {
+                    pendingEquipment.subList(0, resolvedPrefix).clear();
+                    authorityChanged = true;
+                }
             }
         }
 
@@ -301,22 +315,29 @@ public final class ServerAuthorityTracker {
     }
 
     /**
-     * Returns how many leading same-slot USER predictions are resolved by an authoritative hand
-     * snapshot. Only a leading prefix is eligible: server packets and outbound clicks are ordered,
-     * so evidence for an earlier click cannot erase a later click that may still be in flight.
+     * Returns how many leading same-physical-hand USER content predictions are resolved by an
+     * authoritative hand snapshot. Only a leading prefix is eligible: server packets and outbound
+     * clicks are ordered, so evidence for an earlier click cannot erase a later click still in flight.
      */
-    private int resolvedSameSlotUserPrefix(InventorySlotSnapshot authoritativeMainHand) {
+    private int resolvedUserContentPrefix(
+        SurvivalAction.Hand hand,
+        InventorySlotSnapshot authoritativeHand
+    ) {
+        InventorySlotSnapshot confirmed = hand == SurvivalAction.Hand.MAIN_HAND
+            ? confirmedMainHand
+            : confirmedOffHand;
+        int physicalIndex = hand == SurvivalAction.Hand.MAIN_HAND ? confirmedSelectedSlot : 40;
         int runLength = 0;
-        int matchedPrefix = confirmedMainHand.sameContents(authoritativeMainHand) ? 0 : -1;
+        int matchedPrefix = confirmed.sameContents(authoritativeHand) ? 0 : -1;
         for (PendingEquipmentMutation mutation : pendingEquipment) {
             if (mutation.origin() != PendingEquipmentMutation.Origin.USER
-                || mutation.hand() != SurvivalAction.Hand.MAIN_HAND
-                || mutation.before().inventoryIndex() != confirmedSelectedSlot
-                || mutation.after().inventoryIndex() != confirmedSelectedSlot) {
+                || mutation.hand() != hand
+                || mutation.before().inventoryIndex() != physicalIndex
+                || mutation.after().inventoryIndex() != physicalIndex) {
                 break;
             }
             runLength++;
-            if (matchedPrefix < 0 && mutation.after().sameContents(authoritativeMainHand)) {
+            if (matchedPrefix < 0 && mutation.after().sameContents(authoritativeHand)) {
                 matchedPrefix = runLength;
             }
         }
@@ -325,7 +346,7 @@ public final class ServerAuthorityTracker {
             // Old/pre-click evidence is conservative only when the confirmed state has no death
             // protection to over-credit. If protection is currently confirmed, a later removal may
             // still be in flight, so keep that mutation adverse until its correction-return settle.
-            return confirmedMainHand.deathProtection() ? 0 : 1;
+            return confirmed.deathProtection() ? 0 : 1;
         }
         return 0;
     }
@@ -336,6 +357,21 @@ public final class ServerAuthorityTracker {
             if (mutation.hand() == SurvivalAction.Hand.MAIN_HAND) return mutation.after();
         }
         return confirmedMainHand;
+    }
+
+    private InventorySlotSnapshot projectedOffHandAfterQueuedMutations() {
+        for (int i = pendingEquipment.size() - 1; i >= 0; i--) {
+            PendingEquipmentMutation mutation = pendingEquipment.get(i);
+            if (mutation.hand() == SurvivalAction.Hand.OFF_HAND) return mutation.after();
+        }
+        return confirmedOffHand;
+    }
+
+    private static TickWindow contentAuthorityWindow(TimingSnapshot timing) {
+        return new TickWindow(
+            timing.nextPacketProcessingWindow().earliest(),
+            timing.containerPredictionSettleTick()
+        );
     }
 
     private long nextEquipmentEpoch() {
