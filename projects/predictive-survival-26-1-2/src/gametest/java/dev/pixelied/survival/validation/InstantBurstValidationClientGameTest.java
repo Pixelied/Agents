@@ -21,6 +21,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 singleplayer
             );
             BowReleasePrecursorValidationScenarios.validatePrearmsBeforeFirstLegalRelease(context, singleplayer);
+            BowPowerReleasePrecursorValidationScenarios.validatePowerEnchantmentWidensRealReleaseBound(
+                context,
+                singleplayer
+            );
             CrystalBurstSequenceValidationScenarios.validatePrecursorThenZeroDelayPlaceBreak(context, singleplayer);
             BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
                 context,
