@@ -48,6 +48,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            RepeatedDamageStateValidationScenarios.validateFullExplosionHitReconcilesAcrossClientFrames(
+                context,
+                singleplayer
+            );
             BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
                 context,
                 singleplayer
