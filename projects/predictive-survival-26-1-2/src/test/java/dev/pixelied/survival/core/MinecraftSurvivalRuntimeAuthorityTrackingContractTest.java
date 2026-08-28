@@ -53,7 +53,7 @@ class MinecraftSurvivalRuntimeAuthorityTrackingContractTest {
     }
 
     @Test
-    void captureProjectsMitigationThroughServerAuthorityBeforePrediction() throws Exception {
+    void captureProjectsMitigationAndPopAdjustedProtectionBeforePrediction() throws Exception {
         String runtime = Files.readString(Path.of(
             "src/client/java/dev/pixelied/survival/core/MinecraftSurvivalRuntime.java"
         ));
@@ -68,15 +68,22 @@ class MinecraftSurvivalRuntimeAuthorityTrackingContractTest {
             "runtime capture must track client-predicted mitigation before building the authority projection"
         );
 
+        assertTrue(
+            runtime.contains(
+                "DeathProtectionSnapshot projectedProtection = popTracker.projectedDeathProtectionAt(equipment, clientTick);"
+            ),
+            "runtime capture must project guaranteed authority protection through unresolved pop generations"
+        );
+
         Pattern authorityReconstruction = Pattern.compile(
             "private static PlayerSnapshot withAuthoritativeDeathProtection\\([^}]*?"
                 + "equipment\\.conservativeMitigationAt\\(serverTick\\)[^}]*?"
-                + "equipment\\.guaranteedDeathProtectionAt\\(serverTick\\)",
+                + "protection, player\\.boundingBox\\(\\)",
             Pattern.DOTALL
         );
         assertTrue(
             authorityReconstruction.matcher(runtime).find(),
-            "the authority player reconstruction must use conservative mitigation and guaranteed protection"
+            "the authority player reconstruction must use conservative mitigation and pop-adjusted protection"
         );
     }
 }
