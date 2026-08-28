@@ -42,6 +42,10 @@ public final class ContingencyPlanner {
         this.maxEvaluations = maxEvaluations;
     }
 
+    public int maxEvaluations() {
+        return maxEvaluations;
+    }
+
     public ContingencyPlan plan(
         PredictionContext context,
         ThreatTimeline timeline,
@@ -65,11 +69,34 @@ public final class ContingencyPlanner {
         SafetyMode safetyMode,
         RescueProfile profile
     ) {
+        return planAcrossScenarios(
+            context,
+            scenarios,
+            candidates,
+            safetyMode,
+            profile,
+            maxEvaluations
+        );
+    }
+
+    /**
+     * Same bounded search with a caller-supplied per-call ceiling. The requested ceiling can only
+     * reduce this planner's configured maximum; callers cannot use it to raise the planner budget.
+     */
+    public ContingencyPlan planAcrossScenarios(
+        PredictionContext context,
+        List<ThreatTimeline> scenarios,
+        List<SurvivalAction> candidates,
+        SafetyMode safetyMode,
+        RescueProfile profile,
+        int evaluationLimit
+    ) {
         Objects.requireNonNull(context, "context");
         scenarios = validatedScenarios(scenarios);
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(safetyMode, "safetyMode");
         Objects.requireNonNull(profile, "profile");
+        if (evaluationLimit <= 0) throw new IllegalArgumentException("evaluationLimit must be positive");
 
         ScenarioBaseline baseline = baseline(context, scenarios);
         if (baseline.allSurvived()) return ContingencyPlan.baseline(baseline.representative());
@@ -82,7 +109,7 @@ public final class ContingencyPlanner {
         }
         if (legal.isEmpty()) return ContingencyPlan.baseline(baseline.representative());
 
-        SearchBudget budget = new SearchBudget(maxEvaluations);
+        SearchBudget budget = new SearchBudget(Math.min(maxEvaluations, evaluationLimit));
         for (int depth = 1; depth <= maxDepth; depth++) {
             List<SequenceEvaluation> survivors = new ArrayList<>();
             enumerate(
