@@ -89,6 +89,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             InstantExplosionGuardValidationScenarios.validateVisibleInstantSourcesArmBeforeDetonation(context, singleplayer);
             TriggerableExplosionRangeValidationScenarios.validateNineBlockRespawnAnchorArmsBeforeDetonation(context, singleplayer);
             HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger(context, singleplayer);
+            RestorationReentryValidationScenarios.validateSafeFlickerCannotRestoreBeforeDangerReturns(context, singleplayer);
             BlockingCooldownValidationScenarios.validateServerCooldownMakesShieldUnavailable(context, singleplayer);
             FirstFrameProjectileAuthorityValidationScenarios.measureFirstFrameAuthority(context, singleplayer);
             waitForServerClientLoaded(context, singleplayer);
