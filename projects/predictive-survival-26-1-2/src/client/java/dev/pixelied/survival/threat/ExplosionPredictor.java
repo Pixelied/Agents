@@ -30,7 +30,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
 
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
             buildEvent(
-                "explosion:" + entity.id(), resolveCenter(entity.position(), entity.properties()),
+                entityEventId(entity), resolveCenter(entity.position(), entity.properties()),
                 entity.velocity(), entity.properties(), context, world
             ).ifPresent(events::add);
         }
@@ -46,7 +46,7 @@ public final class ExplosionPredictor implements ThreatPredictor {
                 world
             );
             buildEvent(
-                "explosion:block:" + block.blockId() + ":" + block.position(), block.position(),
+                blockEventId(block), block.position(),
                 new Vec3Snapshot(0, 0, 0), block.properties(), context, eventWorld
             ).ifPresent(events::add);
         }
@@ -64,33 +64,47 @@ public final class ExplosionPredictor implements ThreatPredictor {
 
         Map<String, WorldSnapshot.EntitySnapshot> observedExplosionEntities = new LinkedHashMap<>();
         for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
-            observedExplosionEntities.put("explosion:" + entity.id(), entity);
+            observedExplosionEntities.put(entityEventId(entity), entity);
+        }
+        Map<String, WorldSnapshot.BlockSnapshot> observedExplosionBlocks = new LinkedHashMap<>();
+        for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+            if (resolveRadius(block.properties(), context.safetyMode()) == null) continue;
+            observedExplosionBlocks.put(blockEventId(block), block);
         }
 
         Map<String, String> sourceIds = new LinkedHashMap<>();
         for (ThreatEvent event : timeline.events()) {
-            WorldSnapshot.EntitySnapshot observed = observedExplosionEntities.get(event.id());
-            sourceIds.put(
-                event.id(),
-                observed == null ? "event:" + event.id() : entitySourceId(observed)
-            );
+            WorldSnapshot.EntitySnapshot observedEntity = observedExplosionEntities.get(event.id());
+            WorldSnapshot.BlockSnapshot observedBlock = observedExplosionBlocks.get(event.id());
+            String sourceId = observedEntity != null
+                ? entitySourceId(observedEntity)
+                : observedBlock != null
+                    ? blockSourceId(observedBlock)
+                    : "event:" + event.id();
+            sourceIds.put(event.id(), sourceId);
         }
 
         Map<String, List<ThreatTransition>> transitions = new LinkedHashMap<>();
         for (ThreatEvent event : timeline.events()) {
-            WorldSnapshot.EntitySnapshot source = observedExplosionEntities.get(event.id());
-            if (source == null) continue;
+            WorldSnapshot.EntitySnapshot sourceEntity = observedExplosionEntities.get(event.id());
+            WorldSnapshot.BlockSnapshot sourceBlock = observedExplosionBlocks.get(event.id());
+            if (sourceEntity == null && sourceBlock == null) continue;
 
-            RadiusResolution radius = resolveRadius(source.properties(), context.safetyMode());
+            Map<String, String> properties = sourceEntity != null
+                ? sourceEntity.properties()
+                : sourceBlock.properties();
+            RadiusResolution radius = resolveRadius(properties, context.safetyMode());
             if (radius == null || radius.radius().min() <= 0f) continue;
             double guaranteedEntityReach = 2d * radius.radius().min();
             double reachSquared = guaranteedEntityReach * guaranteedEntityReach;
-            Vec3Snapshot center = resolveCenter(source.position(), source.properties());
+            Vec3Snapshot center = sourceEntity != null
+                ? resolveCenter(sourceEntity.position(), properties)
+                : sourceBlock.position();
             List<ThreatTransition> after = new ArrayList<>();
 
             for (WorldSnapshot.EntitySnapshot target : context.world().entities()) {
                 if (!"minecraft:end_crystal".equals(target.typeKey())) continue;
-                if (target.id().equals(source.id())) continue;
+                if (sourceEntity != null && target.id().equals(sourceEntity.id())) continue;
                 if (distanceSquared(center, target.position()) > reachSquared + CAUSAL_DISTANCE_EPSILON) continue;
                 after.add(new ThreatTransition.RemoveSource(entitySourceId(target)));
             }
@@ -183,8 +197,23 @@ public final class ExplosionPredictor implements ThreatPredictor {
             && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
     }
 
+    private static String entityEventId(WorldSnapshot.EntitySnapshot entity) {
+        return "explosion:" + entity.id();
+    }
+
+    private static String blockEventId(WorldSnapshot.BlockSnapshot block) {
+        return "explosion:block:" + block.blockId() + ":" + block.position();
+    }
+
     private static String entitySourceId(WorldSnapshot.EntitySnapshot entity) {
         return "entity:" + entity.id();
+    }
+
+    private static String blockSourceId(WorldSnapshot.BlockSnapshot block) {
+        String group = block.properties().get("pre_explosion_remove_group");
+        return group == null || group.isBlank()
+            ? "block:" + block.blockId() + ":" + block.position()
+            : "block:" + group;
     }
 
     private static double distanceSquared(Vec3Snapshot first, Vec3Snapshot second) {
