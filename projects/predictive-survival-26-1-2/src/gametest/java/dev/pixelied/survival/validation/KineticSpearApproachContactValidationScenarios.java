@@ -77,10 +77,11 @@ final class KineticSpearApproachContactValidationScenarios {
                 throw new AssertionError("far Kinetic spear damaged victim before approach: health=" + victim.getHealth());
             }
 
-            faceVictim(attacker, victim);
-            Vec3 approachVelocity = attacker.getLookAngle().scale(APPROACH_SPEED_PER_TICK);
-            attacker.setDeltaMovement(approachVelocity);
-            attacker.setKnownMovement(approachVelocity);
+            // Keep the hostile player stationary until the victim hotbar and synchronized spear-use
+            // baseline are both visible on the client. Otherwise client-wait ticks physically move
+            // the real server entity and can turn this future-approach scenario into an in-range one.
+            attacker.setDeltaMovement(Vec3.ZERO);
+            attacker.setKnownMovement(Vec3.ZERO);
             victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
             victim.connection.send(new ClientboundSetEntityMotionPacket(attacker));
             var values = attacker.getEntityData().getNonDefaultValues();
@@ -89,11 +90,21 @@ final class KineticSpearApproachContactValidationScenarios {
             }
             victim.connection.send(new ClientboundSetEntityDataPacket(attacker.getId(), values));
 
-            return new Setup(victim.getUUID(), originalPosition, victimPosition, handle);
+            return new Setup(victim.getUUID(), originalPosition, victimPosition, approachPosition, handle);
         });
 
         try {
-            waitForClientApproachAndInventory(context, setup.attacker());
+            // Setting Inventory.selected on the server does not send ClientboundSetHeldSlotPacket in
+            // 26.1.2. Establish the same hotbar authority path production relies on before capture.
+            BurstSequenceValidationSupport.ensureSelectedSlot(
+                context,
+                singleplayer,
+                setup.victimId(),
+                0,
+                "kinetic_spear_approach_baseline"
+            );
+            waitForClientStationaryBaseline(context, setup);
+            beginApproach(context, singleplayer, setup);
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
 
             PreArm preArm = context.computeOnClient(minecraft -> {
@@ -298,23 +309,88 @@ final class KineticSpearApproachContactValidationScenarios {
         }
     }
 
-    private static void waitForClientApproachAndInventory(
+    private static void waitForClientStationaryBaseline(ClientGameTestContext context, Setup setup) {
+        ClientBaseline last = null;
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            last = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null || minecraft.level == null) {
+                    return new ClientBaseline(false, false, "missing", false, false, "missing", Vec3.ZERO, Vec3.ZERO,
+                        -1, "missing", "missing", "missing");
+                }
+                Entity entity = minecraft.level.getEntity(setup.attacker().entityId());
+                if (!(entity instanceof net.minecraft.world.entity.player.Player remote)) {
+                    return new ClientBaseline(true, false, "missing", false, false, "missing", Vec3.ZERO, Vec3.ZERO,
+                        minecraft.player.getInventory().getSelectedSlot(),
+                        minecraft.player.getInventory().getItem(0).toString(),
+                        minecraft.player.getInventory().getItem(1).toString(),
+                        minecraft.player.getOffhandItem().toString());
+                }
+                return new ClientBaseline(
+                    true,
+                    true,
+                    remote.getMainHandItem().toString(),
+                    remote.getMainHandItem().has(DataComponents.KINETIC_WEAPON),
+                    remote.isUsingItem(),
+                    remote.getUsedItemHand().name(),
+                    remote.position(),
+                    remote.getDeltaMovement(),
+                    minecraft.player.getInventory().getSelectedSlot(),
+                    minecraft.player.getInventory().getItem(0).toString(),
+                    minecraft.player.getInventory().getItem(1).toString(),
+                    minecraft.player.getOffhandItem().toString()
+                );
+            });
+            if (last.playerPresent()
+                && last.remotePresent()
+                && last.remoteMainHand().contains("netherite_spear")
+                && last.hasKinetic()
+                && last.usingItem()
+                && InteractionHand.MAIN_HAND.name().equals(last.usedHand())
+                && last.remotePosition().distanceToSqr(setup.approachPosition()) <= 0.05d * 0.05d
+                && last.remoteVelocity().lengthSqr() <= 1.0E-8d
+                && last.selectedSlot() == 0
+                && last.slot0().contains("stick")
+                && last.slot1().contains("totem_of_undying")
+                && (last.offhand().contains("air") || last.offhand().contains("empty"))) {
+                return;
+            }
+            context.waitTick();
+        }
+        throw new AssertionError("kinetic approach stationary baseline never synchronized; last=" + last);
+    }
+
+    private static void beginApproach(
         ClientGameTestContext context,
-        BurstSequenceValidationSupport.AttackerHandle attacker
+        TestSingleplayerContext singleplayer,
+        Setup setup
     ) {
+        singleplayer.getServer().runOnServer(server -> {
+            ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
+            ServerPlayer attacker = BurstSequenceValidationSupport.requireAttacker(server, setup.attacker());
+            if (attacker.position().distanceToSqr(setup.approachPosition()) > 0.05d * 0.05d) {
+                throw new AssertionError(
+                    "kinetic approach attacker drifted before motion was armed; position=" + attacker.position()
+                );
+            }
+            if (attacker.getTicksUsingItem() != 1) {
+                throw new AssertionError(
+                    "kinetic approach use time advanced during stationary baseline; ticks=" + attacker.getTicksUsingItem()
+                );
+            }
+            faceVictim(attacker, victim);
+            Vec3 approachVelocity = attacker.getLookAngle().scale(APPROACH_SPEED_PER_TICK);
+            attacker.setDeltaMovement(approachVelocity);
+            attacker.setKnownMovement(approachVelocity);
+            victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
+            victim.connection.send(new ClientboundSetEntityMotionPacket(attacker));
+        });
+
         context.waitFor(minecraft -> {
-            if (minecraft.player == null || minecraft.level == null) return false;
-            Entity entity = minecraft.level.getEntity(attacker.entityId());
-            if (!(entity instanceof net.minecraft.world.entity.player.Player remote)) return false;
-            return remote.getMainHandItem().is(Items.NETHERITE_SPEAR)
-                && remote.getMainHandItem().has(DataComponents.KINETIC_WEAPON)
-                && remote.isUsingItem()
-                && remote.getUsedItemHand() == InteractionHand.MAIN_HAND
-                && remote.getDeltaMovement().lengthSqr() >= APPROACH_SPEED_PER_TICK * APPROACH_SPEED_PER_TICK * 0.5d
-                && minecraft.player.getInventory().getSelectedSlot() == 0
-                && minecraft.player.getInventory().getItem(0).is(Items.STICK)
-                && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING)
-                && minecraft.player.getOffhandItem().isEmpty();
+            if (minecraft.level == null) return false;
+            Entity entity = minecraft.level.getEntity(setup.attacker().entityId());
+            return entity instanceof net.minecraft.world.entity.player.Player remote
+                && remote.getDeltaMovement().lengthSqr()
+                    >= APPROACH_SPEED_PER_TICK * APPROACH_SPEED_PER_TICK * 0.5d;
         });
     }
 
@@ -380,7 +456,24 @@ final class KineticSpearApproachContactValidationScenarios {
         UUID victimId,
         Vec3 originalPosition,
         Vec3 victimPosition,
+        Vec3 approachPosition,
         BurstSequenceValidationSupport.AttackerHandle attacker
+    ) {
+    }
+
+    private record ClientBaseline(
+        boolean playerPresent,
+        boolean remotePresent,
+        String remoteMainHand,
+        boolean hasKinetic,
+        boolean usingItem,
+        String usedHand,
+        Vec3 remotePosition,
+        Vec3 remoteVelocity,
+        int selectedSlot,
+        String slot0,
+        String slot1,
+        String offhand
     ) {
     }
 
