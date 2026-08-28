@@ -94,7 +94,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                         CROSSBOW_ARROW_SPEED,
                         upperBound,
                         0L,
-                        EnumSet.of(DamageFlag.IS_PROJECTILE, DamageFlag.BYPASSES_ARMOR),
+                        EnumSet.of(DamageFlag.BYPASSES_ARMOR),
                         "minecraft:magic",
                         true,
                         Map.of(
