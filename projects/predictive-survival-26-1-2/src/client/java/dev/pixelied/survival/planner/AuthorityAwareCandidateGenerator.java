@@ -8,6 +8,7 @@ import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
+import dev.pixelied.survival.timeline.CausalThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 
 import java.util.List;
@@ -34,6 +35,34 @@ public final class AuthorityAwareCandidateGenerator {
         EquipmentAuthorityProjection equipment
     ) {
         return generate(context, timeline, inventory, menu, policy, equipment, null);
+    }
+
+    public List<SurvivalAction> generate(
+        PredictionContext context,
+        CausalThreatTimeline timeline,
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        RescuePolicy policy,
+        EquipmentAuthorityProjection equipment
+    ) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(timeline, "timeline");
+        Objects.requireNonNull(inventory, "inventory");
+        Objects.requireNonNull(menu, "menu");
+        Objects.requireNonNull(policy, "policy");
+        Objects.requireNonNull(equipment, "equipment");
+
+        var earliestRelativeImpact = timeline.expandedTimeline().events().stream()
+            .mapToLong(event -> event.impact().earliest())
+            .min();
+        long damageDeadline = earliestRelativeImpact.isPresent()
+            ? saturatingAdd(context.timing().clientTick(), earliestRelativeImpact.getAsLong())
+            : context.timing().nextPacketProcessingWindow().latest();
+
+        InventorySnapshot projectedInventory = equipment.conservativeInventoryAt(inventory, damageDeadline);
+        DeathProtectionSnapshot guaranteedProtection = equipment.guaranteedDeathProtectionAt(damageDeadline);
+        PredictionContext projectedContext = withGuaranteedProtection(context, guaranteedProtection);
+        return delegate.generate(projectedContext, timeline, projectedInventory, menu, policy);
     }
 
     public List<SurvivalAction> generate(
