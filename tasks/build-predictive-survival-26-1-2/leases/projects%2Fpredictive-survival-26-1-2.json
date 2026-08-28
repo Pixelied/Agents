@@ -7,7 +7,7 @@
   "state": "active",
   "intent": "Execute the approved Predictive Survival 26.1.2 deep-audit runtime state-machine plan from the current canonical project head using regression-first TDD, supplied 26.1.2 source verification, exact-runtime GameTests, and no direct writes to canonical/main implementation state.",
   "claimed_at": "2026-08-27T14:02:00+00:00",
-  "heartbeat_at": "2026-08-27T23:29:00+00:00",
-  "expires_at": "2026-08-28T03:29:00+00:00",
-  "generation": 9
+  "heartbeat_at": "2026-08-28T08:12:00+00:00",
+  "expires_at": "2026-08-28T12:12:00+00:00",
+  "generation": 10
 }
