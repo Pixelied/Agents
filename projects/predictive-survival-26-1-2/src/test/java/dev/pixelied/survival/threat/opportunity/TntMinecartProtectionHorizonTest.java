@@ -20,11 +20,11 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TntMinecartProtectionHorizonTest {
     @Test
-    void collisionBeyondImmediateHotbarAuthorityHorizonIsNotForecastYet() {
+    void oneFutureAnalysisTickIsReservedBeyondImmediateHotbarAuthority() {
         WorldSnapshot.EntitySnapshot cart = new WorldSnapshot.EntitySnapshot(
             "cart",
             "minecraft:tnt_minecart",
@@ -79,9 +79,14 @@ class TntMinecartProtectionHorizonTest {
             SafetyMode.BALANCED
         );
 
-        assertTrue(
-            new TntMinecartOpportunityPredictor().predict(context).isEmpty(),
-            "a tick-2 collision is beyond the tick-1 hotbar authority guarantee and can be reconsidered next frame"
+        LethalOpportunity opportunity = new TntMinecartOpportunityPredictor()
+            .predict(context)
+            .getFirst();
+        assertEquals(2L, opportunity.projectedThreat().impact().earliest());
+        assertEquals(
+            "2",
+            opportunity.evidence().get("forecast_horizon_ticks"),
+            "the predictor keeps one future analysis tick beyond the current tick-1 hotbar authority window"
         );
     }
 }
