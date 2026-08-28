@@ -97,14 +97,14 @@ public final class ProtectionHoldLease {
 
     public record ProtectionRequirement(
         boolean lethalActualThreat,
-        boolean lethalOpportunity,
+        boolean lethalOpportunityPresent,
         boolean relevantObservationOverflow,
         boolean rescueOrRestorePending,
         boolean unprocessedPop
     ) {
         public boolean required() {
             return lethalActualThreat
-                || lethalOpportunity
+                || lethalOpportunityPresent
                 || relevantObservationOverflow
                 || rescueOrRestorePending
                 || unprocessedPop;
