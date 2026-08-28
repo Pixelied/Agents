@@ -98,6 +98,17 @@ public record EquipmentAuthorityProjection(
     }
 
     /**
+     * Mitigation safe to credit without knowing which feasible equipment prefix the server has
+     * processed. A unique authority state is exact; an ambiguous state credits no mitigation so a
+     * client-only armor prediction can never turn a lethal server outcome into a false-safe one.
+     */
+    public MitigationSnapshot conservativeMitigationAt(long serverTick) {
+        List<MitigationSnapshot> feasible = feasibleMitigationAt(serverTick);
+        if (feasible.size() == 1) return feasible.getFirst();
+        return MitigationSnapshot.none();
+    }
+
+    /**
      * Death protection that is present in the same physical hand in every feasible branch. If hand
      * identity or the exact protection component differs across branches, it is not credited.
      */
