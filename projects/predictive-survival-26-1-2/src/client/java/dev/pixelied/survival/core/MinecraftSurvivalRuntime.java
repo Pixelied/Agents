@@ -2,7 +2,9 @@ package dev.pixelied.survival.core;
 
 import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.damage.BlockingSnapshot;
+import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.execution.DeathProtectionActionExecutor;
+import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.DeathProtectionRestorationController;
 import dev.pixelied.survival.execution.ExecutionCommand;
 import dev.pixelied.survival.execution.ExecutionContext;
@@ -14,6 +16,7 @@ import dev.pixelied.survival.execution.NonTotemActionExecutor;
 import dev.pixelied.survival.execution.NonTotemExecutionContext;
 import dev.pixelied.survival.execution.PendingEquipmentMutation;
 import dev.pixelied.survival.execution.ServerAuthorityTracker;
+import dev.pixelied.survival.execution.ServerStateEvidenceSnapshot;
 import dev.pixelied.survival.execution.ShieldActionExecutor;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
@@ -37,13 +40,13 @@ import dev.pixelied.survival.threat.ThreatPredictorRegistry;
 import dev.pixelied.survival.threat.WardenSonicBoomPredictor;
 import dev.pixelied.survival.threat.opportunity.BedOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.CrystalOpportunityPredictor;
-import dev.pixelied.survival.threat.opportunity.RespawnAnchorOpportunityPredictor;
-import dev.pixelied.survival.threat.opportunity.TntMinecartOpportunityPredictor;
-import dev.pixelied.survival.threat.opportunity.MeleeApproachOpportunityPredictor;
-import dev.pixelied.survival.threat.opportunity.ProjectileReleaseOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunity;
 import dev.pixelied.survival.threat.opportunity.LethalOpportunityRegistry;
+import dev.pixelied.survival.threat.opportunity.MeleeApproachOpportunityPredictor;
 import dev.pixelied.survival.threat.opportunity.OpportunityTimelineAssembler;
+import dev.pixelied.survival.threat.opportunity.ProjectileReleaseOpportunityPredictor;
+import dev.pixelied.survival.threat.opportunity.RespawnAnchorOpportunityPredictor;
+import dev.pixelied.survival.threat.opportunity.TntMinecartOpportunityPredictor;
 import dev.pixelied.survival.timing.ServerTimingEstimator;
 import dev.pixelied.survival.timing.TimingSnapshot;
 import dev.pixelied.survival.timeline.ThreatEvent;
@@ -79,6 +82,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final ShieldActionExecutor shieldExecutor;
     private final NonTotemActionExecutor nonTotemExecutor;
     private final MinecraftCommandDispatcher dispatcher;
+    private final DeathProtectionPopTracker popTracker;
 
     private final CaptureTickClock captureTickClock = new CaptureTickClock();
     private ServerAuthorityTracker authority;
@@ -128,6 +132,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.shieldExecutor = new ShieldActionExecutor();
         this.nonTotemExecutor = new NonTotemActionExecutor();
         this.dispatcher = new MinecraftCommandDispatcher();
+        this.popTracker = DeathProtectionPopTracker.global();
     }
 
     @Override
@@ -163,7 +168,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         if (authority == null) authority = new ServerAuthorityTracker(rawInventory, rawPlayer.mitigation());
         // Evidence hooks run after vanilla applies clientbound state. Consume those authoritative
         // deltas before classifying any remaining local equipment change as prediction/user action.
-        authority.observeServerEvidence(MinecraftServerStateEvidence.snapshot(), rawInventory);
+        ServerStateEvidenceSnapshot serverEvidence = MinecraftServerStateEvidence.snapshot();
+        authority.observeServerEvidence(serverEvidence, rawInventory);
         authority.observeUntrackedLocalSelection(rawInventory, timing);
         authority.observeUntrackedLocalMitigation(rawPlayer.mitigation(), timing);
         EquipmentAuthorityProjection equipment = authority.equipmentProjection(
@@ -171,10 +177,17 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             rawPlayer.mitigation(),
             clientTick
         );
-        InventorySnapshot inventory = equipment.conservativeInventoryAt(rawInventory, clientTick);
+        popTracker.reconcile(equipment, rawInventory, serverEvidence, clientTick);
+        InventorySnapshot inventory = popTracker.conservativeInventoryAfterPop(rawInventory, equipment, clientTick);
         MenuSlotMap menu = inventorySnapshots.captureMenu(player);
 
-        PlayerSnapshot authorityPlayer = withAuthoritativeDeathProtection(rawPlayer, equipment, clientTick);
+        DeathProtectionSnapshot projectedProtection = popTracker.projectedDeathProtectionAt(equipment, clientTick);
+        PlayerSnapshot authorityPlayer = withAuthoritativeDeathProtection(
+            rawPlayer,
+            equipment,
+            projectedProtection,
+            clientTick
+        );
         PlayerSnapshot contactPlayer = contactHazardSnapshots.annotate(player, authorityPlayer);
         PlayerSnapshot playerSnapshot = withConservativeBlocking(contactPlayer, player, timing);
         WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
@@ -198,7 +211,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             rawInventory,
             menu,
             policy,
-            equipment
+            equipment,
+            popTracker
         );
 
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, actualTimeline, opportunities, planningTimeline, candidates);
@@ -221,6 +235,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             restorationEnabled,
             lethalWithoutProtection,
             survivalActionActive,
+            popTracker.generation(),
+            popTracker.consumptionUnresolved(),
             executionContext(state)
         );
         if (restore.isEmpty()) return;
@@ -334,14 +350,15 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private static PlayerSnapshot withAuthoritativeDeathProtection(
         PlayerSnapshot player,
         EquipmentAuthorityProjection equipment,
+        DeathProtectionSnapshot protection,
         long serverTick
     ) {
         return new PlayerSnapshot(
             player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
             player.deadOrDying(), player.difficulty(), equipment.conservativeMitigationAt(serverTick),
             player.statusEffects(), player.blocking(), player.hurtState(),
-            equipment.guaranteedDeathProtectionAt(serverTick), player.boundingBox(),
-            player.position(), player.velocity(), player.equipmentItemKeys(), player.stateProperties()
+            protection, player.boundingBox(), player.position(), player.velocity(),
+            player.equipmentItemKeys(), player.stateProperties()
         );
     }
 
@@ -444,6 +461,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         restorationController.abort();
         shieldExecutor.reset();
         nonTotemExecutor.reset();
+        popTracker.reset();
         captureTickClock.resetObservation();
         previousCaptureNanos = 0L;
     }
