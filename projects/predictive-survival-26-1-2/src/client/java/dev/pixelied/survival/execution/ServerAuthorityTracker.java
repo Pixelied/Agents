@@ -321,9 +321,13 @@ public final class ServerAuthorityTracker {
             }
         }
         if (matchedPrefix > 0) return matchedPrefix;
-        // Preserve the existing rejected-prediction behavior: evidence that restores the confirmed
-        // pre-click contents resolves the earliest outstanding prediction, never later packets.
-        return matchedPrefix == 0 && runLength > 0 ? 1 : 0;
+        if (matchedPrefix == 0 && runLength > 0) {
+            // Old/pre-click evidence is conservative only when the confirmed state has no death
+            // protection to over-credit. If protection is currently confirmed, a later removal may
+            // still be in flight, so keep that mutation adverse until its correction-return settle.
+            return confirmedMainHand.deathProtection() ? 0 : 1;
+        }
+        return 0;
     }
 
     private InventorySlotSnapshot projectedMainHandAfterQueuedMutations() {
