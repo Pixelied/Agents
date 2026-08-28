@@ -34,4 +34,15 @@ class RemoteUseStateSnapshotContractTest {
         assertTrue(source.contains("DataComponents.CHARGED_PROJECTILES"));
         assertTrue(source.contains("DataComponents.POTION_CONTENTS"));
     }
+
+    @Test
+    void remotePlayerSnapshotPublishesVisibleBowPowerForBothHands() throws Exception {
+        String source = Files.readString(Path.of(
+            "src/client/java/dev/pixelied/survival/core/MinecraftMeleeSnapshotAdapter.java"
+        ));
+
+        assertTrue(source.contains("stack.is(Items.BOW)"));
+        assertTrue(source.contains("prefix + \"bow_power_enchantment_level\""));
+        assertTrue(source.contains("enchantmentLevel(stack, Enchantments.POWER)"));
+    }
 }
