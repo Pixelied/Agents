@@ -16,6 +16,6 @@
     "github-coordination"
   ],
   "registered_at": "2026-08-27T14:02:00+00:00",
-  "state": "busy",
-  "state_reason": "Claiming Predictive Survival project scope to execute the approved deep-audit runtime state-machine plan from canonical head 1046d3d54c6914f8ab48ffe7f4c008141edee238."
+  "state": "offline",
+  "state_reason": "Approved Predictive Survival 26.1.2 runtime-state-machine plan completed and verified; PR #46 is ready for review and the project lease has been released."
 }
