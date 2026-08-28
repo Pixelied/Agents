@@ -41,6 +41,7 @@ import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -293,11 +294,22 @@ public final class MinecraftWorldSnapshotFactory {
             properties.putAll(MinecraftMeleeSnapshotAdapter.playerProperties(remotePlayer, player::hasLineOfSight));
         }
 
+        Vec3 renderedPosition = entity.position();
+        Vec3 snapshotPosition = renderedPosition;
+        if (entity instanceof MinecartTNT) {
+            var interpolation = entity.getInterpolation();
+            if (interpolation != null && interpolation.hasActiveInterpolation()) {
+                snapshotPosition = interpolation.position();
+            }
+        }
         AABB box = entity.getBoundingBox();
+        if (!snapshotPosition.equals(renderedPosition)) {
+            box = box.move(snapshotPosition.subtract(renderedPosition));
+        }
         return new WorldSnapshot.EntitySnapshot(
             Integer.toString(entity.getId()),
             BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(),
-            vec(entity.position()),
+            vec(snapshotPosition),
             vec(entity.getDeltaMovement()),
             new AabbSnapshot(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ),
             properties
