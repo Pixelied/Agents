@@ -81,16 +81,40 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         } else if (CROSSBOW.equals(item)) {
             String projectileKind = properties.getOrDefault(hand.prefix + "crossbow_projectile_kind", "none");
             if ("arrow".equals(projectileKind)) {
-                release = new Release(
-                    "crossbow_arrow",
-                    CROSSBOW_ARROW_SPEED,
-                    CROSSBOW_ARROW_RAW_DAMAGE,
-                    0L,
-                    EnumSet.of(DamageFlag.IS_PROJECTILE),
-                    "minecraft:arrow",
-                    true,
-                    Map.of("crossbow_projectile_kind", "arrow")
-                );
+                Float instantDamage = positiveFloat(properties.get(hand.prefix + "crossbow_arrow_instant_damage"));
+                if (instantDamage != null) {
+                    // The tipped-arrow effect is applied only after the arrow successfully hurts the
+                    // entity, so a shield that stops the arrow also suppresses the follow-up. Within
+                    // vanilla hurt cooldown, the next-tick magic hit can only raise total pre-armor
+                    // damage to the larger of the arrow hit and instant effect. Modeling that bound
+                    // as armor-bypassing is fail-closed for the mixed physical/magic sequence.
+                    float upperBound = Math.max(CROSSBOW_ARROW_RAW_DAMAGE, instantDamage);
+                    release = new Release(
+                        "crossbow_tipped_harming",
+                        CROSSBOW_ARROW_SPEED,
+                        upperBound,
+                        0L,
+                        EnumSet.of(DamageFlag.IS_PROJECTILE, DamageFlag.BYPASSES_ARMOR),
+                        "minecraft:magic",
+                        true,
+                        Map.of(
+                            "crossbow_projectile_kind", "arrow",
+                            "crossbow_arrow_instant_damage", Float.toString(instantDamage),
+                            "sequence_damage_model", "hurt_cooldown_upper_bound"
+                        )
+                    );
+                } else {
+                    release = new Release(
+                        "crossbow_arrow",
+                        CROSSBOW_ARROW_SPEED,
+                        CROSSBOW_ARROW_RAW_DAMAGE,
+                        0L,
+                        EnumSet.of(DamageFlag.IS_PROJECTILE),
+                        "minecraft:arrow",
+                        true,
+                        Map.of("crossbow_projectile_kind", "arrow")
+                    );
+                }
             } else if ("firework".equals(projectileKind)) {
                 Integer explosions = nonNegativeInt(properties.get(hand.prefix + "crossbow_firework_explosions"));
                 if (explosions != null && explosions > 0) {
