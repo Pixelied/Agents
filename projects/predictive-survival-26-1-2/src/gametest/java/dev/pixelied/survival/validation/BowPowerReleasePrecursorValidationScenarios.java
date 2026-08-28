@@ -97,6 +97,17 @@ final class BowPowerReleasePrecursorValidationScenarios {
         });
 
         try {
+            // ClientboundSetEquipmentPacket is ignored if its target entity has not been added to
+            // ClientLevel yet. This is the second mock attacker in the same exact-runtime session,
+            // so wait for that entity first and then publish the authoritative enchanted stack.
+            BurstSequenceValidationSupport.waitForClientAttacker(context, setup.attacker());
+            singleplayer.getServer().runOnServer(server -> {
+                ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
+                ServerPlayer attacker = BurstSequenceValidationSupport.requireAttacker(server, setup.attacker());
+                BurstSequenceValidationSupport.syncEquipment(victim, attacker);
+                victim.connection.send(ClientboundEntityPositionSyncPacket.of(attacker));
+                victim.connection.send(new ClientboundSetEntityMotionPacket(attacker));
+            });
             waitForClientBaseline(context, setup);
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
 
