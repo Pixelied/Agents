@@ -45,7 +45,7 @@ public final class ThreatTimelineSimulator {
 
     public TimelineResult simulate(PlayerSnapshot start, CausalThreatTimeline timeline) {
         java.util.Objects.requireNonNull(timeline, "timeline");
-        return simulateInternal(start, timeline.timeline(), List.of(), timeline);
+        return simulateInternal(start, timeline.expandedTimeline(), List.of(), timeline);
     }
 
     public TimelineResult simulateWithActivation(
@@ -98,7 +98,9 @@ public final class ThreatTimelineSimulator {
         boolean survivalGuaranteed = true;
         Set<String> acceptedEventIds = new HashSet<>();
         Set<String> processedEventIds = new HashSet<>();
-        Set<String> removedSources = new HashSet<>();
+        Set<String> removedSources = causal == null
+            ? new HashSet<>()
+            : new HashSet<>(causal.spawnedSourceIds());
         int activationIndex = 0;
 
         for (List<ThreatEvent> group : overlapGroups(sorted)) {
@@ -457,6 +459,8 @@ public final class ThreatTimelineSimulator {
         for (ThreatTransition transition : causal.transitionsAfter(event.id())) {
             if (transition instanceof ThreatTransition.RemoveSource remove) {
                 removedSources.add(remove.sourceId());
+            } else if (transition instanceof ThreatTransition.SpawnThreat spawn) {
+                removedSources.remove(spawn.sourceId());
             } else {
                 throw new IllegalArgumentException(
                     "causal transition requires dynamic branch support: " + transition.getClass().getSimpleName()
