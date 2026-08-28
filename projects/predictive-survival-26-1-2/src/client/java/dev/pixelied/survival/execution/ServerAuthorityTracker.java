@@ -79,8 +79,11 @@ public final class ServerAuthorityTracker {
     }
 
     /**
-     * Rich selection observation used by the survival runtime. A selection that differs from both
-     * the confirmed slot and the latest tracked target is newer user intent, not noise to ignore.
+     * Rich local hand observation used by the survival runtime. A selection or selected-slot
+     * content change that differs from the latest tracked hand state is treated as newer user
+     * intent/prediction with its own conservative server-processing window. This is required for
+     * 26.1.2 container clicks because vanilla mutates the local menu before sending the click and a
+     * matching server prediction may be silent rather than ACKed.
      */
     public void observeUntrackedLocalSelection(InventorySnapshot localInventory, TimingSnapshot timing) {
         Objects.requireNonNull(localInventory, "localInventory");
@@ -89,14 +92,12 @@ public final class ServerAuthorityTracker {
         int localSelectedSlot = localInventory.selectedHotbarIndex();
         validateHotbar(localSelectedSlot);
 
-        int latestTrackedTarget = pendingEquipment.isEmpty()
-            ? confirmedSelectedSlot
-            : pendingEquipment.getLast().after().inventoryIndex();
-        if (localSelectedSlot == latestTrackedTarget) return;
-        if (pendingEquipment.isEmpty() && localSelectedSlot == confirmedSelectedSlot) return;
-
         InventorySlotSnapshot before = projectedMainHandAfterQueuedMutations();
         InventorySlotSnapshot after = requireSlot(localInventory, localSelectedSlot);
+        boolean selectionChanged = localSelectedSlot != before.inventoryIndex();
+        boolean contentsChanged = !before.sameContents(after);
+        if (!selectionChanged && !contentsChanged) return;
+
         pendingEquipment.add(new PendingEquipmentMutation(
             SurvivalAction.Hand.MAIN_HAND,
             before,
@@ -106,10 +107,12 @@ public final class ServerAuthorityTracker {
             nextEquipmentEpoch()
         ));
 
-        // Preserve the legacy scalar projection for execution code. The newer user packet is the
-        // latest selected-slot target, but the rich queue retains packets that were already sent.
-        pendingSelectedSlot = localSelectedSlot;
-        pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
+        if (selectionChanged) {
+            // Preserve the legacy scalar projection for execution code. The newer user packet is the
+            // latest selected-slot target, while the rich queue retains packets already sent.
+            pendingSelectedSlot = localSelectedSlot;
+            pendingSelectedConfirmTick = timing.nextPacketProcessingWindow().latest();
+        }
     }
 
     /**
@@ -183,7 +186,8 @@ public final class ServerAuthorityTracker {
         observeServerEvidence(MinecraftServerStateEvidence.snapshot(), observedInventory);
         advanceEquipmentAuthority(currentServerTick);
         if (pendingEquipment.isEmpty() && observedInventory.selectedHotbarIndex() == confirmedSelectedSlot) {
-            confirmedMainHand = requireSlot(observedInventory, confirmedSelectedSlot);
+            // Mitigation authority is audited separately. Main-hand contents must never be promoted
+            // here: 26.1.2 can mutate a container locally before the server click is processed.
             confirmedMitigation = observedMitigation;
         }
         return new EquipmentAuthorityProjection(
