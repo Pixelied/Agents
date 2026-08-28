@@ -61,6 +61,19 @@ public final class ThreatTimelineSimulator {
         );
     }
 
+    public TimelineResult simulateWithActivation(
+        PlayerSnapshot start,
+        CausalThreatTimeline timeline,
+        long activationTick,
+        UnaryOperator<PlayerSnapshot> activation
+    ) {
+        return simulateWithActivations(
+            start,
+            timeline,
+            List.of(new TimedActivation(activationTick, activation))
+        );
+    }
+
     public TimelineResult simulateWithActivations(
         PlayerSnapshot start,
         ThreatTimeline timeline,
@@ -73,6 +86,26 @@ public final class ThreatTimelineSimulator {
         }
         sortedActivations.sort(Comparator.comparingLong(TimedActivation::tick));
         return simulateInternal(start, timeline, List.copyOf(sortedActivations), null);
+    }
+
+    public TimelineResult simulateWithActivations(
+        PlayerSnapshot start,
+        CausalThreatTimeline timeline,
+        List<TimedActivation> activations
+    ) {
+        java.util.Objects.requireNonNull(timeline, "timeline");
+        java.util.Objects.requireNonNull(activations, "activations");
+        List<TimedActivation> sortedActivations = new ArrayList<>(activations.size());
+        for (TimedActivation activation : activations) {
+            sortedActivations.add(java.util.Objects.requireNonNull(activation, "activation"));
+        }
+        sortedActivations.sort(Comparator.comparingLong(TimedActivation::tick));
+        return simulateInternal(
+            start,
+            timeline.expandedTimeline(),
+            List.copyOf(sortedActivations),
+            timeline
+        );
     }
 
     private TimelineResult simulateInternal(
