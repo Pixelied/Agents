@@ -71,6 +71,7 @@ public record PendingEquipmentMutation(
 
     public enum Origin {
         USER,
+        USER_MITIGATION,
         EMERGENCY_PROTECTION,
         RESTORE,
         SURVIVAL_ITEM
