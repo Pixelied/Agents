@@ -205,7 +205,7 @@ final class TntMinecartCollisionValidationScenarios {
 
                 long fastestProtectionAuthorityTick = Math.max(
                     0L,
-                    frame.context().timing().deadline(1).completionWindow().latest()
+                    frame.context().timing().deadline(0).completionWindow().latest()
                         - frame.context().timing().clientTick()
                 );
                 if (opportunity.projectedThreat().impact().earliest() < fastestProtectionAuthorityTick) {
