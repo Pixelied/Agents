@@ -44,6 +44,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            ExplosionCausalityValidationScenarios.validateExplosionCreatedTntMatchesPredictedShortFuseWindow(
+                context,
+                singleplayer
+            );
             BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
                 context,
                 singleplayer
