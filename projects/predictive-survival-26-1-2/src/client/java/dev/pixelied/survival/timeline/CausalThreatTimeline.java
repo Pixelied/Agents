@@ -95,6 +95,16 @@ public record CausalThreatTimeline(
         return Set.copyOf(sourceIdsByEventId.values());
     }
 
+    public Set<String> spawnedSourceIds() {
+        LinkedHashSet<String> sources = new LinkedHashSet<>();
+        for (List<ThreatTransition> transitions : transitionsByEventId.values()) {
+            for (ThreatTransition transition : transitions) {
+                if (transition instanceof ThreatTransition.SpawnThreat spawn) sources.add(spawn.sourceId());
+            }
+        }
+        return Set.copyOf(sources);
+    }
+
     public Optional<String> spawnTriggerEventId(String sourceId) {
         Objects.requireNonNull(sourceId, "sourceId");
         String trigger = null;
