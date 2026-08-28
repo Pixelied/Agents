@@ -1,6 +1,7 @@
 package dev.pixelied.survival.threat;
 
 import dev.pixelied.survival.core.AabbSnapshot;
+import dev.pixelied.survival.core.Confidence;
 import dev.pixelied.survival.core.DifficultySnapshot;
 import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.PlayerSnapshot;
@@ -76,6 +77,31 @@ class ExplosionCausalGraphTest {
         ));
     }
 
+    @Test
+    void explosionHitTntBlockSpawnsPotentialVanillaShortFuseThreat() {
+        WorldSnapshot.EntitySnapshot source = crystal("201", 0.0);
+        WorldSnapshot.BlockSnapshot tnt = tnt(0.5, 0.5, 1.5);
+        PredictionContext context = context(List.of(source), List.of(tnt));
+        ExplosionPredictor predictor = new ExplosionPredictor();
+        List<ThreatEvent> predicted = predictor.predict(context);
+
+        CausalThreatTimeline causal = predictor.causalize(context, new ThreatTimeline(predicted));
+        ThreatEvent sourceEvent = event(predicted, "explosion:201");
+        List<ThreatTransition.SpawnThreat> spawned = causal.transitionsAfter(sourceEvent.id()).stream()
+            .filter(ThreatTransition.SpawnThreat.class::isInstance)
+            .map(ThreatTransition.SpawnThreat.class::cast)
+            .toList();
+
+        assertEquals(1, spawned.size(),
+            "an observed TNT block inside a possible block-destruction branch must become a future causal threat");
+        ThreatTransition.SpawnThreat spawn = spawned.getFirst();
+        assertEquals(new TickWindow(10, 29), spawn.event().impact(),
+            "26.1.2 TntBlock.wasExploded shortens the default 80-tick fuse to random.nextInt(20) + 10");
+        assertEquals(Confidence.POTENTIAL, spawn.event().confidence(),
+            "the client cannot prove the random explosion ray or TNT_EXPLODES gamerule branch");
+        assertEquals(tnt.position(), spawn.event().sourcePosition().orElseThrow());
+    }
+
     private static ThreatEvent event(List<ThreatEvent> events, String id) {
         return events.stream().filter(event -> event.id().equals(id)).findFirst().orElseThrow();
     }
@@ -118,6 +144,15 @@ class ExplosionCausalGraphTest {
                 "scales_with_difficulty", "true",
                 "pre_explosion_remove_group", removalGroup
             )
+        );
+    }
+
+    private static WorldSnapshot.BlockSnapshot tnt(double x, double y, double z) {
+        return new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(x, y, z),
+            "minecraft:tnt",
+            true,
+            Map.of("full_collision_cube", "true")
         );
     }
 
