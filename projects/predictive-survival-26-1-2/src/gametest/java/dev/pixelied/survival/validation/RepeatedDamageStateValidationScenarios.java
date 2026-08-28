@@ -5,6 +5,7 @@ import dev.pixelied.survival.timeline.ThreatEvent;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -20,6 +21,7 @@ import java.util.UUID;
 /** Exact-runtime proof that an accepted server hit survives into the next production hurt-state frame. */
 final class RepeatedDamageStateValidationScenarios {
     private static final float EPSILON = 0.0001f;
+    private static final double VELOCITY_EPSILON = 1.0E-6d;
 
     private RepeatedDamageStateValidationScenarios() {
     }
@@ -37,6 +39,7 @@ final class RepeatedDamageStateValidationScenarios {
 
             BurstSequenceValidationSupport.prepareVictim(victim, 20f);
             victim.teleportTo(center.getX() + 0.5d, center.getY(), center.getZ() + 0.5d);
+            victim.connection.send(new ClientboundSetEntityMotionPacket(victim));
             EndCrystal crystal = new EndCrystal(
                 level,
                 center.getX() + 0.5d,
@@ -53,6 +56,7 @@ final class RepeatedDamageStateValidationScenarios {
                 && Math.abs(minecraft.player.getX() - (setup.center().getX() + 0.5d)) <= 0.05d
                 && Math.abs(minecraft.player.getY() - setup.center().getY()) <= 0.05d
                 && Math.abs(minecraft.player.getZ() - (setup.center().getZ() + 0.5d)) <= 0.05d
+                && minecraft.player.getDeltaMovement().lengthSqr() <= VELOCITY_EPSILON
                 && minecraft.level.getEntity(setup.crystalId()) instanceof EndCrystal);
 
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
@@ -65,7 +69,10 @@ final class RepeatedDamageStateValidationScenarios {
                         "full-hit reconciliation fixture produced no observed crystal explosion event"
                     ));
                 if (Float.compare(event.damage().rawDamage().min(), event.damage().rawDamage().max()) != 0) {
-                    throw new AssertionError("full-hit reconciliation fixture requires exact pre-armor explosion damage");
+                    throw new AssertionError(
+                        "full-hit reconciliation fixture requires exact pre-armor explosion damage; raw="
+                            + event.damage().rawDamage() + " velocity=" + frame.context().player().velocity()
+                    );
                 }
                 return new Expected(event.damage().rawDamage().max());
             });
