@@ -145,6 +145,14 @@ final class RestorationReentryValidationScenarios {
                 player.teleportTo(arena.originalPosition().x, arena.originalPosition().y, arena.originalPosition().z);
                 player.containerMenu.broadcastChanges();
             });
+            // The runtime scenario intentionally selected slot 1 on both sides. A server-side reset
+            // does not mutate the client's selected index; leave the next validation with both
+            // sides on slot 0 so its main-hand fixture cannot be hidden behind stale client UI.
+            context.runOnClient(minecraft -> {
+                if (minecraft.player != null) minecraft.player.getInventory().setSelectedSlot(0);
+            });
+            context.waitFor(minecraft -> minecraft.player != null
+                && minecraft.player.getInventory().getSelectedSlot() == 0);
             context.waitTick();
         }
     }
