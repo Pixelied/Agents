@@ -133,6 +133,59 @@ class ServerAuthorityTrackerTest {
     }
 
     @Test
+    void inboundSelectedSlotEvidenceIsAppliedBeforeClassifyingContentDelta() {
+        MinecraftServerStateEvidence.reset();
+        try {
+            InventorySnapshot initial = inventory(1);
+            ServerAuthorityTracker tracker = new ServerAuthorityTracker(initial, MitigationSnapshot.none());
+            tracker.observeServerEvidence(
+                new ServerStateEvidenceSnapshot(true, 1000L, Map.of(), Map.of(), Map.of()),
+                initial
+            );
+
+            InventorySlotSnapshot emptyMain = slot(1, "minecraft:air", false);
+            InventorySnapshot consumed = new InventorySnapshot(1, Map.of(
+                1, emptyMain,
+                2, slot(2, "minecraft:diamond_pickaxe", false),
+                5, slot(5, "minecraft:totem_of_undying", true),
+                40, slot(40, "minecraft:air", false)
+            ), false);
+            tracker.observeServerEvidence(
+                new ServerStateEvidenceSnapshot(
+                    true,
+                    1001L,
+                    Map.of(1, new ServerStateEvidenceSnapshot.StackEvidence(
+                        emptyMain.stackKey(),
+                        emptyMain.componentFingerprint(),
+                        emptyMain.count(),
+                        1001L
+                    )),
+                    Map.of(),
+                    Map.of()
+                ),
+                consumed
+            );
+            tracker.observeUntrackedLocalSelection(
+                consumed,
+                new TimingSnapshot(500, 100, 0, new TickWindow(502, 503))
+            );
+
+            EquipmentAuthorityProjection projection = tracker.equipmentProjection(
+                consumed,
+                MitigationSnapshot.none(),
+                500
+            );
+            assertEquals("minecraft:air", projection.confirmedMainHand().stackKey());
+            assertTrue(
+                projection.pending().isEmpty(),
+                "fresh inbound selected-slot evidence must not be reclassified as a new user prediction"
+            );
+        } finally {
+            MinecraftServerStateEvidence.reset();
+        }
+    }
+
+    @Test
     void shieldWarmupStartsAtConservativeServerProcessingTick() {
         ServerAuthorityTracker tracker = new ServerAuthorityTracker(0);
         TimingSnapshot timing = new TimingSnapshot(100, 100, 10, new TickWindow(102, 104));
