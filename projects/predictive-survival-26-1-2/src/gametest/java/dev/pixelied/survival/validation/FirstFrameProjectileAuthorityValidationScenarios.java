@@ -95,23 +95,16 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
             if (!outcome.precursorProtected()) {
                 throw new AssertionError(outcome.family() + " precursor-prearmed path must survive: " + outcome);
             }
-        }
-
-        ProbeOutcome bow = requireOutcome(outcomes, LaunchFamily.BOW.id);
-        if (!bow.firstEntityPath().guaranteedAuthorityLead()) {
-            throw new AssertionError("Bow must retain measured first-projectile authority lead: " + bow);
-        }
-
-        for (LaunchFamily family : List.of(
-            LaunchFamily.CROSSBOW_ARROW,
-            LaunchFamily.CROSSBOW_FIREWORK,
-            LaunchFamily.WIND_CHARGE,
-            LaunchFamily.SPLASH_HARMING
-        )) {
-            ProbeOutcome outcome = requireOutcome(outcomes, family.id);
+            if (!outcome.firstEntityPath().projectileObservedBeforeDamage()) {
+                throw new AssertionError(
+                    outcome.family() + " projectile must be observable before damage for this authority probe: " + outcome
+                );
+            }
             if (outcome.firstEntityPath().guaranteedAuthorityLead()) {
                 throw new AssertionError(
-                    family.id + " unexpectedly gained first-projectile authority lead; reevaluate precursor modeling: " + outcome
+                    outcome.family()
+                        + " unexpectedly gained first-projectile authority lead; reevaluate precursor modeling: "
+                        + outcome
                 );
             }
         }
