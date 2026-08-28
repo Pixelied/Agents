@@ -174,12 +174,13 @@ public final class TntMinecartOpportunityPredictor implements LethalOpportunityP
 
     /**
      * Forecast only as far as the fastest new death-protection route must be authoritative. A
-     * hotbar Totem costs one server processing tick after the current outbound packet window; a
-     * collision beyond that bound does not need to latch yet and would make motion extrapolation
-     * unnecessarily speculative.
+     * hotbar Totem becomes authoritative when the server handles its selection packet; the current
+     * outbound packet-processing window already accounts for that delay, so no extra server tick is
+     * charged. A collision beyond that bound can be reconsidered on a later frame without making
+     * motion extrapolation unnecessarily speculative.
      */
     private static long minimumProtectionAuthorityHorizon(PredictionContext context) {
-        long completion = context.timing().deadline(1).completionWindow().latest();
+        long completion = context.timing().deadline(0).completionWindow().latest();
         long relative = Math.max(1L, completion - context.timing().clientTick());
         return Math.min(relative, context.limits().maxProjectileHorizonTicks());
     }
