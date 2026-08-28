@@ -58,13 +58,7 @@ final class ExplosionCausalityValidationScenarios {
         });
 
         try {
-            context.waitFor(minecraft -> minecraft.player != null
-                && minecraft.level != null
-                && minecraft.player.getInventory().getSelectedSlot() == 0
-                && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING)
-                && minecraft.player.getInventory().getItem(2).is(Items.TOTEM_OF_UNDYING)
-                && minecraft.level.getEntity(setup.nearCrystalId()) instanceof EndCrystal
-                && minecraft.level.getEntity(setup.farCrystalId()) instanceof EndCrystal);
+            waitForFixture(context, singleplayer, setup);
 
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
             Diagnostics diagnostics = context.computeOnClient(minecraft -> {
@@ -123,6 +117,51 @@ final class ExplosionCausalityValidationScenarios {
         }
     }
 
+    private static void waitForFixture(
+        ClientGameTestContext context,
+        TestSingleplayerContext singleplayer,
+        Setup setup
+    ) {
+        ClientFixture last = null;
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            last = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null || minecraft.level == null) {
+                    return new ClientFixture(null, -1, false, false, false, false, "player-or-level-null");
+                }
+                return new ClientFixture(
+                    minecraft.player.position(),
+                    minecraft.player.getInventory().getSelectedSlot(),
+                    minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING),
+                    minecraft.player.getInventory().getItem(2).is(Items.TOTEM_OF_UNDYING),
+                    minecraft.level.getEntity(setup.nearCrystalId()) instanceof EndCrystal,
+                    minecraft.level.getEntity(setup.farCrystalId()) instanceof EndCrystal,
+                    "slot1=" + minecraft.player.getInventory().getItem(1)
+                        + ",slot2=" + minecraft.player.getInventory().getItem(2)
+                );
+            });
+            if (last.ready()) return;
+            context.waitTick();
+        }
+
+        String server = singleplayer.getServer().computeOnServer(minecraftServer -> {
+            ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(minecraftServer, setup.victimId());
+            ServerLevel level = (ServerLevel) victim.level();
+            Entity near = level.getEntity(setup.nearCrystalId());
+            Entity far = level.getEntity(setup.farCrystalId());
+            return "pos=" + victim.position()
+                + ",selected=" + victim.getInventory().getSelectedSlot()
+                + ",slot1=" + victim.getInventory().getItem(1)
+                + ",slot2=" + victim.getInventory().getItem(2)
+                + ",near=" + describeEntity(near)
+                + ",far=" + describeEntity(far);
+        });
+        throw new AssertionError("adjacent-crystal fixture did not synchronize; client=" + last + "; server={" + server + "}");
+    }
+
+    private static String describeEntity(Entity entity) {
+        return entity == null ? "null" : entity.getClass().getSimpleName() + "@" + entity.position();
+    }
+
     private static Map<BlockPos, BlockState> clearArena(ServerLevel level, BlockPos center) {
         Map<BlockPos, BlockState> originals = new LinkedHashMap<>();
         for (int dx = -3; dx <= 3; dx++) {
@@ -151,6 +190,20 @@ final class ExplosionCausalityValidationScenarios {
         int farCrystalId,
         Map<BlockPos, BlockState> originals
     ) {
+    }
+
+    private record ClientFixture(
+        Vec3 position,
+        int selectedSlot,
+        boolean slot1Totem,
+        boolean slot2Totem,
+        boolean nearCrystal,
+        boolean farCrystal,
+        String inventory
+    ) {
+        private boolean ready() {
+            return selectedSlot == 0 && slot1Totem && slot2Totem && nearCrystal && farCrystal;
+        }
     }
 
     private record Diagnostics(
