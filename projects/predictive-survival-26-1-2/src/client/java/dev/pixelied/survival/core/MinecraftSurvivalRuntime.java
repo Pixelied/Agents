@@ -162,9 +162,10 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         PlayerSnapshot rawPlayer = playerSnapshots.capture(player);
         if (authority == null) authority = new ServerAuthorityTracker(rawInventory, rawPlayer.mitigation());
         // Evidence hooks run after vanilla applies clientbound state. Consume those authoritative
-        // deltas before classifying any remaining local hand change as a new prediction/user action.
+        // deltas before classifying any remaining local equipment change as prediction/user action.
         authority.observeServerEvidence(MinecraftServerStateEvidence.snapshot(), rawInventory);
         authority.observeUntrackedLocalSelection(rawInventory, timing);
+        authority.observeUntrackedLocalMitigation(rawPlayer.mitigation(), timing);
         EquipmentAuthorityProjection equipment = authority.equipmentProjection(
             rawInventory,
             rawPlayer.mitigation(),
@@ -337,8 +338,9 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     ) {
         return new PlayerSnapshot(
             player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
-            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
-            player.hurtState(), equipment.guaranteedDeathProtectionAt(serverTick), player.boundingBox(),
+            player.deadOrDying(), player.difficulty(), equipment.conservativeMitigationAt(serverTick),
+            player.statusEffects(), player.blocking(), player.hurtState(),
+            equipment.guaranteedDeathProtectionAt(serverTick), player.boundingBox(),
             player.position(), player.velocity(), player.equipmentItemKeys(), player.stateProperties()
         );
     }
