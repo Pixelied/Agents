@@ -104,6 +104,35 @@ class ServerAuthorityTrackerTest {
     }
 
     @Test
+    void optimisticSelectedSlotContentsDoNotBecomeConfirmedWithoutInboundEvidence() {
+        MinecraftServerStateEvidence.reset();
+        try {
+            InventorySnapshot initial = inventory(1);
+            ServerAuthorityTracker tracker = new ServerAuthorityTracker(initial, MitigationSnapshot.none());
+            InventorySnapshot optimisticSwap = new InventorySnapshot(1, Map.of(
+                1, slot(1, "minecraft:totem_of_undying", true),
+                2, slot(2, "minecraft:diamond_pickaxe", false),
+                5, slot(5, "minecraft:diamond_sword", false),
+                40, slot(40, "minecraft:air", false)
+            ), false);
+
+            EquipmentAuthorityProjection projection = tracker.equipmentProjection(
+                optimisticSwap,
+                MitigationSnapshot.none(),
+                400
+            );
+
+            assertEquals("minecraft:diamond_sword", projection.confirmedMainHand().stackKey());
+            assertFalse(
+                projection.guaranteedDeathProtectionAt(400).anyHandAvailable(),
+                "client-predicted container contents must not manufacture server-confirmed protection"
+            );
+        } finally {
+            MinecraftServerStateEvidence.reset();
+        }
+    }
+
+    @Test
     void shieldWarmupStartsAtConservativeServerProcessingTick() {
         ServerAuthorityTracker tracker = new ServerAuthorityTracker(0);
         TimingSnapshot timing = new TimingSnapshot(100, 100, 10, new TickWindow(102, 104));
