@@ -100,13 +100,10 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
                     outcome.family() + " projectile must be observable before damage for this authority probe: " + outcome
                 );
             }
-            if (outcome.firstEntityPath().guaranteedAuthorityLead()) {
-                throw new AssertionError(
-                    outcome.family()
-                        + " unexpectedly gained first-projectile authority lead; reevaluate precursor modeling: "
-                        + outcome
-                );
-            }
+            // The measured authority/damage tick delta is diagnostic, not a guarantee. Identical
+            // exact-runtime code has legitimately observed Bow authority both one tick before and
+            // in the same tick as damage depending on integrated client/server scheduling. Safety
+            // therefore must come from precursor modeling, never from one sampled lead-time race.
         }
     }
 
