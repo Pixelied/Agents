@@ -6,14 +6,21 @@ import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
 import dev.pixelied.survival.planner.SafetyMode;
+import dev.pixelied.survival.timeline.CausalThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatEvent;
+import dev.pixelied.survival.timeline.ThreatTimeline;
+import dev.pixelied.survival.timeline.ThreatTransition;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public final class ExplosionPredictor implements ThreatPredictor {
+    private static final double CAUSAL_DISTANCE_EPSILON = 1.0E-9d;
+
     private final ExplosionThreatFactory threatFactory = new ExplosionThreatFactory();
 
     @Override
@@ -44,6 +51,53 @@ public final class ExplosionPredictor implements ThreatPredictor {
             ).ifPresent(events::add);
         }
         return List.copyOf(events);
+    }
+
+    /**
+     * Adds world-source identity and deterministic explosion consequences to an already assembled
+     * planning timeline. Events that cannot be tied to an observed world source keep an isolated
+     * event-local source id, so causal pruning never aliases unrelated threats.
+     */
+    public CausalThreatTimeline causalize(PredictionContext context, ThreatTimeline timeline) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(timeline, "timeline");
+
+        Map<String, WorldSnapshot.EntitySnapshot> observedExplosionEntities = new LinkedHashMap<>();
+        for (WorldSnapshot.EntitySnapshot entity : context.world().entities()) {
+            observedExplosionEntities.put("explosion:" + entity.id(), entity);
+        }
+
+        Map<String, String> sourceIds = new LinkedHashMap<>();
+        for (ThreatEvent event : timeline.events()) {
+            WorldSnapshot.EntitySnapshot observed = observedExplosionEntities.get(event.id());
+            sourceIds.put(
+                event.id(),
+                observed == null ? "event:" + event.id() : entitySourceId(observed)
+            );
+        }
+
+        Map<String, List<ThreatTransition>> transitions = new LinkedHashMap<>();
+        for (ThreatEvent event : timeline.events()) {
+            WorldSnapshot.EntitySnapshot source = observedExplosionEntities.get(event.id());
+            if (source == null) continue;
+
+            RadiusResolution radius = resolveRadius(source.properties(), context.safetyMode());
+            if (radius == null || radius.radius().min() <= 0f) continue;
+            double guaranteedEntityReach = 2d * radius.radius().min();
+            double reachSquared = guaranteedEntityReach * guaranteedEntityReach;
+            Vec3Snapshot center = resolveCenter(source.position(), source.properties());
+            List<ThreatTransition> after = new ArrayList<>();
+
+            for (WorldSnapshot.EntitySnapshot target : context.world().entities()) {
+                if (!"minecraft:end_crystal".equals(target.typeKey())) continue;
+                if (target.id().equals(source.id())) continue;
+                if (distanceSquared(center, target.position()) > reachSquared + CAUSAL_DISTANCE_EPSILON) continue;
+                after.add(new ThreatTransition.RemoveSource(entitySourceId(target)));
+            }
+            if (!after.isEmpty()) transitions.put(event.id(), List.copyOf(after));
+        }
+
+        return new CausalThreatTimeline(timeline, sourceIds, transitions);
     }
 
     private Optional<ThreatEvent> buildEvent(
@@ -127,6 +181,17 @@ public final class ExplosionPredictor implements ThreatPredictor {
     static boolean canUseUnitCubeOcclusion(WorldSnapshot.BlockSnapshot block) {
         return block.collision()
             && Boolean.parseBoolean(block.properties().getOrDefault("full_collision_cube", "false"));
+    }
+
+    private static String entitySourceId(WorldSnapshot.EntitySnapshot entity) {
+        return "entity:" + entity.id();
+    }
+
+    private static double distanceSquared(Vec3Snapshot first, Vec3Snapshot second) {
+        double dx = first.x() - second.x();
+        double dy = first.y() - second.y();
+        double dz = first.z() - second.z();
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private static Vec3Snapshot resolveCenter(Vec3Snapshot fallback, Map<String, String> properties) {
