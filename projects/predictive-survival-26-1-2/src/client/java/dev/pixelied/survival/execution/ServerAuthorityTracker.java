@@ -11,6 +11,7 @@ import dev.pixelied.survival.timing.TimingSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public final class ServerAuthorityTracker {
     private static final double EPSILON = 1.0E-9d;
@@ -130,6 +131,33 @@ public final class ServerAuthorityTracker {
     }
 
     /**
+     * Tracks locally predicted equipment mitigation without crediting it as server-authoritative.
+     * Container clicks are optimistic in 26.1.2 and accepted predictions can be silent, so a local
+     * armor gain or removal remains a before/after authority branch through the correction-return
+     * deadline. The hand snapshot is intentionally unchanged: this mutation carries mitigation only.
+     */
+    public void observeUntrackedLocalMitigation(MitigationSnapshot localMitigation, TimingSnapshot timing) {
+        Objects.requireNonNull(localMitigation, "localMitigation");
+        Objects.requireNonNull(timing, "timing");
+        requireEquipmentTracking();
+
+        MitigationSnapshot before = projectedMitigationAfterQueuedMutations();
+        if (before.equals(localMitigation)) return;
+
+        InventorySlotSnapshot hand = projectedMainHandAfterQueuedMutations();
+        pendingEquipment.add(new PendingEquipmentMutation(
+            SurvivalAction.Hand.MAIN_HAND,
+            hand,
+            hand,
+            contentAuthorityWindow(timing),
+            PendingEquipmentMutation.Origin.USER_MITIGATION,
+            nextEquipmentEpoch(),
+            Optional.of(before),
+            Optional.of(localMitigation)
+        ));
+    }
+
+    /**
      * Reconciles hand contents from clientbound evidence recorded after vanilla applied it. The
      * first observation establishes the revision already represented by the constructor snapshot.
      * Later matching selected-slot or offhand inventory evidence is authoritative for contents but
@@ -227,11 +255,6 @@ public final class ServerAuthorityTracker {
 
         observeServerEvidence(MinecraftServerStateEvidence.snapshot(), observedInventory);
         advanceEquipmentAuthority(currentServerTick);
-        if (pendingEquipment.isEmpty() && observedInventory.selectedHotbarIndex() == confirmedSelectedSlot) {
-            // Mitigation authority is audited separately. Main-hand contents must never be promoted
-            // here: 26.1.2 can mutate a container locally before the server click is processed.
-            confirmedMitigation = observedMitigation;
-        }
         return new EquipmentAuthorityProjection(
             confirmedSelectedSlot,
             confirmedMainHand,
@@ -365,6 +388,14 @@ public final class ServerAuthorityTracker {
             if (mutation.hand() == SurvivalAction.Hand.OFF_HAND) return mutation.after();
         }
         return confirmedOffHand;
+    }
+
+    private MitigationSnapshot projectedMitigationAfterQueuedMutations() {
+        for (int i = pendingEquipment.size() - 1; i >= 0; i--) {
+            Optional<MitigationSnapshot> mitigation = pendingEquipment.get(i).mitigationAfter();
+            if (mitigation.isPresent()) return mitigation.get();
+        }
+        return confirmedMitigation;
     }
 
     private static TickWindow contentAuthorityWindow(TimingSnapshot timing) {
