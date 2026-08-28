@@ -11,6 +11,7 @@ import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
 import dev.pixelied.survival.execution.MinecraftCommandDispatcher;
 import dev.pixelied.survival.execution.NonTotemActionExecutor;
 import dev.pixelied.survival.execution.NonTotemExecutionContext;
+import dev.pixelied.survival.execution.PendingEquipmentMutation;
 import dev.pixelied.survival.execution.ServerAuthorityTracker;
 import dev.pixelied.survival.execution.ShieldActionExecutor;
 import dev.pixelied.survival.inventory.InventorySnapshot;
@@ -225,7 +226,12 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             return;
         }
         if (command instanceof ExecutionCommand.SelectHotbar select) {
-            authority.sentHotbarSelection(select.hotbarIndex(), state.timing());
+            authority.sentHotbarSelection(
+                select.hotbarIndex(),
+                state.timing(),
+                state.inventory(),
+                PendingEquipmentMutation.Origin.RESTORE
+            );
         }
     }
 
@@ -241,7 +247,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         } else {
             status = nonTotemExecutor.begin(action, nonTotemContext(state));
         }
-        return dispatchIfNeeded(status, state.timing());
+        return dispatchIfNeeded(status, state, equipmentOrigin(action));
     }
 
     @Override
@@ -256,7 +262,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         } else {
             status = nonTotemExecutor.observe(nonTotemContext(state));
         }
-        return dispatchIfNeeded(status, state.timing());
+        return dispatchIfNeeded(status, state, equipmentOrigin(action));
     }
 
     @Override
@@ -382,7 +388,11 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         return new NonTotemExecutionContext(executionContext(state), state.player(), Set.of());
     }
 
-    private ExecutionStatus dispatchIfNeeded(ExecutionStatus status, TimingSnapshot timing) {
+    private ExecutionStatus dispatchIfNeeded(
+        ExecutionStatus status,
+        LiveState state,
+        PendingEquipmentMutation.Origin origin
+    ) {
         if (!(status instanceof ExecutionStatus.WaitingForServer waiting) || waiting.command().isEmpty()) return status;
         ExecutionCommand command = waiting.command().get();
         if (!dispatcher.dispatch(minecraft, command)) {
@@ -390,13 +400,24 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         }
 
         if (command instanceof ExecutionCommand.SelectHotbar select) {
-            authority.sentHotbarSelection(select.hotbarIndex(), timing);
+            authority.sentHotbarSelection(
+                select.hotbarIndex(),
+                state.timing(),
+                state.inventory(),
+                origin
+            );
         } else if (command instanceof ExecutionCommand.UseItem use) {
-            authority.sentUseItem(use.hand(), timing);
+            authority.sentUseItem(use.hand(), state.timing());
         } else if (command instanceof ExecutionCommand.AimAndUseItem aim) {
-            authority.sentUseItem(aim.hand(), timing);
+            authority.sentUseItem(aim.hand(), state.timing());
         }
         return status;
+    }
+
+    private static PendingEquipmentMutation.Origin equipmentOrigin(SurvivalAction action) {
+        return action instanceof SurvivalAction.EquipDeathProtection
+            ? PendingEquipmentMutation.Origin.EMERGENCY_PROTECTION
+            : PendingEquipmentMutation.Origin.SURVIVAL_ITEM;
     }
 
     private LiveState requireLiveState(SurvivalEngine.EngineFrame frame) {
