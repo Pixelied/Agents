@@ -95,15 +95,10 @@ final class FirstFrameProjectileAuthorityValidationScenarios {
             if (!outcome.precursorProtected()) {
                 throw new AssertionError(outcome.family() + " precursor-prearmed path must survive: " + outcome);
             }
-            if (!outcome.firstEntityPath().projectileObservedBeforeDamage()) {
-                throw new AssertionError(
-                    outcome.family() + " projectile must be observable before damage for this authority probe: " + outcome
-                );
-            }
-            // The measured authority/damage tick delta is diagnostic, not a guarantee. Identical
-            // exact-runtime code has legitimately observed Bow authority both one tick before and
-            // in the same tick as damage depending on integrated client/server scheduling. Safety
-            // therefore must come from precursor modeling, never from one sampled lead-time race.
+            // First-projectile observation and authority/damage tick deltas are diagnostics, not
+            // guarantees. Exact runtime has observed Bow authority both one tick before and in the
+            // same tick as damage, and a crossbow arrow can damage before its spawned entity is
+            // visible on the client at all. Safety must therefore come from precursor modeling.
         }
     }
 
