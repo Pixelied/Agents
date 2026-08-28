@@ -4,10 +4,12 @@
   "task_id": "build-predictive-survival-26-1-2",
   "scope": "projects/predictive-survival-26-1-2",
   "owner": "openai-survival-runtime-5f6c",
-  "state": "active",
+  "state": "released",
   "intent": "Execute the approved Predictive Survival 26.1.2 deep-audit runtime state-machine plan from the current canonical project head using regression-first TDD, supplied 26.1.2 source verification, exact-runtime GameTests, and no direct writes to canonical/main implementation state.",
   "claimed_at": "2026-08-27T14:02:00+00:00",
-  "heartbeat_at": "2026-08-28T11:12:00+00:00",
+  "heartbeat_at": "2026-08-28T11:49:20+00:00",
   "expires_at": "2026-08-28T15:12:00+00:00",
-  "generation": 11
+  "generation": 11,
+  "released_at": "2026-08-28T11:49:20+00:00",
+  "release_reason": "Approved runtime-state-machine plan complete and fully verified; PR #46 handed off ready for review and merge."
 }
