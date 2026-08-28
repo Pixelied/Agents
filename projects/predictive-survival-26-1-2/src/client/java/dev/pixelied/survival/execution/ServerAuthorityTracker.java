@@ -1,5 +1,6 @@
 package dev.pixelied.survival.execution;
 
+import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.inventory.InventorySlotSnapshot;
@@ -79,11 +80,11 @@ public final class ServerAuthorityTracker {
     }
 
     /**
-     * Rich local hand observation used by the survival runtime. A selection or selected-slot
-     * content change that differs from the latest tracked hand state is treated as newer user
-     * intent/prediction with its own conservative server-processing window. This is required for
-     * 26.1.2 container clicks because vanilla mutates the local menu before sending the click and a
-     * matching server prediction may be silent rather than ACKed.
+     * Rich local hand observation used by the survival runtime. A selection change is bounded by
+     * the outbound server-processing window. A same-slot content change is different: 26.1.2
+     * container prediction mutates the local menu before sending the click, an exact accepted
+     * prediction can be silent, and a disagreement is learned only when the correction returns.
+     * Therefore same-slot contents remain uncertain through the correction-return deadline.
      */
     public void observeUntrackedLocalSelection(InventorySnapshot localInventory, TimingSnapshot timing) {
         Objects.requireNonNull(localInventory, "localInventory");
@@ -95,14 +96,20 @@ public final class ServerAuthorityTracker {
         InventorySlotSnapshot before = projectedMainHandAfterQueuedMutations();
         InventorySlotSnapshot after = requireSlot(localInventory, localSelectedSlot);
         boolean selectionChanged = localSelectedSlot != before.inventoryIndex();
-        boolean contentsChanged = !before.sameContents(after);
-        if (!selectionChanged && !contentsChanged) return;
+        boolean sameSlotContentsChanged = !selectionChanged && !before.sameContents(after);
+        if (!selectionChanged && !sameSlotContentsChanged) return;
 
+        TickWindow authorityWindow = selectionChanged
+            ? timing.nextPacketProcessingWindow()
+            : new TickWindow(
+                timing.nextPacketProcessingWindow().earliest(),
+                timing.containerPredictionSettleTick()
+            );
         pendingEquipment.add(new PendingEquipmentMutation(
             SurvivalAction.Hand.MAIN_HAND,
             before,
             after,
-            timing.nextPacketProcessingWindow(),
+            authorityWindow,
             PendingEquipmentMutation.Origin.USER,
             nextEquipmentEpoch()
         ));
@@ -116,10 +123,10 @@ public final class ServerAuthorityTracker {
     }
 
     /**
-     * Reconciles hand contents only from clientbound evidence recorded after vanilla applied it.
-     * The first observation establishes the evidence revision already represented by the
-     * constructor snapshot; later observations may advance confirmed offhand contents only when a
-     * newer slot-40 packet matches the current inventory snapshot exactly.
+     * Reconciles hand contents from clientbound evidence recorded after vanilla applied it. The
+     * first observation establishes the revision already represented by the constructor snapshot.
+     * Later matching selected-slot or offhand inventory evidence is authoritative for contents but
+     * does not, by itself, prove a selected-slot index transition.
      */
     public void observeServerEvidence(
         ServerStateEvidenceSnapshot evidence,
@@ -138,21 +145,44 @@ public final class ServerAuthorityTracker {
         lastServerEvidenceRevision = evidence.revision();
         if (!evidence.known()) return;
 
-        ServerStateEvidenceSnapshot.StackEvidence offhandEvidence = evidence.inventorySlots().get(40);
-        if (offhandEvidence == null || offhandEvidence.revision() <= previousRevision) return;
+        boolean authorityChanged = false;
 
-        InventorySlotSnapshot observedOffHand = requireSlot(observedInventory, 40);
-        if (!offhandEvidence.matches(
-            observedOffHand.stackKey(),
-            observedOffHand.componentFingerprint(),
-            observedOffHand.count()
-        )) {
-            return;
+        ServerStateEvidenceSnapshot.StackEvidence mainEvidence = evidence.inventorySlots().get(confirmedSelectedSlot);
+        if (mainEvidence != null && mainEvidence.revision() > previousRevision) {
+            InventorySlotSnapshot observedMainHand = requireSlot(observedInventory, confirmedSelectedSlot);
+            if (mainEvidence.matches(
+                observedMainHand.stackKey(),
+                observedMainHand.componentFingerprint(),
+                observedMainHand.count()
+            )) {
+                if (!confirmedMainHand.sameContents(observedMainHand)) {
+                    confirmedMainHand = observedMainHand;
+                    authorityChanged = true;
+                }
+                boolean removed = pendingEquipment.removeIf(mutation ->
+                    mutation.origin() == PendingEquipmentMutation.Origin.USER
+                        && mutation.hand() == SurvivalAction.Hand.MAIN_HAND
+                        && mutation.before().inventoryIndex() == confirmedSelectedSlot
+                        && mutation.after().inventoryIndex() == confirmedSelectedSlot
+                );
+                authorityChanged |= removed;
+            }
         }
-        if (!confirmedOffHand.sameContents(observedOffHand)) {
-            confirmedOffHand = observedOffHand;
-            nextEquipmentEpoch();
+
+        ServerStateEvidenceSnapshot.StackEvidence offhandEvidence = evidence.inventorySlots().get(40);
+        if (offhandEvidence != null && offhandEvidence.revision() > previousRevision) {
+            InventorySlotSnapshot observedOffHand = requireSlot(observedInventory, 40);
+            if (offhandEvidence.matches(
+                observedOffHand.stackKey(),
+                observedOffHand.componentFingerprint(),
+                observedOffHand.count()
+            ) && !confirmedOffHand.sameContents(observedOffHand)) {
+                confirmedOffHand = observedOffHand;
+                authorityChanged = true;
+            }
         }
+
+        if (authorityChanged) nextEquipmentEpoch();
     }
 
     public int confirmedSelectedSlot(int localSelectedSlot, long currentTick) {
