@@ -63,6 +63,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            ElytraAuthorityRaceValidationScenarios.validateOptimisticStartIsRejectedWithoutMovementAuthority(
+                context,
+                singleplayer
+            );
         }
     }
 
