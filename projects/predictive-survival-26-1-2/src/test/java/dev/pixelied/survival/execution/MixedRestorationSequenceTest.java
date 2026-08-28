@@ -35,28 +35,32 @@ class MixedRestorationSequenceTest {
         ));
 
         InventorySnapshot emergency = inventory(2, Map.of(0, shield0, 2, totem2, 10, sword10));
-        assertTrue(controller.update(true, false, false, context(emergency, 11, 102)).isEmpty());
+        for (long tick = 102; tick <= 106; tick++) {
+            assertTrue(controller.update(true, false, false, context(emergency, 11, tick)).isEmpty());
+        }
         ExecutionCommand.SelectHotbar select = assertInstanceOf(
             ExecutionCommand.SelectHotbar.class,
-            controller.update(true, false, false, context(emergency, 11, 103)).orElseThrow()
+            controller.update(true, false, false, context(emergency, 11, 107)).orElseThrow()
         );
         assertEquals(0, select.hotbarIndex());
 
         InventorySnapshot selectedShield = inventory(0, Map.of(0, shield0, 2, totem2, 10, sword10));
-        assertTrue(controller.update(true, false, false, context(selectedShield, 11, 104)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(selectedShield, 11, 108)).isEmpty());
         assertTrue(controller.hasPendingRestoration(),
             "restoring the hotbar selection must reveal the earlier container mutation instead of discarding it");
 
-        assertTrue(controller.update(true, false, false, context(selectedShield, 11, 105)).isEmpty());
+        for (long tick = 109; tick <= 113; tick++) {
+            assertTrue(controller.update(true, false, false, context(selectedShield, 11, tick)).isEmpty());
+        }
         ExecutionCommand.SwapMenuSlot inverse = assertInstanceOf(
             ExecutionCommand.SwapMenuSlot.class,
-            controller.update(true, false, false, context(selectedShield, 11, 106)).orElseThrow()
+            controller.update(true, false, false, context(selectedShield, 11, 114)).orElseThrow()
         );
         assertEquals(10, inverse.sourceMenuSlot());
         assertEquals(0, inverse.button());
 
         InventorySnapshot fullyRestored = inventory(0, Map.of(0, sword0, 2, totem2, 10, shield10));
-        assertTrue(controller.update(true, false, false, context(fullyRestored, 12, 107)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(fullyRestored, 12, 115)).isEmpty());
         assertFalse(controller.hasPendingRestoration());
     }
 
