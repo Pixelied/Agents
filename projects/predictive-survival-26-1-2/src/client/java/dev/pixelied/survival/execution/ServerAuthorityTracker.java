@@ -155,17 +155,15 @@ public final class ServerAuthorityTracker {
                 observedMainHand.componentFingerprint(),
                 observedMainHand.count()
             )) {
+                int resolvedPrefix = resolvedSameSlotUserPrefix(observedMainHand);
                 if (!confirmedMainHand.sameContents(observedMainHand)) {
                     confirmedMainHand = observedMainHand;
                     authorityChanged = true;
                 }
-                boolean removed = pendingEquipment.removeIf(mutation ->
-                    mutation.origin() == PendingEquipmentMutation.Origin.USER
-                        && mutation.hand() == SurvivalAction.Hand.MAIN_HAND
-                        && mutation.before().inventoryIndex() == confirmedSelectedSlot
-                        && mutation.after().inventoryIndex() == confirmedSelectedSlot
-                );
-                authorityChanged |= removed;
+                if (resolvedPrefix > 0) {
+                    pendingEquipment.subList(0, resolvedPrefix).clear();
+                    authorityChanged = true;
+                }
             }
         }
 
@@ -300,6 +298,32 @@ public final class ServerAuthorityTracker {
             confirmedOffHand = mutation.after();
         }
         mutation.mitigationAfter().ifPresent(value -> confirmedMitigation = value);
+    }
+
+    /**
+     * Returns how many leading same-slot USER predictions are resolved by an authoritative hand
+     * snapshot. Only a leading prefix is eligible: server packets and outbound clicks are ordered,
+     * so evidence for an earlier click cannot erase a later click that may still be in flight.
+     */
+    private int resolvedSameSlotUserPrefix(InventorySlotSnapshot authoritativeMainHand) {
+        int runLength = 0;
+        int matchedPrefix = confirmedMainHand.sameContents(authoritativeMainHand) ? 0 : -1;
+        for (PendingEquipmentMutation mutation : pendingEquipment) {
+            if (mutation.origin() != PendingEquipmentMutation.Origin.USER
+                || mutation.hand() != SurvivalAction.Hand.MAIN_HAND
+                || mutation.before().inventoryIndex() != confirmedSelectedSlot
+                || mutation.after().inventoryIndex() != confirmedSelectedSlot) {
+                break;
+            }
+            runLength++;
+            if (matchedPrefix < 0 && mutation.after().sameContents(authoritativeMainHand)) {
+                matchedPrefix = runLength;
+            }
+        }
+        if (matchedPrefix > 0) return matchedPrefix;
+        // Preserve the existing rejected-prediction behavior: evidence that restores the confirmed
+        // pre-click contents resolves the earliest outstanding prediction, never later packets.
+        return matchedPrefix == 0 && runLength > 0 ? 1 : 0;
     }
 
     private InventorySlotSnapshot projectedMainHandAfterQueuedMutations() {
