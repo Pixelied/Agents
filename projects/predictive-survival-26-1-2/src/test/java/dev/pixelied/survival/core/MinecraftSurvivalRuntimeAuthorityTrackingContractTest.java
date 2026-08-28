@@ -51,4 +51,33 @@ class MinecraftSurvivalRuntimeAuthorityTrackingContractTest {
             "action-driven selection must enter the rich equipment-authority queue"
         );
     }
+
+    @Test
+    void captureProjectsMitigationThroughServerAuthorityBeforePrediction() throws Exception {
+        String runtime = Files.readString(Path.of(
+            "src/client/java/dev/pixelied/survival/core/MinecraftSurvivalRuntime.java"
+        ));
+
+        Pattern observeMitigation = Pattern.compile(
+            "authority\\.observeUntrackedLocalMitigation\\(\\s*"
+                + "rawPlayer\\.mitigation\\(\\),\\s*timing\\s*\\)",
+            Pattern.DOTALL
+        );
+        assertTrue(
+            observeMitigation.matcher(runtime).find(),
+            "runtime capture must track client-predicted mitigation before building the authority projection"
+        );
+
+        assertTrue(
+            runtime.contains("equipment.conservativeMitigationAt(clientTick)"),
+            "the prediction player must use conservative server-authority mitigation"
+        );
+        assertFalse(
+            Pattern.compile(
+                "new PlayerSnapshot\\([^;]*?player\\.mitigation\\(\\)",
+                Pattern.DOTALL
+            ).matcher(runtime).find(),
+            "authority player reconstruction must not copy raw client mitigation"
+        );
+    }
 }
