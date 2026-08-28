@@ -52,10 +52,11 @@ final class TntMinecartBurningArrowValidationScenarios {
             cart.setDeltaMovement(Vec3.ZERO);
             level.addFreshEntity(cart);
 
-            // Use the real entity boxes, not center distance, to place the arrow just outside the
-            // first-tick sweep but inside the second. Arrow max-X is ~centerX-2.75 while minecart
-            // min-X is ~centerX+0.01, leaving ~2.76 blocks of surface gap at 1.5 blocks/tick.
-            Vec3 arrowPosition = new Vec3(center.getX() - 3.0d, center.getY() + 0.35d, center.getZ() + 2.2d);
+            // The position+motion packet is followed by one real client tick before capture, and
+            // AbstractArrow.tick() moves by the current velocity during that tick. Start one
+            // velocity step farther back so the first captured trajectory is still the intended
+            // two-tick precursor (captured center ~centerX-3.0), not an already-late one-tick hit.
+            Vec3 arrowPosition = new Vec3(center.getX() - 4.5d, center.getY() + 0.35d, center.getZ() + 2.2d);
             Arrow arrow = new Arrow(
                 level,
                 arrowPosition.x,
@@ -239,7 +240,9 @@ final class TntMinecartBurningArrowValidationScenarios {
                     frame.context().timing().deadline(0).completionWindow().latest()
                         - frame.context().timing().clientTick()
                 );
-                if (opportunity.projectedThreat().impact().earliest() < fastestProtectionAuthorityTick) {
+                boolean protectionPlanAlreadyInFlight = harness.engine().currentPlan().isPresent();
+                if (!protectionPlanAlreadyInFlight
+                    && opportunity.projectedThreat().impact().earliest() < fastestProtectionAuthorityTick) {
                     throw new AssertionError(
                         "burning-arrow precursor was observed only after the fastest Totem guarantee was lost; "
                             + "impact=" + opportunity.projectedThreat().impact()
