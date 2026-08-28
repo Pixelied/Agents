@@ -15,9 +15,11 @@ public sealed interface ThreatTransition
         }
     }
 
-    record SpawnThreat(ThreatEvent event) implements ThreatTransition {
+    record SpawnThreat(String sourceId, ThreatEvent event) implements ThreatTransition {
         public SpawnThreat {
+            sourceId = Objects.requireNonNull(sourceId, "sourceId");
             event = Objects.requireNonNull(event, "event");
+            if (sourceId.isBlank()) throw new IllegalArgumentException("sourceId must not be blank");
         }
     }
 
