@@ -125,11 +125,18 @@ public final class SurvivalEngine {
         ThreatTimeline decisionTimeline
     ) {
         int maxAttempts = Math.max(1, frame.context().limits().maxPlannerCandidates());
+        int remainingContingencyEvaluations = contingencyPlanner.maxEvaluations();
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             List<SurvivalAction> candidates = filteredCandidates(frame, protectionLatchRequired);
             ContingencyPlan contingency = contingencyPlanner.planAcrossScenarios(
-                frame.context(), decisionScenarios, candidates, config().safetyMode(), config().rescueProfile()
+                frame.context(),
+                decisionScenarios,
+                candidates,
+                config().safetyMode(),
+                config().rescueProfile(),
+                remainingContingencyEvaluations
             );
+            remainingContingencyEvaluations -= contingency.evaluations();
 
             SurvivalAction selected;
             SurvivalPlan selectedPlan;
@@ -169,6 +176,15 @@ public final class SurvivalEngine {
             if (started instanceof ExecutionStatus.Failed failed && failed.replanRequired()) {
                 failedActions.add(selected);
                 clearCurrentPlan();
+                if (remainingContingencyEvaluations <= 0) {
+                    ExecutionStatus exhausted = new ExecutionStatus.Failed(
+                        "per-tick contingency evaluation budget exhausted after retryable execution failure",
+                        true
+                    );
+                    executionStatus = Optional.of(exhausted);
+                    record(frame, new SurvivalAction.NoAction(), exhausted, statusReason(exhausted));
+                    return;
+                }
                 continue;
             }
             return;
