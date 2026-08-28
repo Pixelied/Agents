@@ -58,6 +58,15 @@ final class ExplosionCausalityValidationScenarios {
         });
 
         try {
+            // Carried-slot selection is client-authoritative in 26.1.2. A prior validation may leave
+            // the real client on slot 1 even if the server fixture writes selectedSlot=0 directly.
+            BurstSequenceValidationSupport.ensureSelectedSlot(
+                context,
+                singleplayer,
+                setup.victimId(),
+                0,
+                "adjacent_crystal_causality"
+            );
             waitForFixture(context, singleplayer, setup);
 
             BurstSequenceValidationSupport.RuntimeHarness harness = BurstSequenceValidationSupport.newHarness(context);
