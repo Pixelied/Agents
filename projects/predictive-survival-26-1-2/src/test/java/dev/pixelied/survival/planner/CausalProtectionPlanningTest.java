@@ -100,7 +100,7 @@ class CausalProtectionPlanningTest {
     @Test
     void immediatePotentialCrystalFallbackStillUsesCausalRemoval() {
         ThreatEvent crystalA = potentialExplosion("explosion:201", 20f);
-        ThreatEvent crystalB = potentialExplosion("explosion:202", 20f);
+        ThreatEvent crystalB = potentialExplosion("explosion:202", 10f);
         PredictionContext context = immediateCrystalContext();
         SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
             DeathProtectionSnapshot.ProtectionItem.vanillaTotem(),
