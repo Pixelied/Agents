@@ -57,30 +57,35 @@ public final class MinecraftWorldSnapshotFactory {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(limits, "limits");
 
-        List<Entity> tracked = new ArrayList<>();
+        int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
+        Comparator<Entity> trackedOrder = Comparator
+            .comparingInt(MinecraftWorldSnapshotFactory::threatPriority)
+            .thenComparingDouble(player::distanceToSqr);
+        BoundedTopKAccumulator<Entity> tracked = new BoundedTopKAccumulator<>(
+            entityCap,
+            trackedOrder,
+            entity -> threatPriority(entity) == 0
+        );
         for (Entity entity : level.entitiesForRendering()) {
             if (entity == player || !entity.isAlive() || entity.isRemoved()) continue;
-            tracked.add(entity);
+            tracked.offer(entity);
         }
-        tracked.sort(
-            Comparator.comparingInt(MinecraftWorldSnapshotFactory::threatPriority)
-                .thenComparingDouble(player::distanceToSqr)
-        );
 
-        int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
-        int relevantCount = 0;
-        for (Entity entity : tracked) {
-            if (threatPriority(entity) == 0) relevantCount++;
-        }
-        boolean overflowed = relevantCount > entityCap;
+        BoundedTopKAccumulator.Selection<Entity> selection = tracked.finish();
+        List<Entity> selectedEntities = selection.selected();
+        boolean overflowed = selection.omittedRelevant() > 0;
         int realEntityLimit = overflowed ? Math.max(0, entityCap - 1) : entityCap;
 
-        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, tracked.size() + 1));
-        for (int i = 0; i < tracked.size() && entities.size() < realEntityLimit; i++) {
-            entities.add(entitySnapshot(tracked.get(i), player));
+        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(
+            Math.min(entityCap, selectedEntities.size() + 1)
+        );
+        for (int i = 0; i < selectedEntities.size() && entities.size() < realEntityLimit; i++) {
+            entities.add(entitySnapshot(selectedEntities.get(i), player));
         }
         if (overflowed) {
-            entities.add(observationOverflowMarker(player, relevantCount - realEntityLimit));
+            long omittedRelevant = selection.omittedRelevant() + 1L;
+            int omittedRelevantEntities = (int) Math.min(Integer.MAX_VALUE, omittedRelevant);
+            entities.add(observationOverflowMarker(player, omittedRelevantEntities));
         }
 
         List<WorldSnapshot.BlockSnapshot> nearbyBlocks = MinecraftNearbyBlockSnapshotFactory.capture(
