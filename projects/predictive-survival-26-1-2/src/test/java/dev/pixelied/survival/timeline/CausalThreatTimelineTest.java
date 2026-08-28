@@ -61,6 +61,39 @@ class CausalThreatTimelineTest {
         assertTrue(causalResult.eventResults().getFirst().damageResult().rejected());
     }
 
+    @Test
+    void mutuallyDestructiveSameTickCrystalsCannotConsumeTwoProtections() {
+        PlayerSnapshot start = playerWithProtection(5f);
+        ThreatEvent crystalA = event("explosion:201", 10f, 0);
+        ThreatEvent crystalB = event("explosion:202", 20f, 0);
+        ThreatTimeline flat = new ThreatTimeline(List.of(crystalA, crystalB));
+
+        TimelineResult flatResult = simulator.simulate(start, flat);
+        assertFalse(flatResult.survived(),
+            "flat simulation must expose the impossible A-then-B differential-damage branch");
+        assertEquals(1, flatResult.consumedDeathProtectionCount());
+
+        CausalThreatTimeline causal = new CausalThreatTimeline(
+            flat,
+            Map.of(
+                crystalA.id(), "entity:201",
+                crystalB.id(), "entity:202"
+            ),
+            Map.of(
+                crystalA.id(), List.of(new ThreatTransition.RemoveSource("entity:202")),
+                crystalB.id(), List.of(new ThreatTransition.RemoveSource("entity:201"))
+            )
+        );
+
+        TimelineResult causalResult = simulator.simulate(start, causal);
+
+        assertTrue(causalResult.survived(),
+            "whichever crystal explodes first removes the other source before its own detonation");
+        assertEquals(1, causalResult.eventResults().size());
+        assertEquals(1, causalResult.consumedDeathProtectionCount());
+        assertTrue(causalResult.finalHealth() > 0f);
+    }
+
     private static ThreatEvent event(String id, float rawDamage, long tick) {
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(rawDamage),
@@ -83,6 +116,26 @@ class CausalThreatTimelineTest {
             false,
             false,
             false
+        );
+    }
+
+    private static PlayerSnapshot playerWithProtection(float health) {
+        return new PlayerSnapshot(
+            health,
+            0f,
+            false,
+            false,
+            false,
+            DifficultySnapshot.NORMAL,
+            MitigationSnapshot.none(),
+            StatusEffectsSnapshot.none(),
+            BlockingSnapshot.none(),
+            HurtState.unknown(),
+            DeathProtectionSnapshot.mainHand(DeathProtectionSnapshot.ProtectionItem.deterministicNoOp()),
+            new AabbSnapshot(0, 0, 0, 0.6, 1.8, 0.6),
+            new Vec3Snapshot(0, 0, 0),
+            new Vec3Snapshot(0, 0, 0),
+            Map.of()
         );
     }
 
