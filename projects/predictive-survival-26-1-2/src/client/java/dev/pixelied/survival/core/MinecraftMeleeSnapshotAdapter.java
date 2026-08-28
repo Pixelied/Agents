@@ -135,6 +135,13 @@ final class MinecraftMeleeSnapshotAdapter {
         String prefix,
         ItemStack stack
     ) {
+        if (stack.is(Items.BOW)) {
+            properties.put(
+                prefix + "bow_power_enchantment_level",
+                Integer.toString(enchantmentLevel(stack, Enchantments.POWER))
+            );
+        }
+
         if (stack.is(Items.CROSSBOW)) {
             ChargedProjectiles charged = stack.getOrDefault(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.EMPTY);
             boolean arrowLoaded = false;
