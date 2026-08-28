@@ -20,11 +20,11 @@ Classification:
 | Player melee | `Player.attack` | attacker motion/LOS/range/weapon | opportunity-modeled | `MeleeApproachOpportunityPredictor`; already-in-range stays `MeleePredictor` |
 | Mace | `Player.attack` mace-smash branch | player melee state + mace/fall uncertainty | opportunity-modeled | same approach predictor, shared `MeleePredictor` formula |
 | Piercing spear STAB | `ServerboundPlayerActionPacket.STAB`, `PiercingWeapon.attack`, `ProjectileUtil.getHitEntitiesAlong`, `AttackRange` | visible spear + attacker/target motion + first legal hostile STAB ray | opportunity-modeled | `MeleeApproachOpportunityPredictor`; `ServerPlayerAttackRange` uses the 26.1.2 positive `knownMovement · look` extension over feasible hostile rays, not movement magnitude; exact-runtime pre-arm/pop proof |
-| Kinetic spear use | `KineticWeapon.damageEntities` | visible spear/use state + relative motion once synchronized | actual-lead-time | separate from STAB; current melee modeling fails closed when exact kinetic fields are unavailable, and this audit does not claim exact-runtime validation of the delayed kinetic-use path |
+| Kinetic spear use | `KineticWeapon.damageEntities` | synchronized `KINETIC_WEAPON`, active use state, use ticks, attack range, and relative approach motion | opportunity-modeled | production snapshot exports Kinetic delay/duration/speed thresholds; `MeleePredictor` models in-range Kinetic damage and `MeleeApproachOpportunityPredictor` pre-arms future contact; exact-runtime metadata and first-damage-tick pop are validated separately from STAB |
 | Mob melee | `MeleeAttackGoal.tick/checkAndPerformAttack`, `MeleeAttack` | mob motion/LOS/range/vehicle box | opportunity-modeled | projected first legal range-entry tick using `MobMeleeRange`; damage reused from `MeleePredictor` |
 | Arrow / spectral arrow | `AbstractArrow.onHitEntity` | spawned projectile | actual-lead-time | `ProjectilePredictor` |
-| Bow | `BowItem.releaseUsing` -> arrow | spawned arrow; remote use state is also observable | actual-lead-time | exact runtime probe proves first-projectile observation still leaves authority lead; no precursor predictor |
-| Loaded crossbow arrow | `CrossbowItem.use` -> arrow | visible loaded crossbow | opportunity-modeled | `ProjectileReleaseOpportunityPredictor` |
+| Bow | `BowItem.releaseUsing` -> arrow | synchronized remote Bow use state + observed use ticks + observation age | opportunity-modeled | `ProjectileReleaseOpportunityPredictor` pre-arms the first legal release; exact-runtime tests cover an ordinary Bow and a real synchronized Power V Bow |
+| Loaded crossbow arrow | `CrossbowItem.use` -> arrow | visible loaded crossbow | opportunity-modeled | `ProjectileReleaseOpportunityPredictor`; tipped Harming uses a shield-dependent magic upper bound without incorrectly inheriting Projectile Protection |
 | Trident | `ThrownTrident.onHitEntity` | spawned trident | no-observable-precursor | actual `ProjectilePredictor`; no hidden pre-release guess |
 | Thrown spear plan candidate | supplied source has `SpearAttack/SpearApproach/SpearRetreat/SpearUseGoal` but no separate thrown-spear projectile entity | N/A | actual-lead-time | no separate projectile predictor; spear damage remains item-action/raycast handling rather than a fabricated thrown projectile |
 | Llama spit | `LlamaSpit.onHitEntity` | spawned spit | no-observable-precursor | `ProjectilePredictor` after spawn |
@@ -37,7 +37,7 @@ Classification:
 | Loaded crossbow firework | `CrossbowItem.use` -> firework | visible loaded crossbow + firework payload | opportunity-modeled | `ProjectileReleaseOpportunityPredictor` |
 | Splash Harming | `ThrownSplashPotion.onHitAsPotion` | visible splash potion + visible instant-damage payload + first-tick reach | opportunity-modeled | `ProjectileReleaseOpportunityPredictor` |
 | Other splash potion | `ThrownSplashPotion.onHitAsPotion` | spawned potion + contents | actual-lead-time | `ProjectilePredictor` + status followups |
-| Lingering potion | lingering impact -> `AreaEffectCloud` | spawned potion/cloud | actual-lead-time | projectile/cloud timeline |
+| Lingering potion | lingering impact -> `AreaEffectCloud` | spawned potion/cloud | actual-lead-time | projectile/cloud timeline; vanilla cloud `waitTime=10` means this is not treated as a first-observation authority race |
 | Area-effect cloud | `AreaEffectCloud.tick` | existing cloud state | actual-lead-time | area/status timeline |
 | Ender pearl self damage | `ThrownEnderpearl` impact owner damage | own spawned pearl | actual-lead-time | projectile/self-damage path |
 | Shulker bullet | `ShulkerBullet.onHitEntity` | existing homing bullet | actual-lead-time | `ShulkerBulletPredictor` |
@@ -62,23 +62,25 @@ Classification:
 - Primed TNT whose client-visible fuse must be aged by live network timing rather than treated as exact server time.
 - Ordinary player melee and mace smash at the first legal server-range-entry tick.
 - Netherite spear `PiercingWeapon.attack` / STAB at the first legal adversarial ray through the vanilla `AttackRange` hitbox margin.
+- Synchronized Kinetic spear metadata plus a separate future-approach fixture whose first legal `KineticWeapon.damageEntities` tick consumes server-authoritative protection while ordinary discrete STAB is explicitly unready.
+- Bow pre-arm before the first legal three-use-tick server release, including a genuine synchronized Power V Bow whose first legal arrow is lethal to the 2-HP fixture and consumes protection.
 
-The STAB proof is intentionally separate from `KineticWeapon.damageEntities`. Vanilla extends the STAB ray only by `max(0, knownMovement · look)`, so the production reach helper rejects full forward credit for tangential movement. A deterministic regression guards that rule, while the integrated-server fixture still delegates final legality to vanilla `ProjectileUtil.getHitEntitiesAlong`.
+The STAB proof is intentionally separate from `KineticWeapon.damageEntities`. Vanilla extends the STAB ray only by `max(0, knownMovement · look)`, so the production reach helper rejects full forward credit for tangential movement. Kinetic use instead derives player motion from `knownSpeed * 20`, applies its synchronized delay/duration/speed conditions, and has its own exact-runtime first-damage-tick proof.
 
 ## Exact player-launch authority result
 
-`FirstFrameProjectileAuthorityValidationScenarios` compares protection started only after first projectile observation against protection already authoritative from precursor state. It asserts classification, not brittle absolute ticks.
+`FirstFrameProjectileAuthorityValidationScenarios` compares protection started only after first projectile observation against protection already authoritative from precursor state. It asserts classification, not brittle absolute ticks. `BowReleasePrecursorValidationScenarios` then proves the Bow precursor against the real first legal server release.
 
-- Bow: first-projectile path retains authority lead; precursor path survives.
+- Bow: first-projectile observation retains unsafe authority lead; synchronized active use provides a defensible precursor and survives the first legal release.
 - Loaded crossbow arrow: first-projectile path does not guarantee authority; precursor path survives.
 - Loaded crossbow damaging firework: same race; precursor path survives.
 - Wind charge: same race; precursor path survives.
 - Splash Harming: same race; precursor path survives.
 
-Therefore the four racing families are handled by `ProjectileReleaseOpportunityPredictor`; Bow intentionally is not.
+Therefore all five racing player-launch families are handled by `ProjectileReleaseOpportunityPredictor`. Bow additionally derives its release window from synchronized active-use evidence rather than merely holding the item, and Power-enchantment level is captured from the real synchronized Bow stack.
 
 ## Performance / completeness
 
 `OpportunityBudgetTest` guards a 4,000-block, 16-player, 200-sample opportunity fixture at median <2 ms and p95 <5 ms. Crystal receives a deterministic per-family share of `EngineLimits.maxOpportunities()` for exact explosion narrow phases and emits a conservative overflow opportunity for unscanned legal candidates. Snapshot occlusion prefilters non-colliders and crystal occupancy uses indexed block cells. No frame-crossing health/equipment/damage cache was added.
 
-The source audit found five material precursor gaps: four player-launch authority races (loaded crossbow arrow, loaded crossbow firework, wind charge, splash Harming) and mob first-range-entry melee. All five are now opportunity-modeled. Families with no defensible synchronized precursor are explicitly left at their first observable state rather than fabricating server AI/RNG/NBT state.
+The source + authority audit identified immediate precursor gaps for Bow, loaded crossbow arrow, loaded crossbow firework, wind charge, splash Harming, first-range-entry melee, and Kinetic spear approach/contact. Those paths are now opportunity-modeled with exact-runtime coverage for the authority-sensitive Bow, melee, STAB, and Kinetic boundaries. Families with no defensible synchronized precursor remain at their first observable state rather than fabricating hidden server AI/RNG/NBT state. The ongoing audit treats follow-up effects with their own vanilla mitigation/source semantics instead of flattening mixed sequences into one damage class.
