@@ -102,10 +102,11 @@ public final class ThreatTimelineSimulator {
         int activationIndex = 0;
 
         for (List<ThreatEvent> group : overlapGroups(sorted)) {
+            Set<String> removedAtGroupStart = Set.copyOf(removedSources);
             List<ThreatEvent> activeGroup = causal == null
                 ? group
                 : group.stream()
-                    .filter(event -> !removedSources.contains(causal.sourceId(event)))
+                    .filter(event -> !removedAtGroupStart.contains(causal.sourceId(event)))
                     .toList();
             if (activeGroup.isEmpty()) continue;
 
