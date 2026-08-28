@@ -53,8 +53,38 @@ class ExplosionCausalGraphTest {
         ));
     }
 
+    @Test
+    void adjacentChargedAnchorsKeepDistinctStableBlockSourcesWithoutChainRemoval() {
+        WorldSnapshot.BlockSnapshot first = anchor(0.5, "anchor:0,0,0");
+        WorldSnapshot.BlockSnapshot second = anchor(4.5, "anchor:4,0,0");
+        PredictionContext context = context(List.of(), List.of(first, second));
+        ExplosionPredictor predictor = new ExplosionPredictor();
+        List<ThreatEvent> predicted = predictor.predict(context);
+
+        CausalThreatTimeline causal = predictor.causalize(context, new ThreatTimeline(predicted));
+
+        assertEquals(2, predicted.size());
+        ThreatEvent firstEvent = eventAt(predicted, first.position());
+        ThreatEvent secondEvent = eventAt(predicted, second.position());
+        assertEquals("block:anchor:0,0,0", causal.sourceId(firstEvent));
+        assertEquals("block:anchor:4,0,0", causal.sourceId(secondEvent));
+        assertFalse(causal.transitionsAfter(firstEvent.id()).contains(
+            new ThreatTransition.RemoveSource("block:anchor:4,0,0")
+        ));
+        assertFalse(causal.transitionsAfter(secondEvent.id()).contains(
+            new ThreatTransition.RemoveSource("block:anchor:0,0,0")
+        ));
+    }
+
     private static ThreatEvent event(List<ThreatEvent> events, String id) {
         return events.stream().filter(event -> event.id().equals(id)).findFirst().orElseThrow();
+    }
+
+    private static ThreatEvent eventAt(List<ThreatEvent> events, Vec3Snapshot position) {
+        return events.stream()
+            .filter(event -> event.sourcePosition().filter(position::equals).isPresent())
+            .findFirst()
+            .orElseThrow();
     }
 
     private static WorldSnapshot.EntitySnapshot crystal(String id, double x) {
@@ -73,8 +103,33 @@ class ExplosionCausalGraphTest {
         );
     }
 
+    private static WorldSnapshot.BlockSnapshot anchor(double x, String removalGroup) {
+        return new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(x, 0.5, 0.5),
+            "minecraft:respawn_anchor",
+            true,
+            Map.of(
+                "full_collision_cube", "true",
+                "anchor_explodes", "true",
+                "anchor_charge", "1",
+                "explosion_radius", "5.0",
+                "triggerable", "true",
+                "source_key", "minecraft:bad_respawn_point",
+                "scales_with_difficulty", "true",
+                "pre_explosion_remove_group", removalGroup
+            )
+        );
+    }
+
     private static PredictionContext context(List<WorldSnapshot.EntitySnapshot> entities) {
-        Vec3Snapshot position = new Vec3Snapshot(6.0, 0, 0);
+        return context(entities, List.of());
+    }
+
+    private static PredictionContext context(
+        List<WorldSnapshot.EntitySnapshot> entities,
+        List<WorldSnapshot.BlockSnapshot> blocks
+    ) {
+        Vec3Snapshot position = new Vec3Snapshot(2.5, 0, 0.5);
         PlayerSnapshot player = new PlayerSnapshot(
             20f,
             0f,
@@ -87,14 +142,14 @@ class ExplosionCausalGraphTest {
             BlockingSnapshot.none(),
             HurtState.unknown(),
             DeathProtectionSnapshot.none(),
-            new AabbSnapshot(5.7, 0, -0.3, 6.3, 1.8, 0.3),
+            new AabbSnapshot(2.2, 0, 0.2, 2.8, 1.8, 0.8),
             position,
             new Vec3Snapshot(0, 0, 0),
             Map.of()
         );
         return new PredictionContext(
             player,
-            new WorldSnapshot(entities, List.of()),
+            new WorldSnapshot(entities, blocks),
             new TimingSnapshot(0, 100, 0, new TickWindow(1, 2)),
             EngineLimits.defaults()
         );
