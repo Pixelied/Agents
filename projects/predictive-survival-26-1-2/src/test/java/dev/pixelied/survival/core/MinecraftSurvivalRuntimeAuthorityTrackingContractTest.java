@@ -68,16 +68,15 @@ class MinecraftSurvivalRuntimeAuthorityTrackingContractTest {
             "runtime capture must track client-predicted mitigation before building the authority projection"
         );
 
-        assertTrue(
-            runtime.contains("equipment.conservativeMitigationAt(clientTick)"),
-            "the prediction player must use conservative server-authority mitigation"
+        Pattern authorityReconstruction = Pattern.compile(
+            "private static PlayerSnapshot withAuthoritativeDeathProtection\\([^}]*?"
+                + "equipment\\.conservativeMitigationAt\\(serverTick\\)[^}]*?"
+                + "equipment\\.guaranteedDeathProtectionAt\\(serverTick\\)",
+            Pattern.DOTALL
         );
-        assertFalse(
-            Pattern.compile(
-                "new PlayerSnapshot\\([^;]*?player\\.mitigation\\(\\)",
-                Pattern.DOTALL
-            ).matcher(runtime).find(),
-            "authority player reconstruction must not copy raw client mitigation"
+        assertTrue(
+            authorityReconstruction.matcher(runtime).find(),
+            "the authority player reconstruction must use conservative mitigation and guaranteed protection"
         );
     }
 }
