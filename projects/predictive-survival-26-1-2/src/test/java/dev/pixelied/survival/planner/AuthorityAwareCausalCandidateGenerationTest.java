@@ -17,7 +17,9 @@ import dev.pixelied.survival.damage.DeathProtectionSnapshot;
 import dev.pixelied.survival.damage.HurtState;
 import dev.pixelied.survival.damage.MitigationSnapshot;
 import dev.pixelied.survival.damage.StatusEffectsSnapshot;
+import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
+import dev.pixelied.survival.execution.ServerStateEvidenceSnapshot;
 import dev.pixelied.survival.inventory.InventorySlotSnapshot;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
@@ -41,19 +43,7 @@ class AuthorityAwareCausalCandidateGenerationTest {
 
     @Test
     void authoritativeMainhandTotemAndCrystalCausalitySuppressRedundantOffhandRoute() {
-        ThreatEvent crystalA = explosion("explosion:501", 10f);
-        ThreatEvent crystalB = explosion("explosion:502", 20f);
-        CausalThreatTimeline causal = new CausalThreatTimeline(
-            new ThreatTimeline(List.of(crystalA, crystalB)),
-            Map.of(
-                crystalA.id(), "entity:501",
-                crystalB.id(), "entity:502"
-            ),
-            Map.of(
-                crystalA.id(), List.of(new ThreatTransition.RemoveSource("entity:502")),
-                crystalB.id(), List.of(new ThreatTransition.RemoveSource("entity:501"))
-            )
-        );
+        CausalThreatTimeline causal = mutuallyDestructiveCrystals();
 
         List<SurvivalAction> candidates = generator.generate(
             contextWithoutLocalProtection(),
@@ -90,6 +80,48 @@ class AuthorityAwareCausalCandidateGenerationTest {
         );
 
         assertEquals(1, protectionCandidates(candidates));
+    }
+
+    @Test
+    void unresolvedPopKeepsCausalCrystalPruningWhileRoutingPhysicalReplacements() {
+        EquipmentAuthorityProjection equipment = equipment();
+        InventorySnapshot inventory = inventoryWithTwoReplacements();
+        DeathProtectionPopTracker pops = new DeathProtectionPopTracker();
+        pops.reconcile(
+            equipment,
+            inventory,
+            new ServerStateEvidenceSnapshot(true, 1L, Map.of(), Map.of(), Map.of()),
+            0L
+        );
+        pops.observeLocalTotemPop(0L, 1L);
+
+        List<SurvivalAction> candidates = generator.generate(
+            contextWithoutLocalProtection(),
+            mutuallyDestructiveCrystals(),
+            inventory,
+            menuWithTwoReplacements(),
+            RescuePolicy.totemOnly(),
+            equipment,
+            pops
+        );
+
+        assertEquals(1, protectionCandidates(candidates));
+    }
+
+    private static CausalThreatTimeline mutuallyDestructiveCrystals() {
+        ThreatEvent crystalA = explosion("explosion:501", 10f);
+        ThreatEvent crystalB = explosion("explosion:502", 20f);
+        return new CausalThreatTimeline(
+            new ThreatTimeline(List.of(crystalA, crystalB)),
+            Map.of(
+                crystalA.id(), "entity:501",
+                crystalB.id(), "entity:502"
+            ),
+            Map.of(
+                crystalA.id(), List.of(new ThreatTransition.RemoveSource("entity:502")),
+                crystalB.id(), List.of(new ThreatTransition.RemoveSource("entity:501"))
+            )
+        );
     }
 
     private static long protectionCandidates(List<SurvivalAction> candidates) {
@@ -134,6 +166,19 @@ class AuthorityAwareCausalCandidateGenerationTest {
         );
     }
 
+    private static InventorySnapshot inventoryWithTwoReplacements() {
+        return new InventorySnapshot(
+            0,
+            Map.of(
+                0, totem(0),
+                5, totem(5),
+                6, totem(6),
+                40, new InventorySlotSnapshot(40, "minecraft:air", 0, false)
+            ),
+            false
+        );
+    }
+
     private static EquipmentAuthorityProjection equipment() {
         return new EquipmentAuthorityProjection(
             0,
@@ -150,6 +195,10 @@ class AuthorityAwareCausalCandidateGenerationTest {
 
     private static MenuSlotMap menu() {
         return new MenuSlotMap(0, 4, Map.of(0, 36, 5, 41, 40, 45));
+    }
+
+    private static MenuSlotMap menuWithTwoReplacements() {
+        return new MenuSlotMap(0, 4, Map.of(0, 36, 5, 41, 6, 42, 40, 45));
     }
 
     private static ThreatEvent explosion(String id, float rawDamage) {
