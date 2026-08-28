@@ -1,6 +1,7 @@
 package dev.pixelied.survival.mixin;
 
 import dev.pixelied.survival.PredictiveSurvivalClient;
+import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -8,6 +9,7 @@ import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
+import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundMoveEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
@@ -57,6 +59,15 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "handleSetHealth", at = @At("TAIL"))
     private void predictiveSurvival$afterSetHealth(ClientboundSetHealthPacket packet, CallbackInfo ci) {
+        PredictiveSurvivalClient.markThreatDirty();
+    }
+
+    @Inject(method = "handleEntityEvent", at = @At("TAIL"))
+    private void predictiveSurvival$afterEntityEvent(ClientboundEntityEventPacket packet, CallbackInfo ci) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (packet.getEventId() != 35 || minecraft.level == null || minecraft.player == null) return;
+        if (packet.getEntity(minecraft.level) != minecraft.player) return;
+        DeathProtectionPopTracker.global().observeLocalTotemPop(Math.max(0L, minecraft.player.tickCount));
         PredictiveSurvivalClient.markThreatDirty();
     }
 
