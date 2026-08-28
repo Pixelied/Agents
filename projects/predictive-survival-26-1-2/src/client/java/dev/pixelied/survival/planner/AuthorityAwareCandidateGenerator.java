@@ -8,6 +8,7 @@ import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
+import dev.pixelied.survival.threat.ExplosionPredictor;
 import dev.pixelied.survival.timeline.CausalThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 
@@ -17,13 +18,19 @@ import java.util.Objects;
 /** Applies server-authority hand projection before delegating to the existing candidate generator. */
 public final class AuthorityAwareCandidateGenerator {
     private final SurvivalCandidateGenerator delegate;
+    private final ExplosionPredictor causalizer;
 
     public AuthorityAwareCandidateGenerator() {
-        this(new SurvivalCandidateGenerator());
+        this(new SurvivalCandidateGenerator(), new ExplosionPredictor());
     }
 
     AuthorityAwareCandidateGenerator(SurvivalCandidateGenerator delegate) {
+        this(delegate, new ExplosionPredictor());
+    }
+
+    AuthorityAwareCandidateGenerator(SurvivalCandidateGenerator delegate, ExplosionPredictor causalizer) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
+        this.causalizer = Objects.requireNonNull(causalizer, "causalizer");
     }
 
     public List<SurvivalAction> generate(
@@ -109,26 +116,15 @@ public final class AuthorityAwareCandidateGenerator {
     ) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
-        Objects.requireNonNull(inventory, "inventory");
-        Objects.requireNonNull(menu, "menu");
-        Objects.requireNonNull(policy, "policy");
-        Objects.requireNonNull(equipment, "equipment");
-
-        var earliestRelativeImpact = timeline.events().stream()
-            .mapToLong(event -> event.impact().earliest())
-            .min();
-        long damageDeadline = earliestRelativeImpact.isPresent()
-            ? saturatingAdd(context.timing().clientTick(), earliestRelativeImpact.getAsLong())
-            : context.timing().nextPacketProcessingWindow().latest();
-
-        InventorySnapshot projectedInventory = pops == null
-            ? equipment.conservativeInventoryAt(inventory, damageDeadline)
-            : pops.conservativeInventoryAfterPop(inventory, equipment, damageDeadline);
-        DeathProtectionSnapshot guaranteedProtection = pops == null
-            ? equipment.guaranteedDeathProtectionAt(damageDeadline)
-            : pops.projectedDeathProtectionAt(equipment, damageDeadline);
-        PredictionContext projectedContext = withGuaranteedProtection(context, guaranteedProtection);
-        return delegate.generate(projectedContext, timeline, projectedInventory, menu, policy);
+        return generate(
+            context,
+            causalizer.causalize(context, timeline),
+            inventory,
+            menu,
+            policy,
+            equipment,
+            pops
+        );
     }
 
     private static PredictionContext withGuaranteedProtection(
