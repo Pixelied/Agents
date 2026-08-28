@@ -3,6 +3,8 @@ package dev.pixelied.survival.planner;
 import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.core.PlayerSnapshot;
 import dev.pixelied.survival.core.PredictionContext;
+import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
 import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
@@ -31,6 +33,18 @@ public final class AuthorityAwareCandidateGenerator {
         RescuePolicy policy,
         EquipmentAuthorityProjection equipment
     ) {
+        return generate(context, timeline, inventory, menu, policy, equipment, null);
+    }
+
+    public List<SurvivalAction> generate(
+        PredictionContext context,
+        ThreatTimeline timeline,
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        RescuePolicy policy,
+        EquipmentAuthorityProjection equipment,
+        DeathProtectionPopTracker pops
+    ) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
         Objects.requireNonNull(inventory, "inventory");
@@ -44,15 +58,20 @@ public final class AuthorityAwareCandidateGenerator {
         long damageDeadline = earliestRelativeImpact.isPresent()
             ? saturatingAdd(context.timing().clientTick(), earliestRelativeImpact.getAsLong())
             : context.timing().nextPacketProcessingWindow().latest();
-        InventorySnapshot projectedInventory = equipment.conservativeInventoryAt(inventory, damageDeadline);
-        PredictionContext projectedContext = withGuaranteedProtection(context, equipment, damageDeadline);
+
+        InventorySnapshot projectedInventory = pops == null
+            ? equipment.conservativeInventoryAt(inventory, damageDeadline)
+            : pops.conservativeInventoryAfterPop(inventory, equipment, damageDeadline);
+        DeathProtectionSnapshot guaranteedProtection = pops == null
+            ? equipment.guaranteedDeathProtectionAt(damageDeadline)
+            : pops.projectedDeathProtectionAt(equipment, damageDeadline);
+        PredictionContext projectedContext = withGuaranteedProtection(context, guaranteedProtection);
         return delegate.generate(projectedContext, timeline, projectedInventory, menu, policy);
     }
 
     private static PredictionContext withGuaranteedProtection(
         PredictionContext context,
-        EquipmentAuthorityProjection equipment,
-        long serverTick
+        DeathProtectionSnapshot guaranteedProtection
     ) {
         PlayerSnapshot player = context.player();
         PlayerSnapshot projectedPlayer = new PlayerSnapshot(
@@ -66,7 +85,7 @@ public final class AuthorityAwareCandidateGenerator {
             player.statusEffects(),
             player.blocking(),
             player.hurtState(),
-            equipment.guaranteedDeathProtectionAt(serverTick),
+            Objects.requireNonNull(guaranteedProtection, "guaranteedProtection"),
             player.boundingBox(),
             player.position(),
             player.velocity(),
