@@ -53,10 +53,10 @@ final class TntMinecartBurningArrowValidationScenarios {
             level.addFreshEntity(cart);
 
             // The position+motion packet is followed by one real client tick before capture, and
-            // AbstractArrow.tick() moves by the current velocity during that tick. Start one
-            // velocity step farther back so the first captured trajectory is still the intended
-            // two-tick precursor (captured center ~centerX-3.0), not an already-late one-tick hit.
-            Vec3 arrowPosition = new Vec3(center.getX() - 4.5d, center.getY() + 0.35d, center.getZ() + 2.2d);
+            // AbstractArrow.tick() moves by the current velocity during that tick. Start two
+            // velocity steps farther back so the first captured trajectory remains outside the
+            // conservative three-tick Totem authority deadline even when RTT sampling is pessimistic.
+            Vec3 arrowPosition = new Vec3(center.getX() - 6.0d, center.getY() + 0.35d, center.getZ() + 2.2d);
             Arrow arrow = new Arrow(
                 level,
                 arrowPosition.x,
