@@ -246,6 +246,60 @@ class ServerAuthorityTrackerTest {
     }
 
     @Test
+    void correctionForEarlierSameSlotPredictionPreservesLaterInFlightMutation() {
+        MinecraftServerStateEvidence.reset();
+        try {
+            InventorySnapshot initial = inventory(1);
+            InventorySnapshot firstPrediction = optimisticTotem();
+            InventorySlotSnapshot laterMain = slot(1, "minecraft:stick", false);
+            InventorySnapshot laterPrediction = new InventorySnapshot(1, Map.of(
+                1, laterMain,
+                2, slot(2, "minecraft:diamond_pickaxe", false),
+                5, slot(5, "minecraft:diamond_sword", false),
+                40, slot(40, "minecraft:air", false)
+            ), false);
+            ServerAuthorityTracker tracker = new ServerAuthorityTracker(initial, MitigationSnapshot.none());
+            tracker.observeServerEvidence(
+                new ServerStateEvidenceSnapshot(true, 3000L, Map.of(), Map.of(), Map.of()),
+                initial
+            );
+            TimingSnapshot firstTiming = new TimingSnapshot(500, 200, 0, new TickWindow(502, 503));
+            TimingSnapshot secondTiming = new TimingSnapshot(501, 200, 0, new TickWindow(503, 504));
+
+            tracker.observeUntrackedLocalSelection(firstPrediction, firstTiming);
+            tracker.observeUntrackedLocalSelection(laterPrediction, secondTiming);
+
+            assertEquals(2, tracker.equipmentProjection(
+                laterPrediction,
+                MitigationSnapshot.none(),
+                503
+            ).pending().size());
+
+            InventorySlotSnapshot authoritativeTotem = firstPrediction.slot(1).orElseThrow();
+            tracker.observeServerEvidence(
+                evidenceForSlot(3001L, authoritativeTotem),
+                firstPrediction
+            );
+
+            EquipmentAuthorityProjection projection = tracker.equipmentProjection(
+                firstPrediction,
+                MitigationSnapshot.none(),
+                firstTiming.containerPredictionSettleTick()
+            );
+            assertEquals("minecraft:totem_of_undying", projection.confirmedMainHand().stackKey());
+            assertEquals(1, projection.pending().size(),
+                "evidence for the earlier click must not erase a later same-slot packet still in flight");
+            assertEquals("minecraft:stick", projection.pending().getFirst().after().stackKey());
+            assertFalse(projection.guaranteedDeathProtectionAt(
+                firstTiming.containerPredictionSettleTick()
+            ).anyHandAvailable(),
+                "a later in-flight removal must keep protection non-guaranteed");
+        } finally {
+            MinecraftServerStateEvidence.reset();
+        }
+    }
+
+    @Test
     void shieldWarmupStartsAtConservativeServerProcessingTick() {
         ServerAuthorityTracker tracker = new ServerAuthorityTracker(0);
         TimingSnapshot timing = new TimingSnapshot(100, 100, 10, new TickWindow(102, 104));
