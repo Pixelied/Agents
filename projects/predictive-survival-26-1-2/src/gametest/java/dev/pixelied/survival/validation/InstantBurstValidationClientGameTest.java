@@ -20,6 +20,10 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            MitigationAuthorityRaceValidationScenarios.validateOptimisticLocalArmorDoesNotCountAsServerMitigation(
+                context,
+                singleplayer
+            );
             BowReleasePrecursorValidationScenarios.validatePrearmsBeforeFirstLegalRelease(context, singleplayer);
             var victimId = singleplayer.getServer().computeOnServer(server ->
                 SurvivalValidationClientGameTest.onlyPlayer(server).getUUID()
