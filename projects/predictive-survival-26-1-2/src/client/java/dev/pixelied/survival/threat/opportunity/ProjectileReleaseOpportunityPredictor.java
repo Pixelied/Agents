@@ -198,6 +198,8 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         if (!hand.evidence.equals(properties.getOrDefault("used_hand", "none"))) return Optional.empty();
         Integer observedUseTicks = nonNegativeInt(properties.get("client_observed_use_ticks"));
         if (observedUseTicks == null) return Optional.empty();
+        Integer powerEnchantmentLevel = nonNegativeInt(properties.get(hand.prefix + "bow_power_enchantment_level"));
+        if (powerEnchantmentLevel == null) powerEnchantmentLevel = 0;
 
         TickWindow age = context.timing().observationAgeWindow();
         long serverElapsedMax = saturatingAdd(observedUseTicks.longValue(), age.latest());
@@ -213,7 +215,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
             : (int)latestModeledUseTick;
         float power = bowPowerForTime(boundedUseTicks);
         double speed = power * 3.0d;
-        float rawDamage = bowArrowRawDamage(power, speed);
+        float rawDamage = bowArrowRawDamage(power, speed, powerEnchantmentLevel);
         Map<String, String> evidence = new LinkedHashMap<>();
         evidence.put("client_observed_use_ticks", Integer.toString(observedUseTicks));
         evidence.put("observation_age_min", Long.toString(age.earliest()));
@@ -222,6 +224,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         evidence.put("earliest_lethal_use_tick", Long.toString(earliestModeledUseTick));
         evidence.put("latest_modeled_use_tick", Long.toString(latestModeledUseTick));
         evidence.put("bow_power_max", Float.toString(power));
+        evidence.put("bow_power_enchantment_level", Integer.toString(powerEnchantmentLevel));
         return Optional.of(new Release(
             "bow_arrow",
             speed,
@@ -241,13 +244,12 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         return Math.min(power, 1.0f);
     }
 
-    /**
-     * Baseline vanilla 26.1.2 arrow damage for the visible draw power. Full draw is critical, so
-     * include AbstractArrow's maximum critical random addition. Visible enchantment widening is a
-     * separate release-profile task and must not be guessed here.
-     */
-    private static float bowArrowRawDamage(float power, double speed) {
-        long base = (long)Math.ceil(Math.max(0d, speed * ARROW_BASE_DAMAGE));
+    /** Mirrors the visible Power DAMAGE effect before AbstractArrow applies velocity and crit. */
+    private static float bowArrowRawDamage(float power, double speed, int powerEnchantmentLevel) {
+        double powerBonus = powerEnchantmentLevel <= 0
+            ? 0d
+            : 1d + 0.5d * (powerEnchantmentLevel - 1L);
+        long base = (long)Math.ceil(Math.max(0d, speed * (ARROW_BASE_DAMAGE + powerBonus)));
         long damage = base;
         if (power >= 1.0f) {
             damage += base / 2L + 1L;
