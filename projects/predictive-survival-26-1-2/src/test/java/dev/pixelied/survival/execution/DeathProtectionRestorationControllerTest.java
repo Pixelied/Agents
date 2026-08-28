@@ -27,15 +27,16 @@ class DeathProtectionRestorationControllerTest {
         controller.arm(new RestorationCheckpoint.Hotbar(0, 1, original, protection, 100));
 
         assertTrue(controller.update(true, true, false, context(inventory(1, original, protection), 101, false)).isEmpty());
-        assertTrue(controller.update(true, false, false, context(inventory(1, original, protection), 102, false)).isEmpty());
-        assertTrue(controller.update(true, false, false, context(inventory(1, original, protection), 103, false)).isEmpty());
+        for (long tick = 102; tick <= 109; tick++) {
+            assertTrue(controller.update(true, false, false, context(inventory(1, original, protection), tick, false)).isEmpty());
+        }
         ExecutionCommand.SelectHotbar restore = assertInstanceOf(
             ExecutionCommand.SelectHotbar.class,
-            controller.update(true, false, false, context(inventory(1, original, protection), 104, false)).orElseThrow()
+            controller.update(true, false, false, context(inventory(1, original, protection), 110, false)).orElseThrow()
         );
         assertEquals(0, restore.hotbarIndex());
 
-        assertTrue(controller.update(true, false, false, context(inventory(0, original, protection), 105, false)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(inventory(0, original, protection), 111, false)).isEmpty());
         assertFalse(controller.hasPendingRestoration());
     }
 
@@ -54,12 +55,13 @@ class DeathProtectionRestorationControllerTest {
         assertTrue(controller.update(true, false, false, context(protectedInventory, 104, false)).isEmpty());
 
         assertTrue(controller.update(true, true, false, context(protectedInventory, 105, false)).isEmpty());
-        assertTrue(controller.update(true, false, false, context(protectedInventory, 106, false)).isEmpty());
-        assertTrue(controller.update(true, false, false, context(protectedInventory, 107, false)).isEmpty());
+        for (long tick = 106; tick <= 113; tick++) {
+            assertTrue(controller.update(true, false, false, context(protectedInventory, tick, false)).isEmpty());
+        }
 
         ExecutionCommand.SelectHotbar restore = assertInstanceOf(
             ExecutionCommand.SelectHotbar.class,
-            controller.update(true, false, false, context(protectedInventory, 108, false)).orElseThrow()
+            controller.update(true, false, false, context(protectedInventory, 114, false)).orElseThrow()
         );
         assertEquals(0, restore.hotbarIndex());
     }
@@ -75,11 +77,12 @@ class DeathProtectionRestorationControllerTest {
         controller.arm(new RestorationCheckpoint.Hotbar(2, 3, shield, potion, 101));
 
         InventorySnapshot chained = inventory(3, Map.of(0, sword, 2, shield, 3, potion));
-        assertTrue(controller.update(true, false, false, context(chained, 102, false)).isEmpty());
-        assertTrue(controller.update(true, false, false, context(chained, 103, false)).isEmpty());
+        for (long tick = 102; tick <= 109; tick++) {
+            assertTrue(controller.update(true, false, false, context(chained, tick, false)).isEmpty());
+        }
         ExecutionCommand.SelectHotbar restore = assertInstanceOf(
             ExecutionCommand.SelectHotbar.class,
-            controller.update(true, false, false, context(chained, 104, false)).orElseThrow()
+            controller.update(true, false, false, context(chained, 110, false)).orElseThrow()
         );
         assertEquals(0, restore.hotbarIndex(),
             "a shield -> potion -> totem style rescue chain must restore the player's original slot, not an intermediate rescue slot");
@@ -133,20 +136,21 @@ class DeathProtectionRestorationControllerTest {
         controller.arm(new RestorationCheckpoint.Container(transaction, 17, 40, 11, 102));
 
         InventorySnapshot swapped = inventoryContainer(shieldBefore, totemBefore);
-        assertTrue(controller.update(true, false, false, context(swapped, menu(7, 11), 103, false)).isEmpty());
-        assertTrue(controller.update(true, false, false, context(swapped, menu(7, 11), 104, false)).isEmpty());
+        for (long tick = 103; tick <= 110; tick++) {
+            assertTrue(controller.update(true, false, false, context(swapped, menu(7, 11), tick, false)).isEmpty());
+        }
         ExecutionCommand.SwapMenuSlot restore = assertInstanceOf(
             ExecutionCommand.SwapMenuSlot.class,
-            controller.update(true, false, false, context(swapped, menu(7, 11), 105, false)).orElseThrow()
+            controller.update(true, false, false, context(swapped, menu(7, 11), 111, false)).orElseThrow()
         );
         assertEquals(7, restore.containerId());
         assertEquals(11, restore.stateId());
         assertEquals(17, restore.sourceMenuSlot());
         assertEquals(40, restore.button());
 
-        assertTrue(controller.update(true, false, false, context(swapped, menu(7, 11), 106, false)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(swapped, menu(7, 11), 112, false)).isEmpty());
         InventorySnapshot restored = inventoryContainer(totemBefore, shieldBefore);
-        assertTrue(controller.update(true, false, false, context(restored, menu(7, 12), 107, false)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(restored, menu(7, 12), 113, false)).isEmpty());
         assertFalse(controller.hasPendingRestoration());
     }
 
