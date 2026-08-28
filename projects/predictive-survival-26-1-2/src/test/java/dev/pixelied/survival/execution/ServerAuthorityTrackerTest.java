@@ -109,12 +109,7 @@ class ServerAuthorityTrackerTest {
         try {
             InventorySnapshot initial = inventory(1);
             ServerAuthorityTracker tracker = new ServerAuthorityTracker(initial, MitigationSnapshot.none());
-            InventorySnapshot optimisticSwap = new InventorySnapshot(1, Map.of(
-                1, slot(1, "minecraft:totem_of_undying", true),
-                2, slot(2, "minecraft:diamond_pickaxe", false),
-                5, slot(5, "minecraft:diamond_sword", false),
-                40, slot(40, "minecraft:air", false)
-            ), false);
+            InventorySnapshot optimisticSwap = optimisticTotem();
 
             EquipmentAuthorityProjection projection = tracker.equipmentProjection(
                 optimisticSwap,
@@ -151,18 +146,7 @@ class ServerAuthorityTrackerTest {
                 40, slot(40, "minecraft:air", false)
             ), false);
             tracker.observeServerEvidence(
-                new ServerStateEvidenceSnapshot(
-                    true,
-                    1001L,
-                    Map.of(1, new ServerStateEvidenceSnapshot.StackEvidence(
-                        emptyMain.stackKey(),
-                        emptyMain.componentFingerprint(),
-                        emptyMain.count(),
-                        1001L
-                    )),
-                    Map.of(),
-                    Map.of()
-                ),
+                evidenceForSlot(1001L, emptyMain),
                 consumed
             );
             tracker.observeUntrackedLocalSelection(
@@ -179,6 +163,82 @@ class ServerAuthorityTrackerTest {
             assertTrue(
                 projection.pending().isEmpty(),
                 "fresh inbound selected-slot evidence must not be reclassified as a new user prediction"
+            );
+        } finally {
+            MinecraftServerStateEvidence.reset();
+        }
+    }
+
+    @Test
+    void optimisticSelectedSlotContentsStayUncertainUntilCorrectionReturnDeadline() {
+        MinecraftServerStateEvidence.reset();
+        try {
+            InventorySnapshot initial = inventory(1);
+            InventorySnapshot optimistic = optimisticTotem();
+            ServerAuthorityTracker tracker = new ServerAuthorityTracker(initial, MitigationSnapshot.none());
+            TimingSnapshot timing = new TimingSnapshot(500, 200, 0, new TickWindow(502, 503));
+
+            tracker.observeUntrackedLocalSelection(optimistic, timing);
+
+            EquipmentAuthorityProjection beforeSettle = tracker.equipmentProjection(
+                optimistic,
+                MitigationSnapshot.none(),
+                timing.containerPredictionSettleTick() - 1
+            );
+            assertEquals(1, beforeSettle.pending().size());
+            assertEquals(
+                timing.containerPredictionSettleTick(),
+                beforeSettle.pending().getFirst().authorityWindow().latest(),
+                "silent container prediction cannot settle before a correction could have returned"
+            );
+            assertFalse(beforeSettle.guaranteedDeathProtectionAt(
+                timing.containerPredictionSettleTick() - 1
+            ).anyHandAvailable());
+
+            EquipmentAuthorityProjection settled = tracker.equipmentProjection(
+                optimistic,
+                MitigationSnapshot.none(),
+                timing.containerPredictionSettleTick()
+            );
+            assertTrue(settled.pending().isEmpty());
+            assertTrue(settled.guaranteedDeathProtectionAt(timing.containerPredictionSettleTick()).mainHandAvailable());
+        } finally {
+            MinecraftServerStateEvidence.reset();
+        }
+    }
+
+    @Test
+    void serverCorrectionPreventsRejectedOptimisticMainHandFromSettling() {
+        MinecraftServerStateEvidence.reset();
+        try {
+            InventorySnapshot initial = inventory(1);
+            InventorySnapshot optimistic = optimisticTotem();
+            ServerAuthorityTracker tracker = new ServerAuthorityTracker(initial, MitigationSnapshot.none());
+            tracker.observeServerEvidence(
+                new ServerStateEvidenceSnapshot(true, 2000L, Map.of(), Map.of(), Map.of()),
+                initial
+            );
+            TimingSnapshot timing = new TimingSnapshot(500, 200, 0, new TickWindow(502, 503));
+            tracker.observeUntrackedLocalSelection(optimistic, timing);
+
+            InventorySlotSnapshot authoritativeSword = initial.slot(1).orElseThrow();
+            tracker.observeServerEvidence(
+                evidenceForSlot(2001L, authoritativeSword),
+                initial
+            );
+
+            EquipmentAuthorityProjection projection = tracker.equipmentProjection(
+                initial,
+                MitigationSnapshot.none(),
+                timing.containerPredictionSettleTick()
+            );
+            assertEquals("minecraft:diamond_sword", projection.confirmedMainHand().stackKey());
+            assertFalse(projection.guaranteedDeathProtectionAt(
+                timing.containerPredictionSettleTick()
+            ).anyHandAvailable());
+            assertTrue(
+                projection.pending().isEmpty(),
+                "matching server correction must collapse the rejected optimistic content mutation"
             );
         } finally {
             MinecraftServerStateEvidence.reset();
@@ -238,6 +298,30 @@ class ServerAuthorityTrackerTest {
             5, slot(5, "minecraft:totem_of_undying", true),
             40, slot(40, "minecraft:air", false)
         ), false);
+    }
+
+    private static InventorySnapshot optimisticTotem() {
+        return new InventorySnapshot(1, Map.of(
+            1, slot(1, "minecraft:totem_of_undying", true),
+            2, slot(2, "minecraft:diamond_pickaxe", false),
+            5, slot(5, "minecraft:diamond_sword", false),
+            40, slot(40, "minecraft:air", false)
+        ), false);
+    }
+
+    private static ServerStateEvidenceSnapshot evidenceForSlot(long revision, InventorySlotSnapshot slot) {
+        return new ServerStateEvidenceSnapshot(
+            true,
+            revision,
+            Map.of(slot.inventoryIndex(), new ServerStateEvidenceSnapshot.StackEvidence(
+                slot.stackKey(),
+                slot.componentFingerprint(),
+                slot.count(),
+                revision
+            )),
+            Map.of(),
+            Map.of()
+        );
     }
 
     private static InventorySlotSnapshot slot(int index, String key, boolean protection) {
