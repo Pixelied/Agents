@@ -97,6 +97,34 @@ class CausalProtectionPlanningTest {
         assertTrue(action.sourceItem().isPresent());
     }
 
+    @Test
+    void immediatePotentialCrystalFallbackStillUsesCausalRemoval() {
+        ThreatEvent crystalA = potentialExplosion("explosion:201", 20f);
+        ThreatEvent crystalB = potentialExplosion("explosion:202", 20f);
+        PredictionContext context = immediateCrystalContext();
+        SurvivalAction protection = new SurvivalAction.EquipDeathProtection(
+            DeathProtectionSnapshot.ProtectionItem.vanillaTotem(),
+            SurvivalAction.Hand.MAIN_HAND,
+            0,
+            true,
+            true,
+            1d,
+            1,
+            2
+        );
+
+        SurvivalPlan plan = new SurvivalPlanner().plan(
+            context,
+            new ThreatTimeline(List.of(crystalA, crystalB)),
+            List.of(protection),
+            SafetyMode.BALANCED
+        );
+
+        assertTrue(plan.action() instanceof SurvivalAction.EquipDeathProtection,
+            "a tick-zero potential crystal must still trigger one best-effort Totem when its sibling source is removed");
+        assertEquals(DeadlineStatus.BEST_EFFORT, plan.simulation().deadlineStatus());
+    }
+
     private static long protectionCandidates(List<SurvivalAction> candidates) {
         return candidates.stream().filter(SurvivalAction.EquipDeathProtection.class::isInstance).count();
     }
@@ -124,6 +152,51 @@ class CausalProtectionPlanningTest {
             WorldSnapshot.empty(),
             new TimingSnapshot(0, 50, 0, new TickWindow(1, 1)),
             EngineLimits.defaults()
+        );
+    }
+
+    private static PredictionContext immediateCrystalContext() {
+        PlayerSnapshot player = new PlayerSnapshot(
+            5f,
+            0f,
+            false,
+            false,
+            false,
+            DifficultySnapshot.NORMAL,
+            MitigationSnapshot.none(),
+            StatusEffectsSnapshot.none(),
+            BlockingSnapshot.none(),
+            HurtState.unknown(),
+            DeathProtectionSnapshot.none(),
+            new AabbSnapshot(-0.3, 0, -0.3, 0.3, 1.8, 0.3),
+            new Vec3Snapshot(0, 0, 0),
+            new Vec3Snapshot(0, 0, 0),
+            Map.of()
+        );
+        return new PredictionContext(
+            player,
+            new WorldSnapshot(
+                List.of(crystalSnapshot("201", 2d), crystalSnapshot("202", 5d)),
+                List.of()
+            ),
+            new TimingSnapshot(0, 100, 0, new TickWindow(1, 2)),
+            EngineLimits.defaults()
+        );
+    }
+
+    private static WorldSnapshot.EntitySnapshot crystalSnapshot(String id, double z) {
+        return new WorldSnapshot.EntitySnapshot(
+            id,
+            "minecraft:end_crystal",
+            new Vec3Snapshot(0, 0, z),
+            new Vec3Snapshot(0, 0, 0),
+            new AabbSnapshot(-1, 0, z - 1, 1, 2, z + 1),
+            Map.of(
+                "explosion_radius", "6.0",
+                "triggerable", "true",
+                "source_key", "minecraft:explosion",
+                "scales_with_difficulty", "true"
+            )
         );
     }
 
@@ -159,6 +232,31 @@ class CausalProtectionPlanningTest {
             new TickWindow(0, 0),
             damage,
             Confidence.EXACT,
+            Optional.empty(),
+            Optional.empty(),
+            false,
+            false,
+            false,
+            false
+        );
+    }
+
+    private static ThreatEvent potentialExplosion(String id, float rawDamage) {
+        DamageSourceSnapshot damage = new DamageSourceSnapshot(
+            DamageRange.exact(rawDamage),
+            Set.of(),
+            false,
+            1f,
+            false,
+            Optional.empty(),
+            "test:" + id
+        );
+        return new ThreatEvent(
+            id,
+            ThreatKind.EXPLOSION,
+            new TickWindow(0, 2),
+            damage,
+            Confidence.POTENTIAL,
             Optional.empty(),
             Optional.empty(),
             false,
