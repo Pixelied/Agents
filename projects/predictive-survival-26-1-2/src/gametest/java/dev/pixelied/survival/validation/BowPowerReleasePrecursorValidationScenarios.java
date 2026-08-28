@@ -321,22 +321,57 @@ final class BowPowerReleasePrecursorValidationScenarios {
     }
 
     private static void waitForClientBaseline(ClientGameTestContext context, Setup setup) {
-        context.waitFor(minecraft -> {
-            if (minecraft.player == null || minecraft.level == null) return false;
-            Entity attacker = minecraft.level.getEntity(setup.attacker().entityId());
-            if (!(attacker instanceof net.minecraft.world.entity.player.Player remote)) return false;
-            boolean powerVisible = remote.getMainHandItem().getEnchantments().entrySet().stream()
-                .anyMatch(entry -> entry.getKey().is(Enchantments.POWER) && entry.getIntValue() == POWER_LEVEL);
-            return remote.getMainHandItem().is(Items.BOW)
-                && powerVisible
-                && Math.abs(remote.getX() - setup.attackerPosition().x) <= POSITION_EPSILON
-                && Math.abs(remote.getY() - setup.attackerPosition().y) <= POSITION_EPSILON
-                && Math.abs(remote.getZ() - setup.attackerPosition().z) <= POSITION_EPSILON
-                && minecraft.player.getInventory().getSelectedSlot() == 0
-                && minecraft.player.getInventory().getItem(0).is(Items.STICK)
-                && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING)
-                && minecraft.player.getOffhandItem().isEmpty();
-        });
+        ClientBaseline last = null;
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            last = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null || minecraft.level == null) {
+                    return new ClientBaseline(
+                        false, false, false, false, false,
+                        "unavailable", "unavailable", "unavailable", -1,
+                        "unavailable", "unavailable", "unavailable"
+                    );
+                }
+                Entity attacker = minecraft.level.getEntity(setup.attacker().entityId());
+                if (!(attacker instanceof net.minecraft.world.entity.player.Player remote)) {
+                    return new ClientBaseline(
+                        false, false, false, false, false,
+                        "entity=" + attacker, "unavailable", "unavailable",
+                        minecraft.player.getInventory().getSelectedSlot(),
+                        minecraft.player.getInventory().getItem(0).toString(),
+                        minecraft.player.getInventory().getItem(1).toString(),
+                        minecraft.player.getOffhandItem().toString()
+                    );
+                }
+                ItemStack remoteMain = remote.getMainHandItem();
+                boolean bowVisible = remoteMain.is(Items.BOW);
+                boolean powerVisible = remoteMain.getEnchantments().entrySet().stream()
+                    .anyMatch(entry -> entry.getKey().is(Enchantments.POWER) && entry.getIntValue() == POWER_LEVEL);
+                boolean positionReady = Math.abs(remote.getX() - setup.attackerPosition().x) <= POSITION_EPSILON
+                    && Math.abs(remote.getY() - setup.attackerPosition().y) <= POSITION_EPSILON
+                    && Math.abs(remote.getZ() - setup.attackerPosition().z) <= POSITION_EPSILON;
+                boolean inventoryReady = minecraft.player.getInventory().getSelectedSlot() == 0
+                    && minecraft.player.getInventory().getItem(0).is(Items.STICK)
+                    && minecraft.player.getInventory().getItem(1).is(Items.TOTEM_OF_UNDYING)
+                    && minecraft.player.getOffhandItem().isEmpty();
+                return new ClientBaseline(
+                    bowVisible && powerVisible && positionReady && inventoryReady,
+                    bowVisible,
+                    powerVisible,
+                    positionReady,
+                    inventoryReady,
+                    remoteMain.toString(),
+                    remoteMain.getEnchantments().toString(),
+                    remote.position().toString(),
+                    minecraft.player.getInventory().getSelectedSlot(),
+                    minecraft.player.getInventory().getItem(0).toString(),
+                    minecraft.player.getInventory().getItem(1).toString(),
+                    minecraft.player.getOffhandItem().toString()
+                );
+            });
+            if (last.ready()) return;
+            context.waitTick();
+        }
+        throw new AssertionError("Power Bow client baseline never converged: " + last);
     }
 
     private static void waitForClientBowUse(
@@ -410,5 +445,21 @@ final class BowPowerReleasePrecursorValidationScenarios {
     }
 
     private record Outcome(float health, boolean protectedOnServer, boolean alive) {
+    }
+
+    private record ClientBaseline(
+        boolean ready,
+        boolean bowVisible,
+        boolean powerVisible,
+        boolean positionReady,
+        boolean inventoryReady,
+        String remoteMainHand,
+        String remoteEnchantments,
+        String remotePosition,
+        int victimSelectedSlot,
+        String victimSlot0,
+        String victimSlot1,
+        String victimOffhand
+    ) {
     }
 }
