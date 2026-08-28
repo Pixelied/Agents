@@ -104,6 +104,14 @@ final class ExplosionCausalityValidationScenarios {
                         + " candidates=" + diagnostics.candidates()
                 );
             }
+
+            BurstSequenceValidationSupport.armTotemFromPrecursor(
+                context,
+                singleplayer,
+                setup.victimId(),
+                harness,
+                "adjacent_crystal_causal_dispatch"
+            );
         } finally {
             singleplayer.getServer().runOnServer(server -> {
                 ServerPlayer victim = server.getPlayerList().getPlayer(setup.victimId());
