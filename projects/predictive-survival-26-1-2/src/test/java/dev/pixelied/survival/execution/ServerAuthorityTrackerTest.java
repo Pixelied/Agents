@@ -300,6 +300,56 @@ class ServerAuthorityTrackerTest {
     }
 
     @Test
+    void preClickProtectionEvidenceDoesNotEraseInFlightProtectionRemovalBeforeSettle() {
+        MinecraftServerStateEvidence.reset();
+        try {
+            InventorySnapshot initial = optimisticTotem();
+            InventorySlotSnapshot removalMain = slot(1, "minecraft:stick", false);
+            InventorySnapshot removal = new InventorySnapshot(1, Map.of(
+                1, removalMain,
+                2, slot(2, "minecraft:diamond_pickaxe", false),
+                5, slot(5, "minecraft:diamond_sword", false),
+                40, slot(40, "minecraft:air", false)
+            ), false);
+            ServerAuthorityTracker tracker = new ServerAuthorityTracker(initial, MitigationSnapshot.none());
+            tracker.observeServerEvidence(
+                new ServerStateEvidenceSnapshot(true, 4000L, Map.of(), Map.of(), Map.of()),
+                initial
+            );
+            TimingSnapshot timing = new TimingSnapshot(700, 200, 0, new TickWindow(702, 703));
+
+            tracker.observeUntrackedLocalSelection(removal, timing);
+            EquipmentAuthorityProjection beforeEvidence = tracker.equipmentProjection(
+                removal,
+                MitigationSnapshot.none(),
+                703
+            );
+            assertEquals(1, beforeEvidence.pending().size());
+            assertFalse(beforeEvidence.guaranteedDeathProtectionAt(703).anyHandAvailable(),
+                "an in-flight Totem removal must make protection non-guaranteed");
+
+            InventorySlotSnapshot oldTotem = initial.slot(1).orElseThrow();
+            tracker.observeServerEvidence(
+                evidenceForSlot(4001L, oldTotem),
+                initial
+            );
+
+            long beforeSettleTick = timing.containerPredictionSettleTick() - 1;
+            EquipmentAuthorityProjection afterOldEvidence = tracker.equipmentProjection(
+                initial,
+                MitigationSnapshot.none(),
+                beforeSettleTick
+            );
+            assertEquals(1, afterOldEvidence.pending().size(),
+                "old pre-click Totem evidence cannot resolve a removal packet before its correction-return deadline");
+            assertFalse(afterOldEvidence.guaranteedDeathProtectionAt(beforeSettleTick).anyHandAvailable(),
+                "stale/pre-click Totem evidence must not manufacture guaranteed protection while removal is in flight");
+        } finally {
+            MinecraftServerStateEvidence.reset();
+        }
+    }
+
+    @Test
     void shieldWarmupStartsAtConservativeServerProcessingTick() {
         ServerAuthorityTracker tracker = new ServerAuthorityTracker(0);
         TimingSnapshot timing = new TimingSnapshot(100, 100, 10, new TickWindow(102, 104));
