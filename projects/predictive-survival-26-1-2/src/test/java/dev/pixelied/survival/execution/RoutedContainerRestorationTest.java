@@ -29,10 +29,12 @@ class RoutedContainerRestorationTest {
         ));
 
         InventorySnapshot afterRescue = inventory(0, swordAtSource, consumedDestination);
-        assertTrue(controller.update(true, false, false, context(afterRescue, 12, 101)).isEmpty());
+        for (long tick = 101; tick <= 105; tick++) {
+            assertTrue(controller.update(true, false, false, context(afterRescue, 12, tick)).isEmpty());
+        }
         ExecutionCommand.SwapMenuSlot inverse = assertInstanceOf(
             ExecutionCommand.SwapMenuSlot.class,
-            controller.update(true, false, false, context(afterRescue, 12, 102)).orElseThrow()
+            controller.update(true, false, false, context(afterRescue, 12, 106)).orElseThrow()
         );
         assertEquals(7, inverse.containerId());
         assertEquals(12, inverse.stateId());
@@ -44,7 +46,7 @@ class RoutedContainerRestorationTest {
             slot(10, "minecraft:air", 0, 0),
             slot(0, "minecraft:diamond_sword", 101, 1)
         );
-        assertTrue(controller.update(true, false, false, context(restored, 13, 103)).isEmpty());
+        assertTrue(controller.update(true, false, false, context(restored, 13, 107)).isEmpty());
         assertFalse(controller.hasPendingRestoration());
     }
 
