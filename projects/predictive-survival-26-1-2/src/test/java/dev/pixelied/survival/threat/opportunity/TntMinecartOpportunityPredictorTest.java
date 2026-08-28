@@ -74,7 +74,7 @@ class TntMinecartOpportunityPredictorTest {
     }
 
     @Test
-    void collisionTwoTicksAheadIsOutsideImmediateHotbarAuthorityHorizon() {
+    void collisionTwoTicksAheadIsForecastBeforeOnePacketProtectionDeadline() {
         WorldSnapshot.EntitySnapshot cart = minecart(
             new Vec3Snapshot(1.4, 0.0, 0.5),
             new Vec3Snapshot(0.8, 0.0, 0.0),
@@ -84,7 +84,10 @@ class TntMinecartOpportunityPredictorTest {
         );
         WorldSnapshot.BlockSnapshot wall = fullBlock(3, 0, 0);
 
-        assertTrue(predict(List.of(cart), List.of(wall), SafetyMode.BALANCED).isEmpty());
+        LethalOpportunity opportunity = only(predict(List.of(cart), List.of(wall), SafetyMode.BALANCED));
+
+        assertEquals("forecast_horizontal_collision", opportunity.evidence().get("trigger"));
+        assertEquals(2, opportunity.projectedThreat().impact().earliest());
     }
 
     @Test
@@ -133,7 +136,7 @@ class TntMinecartOpportunityPredictorTest {
     }
 
     @Test
-    void burningArrowTwoTicksAwayIsOutsideImmediateHotbarAuthorityHorizon() {
+    void burningArrowTwoTicksAwayIsForecastBeforeOnePacketProtectionDeadline() {
         WorldSnapshot.EntitySnapshot cart = minecart(
             new Vec3Snapshot(2.0, 0.0, 0.5),
             new Vec3Snapshot(0.0, 0.0, 0.0),
@@ -146,7 +149,11 @@ class TntMinecartOpportunityPredictorTest {
             new Vec3Snapshot(-1.0, 0.0, 0.0)
         );
 
-        assertTrue(predict(List.of(cart, arrow), List.of(), SafetyMode.BALANCED).isEmpty());
+        LethalOpportunity opportunity = only(predict(List.of(cart, arrow), List.of(), SafetyMode.BALANCED));
+
+        assertEquals("burning_arrow", opportunity.evidence().get("trigger"));
+        assertEquals(2, opportunity.projectedThreat().impact().earliest());
+        assertEquals("2", opportunity.evidence().get("projectile_collision_tick"));
     }
 
     @Test
