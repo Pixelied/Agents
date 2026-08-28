@@ -67,6 +67,39 @@ public final class AuthorityAwareCandidateGenerator {
 
     public List<SurvivalAction> generate(
         PredictionContext context,
+        CausalThreatTimeline timeline,
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        RescuePolicy policy,
+        EquipmentAuthorityProjection equipment,
+        DeathProtectionPopTracker pops
+    ) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(timeline, "timeline");
+        Objects.requireNonNull(inventory, "inventory");
+        Objects.requireNonNull(menu, "menu");
+        Objects.requireNonNull(policy, "policy");
+        Objects.requireNonNull(equipment, "equipment");
+
+        var earliestRelativeImpact = timeline.expandedTimeline().events().stream()
+            .mapToLong(event -> event.impact().earliest())
+            .min();
+        long damageDeadline = earliestRelativeImpact.isPresent()
+            ? saturatingAdd(context.timing().clientTick(), earliestRelativeImpact.getAsLong())
+            : context.timing().nextPacketProcessingWindow().latest();
+
+        InventorySnapshot projectedInventory = pops == null
+            ? equipment.conservativeInventoryAt(inventory, damageDeadline)
+            : pops.conservativeInventoryAfterPop(inventory, equipment, damageDeadline);
+        DeathProtectionSnapshot guaranteedProtection = pops == null
+            ? equipment.guaranteedDeathProtectionAt(damageDeadline)
+            : pops.projectedDeathProtectionAt(equipment, damageDeadline);
+        PredictionContext projectedContext = withGuaranteedProtection(context, guaranteedProtection);
+        return delegate.generate(projectedContext, timeline, projectedInventory, menu, policy);
+    }
+
+    public List<SurvivalAction> generate(
+        PredictionContext context,
         ThreatTimeline timeline,
         InventorySnapshot inventory,
         MenuSlotMap menu,
