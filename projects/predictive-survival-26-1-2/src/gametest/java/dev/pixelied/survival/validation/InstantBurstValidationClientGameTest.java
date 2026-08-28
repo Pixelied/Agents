@@ -21,6 +21,16 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 singleplayer
             );
             BowReleasePrecursorValidationScenarios.validatePrearmsBeforeFirstLegalRelease(context, singleplayer);
+            var victimId = singleplayer.getServer().computeOnServer(server ->
+                SurvivalValidationClientGameTest.onlyPlayer(server).getUUID()
+            );
+            BurstSequenceValidationSupport.ensureSelectedSlot(
+                context,
+                singleplayer,
+                victimId,
+                0,
+                "bow_power_v_fixture_reset"
+            );
             BowPowerReleasePrecursorValidationScenarios.validatePowerEnchantmentWidensRealReleaseBound(
                 context,
                 singleplayer
