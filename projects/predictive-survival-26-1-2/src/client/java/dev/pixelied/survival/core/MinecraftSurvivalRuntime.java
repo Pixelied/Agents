@@ -9,6 +9,7 @@ import dev.pixelied.survival.execution.ExecutionContext;
 import dev.pixelied.survival.execution.ExecutionStatus;
 import dev.pixelied.survival.execution.EquipmentAuthorityProjection;
 import dev.pixelied.survival.execution.MinecraftCommandDispatcher;
+import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
 import dev.pixelied.survival.execution.NonTotemActionExecutor;
 import dev.pixelied.survival.execution.NonTotemExecutionContext;
 import dev.pixelied.survival.execution.PendingEquipmentMutation;
@@ -160,6 +161,9 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         InventorySnapshot rawInventory = inventorySnapshots.captureInventory(player);
         PlayerSnapshot rawPlayer = playerSnapshots.capture(player);
         if (authority == null) authority = new ServerAuthorityTracker(rawInventory, rawPlayer.mitigation());
+        // Evidence hooks run after vanilla applies clientbound state. Consume those authoritative
+        // deltas before classifying any remaining local hand change as a new prediction/user action.
+        authority.observeServerEvidence(MinecraftServerStateEvidence.snapshot(), rawInventory);
         authority.observeUntrackedLocalSelection(rawInventory, timing);
         EquipmentAuthorityProjection equipment = authority.equipmentProjection(
             rawInventory,
