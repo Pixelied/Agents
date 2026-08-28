@@ -76,7 +76,7 @@ class ServerAuthorityTrackerOffhandAuthorityTest {
     }
 
     @Test
-    void offhandServerCorrectionCollapsesRejectedOptimisticRemoval() {
+    void oldOffhandServerEvidenceCannotEraseLaterOptimisticRemoval() {
         MinecraftServerStateEvidence.reset();
         try {
             InventorySnapshot initial = inventory(slot(40, "minecraft:totem_of_undying", true));
@@ -95,18 +95,22 @@ class ServerAuthorityTrackerOffhandAuthorityTest {
                 503
             ).pending().size());
 
-            InventorySlotSnapshot authoritativeTotem = initial.slot(40).orElseThrow();
-            tracker.observeServerEvidence(evidenceForOffhand(1001L, authoritativeTotem), initial);
+            // With 200 ms RTT the correction-return deadline is tick 506. A matching Totem slot
+            // packet observed at tick 503 can still have been sent before the server processed the
+            // later removal click, so it cannot safely erase the adverse in-flight mutation.
+            InventorySlotSnapshot previouslyAuthoritativeTotem = initial.slot(40).orElseThrow();
+            tracker.observeServerEvidence(evidenceForOffhand(1001L, previouslyAuthoritativeTotem), initial);
 
-            EquipmentAuthorityProjection corrected = tracker.equipmentProjection(
+            EquipmentAuthorityProjection stillUncertain = tracker.equipmentProjection(
                 initial,
                 MitigationSnapshot.none(),
                 503
             );
-            assertTrue(corrected.pending().isEmpty(),
-                "authoritative offhand correction must remove the rejected optimistic mutation");
-            assertEquals("minecraft:totem_of_undying", corrected.confirmedOffHand().stackKey());
-            assertTrue(corrected.guaranteedDeathProtectionAt(503).offHandAvailable());
+            assertEquals(1, stillUncertain.pending().size(),
+                "pre-settle evidence matching the old protected state must not erase a later removal");
+            assertEquals("minecraft:totem_of_undying", stillUncertain.confirmedOffHand().stackKey());
+            assertFalse(stillUncertain.guaranteedDeathProtectionAt(503).anyHandAvailable(),
+                "the later local removal remains an adverse feasible state until correction-return settle");
         } finally {
             MinecraftServerStateEvidence.reset();
         }
