@@ -125,6 +125,37 @@ class EquipmentAuthorityProjectionTest {
         assertInstanceOf(DeathProtectionRoute.HotbarSelect.class, route);
     }
 
+    @Test
+    void nonProtectionContentUncertaintyPreservesObservedRouteIdentity() {
+        InventorySlotSnapshot sword = slot(0, "minecraft:diamond_sword", false);
+        InventorySlotSnapshot chestplate = slot(0, "minecraft:netherite_chestplate", false);
+        InventorySlotSnapshot sourceAfter = slot(10, "minecraft:diamond_sword", false);
+        InventorySnapshot observed = new InventorySnapshot(0, Map.of(
+            0, chestplate,
+            10, sourceAfter,
+            40, air(40)
+        ), false);
+        EquipmentAuthorityProjection projection = projection(
+            0,
+            sword,
+            air(40),
+            new PendingEquipmentMutation(
+                SurvivalAction.Hand.MAIN_HAND,
+                sword,
+                chestplate,
+                new TickWindow(502, 506),
+                PendingEquipmentMutation.Origin.USER,
+                5L
+            )
+        );
+
+        InventorySnapshot conservative = projection.conservativeInventoryAt(observed, 504);
+
+        assertEquals("minecraft:netherite_chestplate", conservative.slot(0).orElseThrow().stackKey(),
+            "death-protection conservatism must not replace an observed non-protection route item with an arbitrary feasible branch");
+        assertEquals("minecraft:diamond_sword", conservative.slot(10).orElseThrow().stackKey());
+    }
+
     private static EquipmentAuthorityProjection projection(
         int selected,
         InventorySlotSnapshot main,
