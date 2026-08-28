@@ -111,24 +111,37 @@ public record EquipmentAuthorityProjection(
 
     /**
      * Returns the feasible inventory branch with the least death protection for rescue routing.
-     * This prevents an uncertain restore/equip from suppressing a rescue as AlreadyInHand.
+     * This prevents an uncertain restore/equip from suppressing a rescue as AlreadyInHand. When
+     * every feasible main-hand branch is unprotected, preserving the observed non-protection item
+     * is safe and avoids hiding exact route identity behind an arbitrary equally-safe branch.
      */
     public InventorySnapshot conservativeInventoryAt(InventorySnapshot observed, long serverTick) {
         Objects.requireNonNull(observed, "observed");
-        FeasibleState adverse = feasibleStatesAt(serverTick).stream()
+        List<FeasibleState> feasible = feasibleStatesAt(serverTick);
+        FeasibleState adverse = feasible.stream()
             .min(Comparator
                 .comparingInt(EquipmentAuthorityProjection::protectionCount)
                 .thenComparingInt(state -> state.mainHand().inventoryIndex()))
             .orElse(new FeasibleState(confirmedMainHand, confirmedOffHand, confirmedMitigation));
 
+        InventorySlotSnapshot mainForInventory = adverse.mainHand();
+        InventorySlotSnapshot observedMain = observed.slot(observed.selectedHotbarIndex()).orElse(null);
+        boolean everyFeasibleMainUnprotected = feasible.stream()
+            .allMatch(state -> protectionItem(state.mainHand()).isEmpty());
+        if (everyFeasibleMainUnprotected
+            && observedMain != null
+            && protectionItem(observedMain).isEmpty()) {
+            mainForInventory = observedMain;
+        }
+
         Map<Integer, InventorySlotSnapshot> slots = new LinkedHashMap<>(observed.slots());
-        slots.put(adverse.mainHand().inventoryIndex(), adverse.mainHand());
+        slots.put(mainForInventory.inventoryIndex(), mainForInventory);
         slots.put(40, adverse.offHand());
         boolean offhandShieldStillActive = observed.activeOffhandShield()
             && "minecraft:shield".equals(adverse.offHand().stackKey())
             && adverse.offHand().count() > 0;
         return new InventorySnapshot(
-            adverse.mainHand().inventoryIndex(),
+            mainForInventory.inventoryIndex(),
             slots,
             offhandShieldStillActive
         );
