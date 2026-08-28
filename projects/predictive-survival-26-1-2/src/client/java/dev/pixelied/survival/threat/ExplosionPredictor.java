@@ -1,13 +1,17 @@
 package dev.pixelied.survival.threat;
 
 import dev.pixelied.survival.core.Confidence;
+import dev.pixelied.survival.core.DamageRange;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
 import dev.pixelied.survival.core.Vec3Snapshot;
 import dev.pixelied.survival.core.WorldSnapshot;
+import dev.pixelied.survival.damage.DamageFlag;
+import dev.pixelied.survival.damage.DamageSourceSnapshot;
 import dev.pixelied.survival.planner.SafetyMode;
 import dev.pixelied.survival.timeline.CausalThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatEvent;
+import dev.pixelied.survival.timeline.ThreatKind;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTransition;
 
@@ -17,9 +21,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 public final class ExplosionPredictor implements ThreatPredictor {
     private static final double CAUSAL_DISTANCE_EPSILON = 1.0E-9d;
+    private static final double MAX_RAY_POWER_FACTOR = 1.3d;
+    private static final double RAY_STEP_DISTANCE = 0.3d;
+    private static final double RAY_STEP_POWER_COST = 0.22500001d;
+    private static final double BLOCK_CENTER_RADIUS = Math.sqrt(3d) / 2d;
+    private static final TickWindow EXPLOSION_PRIMED_TNT_FUSE = new TickWindow(10, 29);
+    private static final float DEFAULT_TNT_MAX_RAW_DAMAGE = 57f;
 
     private final ExplosionThreatFactory threatFactory = new ExplosionThreatFactory();
 
@@ -108,6 +119,19 @@ public final class ExplosionPredictor implements ThreatPredictor {
                 if (distanceSquared(center, target.position()) > reachSquared + CAUSAL_DISTANCE_EPSILON) continue;
                 after.add(new ThreatTransition.RemoveSource(entitySourceId(target)));
             }
+
+            // 26.1.2 EndCrystal always uses ExplosionInteraction.BLOCK. TntBlock.wasExploded then
+            // conditionally creates a fresh PrimedTnt and shortens its default 80-tick fuse to
+            // random.nextInt(20) + 10. The client cannot know the server gamerule or random ray,
+            // so any reachable observed TNT block is retained as a potential future branch.
+            if (sourceEntity != null && "minecraft:end_crystal".equals(sourceEntity.typeKey())) {
+                for (WorldSnapshot.BlockSnapshot block : context.world().blocks()) {
+                    if (!"minecraft:tnt".equals(block.blockId())) continue;
+                    if (!insidePossibleExplosionRayEnvelope(center, radius.radius().max(), block.position())) continue;
+                    after.add(explosionPrimedTnt(event, block));
+                }
+            }
+
             if (!after.isEmpty()) transitions.put(event.id(), List.copyOf(after));
         }
 
@@ -177,6 +201,51 @@ public final class ExplosionPredictor implements ThreatPredictor {
         return triggerable
             ? threatFactory.createProjected(id, impact, confidence, spec, sourceVelocity, context, world)
             : threatFactory.create(id, impact, confidence, spec, context, world);
+    }
+
+    private static ThreatTransition.SpawnThreat explosionPrimedTnt(
+        ThreatEvent trigger,
+        WorldSnapshot.BlockSnapshot block
+    ) {
+        String identity = trigger.id() + ":tnt:" + block.position();
+        String sourceId = "spawned:" + identity;
+        DamageSourceSnapshot damage = new DamageSourceSnapshot(
+            new DamageRange(0f, DEFAULT_TNT_MAX_RAW_DAMAGE),
+            Set.of(DamageFlag.IS_EXPLOSION),
+            true,
+            1f,
+            false,
+            Optional.of(block.position()),
+            "minecraft:explosion"
+        );
+        ThreatEvent event = new ThreatEvent(
+            "explosion:" + identity,
+            ThreatKind.EXPLOSION,
+            EXPLOSION_PRIMED_TNT_FUSE,
+            damage,
+            Confidence.POTENTIAL,
+            Optional.of(block.position()),
+            Optional.empty(),
+            false,
+            false,
+            false,
+            false
+        );
+        return new ThreatTransition.SpawnThreat(sourceId, event);
+    }
+
+    private static boolean insidePossibleExplosionRayEnvelope(
+        Vec3Snapshot center,
+        float radius,
+        Vec3Snapshot blockCenter
+    ) {
+        // ServerExplosion starts each ray below 1.3 * radius, samples every 0.3 blocks, and
+        // subtracts 0.22500001 power after every step. Ignoring resistance before the TNT gives a
+        // conservative upper bound. Add half a block diagonal because snapshots store block centers.
+        double maxRaySampleDistance = radius * MAX_RAY_POWER_FACTOR / RAY_STEP_POWER_COST * RAY_STEP_DISTANCE;
+        double maxBlockCenterDistance = maxRaySampleDistance + BLOCK_CENTER_RADIUS;
+        return distanceSquared(center, blockCenter)
+            <= maxBlockCenterDistance * maxBlockCenterDistance + CAUSAL_DISTANCE_EPSILON;
     }
 
     private static OcclusionView withoutPreExplosionRemovedBlocks(
