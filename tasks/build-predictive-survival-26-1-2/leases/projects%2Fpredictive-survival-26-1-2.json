@@ -6,8 +6,8 @@
   "owner": "openai-survival-runtime-5f6c",
   "state": "active",
   "intent": "Continue the approved Predictive Survival 26.1.2 deep-audit hardening after the completed runtime state-machine tranche, using regression-first TDD, supplied 26.1.2 source verification, exact-runtime GameTests, and no direct writes to canonical/main implementation state.",
-  "claimed_at": "2026-08-28T18:02:00+00:00",
-  "heartbeat_at": "2026-08-28T21:41:38+00:00",
-  "expires_at": "2026-08-29T01:41:38+00:00",
-  "generation": 13
+  "claimed_at": "2026-08-29T10:24:00+00:00",
+  "heartbeat_at": "2026-08-29T10:24:00+00:00",
+  "expires_at": "2026-08-29T16:24:00+00:00",
+  "generation": 14
 }
