@@ -1,6 +1,7 @@
 package dev.pixelied.survival.mixin;
 
 import dev.pixelied.survival.PredictiveSurvivalClient;
+import dev.pixelied.survival.core.LocalDamageObservationBuffer;
 import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
 import net.minecraft.client.Minecraft;
@@ -9,10 +10,14 @@ import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
+import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityPositionSyncPacket;
 import net.minecraft.network.protocol.game.ClientboundMoveEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
+import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import net.minecraft.network.protocol.game.ClientboundSectionBlocksUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
@@ -44,6 +49,17 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "handleTeleportEntity", at = @At("TAIL"))
     private void predictiveSurvival$afterTeleportEntity(ClientboundTeleportEntityPacket packet, CallbackInfo ci) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null && packet.id() == minecraft.player.getId()) {
+            LocalDamageObservationBuffer.invalidate();
+        }
+        PredictiveSurvivalClient.markThreatDirty();
+    }
+
+    @Inject(method = "handleMovePlayer", at = @At("TAIL"))
+    private void predictiveSurvival$afterMovePlayer(ClientboundPlayerPositionPacket packet, CallbackInfo ci) {
+        // This is the authoritative local-player teleport/correction path in 26.1.2.
+        LocalDamageObservationBuffer.invalidate();
         PredictiveSurvivalClient.markThreatDirty();
     }
 
@@ -59,7 +75,31 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "handleSetHealth", at = @At("TAIL"))
     private void predictiveSurvival$afterSetHealth(ClientboundSetHealthPacket packet, CallbackInfo ci) {
+        LocalDamageObservationBuffer.observeHealth(packet, Minecraft.getInstance().player);
         PredictiveSurvivalClient.markThreatDirty();
+    }
+
+    @Inject(method = "handleDamageEvent", at = @At("TAIL"))
+    private void predictiveSurvival$afterDamageEvent(ClientboundDamageEventPacket packet, CallbackInfo ci) {
+        LocalDamageObservationBuffer.observeDamageEvent(packet, Minecraft.getInstance().player);
+        PredictiveSurvivalClient.markThreatDirty();
+    }
+
+    @Inject(method = "handleSetEntityData", at = @At("HEAD"))
+    private void predictiveSurvival$beforeSetEntityData(ClientboundSetEntityDataPacket packet, CallbackInfo ci) {
+        LocalDamageObservationBuffer.beforeEntityData(packet, Minecraft.getInstance().player);
+    }
+
+    @Inject(method = "handleSetEntityData", at = @At("TAIL"))
+    private void predictiveSurvival$afterSetEntityData(ClientboundSetEntityDataPacket packet, CallbackInfo ci) {
+        if (LocalDamageObservationBuffer.afterEntityData(packet, Minecraft.getInstance().player)) {
+            PredictiveSurvivalClient.markThreatDirty();
+        }
+    }
+
+    @Inject(method = "handleRespawn", at = @At("HEAD"))
+    private void predictiveSurvival$beforeRespawn(ClientboundRespawnPacket packet, CallbackInfo ci) {
+        LocalDamageObservationBuffer.invalidate();
     }
 
     @Inject(method = "handleEntityEvent", at = @At("TAIL"))

@@ -3,6 +3,9 @@ package dev.pixelied.survival.core;
 import dev.pixelied.survival.config.RescuePolicy;
 import dev.pixelied.survival.damage.BlockingSnapshot;
 import dev.pixelied.survival.damage.DeathProtectionSnapshot;
+import dev.pixelied.survival.damage.HurtState;
+import dev.pixelied.survival.damage.ServerDamageStateReconciler;
+import dev.pixelied.survival.damage.ServerHurtStateTracker;
 import dev.pixelied.survival.execution.DeathProtectionActionExecutor;
 import dev.pixelied.survival.execution.DeathProtectionPopTracker;
 import dev.pixelied.survival.execution.DeathProtectionRestorationController;
@@ -83,6 +86,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private final NonTotemActionExecutor nonTotemExecutor;
     private final MinecraftCommandDispatcher dispatcher;
     private final DeathProtectionPopTracker popTracker;
+    private final ServerDamageStateReconciler damageReconciler;
+    private final ServerHurtStateTracker hurtStateTracker;
 
     private final CaptureTickClock captureTickClock = new CaptureTickClock();
     private ServerAuthorityTracker authority;
@@ -90,6 +95,13 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
     private LocalPlayer lastPlayer;
     private long clientTick;
     private long previousCaptureNanos;
+    private PlayerSnapshot damageBaseline;
+    private List<ThreatEvent> damageCandidates = List.of();
+    private TimingSnapshot damageBaselineTiming;
+    private int damageBaselinePlayerTick;
+    private long damageBaselineEvidenceRevision;
+    private long damageObservationGeneration = -1L;
+    private int damagePendingStartPlayerTick = Integer.MIN_VALUE;
 
     public MinecraftSurvivalRuntime(Minecraft minecraft) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
@@ -133,6 +145,8 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         this.nonTotemExecutor = new NonTotemActionExecutor();
         this.dispatcher = new MinecraftCommandDispatcher();
         this.popTracker = DeathProtectionPopTracker.global();
+        this.damageReconciler = new ServerDamageStateReconciler();
+        this.hurtStateTracker = new ServerHurtStateTracker();
     }
 
     @Override
@@ -190,6 +204,14 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         );
         PlayerSnapshot contactPlayer = contactHazardSnapshots.annotate(player, authorityPlayer);
         PlayerSnapshot playerSnapshot = withConservativeBlocking(contactPlayer, player, timing);
+        LocalDamageObservationBuffer.Snapshot damageEvidence = LocalDamageObservationBuffer.snapshot();
+        DamageReconciliation damageReconciliation = reconcileServerDamage(
+            playerSnapshot,
+            player.tickCount,
+            timing,
+            damageEvidence
+        );
+        playerSnapshot = damageReconciliation.player();
         WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
         WorldSnapshot specialWorld = specialThreatSnapshots.annotate(minecraft.level, player, rawWorld);
         WorldSnapshot world = cloudAttributions.annotate(clientTick, specialWorld);
@@ -217,6 +239,9 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
 
         SurvivalEngine.EngineFrame frame = new SurvivalEngine.EngineFrame(context, actualTimeline, opportunities, planningTimeline, candidates);
         liveState = new LiveState(frame, inventory, menu, timing, reactive.player());
+        if (damageReconciliation.advanceBaseline()) {
+            rememberDamageBaseline(reactive.player(), predicted, timing, player.tickCount, damageEvidence);
+        }
         return frame;
     }
 
@@ -320,6 +345,168 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         if (minecraft.getConnection() == null) return;
         PlayerInfo info = minecraft.getConnection().getPlayerInfo(player.getUUID());
         if (info != null) timingEstimator.observeRttMillis(Math.max(0, info.getLatency()));
+    }
+
+
+    private DamageReconciliation reconcileServerDamage(
+        PlayerSnapshot current,
+        int playerTick,
+        TimingSnapshot timing,
+        LocalDamageObservationBuffer.Snapshot evidence
+    ) {
+        if (damageBaseline == null || damageObservationGeneration != evidence.generation()) {
+            hurtStateTracker.invalidate();
+            damagePendingStartPlayerTick = Integer.MIN_VALUE;
+            damageObservationGeneration = evidence.generation();
+            return new DamageReconciliation(withHurtState(current, HurtState.unknown()), true);
+        }
+        if (current.deadOrDying()) {
+            hurtStateTracker.invalidate();
+            damagePendingStartPlayerTick = Integer.MIN_VALUE;
+            return new DamageReconciliation(withHurtState(current, HurtState.unknown()), true);
+        }
+
+        int elapsed = elapsedPlayerTicks(damageBaselinePlayerTick, playerTick);
+        if (!evidence.damageEventsCompleteSince(damageBaselineEvidenceRevision)) {
+            hurtStateTracker.invalidate();
+            damagePendingStartPlayerTick = Integer.MIN_VALUE;
+            return new DamageReconciliation(withHurtState(current, HurtState.unknown()), true);
+        }
+
+        boolean healthChanged = !nearlyEqual(damageBaseline.health(), current.health());
+        boolean absorptionChanged = !nearlyEqual(damageBaseline.absorption(), current.absorption());
+        boolean stateChanged = healthChanged || absorptionChanged;
+        if (healthChanged && !matchesAuthoritativeValue(evidence.health(), damageBaselineEvidenceRevision, current.health())) {
+            hurtStateTracker.invalidate();
+            damagePendingStartPlayerTick = Integer.MIN_VALUE;
+            return new DamageReconciliation(withHurtState(current, HurtState.unknown()), true);
+        }
+        if (absorptionChanged && !matchesAuthoritativeValue(evidence.absorption(), damageBaselineEvidenceRevision, current.absorption())) {
+            hurtStateTracker.invalidate();
+            damagePendingStartPlayerTick = Integer.MIN_VALUE;
+            return new DamageReconciliation(withHurtState(current, HurtState.unknown()), true);
+        }
+
+        List<ServerDamageStateReconciler.DamageEventObservation> damageEvents = damageEventObservations(evidence);
+        if (!stateChanged && !damageEvents.isEmpty()) {
+            if (damageEvents.size() > 1 || pendingExpired(playerTick, timing)) {
+                hurtStateTracker.invalidate();
+                damagePendingStartPlayerTick = Integer.MIN_VALUE;
+                return new DamageReconciliation(withHurtState(current, HurtState.unknown()), true);
+            }
+            beginPending(playerTick);
+            // A full-hit packet is positive evidence that the prior hurt state may already be stale.
+            // Keep the old internal baseline for later health/absorption correlation, but never expose
+            // its active cooldown as trusted while the authoritative state update is still pending.
+            return new DamageReconciliation(withHurtState(current, HurtState.unknown()), false);
+        }
+
+        HurtState reconciled = damageReconciler.reconcile(
+            damageBaseline,
+            damageCandidates,
+            current.health(),
+            current.absorption(),
+            damageEvents
+        );
+        boolean matched = reconciled.confidence() == Confidence.MATCHED;
+        if (stateChanged && !matched) {
+            // Health and damage-event packets are separate evidence streams. If the authoritative
+            // value arrives first, retain the old baseline briefly so a later damage-event packet can
+            // still establish a full hit. Differential hits already match above without that packet.
+            if (damageEvents.isEmpty() && !pendingExpired(playerTick, timing)) {
+                beginPending(playerTick);
+                return new DamageReconciliation(withHurtState(current, HurtState.unknown()), false);
+            }
+            boolean oneCausallyCompatibleEvent = damageEvents.size() == 1
+                && damageCandidates.stream().anyMatch(candidate ->
+                    candidate.damage().sourceKey().equals(damageEvents.getFirst().sourceKey())
+                        && candidate.impact().overlaps(damageEvents.getFirst().observedAt())
+                );
+            if (oneCausallyCompatibleEvent && !pendingExpired(playerTick, timing)) {
+                beginPending(playerTick);
+                return new DamageReconciliation(withHurtState(current, HurtState.unknown()), false);
+            }
+            hurtStateTracker.invalidate();
+            damagePendingStartPlayerTick = Integer.MIN_VALUE;
+            return new DamageReconciliation(withHurtState(current, HurtState.unknown()), true);
+        }
+
+        damagePendingStartPlayerTick = Integer.MIN_VALUE;
+        hurtStateTracker.recordReconciled(reconciled);
+        hurtStateTracker.tick(elapsed);
+        return new DamageReconciliation(withHurtState(current, hurtStateTracker.current()), true);
+    }
+
+    private List<ServerDamageStateReconciler.DamageEventObservation> damageEventObservations(
+        LocalDamageObservationBuffer.Snapshot evidence
+    ) {
+        TickWindow age = damageBaselineTiming.observationAgeWindow();
+        return evidence.damageEventsAfter(damageBaselineEvidenceRevision).stream()
+            .map(event -> {
+                long arrivalOffset = elapsedPlayerTicks(damageBaselinePlayerTick, event.playerTick());
+                long earliest = Math.max(0L, arrivalOffset - age.latest());
+                long latest = Math.max(earliest, arrivalOffset - age.earliest());
+                return new ServerDamageStateReconciler.DamageEventObservation(
+                    event.sourceKey(),
+                    new TickWindow(earliest, latest)
+                );
+            })
+            .toList();
+    }
+
+    private void rememberDamageBaseline(
+        PlayerSnapshot player,
+        List<ThreatEvent> predicted,
+        TimingSnapshot timing,
+        int playerTick,
+        LocalDamageObservationBuffer.Snapshot evidence
+    ) {
+        damageBaseline = player;
+        damageCandidates = List.copyOf(predicted);
+        damageBaselineTiming = timing;
+        damageBaselinePlayerTick = playerTick;
+        damageBaselineEvidenceRevision = evidence.revision();
+        damageObservationGeneration = evidence.generation();
+        damagePendingStartPlayerTick = Integer.MIN_VALUE;
+    }
+
+    private void beginPending(int playerTick) {
+        if (damagePendingStartPlayerTick == Integer.MIN_VALUE) damagePendingStartPlayerTick = playerTick;
+    }
+
+    private boolean pendingExpired(int playerTick, TimingSnapshot timing) {
+        if (damagePendingStartPlayerTick == Integer.MIN_VALUE) return false;
+        long grace = Math.max(1L, timing.observationAgeWindow().latest() + 1L);
+        return elapsedPlayerTicks(damagePendingStartPlayerTick, playerTick) > grace;
+    }
+
+    private static boolean matchesAuthoritativeValue(
+        LocalDamageObservationBuffer.ValueEvidence evidence,
+        long afterRevision,
+        float currentValue
+    ) {
+        return evidence != null
+            && evidence.revision() > afterRevision
+            && nearlyEqual(evidence.value(), currentValue);
+    }
+
+    private static int elapsedPlayerTicks(int before, int after) {
+        long elapsed = (long) after - before;
+        if (elapsed < 0L || elapsed >= Integer.MAX_VALUE) return Integer.MAX_VALUE;
+        return (int) elapsed;
+    }
+
+    private static boolean nearlyEqual(float first, float second) {
+        return Math.abs(first - second) <= 0.0001f;
+    }
+
+    private static PlayerSnapshot withHurtState(PlayerSnapshot player, HurtState hurtState) {
+        return new PlayerSnapshot(
+            player.health(), player.absorption(), player.playerInvulnerable(), player.abilityInvulnerable(),
+            player.deadOrDying(), player.difficulty(), player.mitigation(), player.statusEffects(), player.blocking(),
+            hurtState, player.deathProtection(), player.boundingBox(), player.position(), player.velocity(),
+            player.equipmentItemKeys(), player.stateProperties()
+        );
     }
 
     private PlayerSnapshot withConservativeBlocking(
@@ -462,12 +649,23 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         shieldExecutor.reset();
         nonTotemExecutor.reset();
         popTracker.reset();
+        hurtStateTracker.invalidate();
+        damageBaseline = null;
+        damageCandidates = List.of();
+        damageBaselineTiming = null;
+        damageBaselineEvidenceRevision = 0L;
+        damageObservationGeneration = -1L;
+        damagePendingStartPlayerTick = Integer.MIN_VALUE;
+        LocalDamageObservationBuffer.invalidate();
         captureTickClock.resetObservation();
         previousCaptureNanos = 0L;
     }
 
     private static SurvivalAction.Hand hand(InteractionHand hand) {
         return hand == InteractionHand.OFF_HAND ? SurvivalAction.Hand.OFF_HAND : SurvivalAction.Hand.MAIN_HAND;
+    }
+
+    private record DamageReconciliation(PlayerSnapshot player, boolean advanceBaseline) {
     }
 
     private record LiveState(
