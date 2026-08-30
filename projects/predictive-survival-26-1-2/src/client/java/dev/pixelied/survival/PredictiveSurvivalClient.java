@@ -7,6 +7,7 @@ import dev.pixelied.survival.config.PredictiveSurvivalConfigScreen;
 import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.core.SurvivalEngine;
+import dev.pixelied.survival.core.SurvivalStateInvalidationReason;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.SurvivalDebugHud;
 import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
@@ -80,8 +81,8 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
         );
     }
 
-    public static void markThreatDirty() {
-        THREAT_DIRTY.markDirty();
+    public static void markThreatDirty(SurvivalStateInvalidationReason reason) {
+        THREAT_DIRTY.markDirty(reason);
     }
 
     static boolean consumeThreatDirty() {
