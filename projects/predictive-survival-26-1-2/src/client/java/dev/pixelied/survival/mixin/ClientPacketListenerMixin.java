@@ -37,6 +37,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.goat.Goat;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.vehicle.minecart.MinecartTNT;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -125,10 +126,18 @@ public abstract class ClientPacketListenerMixin {
     @Inject(method = "handleEntityEvent", at = @At("TAIL"))
     private void predictiveSurvival$afterEntityEvent(ClientboundEntityEventPacket packet, CallbackInfo ci) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (packet.getEventId() != 35 || minecraft.level == null || minecraft.player == null) return;
-        if (packet.getEntity(minecraft.level) != minecraft.player) return;
-        DeathProtectionPopTracker.global().observeLocalTotemPop(Math.max(0L, minecraft.player.tickCount));
-        PredictiveSurvivalClient.markThreatDirty(SurvivalStateInvalidationReason.LOCAL_TOTEM_POP);
+        if (minecraft.level == null) return;
+        Entity entity = packet.getEntity(minecraft.level);
+        if (entity == null) return;
+
+        if (packet.getEventId() == 35 && entity == minecraft.player) {
+            DeathProtectionPopTracker.global().observeLocalTotemPop(Math.max(0L, minecraft.player.tickCount));
+            PredictiveSurvivalClient.markThreatDirty(SurvivalStateInvalidationReason.LOCAL_TOTEM_POP);
+            return;
+        }
+        if (packet.getEventId() == 10 && entity instanceof MinecartTNT) {
+            PredictiveSurvivalClient.markThreatDirty(SurvivalStateInvalidationReason.TNT_MINECART_PRIMED);
+        }
     }
 
     @Inject(method = "handleBlockUpdate", at = @At("TAIL"))
