@@ -9,6 +9,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -78,6 +79,14 @@ public final class MinecraftSnapshotFactory {
         state.put("elytra_look_y", Double.toString(lookAngle.y()));
         state.put("elytra_look_z", Double.toString(lookAngle.z()));
         state.put("suppressing_bounce", Boolean.toString(player.isSuppressingBounce()));
+
+        state.put("using_item", Boolean.toString(player.isUsingItem()));
+        state.put(
+            "using_hand",
+            player.isUsingItem()
+                ? (player.getUsedItemHand() == InteractionHand.OFF_HAND ? "1" : "0")
+                : "-1"
+        );
 
         state.put("remaining_fire_ticks", Integer.toString(player.getRemainingFireTicks()));
         state.put("on_fire", Boolean.toString(player.isOnFire()));
