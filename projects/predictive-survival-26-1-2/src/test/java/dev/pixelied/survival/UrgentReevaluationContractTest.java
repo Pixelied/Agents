@@ -1,9 +1,11 @@
 package dev.pixelied.survival;
 
+import dev.pixelied.survival.core.SurvivalStateInvalidationReason;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,14 +44,21 @@ class UrgentReevaluationContractTest {
     }
 
     @Test
-    void dirtySignalCoalescesAndConsumes() {
+    void dirtySignalCoalescesTypedReasonsAndConsumes() {
         ThreatDirtyTracker tracker = new ThreatDirtyTracker();
         assertEquals(false, tracker.consumeDirty());
-        tracker.markDirty();
-        tracker.markDirty();
-        assertEquals(true, tracker.consumeDirty());
+        tracker.markDirty(SurvivalStateInvalidationReason.LOCAL_HEALTH);
+        tracker.markDirty(SurvivalStateInvalidationReason.LOCAL_DAMAGE_EVENT);
+        tracker.markDirty(SurvivalStateInvalidationReason.LOCAL_HEALTH);
+        assertEquals(
+            Set.of(
+                SurvivalStateInvalidationReason.LOCAL_HEALTH,
+                SurvivalStateInvalidationReason.LOCAL_DAMAGE_EVENT
+            ),
+            tracker.consumeReasons()
+        );
         assertEquals(false, tracker.consumeDirty());
-        tracker.markDirty();
+        tracker.markDirty(SurvivalStateInvalidationReason.WORLD_BORDER);
         tracker.reset();
         assertEquals(false, tracker.consumeDirty());
     }
