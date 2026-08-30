@@ -296,7 +296,6 @@ final class RepeatedDamageStateValidationScenarios {
             SurvivalValidationClientGameTest.assertClose("lava_raw", 4f, baseline.lavaRaw(), EPSILON);
             SurvivalValidationClientGameTest.assertClose("vindicator_raw", 5f, baseline.meleeRaw(), EPSILON);
 
-            context.waitTick();
             float lavaHealth = singleplayer.getServer().computeOnServer(server -> {
                 ServerPlayer victim = BurstSequenceValidationSupport.requireVictim(server, setup.victimId());
                 victim.invulnerableTime = 10;
