@@ -9,6 +9,7 @@ public final class SurvivalConfigDraft {
     private SafetyMode safetyMode;
     private RescueProfile rescueProfile;
     private RescuePolicy customPolicy;
+    private TotemHandPriority totemHandPriority;
     private boolean restoreHandState;
     private boolean automaticMovement;
     private boolean blockPlacementAndClutches;
@@ -23,6 +24,7 @@ public final class SurvivalConfigDraft {
             safetyMode,
             rescueProfile,
             customPolicy,
+            totemHandPriority,
             restoreHandState,
             automaticMovement,
             blockPlacementAndClutches,
@@ -38,6 +40,7 @@ public final class SurvivalConfigDraft {
     public RescueProfile rescueProfile() { return rescueProfile; }
     public RescuePolicy customPolicy() { return customPolicy; }
     public RescuePolicy rescuePolicy() { return rescueProfile.resolve(customPolicy); }
+    public TotemHandPriority totemHandPriority() { return totemHandPriority; }
     public boolean restoreHandState() { return restoreHandState; }
     public boolean automaticMovement() { return automaticMovement; }
     public boolean blockPlacementAndClutches() { return blockPlacementAndClutches; }
@@ -46,6 +49,7 @@ public final class SurvivalConfigDraft {
     public void setSafetyMode(SafetyMode value) { safetyMode = Objects.requireNonNull(value, "value"); }
     public void setRescueProfile(RescueProfile value) { rescueProfile = Objects.requireNonNull(value, "value"); }
     public void setCustomPolicy(RescuePolicy value) { customPolicy = Objects.requireNonNull(value, "value"); }
+    public void setTotemHandPriority(TotemHandPriority value) { totemHandPriority = Objects.requireNonNull(value, "value"); }
     public void setRestoreHandState(boolean value) { restoreHandState = value; }
     public void setAutomaticMovement(boolean value) { automaticMovement = value; }
     public void setBlockPlacementAndClutches(boolean value) { blockPlacementAndClutches = value; }
@@ -55,6 +59,7 @@ public final class SurvivalConfigDraft {
         safetyMode = config.safetyMode();
         rescueProfile = config.rescueProfile();
         customPolicy = config.customPolicy();
+        totemHandPriority = config.totemHandPriority();
         restoreHandState = config.restoreHandState();
         automaticMovement = config.automaticMovement();
         blockPlacementAndClutches = config.blockPlacementAndClutches();
