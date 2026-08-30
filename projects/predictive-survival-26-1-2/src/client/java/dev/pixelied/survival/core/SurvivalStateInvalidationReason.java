@@ -16,6 +16,7 @@ public enum SurvivalStateInvalidationReason {
     LOCAL_HEALTH,
     LOCAL_DAMAGE_EVENT,
     LOCAL_TOTEM_POP,
+    TNT_MINECART_PRIMED,
     RELEVANT_ENTITY_METADATA,
     BLOCK_UPDATE,
     INVENTORY_SLOT,
@@ -32,7 +33,6 @@ public enum SurvivalStateInvalidationReason {
     private static final Set<String> SURVIVAL_RELEVANT_ATTRIBUTES = Set.of(
         "minecraft:armor",
         "minecraft:armor_toughness",
-        "minecraft:attack_damage",
         "minecraft:attack_speed",
         "minecraft:burning_time",
         "minecraft:entity_interaction_range",
