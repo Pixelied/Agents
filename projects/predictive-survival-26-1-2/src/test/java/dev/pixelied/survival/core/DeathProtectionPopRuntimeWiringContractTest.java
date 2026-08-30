@@ -16,11 +16,11 @@ class DeathProtectionPopRuntimeWiringContractTest {
 
         assertTrue(mixin.contains("@Inject(method = \"handleEntityEvent\", at = @At(\"TAIL\"))"),
             "event 35 must be observed after vanilla handles the local activation packet");
-        assertTrue(mixin.contains("packet.getEventId() != 35"));
-        assertTrue(mixin.contains("packet.getEntity(minecraft.level) != minecraft.player"),
+        assertTrue(mixin.contains("packet.getEventId() == 35"));
+        assertTrue(mixin.contains("entity == minecraft.player"),
             "remote entity events must not advance the local pop generation");
         assertTrue(mixin.contains("DeathProtectionPopTracker.global().observeLocalTotemPop"));
-        assertTrue(mixin.contains("PredictiveSurvivalClient.markThreatDirty()"));
+        assertTrue(mixin.contains("SurvivalStateInvalidationReason.LOCAL_TOTEM_POP"));
     }
 
     @Test
