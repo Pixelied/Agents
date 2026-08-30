@@ -41,6 +41,7 @@ public final class MinecraftSnapshotFactory {
         AABB box = player.getBoundingBox();
         Vec3 position = player.position();
         Vec3 velocity = player.getDeltaMovement();
+        Vec3 lookAngle = player.getLookAngle();
 
         Map<String, String> equipmentKeys = new LinkedHashMap<>();
         for (EquipmentSlot slot : EquipmentSlot.VALUES) {
@@ -72,6 +73,10 @@ public final class MinecraftSnapshotFactory {
         state.put("horizontal_friction", "0.91");
         state.put("world_min_y", Integer.toString(player.level().getMinY()));
         state.put("fall_flying", Boolean.toString(player.isFallFlying()));
+        state.put("elytra_pitch_degrees", Float.toString(player.getXRot()));
+        state.put("elytra_look_x", Double.toString(lookAngle.x()));
+        state.put("elytra_look_y", Double.toString(lookAngle.y()));
+        state.put("elytra_look_z", Double.toString(lookAngle.z()));
         state.put("suppressing_bounce", Boolean.toString(player.isSuppressingBounce()));
 
         state.put("remaining_fire_ticks", Integer.toString(player.getRemainingFireTicks()));
