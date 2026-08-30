@@ -20,6 +20,8 @@ public final class DeathProtectionRestorationController {
     private final ProtectionHoldLease holdLease = new ProtectionHoldLease();
     private PendingRestore pendingRestore;
     private boolean leaseNeedsRequirement;
+    private long armedUserIntentGeneration = ManualUserIntentTracker.global().generation();
+    private boolean userIntentInvalidatedRestoreChain;
 
     public void arm(RestorationCheckpoint checkpoint) {
         RestorationCheckpoint next = Objects.requireNonNull(checkpoint, "checkpoint");
@@ -57,6 +59,8 @@ public final class DeathProtectionRestorationController {
         pendingRestore = null;
         holdLease.invalidate();
         leaseNeedsRequirement = true;
+        armedUserIntentGeneration = ManualUserIntentTracker.global().generation();
+        userIntentInvalidatedRestoreChain = false;
     }
 
     public boolean hasPendingRestoration() {
@@ -101,6 +105,20 @@ public final class DeathProtectionRestorationController {
 
         RestorationCheckpoint checkpoint = checkpoints.peekLast();
         if (checkpoint == null) return Optional.empty();
+
+        long currentUserIntentGeneration = ManualUserIntentTracker.global().generation();
+        if (currentUserIntentGeneration != armedUserIntentGeneration) {
+            if (pendingRestore == null) {
+                // User intent arrived after this convenience-only restore checkpoint was armed.
+                // Do not override it simply because the older server-authoritative protection slot
+                // is still the conservative branch while the user's packet is in flight.
+                clear();
+                return Optional.empty();
+            }
+            // An inverse packet is already on the wire and cannot be unsent. Keep observing it so
+            // packet-order authority remains honest, but never continue the stale restore chain.
+            userIntentInvalidatedRestoreChain = true;
+        }
 
         if (leaseNeedsRequirement) {
             holdLease.require(ProtectionHoldLease.ProtectionRequirement.rescuePending(), context.timing(), popGeneration);
@@ -287,6 +305,10 @@ public final class DeathProtectionRestorationController {
     }
 
     private void completeCurrentRestore() {
+        if (userIntentInvalidatedRestoreChain) {
+            clear();
+            return;
+        }
         if (!checkpoints.isEmpty()) checkpoints.removeLast();
         pendingRestore = null;
         holdLease.invalidate();
@@ -298,6 +320,8 @@ public final class DeathProtectionRestorationController {
         pendingRestore = null;
         holdLease.invalidate();
         leaseNeedsRequirement = false;
+        armedUserIntentGeneration = ManualUserIntentTracker.global().generation();
+        userIntentInvalidatedRestoreChain = false;
     }
 
     private sealed interface PendingRestore {
