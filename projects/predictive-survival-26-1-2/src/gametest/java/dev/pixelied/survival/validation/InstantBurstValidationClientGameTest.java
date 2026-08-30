@@ -106,6 +106,7 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 singleplayer
             );
             ElytraCollisionValidationScenarios.validateHeadOnAndGlancingWallParity(context, singleplayer);
+            ElytraPitchedSnapshotDiagnosticScenarios.validateLivePitchedInputs(context, singleplayer);
             ElytraExtendedCollisionValidationScenarios.validateExtendedCollisionMatrix(context, singleplayer);
         }
     }
