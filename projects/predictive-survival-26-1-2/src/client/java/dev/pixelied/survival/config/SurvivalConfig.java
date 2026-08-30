@@ -65,7 +65,7 @@ public record SurvivalConfig(
 
     /** Effective action policy after resolving the selected profile. */
     public RescuePolicy rescuePolicy() {
-        return rescueProfile.resolve(customPolicy);
+        return rescueProfile.resolve(customPolicy).withTotemHandPriority(totemHandPriority);
     }
 
     public static SurvivalConfig defaults() {
