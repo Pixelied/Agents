@@ -239,7 +239,7 @@ final class RepeatedDamageStateValidationScenarios {
             ServerPlayer victim = SurvivalValidationClientGameTest.onlyPlayer(server);
             ServerLevel level = (ServerLevel) victim.level();
             Vec3 originalPosition = victim.position();
-            BlockPos center = BlockPos.containing(victim.getX(), 350d, victim.getZ());
+            BlockPos center = BlockPos.containing(victim.getX(), 280d, victim.getZ());
             Map<BlockPos, BlockState> originals = clearArena(level, center);
 
             BurstSequenceValidationSupport.prepareVictim(victim, 20f);
