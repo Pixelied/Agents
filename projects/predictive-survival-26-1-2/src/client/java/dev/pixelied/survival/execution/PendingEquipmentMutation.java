@@ -55,6 +55,10 @@ public record PendingEquipmentMutation(
         if (mitigationBefore.isPresent() != mitigationAfter.isPresent()) {
             throw new IllegalArgumentException("mitigation before/after must either both be present or both be absent");
         }
+        if (origin == Origin.USER && hand == SurvivalAction.Hand.MAIN_HAND
+            && before.inventoryIndex() != after.inventoryIndex()) {
+            ManualUserIntentTracker.global().observeHotbarSelection(after.inventoryIndex());
+        }
     }
 
     public boolean definitelyBefore(long serverTick) {
