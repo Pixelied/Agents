@@ -12,6 +12,8 @@ import java.util.Objects;
 /** Reconciles authoritative health/absorption observations with predicted vanilla damage. */
 public final class ServerDamageStateReconciler {
     private static final float EPSILON = 0.0001f;
+    private static final String EXPLOSION = "minecraft:explosion";
+    private static final String PLAYER_EXPLOSION = "minecraft:player_explosion";
     private final DamageSimulator damageSimulator;
 
     public ServerDamageStateReconciler() {
@@ -89,8 +91,14 @@ public final class ServerDamageStateReconciler {
         if (observations.size() != 1) return false;
         DamageEventObservation observation = observations.getFirst();
         return observation != null
-            && event.damage().sourceKey().equals(observation.sourceKey())
+            && compatibleSourceKey(event.damage().sourceKey(), observation.sourceKey())
             && event.impact().overlaps(observation.observedAt());
+    }
+
+    private static boolean compatibleSourceKey(String predicted, String observed) {
+        if (predicted.equals(observed)) return true;
+        return (EXPLOSION.equals(predicted) && PLAYER_EXPLOSION.equals(observed))
+            || (PLAYER_EXPLOSION.equals(predicted) && EXPLOSION.equals(observed));
     }
 
     private static boolean nearlyEqual(float first, float second) {
