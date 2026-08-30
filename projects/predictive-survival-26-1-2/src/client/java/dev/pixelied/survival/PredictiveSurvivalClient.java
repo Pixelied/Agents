@@ -24,6 +24,7 @@ import net.minecraft.resources.Identifier;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public final class PredictiveSurvivalClient implements ClientModInitializer {
@@ -86,7 +87,11 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
     }
 
     static boolean consumeThreatDirty() {
-        return THREAT_DIRTY.consumeDirty();
+        return !consumeThreatDirtyReasons().isEmpty();
+    }
+
+    static Set<SurvivalStateInvalidationReason> consumeThreatDirtyReasons() {
+        return THREAT_DIRTY.consumeReasons();
     }
 
     static boolean shouldStartAutomation(Predicate<String> isModLoaded) {
