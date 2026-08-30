@@ -212,6 +212,16 @@ final class ElytraExtendedCollisionValidationScenarios {
             && Math.abs(minecraft.player.getX() - fixture.start().x) <= POSITION_EPSILON
             && Math.abs(minecraft.player.getY() - fixture.start().y) <= POSITION_EPSILON
             && Math.abs(minecraft.player.getZ() - fixture.start().z) <= POSITION_EPSILON);
+        context.computeOnClient(minecraft -> {
+            if (minecraft.player == null) {
+                throw new AssertionError("client player unavailable while stabilizing extended Elytra fixture");
+            }
+            // ServerPlayer#teleportTo(x,y,z) preserves client DELTA via Relative.DELTA in 26.1.2.
+            // Clear any velocity left by the previous scenario so setup ticks cannot advance the client-only start point.
+            minecraft.player.setNoGravity(true);
+            minecraft.player.setDeltaMovement(Vec3.ZERO);
+            return true;
+        });
         return fixture;
     }
 
