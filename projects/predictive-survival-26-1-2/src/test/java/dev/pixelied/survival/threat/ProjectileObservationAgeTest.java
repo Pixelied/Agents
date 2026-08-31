@@ -28,6 +28,32 @@ class ProjectileObservationAgeTest {
     private final ProjectilePredictor predictor = new ProjectilePredictor();
 
     @Test
+    void rttAgedArrowCanAlreadyHaveImpactedWhenObservedGeometrySaysFuture() {
+        WorldSnapshot.EntitySnapshot arrow = new WorldSnapshot.EntitySnapshot(
+            "arrow:aged",
+            "minecraft:arrow",
+            new Vec3Snapshot(0, 1.0, 0.3),
+            new Vec3Snapshot(2.0, 0, 0),
+            new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
+            Map.of(
+                "abstract_arrow", "true",
+                "base_damage", "2.0",
+                "critical", "false",
+                "no_gravity", "true",
+                "observation_age_ticks", "1",
+                "observation_age_min_ticks", "0",
+                "observation_age_max_ticks", "3",
+                "kinematic_history_samples", "1",
+                "kinematic_reset_boundary", "true"
+            )
+        );
+
+        ThreatEvent event = predictor.predict(context(arrow, List.of())).getFirst();
+
+        assertEquals(new TickWindow(0, 3), event.impact());
+    }
+
+    @Test
     void staleBlockSplashBoundsDamageAcrossTheCollidedBlock() {
         WorldSnapshot.EntitySnapshot potion = new WorldSnapshot.EntitySnapshot(
             "splash:stale",
@@ -49,7 +75,7 @@ class ProjectileObservationAgeTest {
             Map.of("full_collision_cube", "true")
         );
 
-        ThreatEvent event = predictor.predict(context(potion, wall)).getFirst();
+        ThreatEvent event = predictor.predict(context(potion, List.of(wall))).getFirst();
 
         assertEquals(new DamageRange(0f, 10f), event.damage().rawDamage());
         assertEquals(Confidence.BOUNDED, event.confidence());
@@ -57,7 +83,7 @@ class ProjectileObservationAgeTest {
 
     private static PredictionContext context(
         WorldSnapshot.EntitySnapshot entity,
-        WorldSnapshot.BlockSnapshot block
+        List<WorldSnapshot.BlockSnapshot> blocks
     ) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f,
@@ -71,14 +97,14 @@ class ProjectileObservationAgeTest {
             BlockingSnapshot.none(),
             HurtState.unknown(),
             DeathProtectionSnapshot.none(),
-            new AabbSnapshot(6.7, 0, 0, 7.3, 1.8, 0.6),
-            new Vec3Snapshot(6.7, 0, 0),
+            new AabbSnapshot(5.7, 0, 0, 6.3, 1.8, 0.6),
+            new Vec3Snapshot(5.7, 0, 0),
             new Vec3Snapshot(0, 0, 0),
             Map.of()
         );
         return new PredictionContext(
             player,
-            new WorldSnapshot(List.of(entity), List.of(block)),
+            new WorldSnapshot(List.of(entity), blocks),
             new TimingSnapshot(0, 100, 10, new TickWindow(1, 2)),
             EngineLimits.defaults()
         );
