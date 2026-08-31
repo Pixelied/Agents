@@ -63,6 +63,7 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "handleTeleportEntity", at = @At("TAIL"))
     private void predictiveSurvival$afterTeleportEntity(ClientboundTeleportEntityPacket packet, CallbackInfo ci) {
+        PredictiveSurvivalClient.markRemoteEntityDiscontinuity(packet.id());
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null && packet.id() == minecraft.player.getId()) {
             LocalDamageObservationBuffer.invalidate();
