@@ -145,10 +145,7 @@ public final class SplashStatusProjectilePredictor implements ThreatPredictor {
         int baseAge = positiveInt(ageProperty, 0);
         long futureAge = saturatingAdd(baseAge, impact.window().latest());
         if (conservative) {
-            futureAge = saturatingAdd(
-                futureAge,
-                positiveInt(entity.properties().get("observation_age_ticks"), 0)
-            );
+            futureAge = saturatingAdd(futureAge, maximumObservationAgeTicks(entity));
         }
         double margin = (futureAge - 2d) / 20d;
         return Math.max(0d, Math.min(0.3d, margin));
