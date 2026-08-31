@@ -65,9 +65,9 @@ public final class ProjectilePredictor implements ThreatPredictor {
         ProjectileMotionModel motion = motionModel(entity, family);
         ProjectileBounds bounds = ProjectileBounds.from(entity);
         ProjectileStep current = new ProjectileStep(entity.position(), entity.velocity(), 0L);
-        int horizon = context.limits().maxProjectileHorizonTicks();
+        int modeledHorizon = modeledHorizonTicks(context, entity);
 
-        for (int i = 0; i < horizon; i++) {
+        for (int i = 0; i < modeledHorizon; i++) {
             ProjectileStep next = motion.step(current);
             double playerT = segmentAabbEntry(
                 current.position(),
@@ -620,6 +620,13 @@ public final class ProjectilePredictor implements ThreatPredictor {
             true,
             false
         ));
+    }
+
+    private static int modeledHorizonTicks(PredictionContext context, WorldSnapshot.EntitySnapshot entity) {
+        int serverNowHorizon = context.limits().maxProjectileHorizonTicks();
+        long replayAge = Math.min(observationAgeWindow(entity).latest(), context.limits().maxDecisionHistory());
+        long modeledHorizon = saturatingAdd(serverNowHorizon, replayAge);
+        return modeledHorizon >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) modeledHorizon;
     }
 
     private static TickWindow observedImpactWindow(WorldSnapshot.EntitySnapshot entity, long modeledTick) {
