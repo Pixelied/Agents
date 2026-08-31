@@ -226,9 +226,6 @@ public final class MinecraftWorldSnapshotFactory {
         properties.put("in_water", Boolean.toString(entity.isInWater()));
         properties.put("in_liquid", Boolean.toString(entity.isInWater()));
         properties.put("horizontal_collision", Boolean.toString(entity.horizontalCollision));
-        if (entity instanceof Projectile || entity instanceof AreaEffectCloud) {
-            properties.put("observation_age_ticks", "1");
-        }
         if (entity instanceof Projectile projectile) {
             properties.put("projectile", "true");
             properties.put("on_fire", Boolean.toString(projectile.isOnFire()));
