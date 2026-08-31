@@ -11,9 +11,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class SurvivalConfigStore {
-    private static final int SCHEMA_VERSION = 2;
+    private static final int SCHEMA_VERSION = 3;
     private static final Pattern MODE = enumPattern("safetyMode");
     private static final Pattern PROFILE = enumPattern("rescueProfile");
+    private static final Pattern TOTEM_HAND_PRIORITY = enumPattern("totemHandPriority");
     private static final Pattern DEATH_PROTECTION = boolPattern("deathProtection");
     private static final Pattern SHIELDS = boolPattern("shields");
     private static final Pattern CONSUMABLES = boolPattern("consumables");
@@ -39,6 +40,12 @@ public final class SurvivalConfigStore {
 
         SafetyMode mode = findEnum(MODE, json, SafetyMode.class, defaults.safetyMode());
         RescueProfile profile = findEnum(PROFILE, json, RescueProfile.class, defaults.rescueProfile());
+        TotemHandPriority totemHandPriority = findEnum(
+            TOTEM_HAND_PRIORITY,
+            json,
+            TotemHandPriority.class,
+            defaults.totemHandPriority()
+        );
         RescuePolicy defaultCustom = defaults.customPolicy();
         RescuePolicy custom = new RescuePolicy(
             findBoolean(DEATH_PROTECTION, json, defaultCustom.deathProtection()),
@@ -53,7 +60,16 @@ public final class SurvivalConfigStore {
         boolean movement = findBoolean(MOVEMENT, json, defaults.automaticMovement());
         boolean clutches = findBoolean(CLUTCHES, json, defaults.blockPlacementAndClutches());
         boolean debug = findBoolean(DEBUG, json, defaults.debugEnabled());
-        return new SurvivalConfig(mode, profile, custom, restore, movement, clutches, debug);
+        return new SurvivalConfig(
+            mode,
+            profile,
+            custom,
+            totemHandPriority,
+            restore,
+            movement,
+            clutches,
+            debug
+        );
     }
 
     public void save(SurvivalConfig config) throws IOException {
@@ -65,6 +81,7 @@ public final class SurvivalConfigStore {
             + "  \"schemaVersion\": " + SCHEMA_VERSION + ",\n"
             + "  \"safetyMode\": \"" + config.safetyMode().name() + "\",\n"
             + "  \"rescueProfile\": \"" + config.rescueProfile().name() + "\",\n"
+            + "  \"totemHandPriority\": \"" + config.totemHandPriority().name() + "\",\n"
             + "  \"deathProtection\": " + custom.deathProtection() + ",\n"
             + "  \"shields\": " + custom.shields() + ",\n"
             + "  \"consumables\": " + custom.consumables() + ",\n"

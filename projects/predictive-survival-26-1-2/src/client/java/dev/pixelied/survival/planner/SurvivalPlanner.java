@@ -3,6 +3,8 @@ package dev.pixelied.survival.planner;
 import dev.pixelied.survival.core.Confidence;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.core.TickWindow;
+import dev.pixelied.survival.threat.ExplosionPredictor;
+import dev.pixelied.survival.timeline.CausalThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
@@ -18,6 +20,7 @@ public final class SurvivalPlanner {
         "best effort: protection cannot be guaranteed from current observation before immediate potential threat";
 
     private final ThreatTimelineSimulator timelineSimulator;
+    private final ExplosionPredictor causalizer = new ExplosionPredictor();
 
     public SurvivalPlanner() {
         this(new ThreatTimelineSimulator());
@@ -38,7 +41,8 @@ public final class SurvivalPlanner {
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(mode, "mode");
 
-        ActionSimulation baseline = simulateBaseline(context, timeline);
+        CausalThreatTimeline causal = causalizer.causalize(context, timeline);
+        ActionSimulation baseline = simulateBaseline(context, causal);
         if (baseline.result().survived()) {
             return new SurvivalPlan(baseline.action(), baseline, 0, List.of());
         }
@@ -49,6 +53,7 @@ public final class SurvivalPlanner {
             evaluated.add(simulate(
                 context,
                 timeline,
+                causal,
                 Objects.requireNonNull(candidates.get(i), "candidate"),
                 mode,
                 baseline.result(),
@@ -72,11 +77,11 @@ public final class SurvivalPlanner {
         SurvivalAction action,
         SafetyMode mode
     ) {
-        TimelineResult baseline = timelineSimulator.simulate(
-            Objects.requireNonNull(context, "context").player(),
-            Objects.requireNonNull(timeline, "timeline")
-        );
-        return simulate(context, timeline, action, mode, baseline, false, -1);
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(timeline, "timeline");
+        CausalThreatTimeline causal = causalizer.causalize(context, timeline);
+        TimelineResult baseline = timelineSimulator.simulate(context.player(), causal);
+        return simulate(context, timeline, causal, action, mode, baseline, false, -1);
     }
 
     /**
@@ -108,16 +113,17 @@ public final class SurvivalPlanner {
         if (remainingServerTicks < 0) {
             throw new IllegalArgumentException("remainingServerTicks must be non-negative");
         }
-        TimelineResult baseline = timelineSimulator.simulate(
-            Objects.requireNonNull(context, "context").player(),
-            Objects.requireNonNull(timeline, "timeline")
-        );
-        return simulate(context, timeline, action, mode, baseline, true, remainingServerTicks);
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(timeline, "timeline");
+        CausalThreatTimeline causal = causalizer.causalize(context, timeline);
+        TimelineResult baseline = timelineSimulator.simulate(context.player(), causal);
+        return simulate(context, timeline, causal, action, mode, baseline, true, remainingServerTicks);
     }
 
     private ActionSimulation simulate(
         PredictionContext context,
         ThreatTimeline timeline,
+        CausalThreatTimeline causal,
         SurvivalAction action,
         SafetyMode mode,
         TimelineResult baselineResult,
@@ -126,6 +132,7 @@ public final class SurvivalPlanner {
     ) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(timeline, "timeline");
+        Objects.requireNonNull(causal, "causal");
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(mode, "mode");
         Objects.requireNonNull(baselineResult, "baselineResult");
@@ -140,7 +147,7 @@ public final class SurvivalPlanner {
             long activationTick = stateActivationTick(context, action, remaining, inFlight);
             TimelineResult delayedResult = timelineSimulator.simulateWithActivation(
                 context.player(),
-                timeline,
+                causal,
                 activationTick,
                 action::apply
             );
@@ -154,7 +161,7 @@ public final class SurvivalPlanner {
 
             // Distinguish "the action does not save this timeline" from "it would save the timeline
             // if it were already authoritative, but cannot become authoritative soon enough".
-            TimelineResult immediateResult = timelineSimulator.simulate(action.apply(context.player()), timeline);
+            TimelineResult immediateResult = timelineSimulator.simulate(action.apply(context.player()), causal);
             if (immediateResult.survived()) {
                 if (!inFlight && eligibleForImmediateBestEffort(action, timeline, baselineResult)) {
                     return accepted(
@@ -185,14 +192,15 @@ public final class SurvivalPlanner {
         }
 
         ThreatTimeline transformedTimeline = action.applyTimeline(timeline);
-        TimelineResult result = timelineSimulator.simulate(action.apply(context.player()), transformedTimeline);
+        CausalThreatTimeline transformedCausal = causalizer.causalize(context, transformedTimeline);
+        TimelineResult result = timelineSimulator.simulate(action.apply(context.player()), transformedCausal);
         String reason = deadlineStatus == DeadlineStatus.BEST_EFFORT
             ? IMMEDIATE_PROTECTION_BEST_EFFORT_REASON
             : "ok";
         return accepted(action, result, reason, deadlineStatus);
     }
 
-    private ActionSimulation simulateBaseline(PredictionContext context, ThreatTimeline timeline) {
+    private ActionSimulation simulateBaseline(PredictionContext context, CausalThreatTimeline timeline) {
         SurvivalAction noAction = new SurvivalAction.NoAction();
         TimelineResult result = timelineSimulator.simulate(context.player(), timeline);
         return new ActionSimulation(noAction, result, true, 1d, 0, 0, "baseline");

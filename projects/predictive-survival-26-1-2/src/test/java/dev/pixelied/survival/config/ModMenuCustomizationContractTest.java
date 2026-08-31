@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModMenuCustomizationContractTest {
     @Test
-    void mainScreenExposesProfilesAndCustomPolicyEditorWithoutUnsupportedActions() throws Exception {
+    void mainScreenExposesProfilesHandPriorityAndCustomPolicyEditorWithoutUnsupportedActions() throws Exception {
         String screen = Files.readString(Path.of(
             "src/client/java/dev/pixelied/survival/config/PredictiveSurvivalConfigScreen.java"
         ));
@@ -22,6 +22,8 @@ class ModMenuCustomizationContractTest {
         assertTrue(screen.contains("PredictiveSurvivalPolicyScreen"));
         assertTrue(screen.contains("predictive_survival.config.rescue_profile"));
         assertTrue(screen.contains("predictive_survival.config.customize_policy"));
+        assertTrue(screen.contains("TotemHandPriority"));
+        assertTrue(screen.contains("predictive_survival.config.totem_hand_priority"));
         assertTrue(lang.contains("predictive_survival.config.rescue_profile.description"));
         assertTrue(lang.contains("predictive_survival.config.rescue_profile.totem_only"));
         assertTrue(lang.contains("predictive_survival.config.rescue_profile.totem_and_shield"));
@@ -29,6 +31,10 @@ class ModMenuCustomizationContractTest {
         assertTrue(lang.contains("predictive_survival.config.rescue_profile.smart"));
         assertTrue(lang.contains("predictive_survival.config.rescue_profile.custom"));
         assertTrue(lang.contains("predictive_survival.config.customize_policy.description"));
+        assertTrue(lang.contains("predictive_survival.config.totem_hand_priority.description"));
+        assertTrue(lang.contains("predictive_survival.config.totem_hand_priority.smart"));
+        assertTrue(lang.contains("predictive_survival.config.totem_hand_priority.off_hand"));
+        assertTrue(lang.contains("predictive_survival.config.totem_hand_priority.main_hand"));
 
         assertFalse(screen.contains("automatic_movement"));
         assertFalse(screen.contains("clutches"));

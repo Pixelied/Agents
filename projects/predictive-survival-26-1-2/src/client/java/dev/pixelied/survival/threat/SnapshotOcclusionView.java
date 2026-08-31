@@ -12,17 +12,23 @@ public final class SnapshotOcclusionView implements OcclusionView {
     private static final double VANILLA_TEST_POINT_SCALE = 0.001d;
     private static final double VANILLA_MIN_RAY_LENGTH_SQUARED = 1.0E-7d;
 
-    private final List<WorldSnapshot.BlockSnapshot> blocks;
+    private final List<AabbSnapshot> collisionBoxes;
     private final List<CoverCandidate> candidates;
 
     public SnapshotOcclusionView(List<WorldSnapshot.BlockSnapshot> blocks) {
-        this(blocks, List.of());
+        this(flattenCollisionBoxes(blocks), List.of(), true);
     }
 
     SnapshotOcclusionView(List<WorldSnapshot.BlockSnapshot> blocks, List<CoverCandidate> candidates) {
-        this.blocks = Objects.requireNonNull(blocks, "blocks").stream()
-            .filter(WorldSnapshot.BlockSnapshot::collision)
-            .toList();
+        this(flattenCollisionBoxes(blocks), candidates, true);
+    }
+
+    private SnapshotOcclusionView(
+        List<AabbSnapshot> collisionBoxes,
+        List<CoverCandidate> candidates,
+        boolean precomputed
+    ) {
+        this.collisionBoxes = List.copyOf(Objects.requireNonNull(collisionBoxes, "collisionBoxes"));
         this.candidates = List.copyOf(Objects.requireNonNull(candidates, "candidates"));
     }
 
@@ -30,17 +36,8 @@ public final class SnapshotOcclusionView implements OcclusionView {
     public boolean blocksExplosionRay(Vec3Snapshot from, Vec3Snapshot to) {
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
-        for (WorldSnapshot.BlockSnapshot block : blocks) {
-            if (!block.collisionBoxes().isEmpty()) {
-                for (AabbSnapshot component : block.collisionBoxes()) {
-                    if (intersects(from, to, component)) return true;
-                }
-                continue;
-            }
-            if (ExplosionPredictor.canUseUnitCubeOcclusion(block)
-                && intersects(from, to, unitCube(block.position()))) {
-                return true;
-            }
+        for (AabbSnapshot collisionBox : collisionBoxes) {
+            if (intersects(from, to, collisionBox)) return true;
         }
         for (CoverCandidate candidate : candidates) {
             if (intersects(from, to, unitCube(candidate.blockPos()))) return true;
@@ -52,7 +49,20 @@ public final class SnapshotOcclusionView implements OcclusionView {
     public OcclusionView withCandidateBlock(CoverCandidate candidate) {
         List<CoverCandidate> next = new ArrayList<>(candidates);
         next.add(Objects.requireNonNull(candidate, "candidate"));
-        return new SnapshotOcclusionView(blocks, next);
+        return new SnapshotOcclusionView(collisionBoxes, next, true);
+    }
+
+    private static List<AabbSnapshot> flattenCollisionBoxes(List<WorldSnapshot.BlockSnapshot> blocks) {
+        List<AabbSnapshot> result = new ArrayList<>();
+        for (WorldSnapshot.BlockSnapshot block : Objects.requireNonNull(blocks, "blocks")) {
+            if (!block.collision()) continue;
+            if (!block.collisionBoxes().isEmpty()) {
+                result.addAll(block.collisionBoxes());
+            } else if (ExplosionPredictor.canUseUnitCubeOcclusion(block)) {
+                result.add(unitCube(block.position()));
+            }
+        }
+        return List.copyOf(result);
     }
 
     private static AabbSnapshot unitCube(Vec3Snapshot block) {

@@ -26,6 +26,7 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
     private CycleButton<RescueProfile> rescueProfileButton;
     private CycleButton<SafetyMode> safetyModeButton;
     private Button customizePolicyButton;
+    private CycleButton<TotemHandPriority> totemHandPriorityButton;
     private CycleButton<Boolean> restoreHandButton;
     private CycleButton<Boolean> debugButton;
     private StringWidget errorWidget;
@@ -44,7 +45,7 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
     @Override
     protected void init() {
         int left = (this.width - ROW_WIDTH) / 2;
-        int top = Math.max(32, (this.height - 244) / 2);
+        int top = Math.max(32, (this.height - 268) / 2);
 
         StringWidget title = new StringWidget(this.title, this.font);
         title.setX((this.width - this.font.width(this.title)) / 2);
@@ -81,22 +82,31 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
                 .build()
         );
 
+        this.totemHandPriorityButton = this.addRenderableWidget(
+            CycleButton.builder(PredictiveSurvivalConfigScreen::totemHandPriorityLabel, this.draft.totemHandPriority())
+                .withValues(List.of(TotemHandPriority.values()))
+                .withTooltip(value -> Tooltip.create(Component.translatable("predictive_survival.config.totem_hand_priority.description")))
+                .create(left, top + ROW_GAP * 3, ROW_WIDTH, ROW_HEIGHT,
+                    Component.translatable("predictive_survival.config.totem_hand_priority"),
+                    (button, value) -> this.draft.setTotemHandPriority(value))
+        );
+
         this.restoreHandButton = addBooleanRow(
-            left, top + ROW_GAP * 3,
+            left, top + ROW_GAP * 4,
             "predictive_survival.config.restore_hand",
             "predictive_survival.config.restore_hand.description",
             this.draft.restoreHandState(),
             this.draft::setRestoreHandState
         );
         this.debugButton = addBooleanRow(
-            left, top + ROW_GAP * 4,
+            left, top + ROW_GAP * 5,
             "predictive_survival.config.debug",
             "predictive_survival.config.debug.description",
             this.draft.debugEnabled(),
             this.draft::setDebugEnabled
         );
 
-        int controlsY = top + ROW_GAP * 5 + 8;
+        int controlsY = top + ROW_GAP * 6 + 8;
         this.addRenderableWidget(Button.builder(
                 Component.translatable("predictive_survival.config.reset_defaults"),
                 button -> resetDefaults())
@@ -147,6 +157,7 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
         this.draft.resetDefaults();
         this.rescueProfileButton.setValue(this.draft.rescueProfile());
         this.safetyModeButton.setValue(this.draft.safetyMode());
+        this.totemHandPriorityButton.setValue(this.draft.totemHandPriority());
         this.restoreHandButton.setValue(this.draft.restoreHandState());
         this.debugButton.setValue(this.draft.debugEnabled());
         syncProfileControls();
@@ -179,5 +190,11 @@ public final class PredictiveSurvivalConfigScreen extends Screen {
 
     private static Component safetyModeLabel(SafetyMode mode) {
         return Component.translatable("predictive_survival.config.safety_mode." + mode.name().toLowerCase(Locale.ROOT));
+    }
+
+    private static Component totemHandPriorityLabel(TotemHandPriority priority) {
+        return Component.translatable(
+            "predictive_survival.config.totem_hand_priority." + priority.name().toLowerCase(Locale.ROOT)
+        );
     }
 }

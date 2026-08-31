@@ -19,10 +19,11 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Adds a narrow set of blocks along the client's projected falling footprint so long falls are not
- * limited by the fixed nearby-world snapshot cube. This deliberately follows the same simple
- * ballistic assumptions as {@code FallLandingSolver}; it does not enlarge the general-purpose
- * block cube used by projectile and explosion prediction.
+ * Adds a narrow set of blocks along the client's projected fall/glide footprint so long movement
+ * is not limited by the fixed nearby-world snapshot cube. Ordinary falling follows the same
+ * ballistic assumptions as {@code FallLandingSolver}; fall-flying follows the 26.1.2
+ * LivingEntity#updateFallFlyingMovement ordering with the currently observed look/pitch held
+ * constant. The capture remains a per-tick swept corridor rather than enlarging the global cube.
  */
 final class MinecraftFallCorridorSnapshotFactory {
     private static final double HORIZONTAL_FRICTION = 0.91d;
@@ -48,14 +49,6 @@ final class MinecraftFallCorridorSnapshotFactory {
         // cells on demand. Live nearby snapshots already carry the vanilla VoxelShape envelope and
         // therefore need no second world lookup.
         List<WorldSnapshot.BlockSnapshot> enrichedNearby = enrichNearbyCollisionShapes(level, nearbyBlocks);
-
-        // The nearby cube already handles grounded/ordinary movement. Only pay for the corridor
-        // once the player is actually descending (or has accumulated fall distance).
-        if (player.isFallFlying()
-            || player.getDeltaMovement().y() >= 0d && player.fallDistance <= 0d) {
-            return enrichedNearby;
-        }
-
         List<WorldSnapshot.BlockSnapshot> result = new ArrayList<>(enrichedNearby);
         Set<Long> seen = new HashSet<>(Math.max(16, enrichedNearby.size() * 2));
         for (WorldSnapshot.BlockSnapshot block : enrichedNearby) {
@@ -64,6 +57,17 @@ final class MinecraftFallCorridorSnapshotFactory {
                 block.position().y(),
                 block.position().z()
             ).asLong());
+        }
+
+        if (player.isFallFlying()) {
+            captureFallFlyingSweep(level, player, limits, seen, result);
+            return List.copyOf(result);
+        }
+
+        // The nearby cube already handles grounded/ordinary movement. Only pay for the ordinary
+        // fall corridor once the player is actually descending (or has accumulated fall distance).
+        if (player.getDeltaMovement().y() >= 0d && player.fallDistance <= 0d) {
+            return enrichedNearby;
         }
 
         AABB box = player.getBoundingBox();
@@ -86,6 +90,74 @@ final class MinecraftFallCorridorSnapshotFactory {
             box = next;
         }
         return List.copyOf(result);
+    }
+
+    /**
+     * Captures only the cells crossed by each projected fall-flying movement segment. Future input
+     * is not knowable, so this is the current-input branch that the bounded predictor consumes; it
+     * does not pretend an arbitrary extra radius is authoritative.
+     */
+    private static void captureFallFlyingSweep(
+        ClientLevel level,
+        LocalPlayer player,
+        EngineLimits limits,
+        Set<Long> seen,
+        List<WorldSnapshot.BlockSnapshot> output
+    ) {
+        AABB box = player.getBoundingBox();
+        Vec3 velocity = player.getDeltaMovement();
+        Vec3 lookAngle = player.getLookAngle();
+        float leanAngle = player.getXRot() * (float) (Math.PI / 180.0d);
+        double baseGravity = player.getGravity();
+        MobEffectInstance slowFalling = player.getEffect(MobEffects.SLOW_FALLING);
+
+        for (long tick = 1; tick <= limits.maxProjectileHorizonTicks(); tick++) {
+            double gravity = effectiveGravity(baseGravity, velocity.y(), slowFalling, tick);
+            Vec3 nextVelocity = updateFallFlyingMovement(velocity, lookAngle, leanAngle, gravity);
+            AABB next = box.move(nextVelocity);
+            captureSweptVolume(level, box, next, seen, output);
+            box = next;
+            velocity = nextVelocity;
+        }
+    }
+
+    /** Mirrors Minecraft 26.1.2 LivingEntity#updateFallFlyingMovement for one uncollided step. */
+    private static Vec3 updateFallFlyingMovement(
+        Vec3 movement,
+        Vec3 lookAngle,
+        float leanAngle,
+        double gravity
+    ) {
+        double lookHorLength = Math.sqrt(lookAngle.x * lookAngle.x + lookAngle.z * lookAngle.z);
+        double moveHorLength = movement.horizontalDistance();
+        double cos = Math.cos(leanAngle);
+        double liftForce = cos * cos;
+
+        movement = movement.add(0.0d, gravity * (-1.0d + liftForce * 0.75d), 0.0d);
+        if (movement.y < 0.0d && lookHorLength > 0.0d) {
+            double convert = movement.y * -0.1d * liftForce;
+            movement = movement.add(
+                lookAngle.x * convert / lookHorLength,
+                convert,
+                lookAngle.z * convert / lookHorLength
+            );
+        }
+        if (leanAngle < 0.0f && lookHorLength > 0.0d) {
+            double convert = moveHorLength * -Math.sin(leanAngle) * 0.04d;
+            movement = movement.add(
+                -lookAngle.x * convert / lookHorLength,
+                convert * 3.2d,
+                -lookAngle.z * convert / lookHorLength
+            );
+        }
+        if (lookHorLength > 0.0d) {
+            movement = movement.add(
+                (lookAngle.x / lookHorLength * moveHorLength - movement.x) * 0.1d,
+                0.0d,
+                (lookAngle.z / lookHorLength * moveHorLength - movement.z) * 0.1d
+            );
+        }
+        return movement.multiply(0.99f, 0.98f, 0.99f);
     }
 
     private static List<WorldSnapshot.BlockSnapshot> enrichNearbyCollisionShapes(
@@ -145,43 +217,75 @@ final class MinecraftFallCorridorSnapshotFactory {
         int minY = floor(to.minY) - 1;
         int maxY = floor(from.minY);
 
+        captureCells(level, minX, maxX, minY, maxY, minZ, maxZ, seen, output);
+    }
+
+    private static void captureSweptVolume(
+        ClientLevel level,
+        AABB from,
+        AABB to,
+        Set<Long> seen,
+        List<WorldSnapshot.BlockSnapshot> output
+    ) {
+        int minX = floor(Math.min(from.minX, to.minX));
+        int maxX = floor(Math.max(from.maxX, to.maxX) - GRID_EPSILON);
+        int minY = floor(Math.min(from.minY, to.minY));
+        int maxY = floor(Math.max(from.maxY, to.maxY) - GRID_EPSILON);
+        int minZ = floor(Math.min(from.minZ, to.minZ));
+        int maxZ = floor(Math.max(from.maxZ, to.maxZ) - GRID_EPSILON);
+        captureCells(level, minX, maxX, minY, maxY, minZ, maxZ, seen, output);
+    }
+
+    private static void captureCells(
+        ClientLevel level,
+        int minX,
+        int maxX,
+        int minY,
+        int maxY,
+        int minZ,
+        int maxZ,
+        Set<Long> seen,
+        List<WorldSnapshot.BlockSnapshot> output
+    ) {
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 for (int y = minY; y <= maxY; y++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    long key = pos.asLong();
-                    if (seen.contains(key)) continue;
-
-                    BlockState state = level.getBlockState(pos);
-                    if (state.isAir()) {
-                        // Air does not need a snapshot, but mark it seen so overlapping future
-                        // sweeps do not query the same position repeatedly in this capture pass.
-                        seen.add(key);
-                        continue;
-                    }
-                    seen.add(key);
-
-                    Map<String, String> properties = new LinkedHashMap<>();
-                    var collisionShape = state.getCollisionShape(level, pos);
-                    boolean collision = !collisionShape.isEmpty();
-                    MinecraftCollisionShapeSnapshot.write(
-                        properties,
-                        collisionShape,
-                        state.isCollisionShapeFullBlock(level, pos)
-                    );
-                    List<AabbSnapshot> collisionBoxes = MinecraftCollisionShapeSnapshot.capture(collisionShape, pos);
-
-                    Vec3 center = pos.getCenter();
-                    output.add(new WorldSnapshot.BlockSnapshot(
-                        new Vec3Snapshot(center.x, center.y, center.z),
-                        BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
-                        collision,
-                        collisionBoxes,
-                        properties
-                    ));
+                    captureCell(level, new BlockPos(x, y, z), seen, output);
                 }
             }
         }
+    }
+
+    private static void captureCell(
+        ClientLevel level,
+        BlockPos pos,
+        Set<Long> seen,
+        List<WorldSnapshot.BlockSnapshot> output
+    ) {
+        long key = pos.asLong();
+        if (!seen.add(key)) return;
+
+        BlockState state = level.getBlockState(pos);
+        if (state.isAir()) return;
+
+        Map<String, String> properties = new LinkedHashMap<>();
+        var collisionShape = state.getCollisionShape(level, pos);
+        boolean collision = !collisionShape.isEmpty();
+        MinecraftCollisionShapeSnapshot.write(
+            properties,
+            collisionShape,
+            state.isCollisionShapeFullBlock(level, pos)
+        );
+        List<AabbSnapshot> collisionBoxes = MinecraftCollisionShapeSnapshot.capture(collisionShape, pos);
+
+        Vec3 center = pos.getCenter();
+        output.add(new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(center.x, center.y, center.z),
+            BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
+            collision,
+            collisionBoxes,
+            properties
+        ));
     }
 
     private static double effectiveGravity(

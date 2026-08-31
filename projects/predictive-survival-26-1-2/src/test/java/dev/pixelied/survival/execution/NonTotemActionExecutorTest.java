@@ -236,22 +236,16 @@ class NonTotemActionExecutorTest {
     }
 
     @Test
-    void relocationWaitsForObservedPosition() {
+    void relocationFailsClosedWithoutServerAuthoritativeMovementExecutor() {
         Vec3Snapshot target = new Vec3Snapshot(3, 64, 0);
         SurvivalAction.Relocate action = new SurvivalAction.Relocate(
             target, Set.of("projectile"), 1, true, true, 1d, 0, 1
         );
         NonTotemActionExecutor executor = new NonTotemActionExecutor();
 
-        ExecutionStatus.WaitingForServer waiting = assertInstanceOf(
-            ExecutionStatus.WaitingForServer.class,
-            executor.begin(action, context("minecraft:air", player(Map.of(), StatusEffectsSnapshot.none(), new Vec3Snapshot(0, 64, 0)), Set.of(), 50))
-        );
-        assertInstanceOf(ExecutionCommand.MoveToward.class, waiting.command().orElseThrow());
-
         assertInstanceOf(
-            ExecutionStatus.Confirmed.class,
-            executor.observe(context("minecraft:air", player(Map.of(), StatusEffectsSnapshot.none(), target), Set.of(), 51))
+            ExecutionStatus.Failed.class,
+            executor.begin(action, context("minecraft:air", player(Map.of(), StatusEffectsSnapshot.none(), new Vec3Snapshot(0, 64, 0)), Set.of(), 50))
         );
     }
 

@@ -14,15 +14,24 @@ public final class ServerHurtStateTracker {
         return current;
     }
 
-    public void tick(int elapsedServerTicks) {
+    public HurtState projected(int elapsedServerTicks) {
         if (elapsedServerTicks < 0) {
             throw new IllegalArgumentException("elapsedServerTicks must be non-negative");
         }
-        current = new HurtState(
+        return new HurtState(
             current.lastHurt(),
             Math.max(0, current.invulnerableTime() - elapsedServerTicks),
             current.confidence()
         );
+    }
+
+    public void tick(int elapsedServerTicks) {
+        current = projected(elapsedServerTicks);
+    }
+
+    public void recordReconciled(HurtState reconciled) {
+        current = Objects.requireNonNull(reconciled, "reconciled");
+        pendingPredictedWindow = null;
     }
 
     public void recordPredictedApplied(float preArmorLastHurt, TickWindow appliedAt) {

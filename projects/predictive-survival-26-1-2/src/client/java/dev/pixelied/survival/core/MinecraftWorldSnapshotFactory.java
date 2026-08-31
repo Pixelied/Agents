@@ -3,6 +3,8 @@ package dev.pixelied.survival.core;
 import dev.pixelied.survival.mixin.AbstractArrowAccessor;
 import dev.pixelied.survival.mixin.FallingBlockEntityAccessor;
 import dev.pixelied.survival.mixin.FireworkRocketAccessor;
+import dev.pixelied.survival.timing.RemoteEntityKinematicEnvelope;
+import dev.pixelied.survival.timing.TimingSnapshot;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
@@ -41,46 +43,99 @@ import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public final class MinecraftWorldSnapshotFactory {
     private static final String OBSERVATION_OVERFLOW_TYPE = "predictive_survival:observation_overflow";
+    private static final int REMOTE_KINEMATIC_HISTORY_LIMIT = 8;
+
+    private final Set<Integer> pendingDiscontinuities = new LinkedHashSet<>();
+    private RemoteEntityKinematicEnvelope remoteKinematics;
+    private int remoteKinematicEntityLimit = -1;
+    private LocalPlayer remoteKinematicPlayer;
 
     public WorldSnapshot capture(ClientLevel level, LocalPlayer player, EngineLimits limits) {
+        return captureInternal(level, player, limits, null);
+    }
+
+    public WorldSnapshot capture(
+        ClientLevel level,
+        LocalPlayer player,
+        EngineLimits limits,
+        TimingSnapshot timing
+    ) {
+        Objects.requireNonNull(timing, "timing");
+        return captureInternal(level, player, limits, timing);
+    }
+
+    public void markEntityDiscontinuity(int entityId) {
+        if (remoteKinematics == null) return;
+        pendingDiscontinuities.remove(entityId);
+        pendingDiscontinuities.add(entityId);
+        while (pendingDiscontinuities.size() > remoteKinematicEntityLimit) {
+            pendingDiscontinuities.remove(pendingDiscontinuities.iterator().next());
+        }
+    }
+
+    public void reset() {
+        if (remoteKinematics != null) remoteKinematics.reset();
+        pendingDiscontinuities.clear();
+        remoteKinematics = null;
+        remoteKinematicEntityLimit = -1;
+        remoteKinematicPlayer = null;
+    }
+
+    private WorldSnapshot captureInternal(
+        ClientLevel level,
+        LocalPlayer player,
+        EngineLimits limits,
+        TimingSnapshot timing
+    ) {
         Objects.requireNonNull(level, "level");
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(limits, "limits");
 
-        List<Entity> tracked = new ArrayList<>();
+        int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
+        RemoteEntityKinematicEnvelope kinematics = timing == null ? null : kinematicsFor(entityCap, player);
+        Comparator<Entity> trackedOrder = Comparator
+            .comparingInt(MinecraftWorldSnapshotFactory::threatPriority)
+            .thenComparingDouble(player::distanceToSqr);
+        BoundedTopKAccumulator<Entity> tracked = new BoundedTopKAccumulator<>(
+            entityCap,
+            trackedOrder,
+            entity -> threatPriority(entity) == 0
+        );
         for (Entity entity : level.entitiesForRendering()) {
             if (entity == player || !entity.isAlive() || entity.isRemoved()) continue;
-            tracked.add(entity);
+            tracked.offer(entity);
         }
-        tracked.sort(
-            Comparator.comparingInt(MinecraftWorldSnapshotFactory::threatPriority)
-                .thenComparingDouble(player::distanceToSqr)
-        );
 
-        int entityCap = Math.max(limits.maxThreats(), Math.min(Integer.MAX_VALUE / 2, limits.maxThreats() * 4));
-        int relevantCount = 0;
-        for (Entity entity : tracked) {
-            if (threatPriority(entity) == 0) relevantCount++;
-        }
-        boolean overflowed = relevantCount > entityCap;
+        BoundedTopKAccumulator.Selection<Entity> selection = tracked.finish();
+        List<Entity> selectedEntities = selection.selected();
+        boolean overflowed = selection.omittedRelevant() > 0;
         int realEntityLimit = overflowed ? Math.max(0, entityCap - 1) : entityCap;
 
-        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(Math.min(entityCap, tracked.size() + 1));
-        for (int i = 0; i < tracked.size() && entities.size() < realEntityLimit; i++) {
-            entities.add(entitySnapshot(tracked.get(i), player));
+        List<WorldSnapshot.EntitySnapshot> entities = new ArrayList<>(
+            Math.min(entityCap, selectedEntities.size() + 1)
+        );
+        for (int i = 0; i < selectedEntities.size() && entities.size() < realEntityLimit; i++) {
+            Entity entity = selectedEntities.get(i);
+            boolean discontinuity = kinematics != null && pendingDiscontinuities.remove(entity.getId());
+            entities.add(entitySnapshot(entity, player, kinematics, timing, discontinuity));
         }
         if (overflowed) {
-            entities.add(observationOverflowMarker(player, relevantCount - realEntityLimit));
+            long omittedRelevant = selection.omittedRelevant() + 1L;
+            int omittedRelevantEntities = (int) Math.min(Integer.MAX_VALUE, omittedRelevant);
+            entities.add(observationOverflowMarker(player, omittedRelevantEntities));
         }
 
         List<WorldSnapshot.BlockSnapshot> nearbyBlocks = MinecraftNearbyBlockSnapshotFactory.capture(
@@ -99,6 +154,18 @@ public final class MinecraftWorldSnapshotFactory {
             fallAwareBlocks
         );
         return new WorldSnapshot(entities, blocks);
+    }
+
+    private RemoteEntityKinematicEnvelope kinematicsFor(int entityCap, LocalPlayer player) {
+        if (remoteKinematics == null
+            || remoteKinematicEntityLimit != entityCap
+            || remoteKinematicPlayer != player) {
+            remoteKinematics = new RemoteEntityKinematicEnvelope(REMOTE_KINEMATIC_HISTORY_LIMIT, entityCap);
+            pendingDiscontinuities.clear();
+            remoteKinematicEntityLimit = entityCap;
+            remoteKinematicPlayer = player;
+        }
+        return remoteKinematics;
     }
 
     private static int threatPriority(Entity entity) {
@@ -147,15 +214,18 @@ public final class MinecraftWorldSnapshotFactory {
         );
     }
 
-    private static WorldSnapshot.EntitySnapshot entitySnapshot(Entity entity, LocalPlayer player) {
+    private static WorldSnapshot.EntitySnapshot entitySnapshot(
+        Entity entity,
+        LocalPlayer player,
+        RemoteEntityKinematicEnvelope kinematics,
+        TimingSnapshot timing,
+        boolean discontinuity
+    ) {
         Map<String, String> properties = new LinkedHashMap<>();
         properties.put("no_gravity", Boolean.toString(entity.isNoGravity()));
         properties.put("in_water", Boolean.toString(entity.isInWater()));
         properties.put("in_liquid", Boolean.toString(entity.isInWater()));
         properties.put("horizontal_collision", Boolean.toString(entity.horizontalCollision));
-        if (entity instanceof Projectile || entity instanceof AreaEffectCloud) {
-            properties.put("observation_age_ticks", "1");
-        }
         if (entity instanceof Projectile projectile) {
             properties.put("projectile", "true");
             properties.put("on_fire", Boolean.toString(projectile.isOnFire()));
@@ -288,12 +358,43 @@ public final class MinecraftWorldSnapshotFactory {
             properties.putAll(MinecraftMeleeSnapshotAdapter.playerProperties(remotePlayer, player::hasLineOfSight));
         }
 
+        Vec3 renderedPosition = entity.position();
+        Vec3 snapshotPosition = renderedPosition;
+        if (entity instanceof MinecartTNT) {
+            var interpolation = entity.getInterpolation();
+            if (interpolation != null && interpolation.hasActiveInterpolation()) {
+                snapshotPosition = interpolation.position();
+            }
+        }
         AABB box = entity.getBoundingBox();
+        if (!snapshotPosition.equals(renderedPosition)) {
+            box = box.move(snapshotPosition.subtract(renderedPosition));
+        }
+
+        Vec3Snapshot position = vec(snapshotPosition);
+        Vec3Snapshot velocity = vec(entity.getDeltaMovement());
+        if (kinematics != null && timing != null && isThreatRelevant(entity)) {
+            RemoteEntityKinematicEnvelope.Snapshot observation = kinematics.observe(
+                Integer.toString(entity.getId()),
+                entity.getUUID().toString(),
+                timing.clientTick(),
+                position,
+                velocity,
+                timing,
+                discontinuity
+            );
+            TickWindow age = observation.observationAgeTicks();
+            properties.put("observation_age_min_ticks", Long.toString(age.earliest()));
+            properties.put("observation_age_max_ticks", Long.toString(age.latest()));
+            properties.put("kinematic_history_samples", Integer.toString(observation.history().size()));
+            properties.put("kinematic_reset_boundary", Boolean.toString(observation.resetBoundary()));
+        }
+
         return new WorldSnapshot.EntitySnapshot(
             Integer.toString(entity.getId()),
             BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(),
-            vec(entity.position()),
-            vec(entity.getDeltaMovement()),
+            position,
+            velocity,
             new AabbSnapshot(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ),
             properties
         );

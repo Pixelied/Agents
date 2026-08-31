@@ -7,6 +7,7 @@ import dev.pixelied.survival.config.PredictiveSurvivalConfigScreen;
 import dev.pixelied.survival.core.EngineLimits;
 import dev.pixelied.survival.core.MinecraftSurvivalRuntime;
 import dev.pixelied.survival.core.SurvivalEngine;
+import dev.pixelied.survival.core.SurvivalStateInvalidationReason;
 import dev.pixelied.survival.debug.DecisionHistory;
 import dev.pixelied.survival.debug.SurvivalDebugHud;
 import dev.pixelied.survival.execution.MinecraftServerStateEvidence;
@@ -23,6 +24,7 @@ import net.minecraft.resources.Identifier;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public final class PredictiveSurvivalClient implements ClientModInitializer {
@@ -80,12 +82,23 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
         );
     }
 
-    public static void markThreatDirty() {
-        THREAT_DIRTY.markDirty();
+    public static void markThreatDirty(SurvivalStateInvalidationReason reason) {
+        THREAT_DIRTY.markDirty(reason);
+    }
+
+    public static void markRemoteEntityDiscontinuity(int entityId) {
+        PredictiveSurvivalClient current = instance;
+        if (current != null && current.runtime != null) {
+            current.runtime.markRemoteEntityDiscontinuity(entityId);
+        }
     }
 
     static boolean consumeThreatDirty() {
-        return THREAT_DIRTY.consumeDirty();
+        return !consumeThreatDirtyReasons().isEmpty();
+    }
+
+    static Set<SurvivalStateInvalidationReason> consumeThreatDirtyReasons() {
+        return THREAT_DIRTY.consumeReasons();
     }
 
     static boolean shouldStartAutomation(Predicate<String> isModLoaded) {

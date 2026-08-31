@@ -9,23 +9,27 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Reverses only server-confirmed emergency hand mutations after the lethal window has
- * remained gone through an estimated server processing window. Mutations are restored in
- * reverse order and any disagreement aborts the entire chain rather than overwriting player state.
+ * Reverses only server-confirmed emergency hand mutations after danger has remained absent through
+ * a timing-derived protection hold lease. Mutations are restored in reverse order and any
+ * disagreement aborts the entire chain rather than overwriting player state.
  */
 public final class DeathProtectionRestorationController {
     private static final int MAX_RESTORATION_DEPTH = 8;
 
     private final Deque<RestorationCheckpoint> checkpoints = new ArrayDeque<>();
+    private final ProtectionHoldLease holdLease = new ProtectionHoldLease();
     private PendingRestore pendingRestore;
-    private long safeUntilServerTick = -1L;
+    private boolean leaseNeedsRequirement;
+    private long armedUserIntentGeneration = ManualUserIntentTracker.global().generation();
+    private boolean userIntentInvalidatedRestoreChain;
 
     public void arm(RestorationCheckpoint checkpoint) {
         RestorationCheckpoint next = Objects.requireNonNull(checkpoint, "checkpoint");
 
         // A new emergency mutation while an inverse mutation is already in flight makes the
         // previous restore chain ambiguous. Fail closed for restoration and preserve only the
-        // newly confirmed mutation.
+        // newly confirmed mutation. The already-sent inverse packet remains modeled separately by
+        // equipment authority and cannot be wished away here.
         if (pendingRestore != null) {
             clear();
         }
@@ -53,11 +57,18 @@ public final class DeathProtectionRestorationController {
         }
 
         pendingRestore = null;
-        safeUntilServerTick = -1L;
+        holdLease.invalidate();
+        leaseNeedsRequirement = true;
+        armedUserIntentGeneration = ManualUserIntentTracker.global().generation();
+        userIntentInvalidatedRestoreChain = false;
     }
 
     public boolean hasPendingRestoration() {
         return !checkpoints.isEmpty();
+    }
+
+    public long releaseNotBeforeServerTick() {
+        return holdLease.releaseNotBeforeServerTick();
     }
 
     public void abort() {
@@ -70,6 +81,22 @@ public final class DeathProtectionRestorationController {
         boolean survivalActionActive,
         ExecutionContext context
     ) {
+        return update(enabled, lethalThreatStillPending, survivalActionActive, 0L, false, context);
+    }
+
+    /**
+     * Extended form used once pop-generation evidence is available. Until that reconciler is
+     * present, callers use generation zero and {@code unprocessedPop=false}; keeping the parameter
+     * here prevents Task 3 from inventing a second restoration latch.
+     */
+    public Optional<ExecutionCommand> update(
+        boolean enabled,
+        boolean lethalThreatStillPending,
+        boolean survivalActionActive,
+        long popGeneration,
+        boolean unprocessedPop,
+        ExecutionContext context
+    ) {
         Objects.requireNonNull(context, "context");
         if (!enabled) {
             clear();
@@ -79,7 +106,53 @@ public final class DeathProtectionRestorationController {
         RestorationCheckpoint checkpoint = checkpoints.peekLast();
         if (checkpoint == null) return Optional.empty();
 
+        long currentUserIntentGeneration = ManualUserIntentTracker.global().generation();
+        if (currentUserIntentGeneration != armedUserIntentGeneration) {
+            if (pendingRestore == null) {
+                // User intent arrived after this convenience-only restore checkpoint was armed.
+                // Do not override it simply because the older server-authoritative protection slot
+                // is still the conservative branch while the user's packet is in flight.
+                clear();
+                return Optional.empty();
+            }
+            // An inverse packet is already on the wire and cannot be unsent. Keep observing it so
+            // packet-order authority remains honest, but never continue the stale restore chain.
+            userIntentInvalidatedRestoreChain = true;
+        }
+
+        if (leaseNeedsRequirement) {
+            holdLease.require(ProtectionHoldLease.ProtectionRequirement.rescuePending(), context.timing(), popGeneration);
+            leaseNeedsRequirement = false;
+        }
+        if (lethalThreatStillPending) {
+            holdLease.require(ProtectionHoldLease.ProtectionRequirement.lethalThreat(), context.timing(), popGeneration);
+        }
+        if (survivalActionActive || context.serverUsingItem()) {
+            holdLease.require(ProtectionHoldLease.ProtectionRequirement.rescuePending(), context.timing(), popGeneration);
+        }
+        if (unprocessedPop) {
+            holdLease.require(
+                new ProtectionHoldLease.ProtectionRequirement(false, false, false, false, true),
+                context.timing(),
+                popGeneration
+            );
+        }
+
         if (pendingRestore != null) {
+            // An inverse packet is already on the wire. It cannot be cancelled, but it also cannot
+            // count as evidence that the world has remained safely quiet for a later restore.
+            holdLease.observeSafe(
+                new ProtectionHoldLease.SafeEvidence(
+                    !lethalThreatStillPending,
+                    !lethalThreatStillPending,
+                    true,
+                    false,
+                    !unprocessedPop,
+                    true
+                ),
+                context.timing(),
+                popGeneration
+            );
             observePending(checkpoint, context);
             return Optional.empty();
         }
@@ -89,22 +162,17 @@ public final class DeathProtectionRestorationController {
             return Optional.empty();
         }
 
-        if (lethalThreatStillPending || survivalActionActive || context.serverUsingItem()) {
-            safeUntilServerTick = -1L;
+        if (lethalThreatStillPending || survivalActionActive || context.serverUsingItem() || unprocessedPop) {
             return Optional.empty();
         }
 
-        if (safeUntilServerTick < 0L) {
-            safeUntilServerTick = Math.max(
-                context.currentServerTick(),
-                context.timing().nextPacketProcessingWindow().latest()
-            );
-        }
-        if (context.currentServerTick() < safeUntilServerTick) return Optional.empty();
+        holdLease.observeSafe(ProtectionHoldLease.SafeEvidence.clean(), context.timing(), popGeneration);
+        if (holdLease.blocksRestoration(context.currentServerTick())) return Optional.empty();
 
         if (checkpoint instanceof RestorationCheckpoint.Hotbar hotbar) {
             long confirmBy = Math.max(context.currentServerTick(), context.timing().nextPacketProcessingWindow().latest());
             pendingRestore = new PendingRestore.Hotbar(confirmBy);
+            holdLease.require(ProtectionHoldLease.ProtectionRequirement.rescuePending(), context.timing(), popGeneration);
             return Optional.of(new ExecutionCommand.SelectHotbar(hotbar.originalSelectedIndex()));
         }
 
@@ -118,6 +186,7 @@ public final class DeathProtectionRestorationController {
                 context.menu().stateId(),
                 Math.max(context.currentServerTick(), context.timing().nextPacketProcessingWindow().latest())
             );
+            holdLease.require(ProtectionHoldLease.ProtectionRequirement.rescuePending(), context.timing(), popGeneration);
             return Optional.of(new ExecutionCommand.SwapMenuSlot(
                 routed.containerId(),
                 context.menu().stateId(),
@@ -136,6 +205,7 @@ public final class DeathProtectionRestorationController {
             context.menu().stateId(),
             Math.max(context.currentServerTick(), context.timing().nextPacketProcessingWindow().latest())
         );
+        holdLease.require(ProtectionHoldLease.ProtectionRequirement.rescuePending(), context.timing(), popGeneration);
         return Optional.of(new ExecutionCommand.SwapMenuSlot(
             context.menu().containerId(),
             context.menu().stateId(),
@@ -235,15 +305,23 @@ public final class DeathProtectionRestorationController {
     }
 
     private void completeCurrentRestore() {
+        if (userIntentInvalidatedRestoreChain) {
+            clear();
+            return;
+        }
         if (!checkpoints.isEmpty()) checkpoints.removeLast();
         pendingRestore = null;
-        safeUntilServerTick = -1L;
+        holdLease.invalidate();
+        leaseNeedsRequirement = !checkpoints.isEmpty();
     }
 
     private void clear() {
         checkpoints.clear();
         pendingRestore = null;
-        safeUntilServerTick = -1L;
+        holdLease.invalidate();
+        leaseNeedsRequirement = false;
+        armedUserIntentGeneration = ManualUserIntentTracker.global().generation();
+        userIntentInvalidatedRestoreChain = false;
     }
 
     private sealed interface PendingRestore {

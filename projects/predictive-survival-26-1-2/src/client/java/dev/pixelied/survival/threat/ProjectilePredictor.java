@@ -65,9 +65,9 @@ public final class ProjectilePredictor implements ThreatPredictor {
         ProjectileMotionModel motion = motionModel(entity, family);
         ProjectileBounds bounds = ProjectileBounds.from(entity);
         ProjectileStep current = new ProjectileStep(entity.position(), entity.velocity(), 0L);
-        int horizon = context.limits().maxProjectileHorizonTicks();
+        int modeledHorizon = modeledHorizonTicks(context, entity);
 
-        for (int i = 0; i < horizon; i++) {
+        for (int i = 0; i < modeledHorizon; i++) {
             ProjectileStep next = motion.step(current);
             double playerT = segmentAabbEntry(
                 current.position(),
@@ -247,8 +247,8 @@ public final class ProjectilePredictor implements ThreatPredictor {
             if (radius <= 0d) return Optional.empty();
 
             boolean movingPlayer = hasMotion(context.player().velocity());
-            int observationAge = positiveInt(entity.properties().get("observation_age_ticks"), 0);
-            if (observationAge > 0 && blockBounds != null) {
+            boolean staleObservation = observationAgeWindow(entity).latest() > 0L;
+            if (staleObservation && blockBounds != null) {
                 AabbSnapshot possiblePlayerBounds = movingPlayer
                     ? sweptPlayerBox(context.player(), tick)
                     : context.player().boundingBox();
@@ -536,7 +536,6 @@ public final class ProjectilePredictor implements ThreatPredictor {
                     false
                 ));
             }
-
             if (latest >= horizon) break;
             earliest = latest + 1L;
             latest = Math.min(horizon, saturatingAdd(latest, DRAGON_BREATH_REAPPLICATION_TICKS));
@@ -623,10 +622,38 @@ public final class ProjectilePredictor implements ThreatPredictor {
         ));
     }
 
+    private static int modeledHorizonTicks(PredictionContext context, WorldSnapshot.EntitySnapshot entity) {
+        int serverNowHorizon = context.limits().maxProjectileHorizonTicks();
+        long replayAge = Math.min(observationAgeWindow(entity).latest(), context.limits().maxDecisionHistory());
+        long modeledHorizon = saturatingAdd(serverNowHorizon, replayAge);
+        return modeledHorizon >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) modeledHorizon;
+    }
+
     private static TickWindow observedImpactWindow(WorldSnapshot.EntitySnapshot entity, long modeledTick) {
-        int observationAge = positiveInt(entity.properties().get("observation_age_ticks"), 0);
-        long earliest = Math.max(0L, modeledTick - observationAge);
-        return new TickWindow(earliest, modeledTick);
+        TickWindow age = observationAgeWindow(entity);
+        long earliest = subtractFloorZero(modeledTick, age.latest());
+        long latest = subtractFloorZero(modeledTick, age.earliest());
+        return new TickWindow(earliest, latest);
+    }
+
+    private static TickWindow observationAgeWindow(WorldSnapshot.EntitySnapshot entity) {
+        Map<String, String> properties = entity.properties();
+        long legacyMaximum = positiveInt(properties.get("observation_age_ticks"), 0);
+        String minimumProperty = properties.get("observation_age_min_ticks");
+        String maximumProperty = properties.get("observation_age_max_ticks");
+        if (minimumProperty == null && maximumProperty == null) {
+            return new TickWindow(0L, legacyMaximum);
+        }
+
+        long minimum = nonNegativeLong(minimumProperty, 0L);
+        long maximum = nonNegativeLong(maximumProperty, Math.max(minimum, legacyMaximum));
+        if (maximum < minimum) maximum = Math.max(minimum, legacyMaximum);
+        return new TickWindow(minimum, maximum);
+    }
+
+    private static long subtractFloorZero(long value, long amount) {
+        if (value <= 0L || amount >= value) return 0L;
+        return value - amount;
     }
 
     private static Collision firstBlockCollision(
@@ -907,6 +934,16 @@ public final class ProjectilePredictor implements ThreatPredictor {
         try {
             int parsed = Integer.parseInt(value);
             return parsed >= 0 ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static long nonNegativeLong(String value, long fallback) {
+        if (value == null) return fallback;
+        try {
+            long parsed = Long.parseLong(value);
+            return parsed >= 0L ? parsed : fallback;
         } catch (NumberFormatException ignored) {
             return fallback;
         }

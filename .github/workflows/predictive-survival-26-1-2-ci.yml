@@ -53,6 +53,32 @@ jobs:
           set -e
           exit "$status"
 
+      - name: Extract damage gauntlet report
+        if: success()
+        working-directory: projects/predictive-survival-26-1-2
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f gametest-console.log ]; then
+            echo 'gametest-console.log not found while extracting damage gauntlet'
+            exit 1
+          fi
+          grep 'PREDICTIVE_SURVIVAL_DAMAGE_GAUNTLET ' gametest-console.log \
+            | sed 's/^.*PREDICTIVE_SURVIVAL_DAMAGE_GAUNTLET //' \
+            | tr -d '\r' \
+            > damage-gauntlet.jsonl
+          row_count=$(wc -l < damage-gauntlet.jsonl)
+          if [ "$row_count" -lt 11 ]; then
+            echo "damage gauntlet emitted only $row_count rows; expected at least 11"
+            cat damage-gauntlet.jsonl
+            exit 1
+          fi
+          if grep -v '"passed":true}$' damage-gauntlet.jsonl; then
+            echo 'damage gauntlet report contains a non-passing row'
+            exit 1
+          fi
+          echo "damage gauntlet rows: $row_count"
+
       - name: Print client GameTest diagnostics
         if: failure()
         working-directory: projects/predictive-survival-26-1-2
@@ -129,6 +155,14 @@ jobs:
           path: |
             projects/predictive-survival-26-1-2/build/libs/*.jar
             !projects/predictive-survival-26-1-2/build/libs/*-sources.jar
+
+      - name: Upload damage gauntlet report
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: predictive-survival-26.1.2-damage-gauntlet
+          if-no-files-found: error
+          path: projects/predictive-survival-26-1-2/damage-gauntlet.jsonl
 
       - name: Upload complete deliverables
         if: success()

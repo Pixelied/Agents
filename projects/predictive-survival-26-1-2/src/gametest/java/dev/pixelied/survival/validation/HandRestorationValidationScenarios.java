@@ -89,6 +89,16 @@ final class HandRestorationValidationScenarios {
                 if (entity != null) entity.discard();
             });
             context.waitFor(minecraft -> minecraft.level != null && minecraft.level.getEntity(crystalId) == null);
+
+            RestorationDispatchFrame dispatchFrame = captureRestorationDispatch(context, harness);
+            if (dispatchFrame.processingEarliestTick() <= dispatchFrame.clientTick()
+                && dispatchFrame.protectionCredited()) {
+                throw new AssertionError(
+                    "runtime kept guaranteeing the parked Totem after restoration was already feasible server-side: "
+                        + dispatchFrame
+                );
+            }
+
             tickUntilServerSelection(context, singleplayer, harness, 0, "safe hand restoration");
 
             boolean intact = singleplayer.getServer().computeOnServer(server -> {
@@ -116,6 +126,34 @@ final class HandRestorationValidationScenarios {
             });
             context.waitTick();
         }
+    }
+
+    private static RestorationDispatchFrame captureRestorationDispatch(
+        ClientGameTestContext context,
+        RuntimeHarness harness
+    ) {
+        for (int tick = 0; tick < ClientGameTestContext.DEFAULT_TIMEOUT; tick++) {
+            RestorationDispatchFrame frame = context.computeOnClient(minecraft -> {
+                if (minecraft.player == null) {
+                    throw new AssertionError("client player disappeared while waiting for hotbar restoration");
+                }
+                harness.engine().tick();
+                if (minecraft.player.getInventory().getSelectedSlot() != 0) return null;
+
+                var captured = harness.runtime().capture();
+                long clientTick = captured.context().timing().clientTick();
+                long earliest = captured.context().timing().nextPacketProcessingWindow().earliest();
+                return new RestorationDispatchFrame(
+                    clientTick,
+                    earliest,
+                    captured.context().player().deathProtection().anyHandAvailable(),
+                    minecraft.player.getMainHandItem().toString()
+                );
+            });
+            if (frame != null) return frame;
+            context.waitTick();
+        }
+        throw new AssertionError("client never dispatched the safe hotbar restoration");
     }
 
     private static void tickUntilServerSelection(
@@ -160,6 +198,14 @@ final class HandRestorationValidationScenarios {
     }
 
     private record RuntimeHarness(MinecraftSurvivalRuntime runtime, SurvivalEngine engine) {
+    }
+
+    private record RestorationDispatchFrame(
+        long clientTick,
+        long processingEarliestTick,
+        boolean protectionCredited,
+        String renderedMainHand
+    ) {
     }
 
     private record Arena(Vec3 originalPosition, BlockPos center, Map<BlockPos, BlockState> originalBlocks) {

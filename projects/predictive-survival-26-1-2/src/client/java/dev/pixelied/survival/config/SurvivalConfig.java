@@ -8,6 +8,7 @@ public record SurvivalConfig(
     SafetyMode safetyMode,
     RescueProfile rescueProfile,
     RescuePolicy customPolicy,
+    TotemHandPriority totemHandPriority,
     boolean restoreHandState,
     boolean automaticMovement,
     boolean blockPlacementAndClutches,
@@ -17,6 +18,29 @@ public record SurvivalConfig(
         safetyMode = Objects.requireNonNull(safetyMode, "safetyMode");
         rescueProfile = Objects.requireNonNull(rescueProfile, "rescueProfile");
         customPolicy = Objects.requireNonNull(customPolicy, "customPolicy");
+        totemHandPriority = Objects.requireNonNull(totemHandPriority, "totemHandPriority");
+    }
+
+    /** Compatibility constructor for the schema-v2 seven-field model. */
+    public SurvivalConfig(
+        SafetyMode safetyMode,
+        RescueProfile rescueProfile,
+        RescuePolicy customPolicy,
+        boolean restoreHandState,
+        boolean automaticMovement,
+        boolean blockPlacementAndClutches,
+        boolean debugEnabled
+    ) {
+        this(
+            safetyMode,
+            rescueProfile,
+            customPolicy,
+            TotemHandPriority.SMART,
+            restoreHandState,
+            automaticMovement,
+            blockPlacementAndClutches,
+            debugEnabled
+        );
     }
 
     /** Compatibility constructor for the original five-setting configuration. */
@@ -31,6 +55,7 @@ public record SurvivalConfig(
             safetyMode,
             RescueProfile.CONSERVATIVE_SMART,
             RescuePolicy.smartDefaults(),
+            TotemHandPriority.SMART,
             restoreHandState,
             automaticMovement,
             blockPlacementAndClutches,
@@ -40,7 +65,7 @@ public record SurvivalConfig(
 
     /** Effective action policy after resolving the selected profile. */
     public RescuePolicy rescuePolicy() {
-        return rescueProfile.resolve(customPolicy);
+        return rescueProfile.resolve(customPolicy).withTotemHandPriority(totemHandPriority);
     }
 
     public static SurvivalConfig defaults() {
@@ -48,6 +73,7 @@ public record SurvivalConfig(
             SafetyMode.SAFE,
             RescueProfile.CONSERVATIVE_SMART,
             RescuePolicy.smartDefaults(),
+            TotemHandPriority.SMART,
             true,
             false,
             false,

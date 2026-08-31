@@ -135,12 +135,20 @@ final class MinecraftMeleeSnapshotAdapter {
         String prefix,
         ItemStack stack
     ) {
+        if (stack.is(Items.BOW)) {
+            properties.put(
+                prefix + "bow_power_enchantment_level",
+                Integer.toString(enchantmentLevel(stack, Enchantments.POWER))
+            );
+        }
+
         if (stack.is(Items.CROSSBOW)) {
             ChargedProjectiles charged = stack.getOrDefault(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.EMPTY);
             boolean arrowLoaded = false;
             boolean fireworkLoaded = false;
             boolean otherLoaded = false;
             int maxFireworkExplosions = 0;
+            float maxArrowInstantDamage = 0f;
             for (ItemStack projectile : charged.itemCopies()) {
                 if (projectile.is(Items.FIREWORK_ROCKET)) {
                     fireworkLoaded = true;
@@ -150,6 +158,19 @@ final class MinecraftMeleeSnapshotAdapter {
                     }
                 } else if (projectile.getItem() instanceof ArrowItem) {
                     arrowLoaded = true;
+                    PotionContents contents = projectile.get(DataComponents.POTION_CONTENTS);
+                    if (contents != null) {
+                        for (MobEffectInstance effect : contents.getAllEffects()) {
+                            if (!effect.getEffect().is(MobEffects.INSTANT_DAMAGE)) continue;
+                            int amplifier = Math.max(0, effect.getAmplifier());
+                            double damage = Math.scalb(6d, amplifier);
+                            if (!Double.isFinite(damage) || damage >= Float.MAX_VALUE) {
+                                maxArrowInstantDamage = Float.MAX_VALUE;
+                                break;
+                            }
+                            maxArrowInstantDamage = Math.max(maxArrowInstantDamage, (float)damage);
+                        }
+                    }
                 } else {
                     otherLoaded = true;
                 }
@@ -163,6 +184,7 @@ final class MinecraftMeleeSnapshotAdapter {
             else kind = "other";
             properties.put(prefix + "crossbow_projectile_kind", kind);
             properties.put(prefix + "crossbow_firework_explosions", Integer.toString(maxFireworkExplosions));
+            properties.put(prefix + "crossbow_arrow_instant_damage", Float.toString(maxArrowInstantDamage));
         }
 
         if (stack.is(Items.SPLASH_POTION)) {

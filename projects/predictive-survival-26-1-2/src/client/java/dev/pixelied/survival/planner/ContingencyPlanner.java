@@ -4,6 +4,8 @@ import dev.pixelied.survival.config.RescueProfile;
 import dev.pixelied.survival.core.PredictionContext;
 import dev.pixelied.survival.inventory.DeathProtectionRoute;
 import dev.pixelied.survival.inventory.SurvivalItemRoute;
+import dev.pixelied.survival.threat.ExplosionPredictor;
+import dev.pixelied.survival.timeline.CausalThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
 import dev.pixelied.survival.timeline.TimelineResult;
@@ -23,6 +25,7 @@ public final class ContingencyPlanner {
     private static final int DEFAULT_MAX_EVALUATIONS = 4096;
 
     private final ThreatTimelineSimulator timelineSimulator;
+    private final ExplosionPredictor causalizer = new ExplosionPredictor();
     private final int maxDepth;
     private final int maxEvaluations;
 
@@ -40,6 +43,10 @@ public final class ContingencyPlanner {
         if (maxEvaluations <= 0) throw new IllegalArgumentException("maxEvaluations must be positive");
         this.maxDepth = maxDepth;
         this.maxEvaluations = maxEvaluations;
+    }
+
+    public int maxEvaluations() {
+        return maxEvaluations;
     }
 
     public ContingencyPlan plan(
@@ -65,13 +72,37 @@ public final class ContingencyPlanner {
         SafetyMode safetyMode,
         RescueProfile profile
     ) {
+        return planAcrossScenarios(
+            context,
+            scenarios,
+            candidates,
+            safetyMode,
+            profile,
+            maxEvaluations
+        );
+    }
+
+    /**
+     * Same bounded search with a caller-supplied per-call ceiling. The requested ceiling can only
+     * reduce this planner's configured maximum; callers cannot use it to raise the planner budget.
+     */
+    public ContingencyPlan planAcrossScenarios(
+        PredictionContext context,
+        List<ThreatTimeline> scenarios,
+        List<SurvivalAction> candidates,
+        SafetyMode safetyMode,
+        RescueProfile profile,
+        int evaluationLimit
+    ) {
         Objects.requireNonNull(context, "context");
-        scenarios = validatedScenarios(scenarios);
+        List<ThreatTimeline> validated = validatedScenarios(scenarios);
+        List<CausalThreatTimeline> causalScenarios = causalizeScenarios(context, validated);
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(safetyMode, "safetyMode");
         Objects.requireNonNull(profile, "profile");
+        if (evaluationLimit <= 0) throw new IllegalArgumentException("evaluationLimit must be positive");
 
-        ScenarioBaseline baseline = baseline(context, scenarios);
+        ScenarioBaseline baseline = baseline(context, causalScenarios);
         if (baseline.allSurvived()) return ContingencyPlan.baseline(baseline.representative());
 
         int candidateCap = Math.min(context.limits().maxPlannerCandidates(), candidates.size());
@@ -82,12 +113,12 @@ public final class ContingencyPlanner {
         }
         if (legal.isEmpty()) return ContingencyPlan.baseline(baseline.representative());
 
-        SearchBudget budget = new SearchBudget(maxEvaluations);
+        SearchBudget budget = new SearchBudget(Math.min(maxEvaluations, evaluationLimit));
         for (int depth = 1; depth <= maxDepth; depth++) {
             List<SequenceEvaluation> survivors = new ArrayList<>();
             enumerate(
                 context,
-                scenarios,
+                causalScenarios,
                 legal,
                 profile,
                 depth,
@@ -108,7 +139,7 @@ public final class ContingencyPlanner {
                     budget.truncated(),
                     budget.truncated()
                         ? "guaranteed sequence found before bounded search truncation"
-                        : scenarios.size() == 1
+                        : validated.size() == 1
                             ? "guaranteed bounded rescue sequence"
                             : "guaranteed bounded rescue sequence across all alternative threat branches"
                 );
@@ -124,7 +155,7 @@ public final class ContingencyPlanner {
             budget.truncated(),
             budget.truncated()
                 ? "sequence search truncated before any guarantee was found"
-                : scenarios.size() == 1
+                : validated.size() == 1
                     ? "no guaranteed rescue sequence"
                     : "no rescue sequence survives every alternative threat branch"
         );
@@ -164,14 +195,15 @@ public final class ContingencyPlanner {
         int remainingServerTicks
     ) {
         Objects.requireNonNull(context, "context");
-        scenarios = validatedScenarios(scenarios);
+        List<ThreatTimeline> validated = validatedScenarios(scenarios);
+        List<CausalThreatTimeline> causalScenarios = causalizeScenarios(context, validated);
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(safetyMode, "safetyMode");
         Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(active, "active");
         if (remainingServerTicks < 0) throw new IllegalArgumentException("remainingServerTicks must be non-negative");
 
-        ScenarioBaseline baseline = baseline(context, scenarios);
+        ScenarioBaseline baseline = baseline(context, causalScenarios);
         if (baseline.allSurvived()) return ContingencyPlan.baseline(baseline.representative());
         if (!isSequenceAction(active) || hardConstraintFailure(active, safetyMode) != null) {
             return new ContingencyPlan(List.of(), baseline.representative(), false, 0, false,
@@ -193,7 +225,7 @@ public final class ContingencyPlanner {
 
         for (int totalDepth = 1; totalDepth <= maxDepth; totalDepth++) {
             enumerateInFlight(
-                context, scenarios, legal, profile, totalDepth, prefix, remainingServerTicks, budget, survivors
+                context, causalScenarios, legal, profile, totalDepth, prefix, remainingServerTicks, budget, survivors
             );
             if (!survivors.isEmpty()) {
                 SequenceEvaluation best = survivors.stream().min(preference(profile)).orElseThrow();
@@ -201,7 +233,7 @@ public final class ContingencyPlanner {
                     best.steps(), best.result(), true, budget.evaluations(), budget.truncated(),
                     budget.truncated()
                         ? "guaranteed in-flight sequence found before bounded search truncation"
-                        : scenarios.size() == 1
+                        : validated.size() == 1
                             ? "guaranteed progress-aware in-flight rescue sequence"
                             : "guaranteed progress-aware rescue sequence across all alternative threat branches"
                 );
@@ -213,7 +245,7 @@ public final class ContingencyPlanner {
             List.of(), baseline.representative(), false, budget.evaluations(), budget.truncated(),
             budget.truncated()
                 ? "in-flight sequence search truncated before any guarantee was found"
-                : scenarios.size() == 1
+                : validated.size() == 1
                     ? "no guaranteed in-flight rescue sequence"
                     : "no in-flight rescue sequence survives every alternative threat branch"
         );
@@ -221,7 +253,7 @@ public final class ContingencyPlanner {
 
     private void enumerateInFlight(
         PredictionContext context,
-        List<ThreatTimeline> scenarios,
+        List<CausalThreatTimeline> scenarios,
         List<SurvivalAction> candidates,
         RescueProfile profile,
         int targetDepth,
@@ -251,7 +283,7 @@ public final class ContingencyPlanner {
 
     private void enumerate(
         PredictionContext context,
-        List<ThreatTimeline> scenarios,
+        List<CausalThreatTimeline> scenarios,
         List<SurvivalAction> candidates,
         RescueProfile profile,
         int targetDepth,
@@ -279,7 +311,7 @@ public final class ContingencyPlanner {
 
     private Optional<TimelineResult> simulateAcrossScenarios(
         PredictionContext context,
-        List<ThreatTimeline> scenarios,
+        List<CausalThreatTimeline> scenarios,
         List<PlannedStep> prefix,
         SearchBudget budget
     ) {
@@ -287,7 +319,7 @@ public final class ContingencyPlanner {
             .map(step -> new ThreatTimelineSimulator.TimedActivation(step.activationTick(), step.action()::apply))
             .toList();
         TimelineResult worst = null;
-        for (ThreatTimeline scenario : scenarios) {
+        for (CausalThreatTimeline scenario : scenarios) {
             if (!budget.tryEvaluate()) return Optional.empty();
             TimelineResult result = timelineSimulator.simulateWithActivations(
                 context.player(), scenario, activations
@@ -298,10 +330,10 @@ public final class ContingencyPlanner {
         return Optional.of(Objects.requireNonNull(worst, "scenario result"));
     }
 
-    private ScenarioBaseline baseline(PredictionContext context, List<ThreatTimeline> scenarios) {
+    private ScenarioBaseline baseline(PredictionContext context, List<CausalThreatTimeline> scenarios) {
         TimelineResult firstLethal = null;
         TimelineResult worstSurvivor = null;
-        for (ThreatTimeline scenario : scenarios) {
+        for (CausalThreatTimeline scenario : scenarios) {
             TimelineResult result = timelineSimulator.simulate(context.player(), scenario);
             if (!result.survived()) {
                 if (firstLethal == null) firstLethal = result;
@@ -311,6 +343,17 @@ public final class ContingencyPlanner {
         }
         if (firstLethal != null) return new ScenarioBaseline(false, firstLethal);
         return new ScenarioBaseline(true, Objects.requireNonNull(worstSurvivor, "baseline result"));
+    }
+
+    private List<CausalThreatTimeline> causalizeScenarios(
+        PredictionContext context,
+        List<ThreatTimeline> scenarios
+    ) {
+        List<CausalThreatTimeline> causal = new ArrayList<>(scenarios.size());
+        for (ThreatTimeline scenario : scenarios) {
+            causal.add(causalizer.causalize(context, scenario));
+        }
+        return List.copyOf(causal);
     }
 
     private static List<ThreatTimeline> validatedScenarios(List<ThreatTimeline> scenarios) {

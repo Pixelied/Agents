@@ -71,4 +71,17 @@ public record PlayerSnapshot(
     public String state(String key) {
         return stateProperties.get(key);
     }
+
+    public double state(String key, double fallback) {
+        String value = stateProperties.get(key);
+        if (value == null) return fallback;
+        if ("true".equalsIgnoreCase(value)) return 1d;
+        if ("false".equalsIgnoreCase(value)) return 0d;
+        try {
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
 }

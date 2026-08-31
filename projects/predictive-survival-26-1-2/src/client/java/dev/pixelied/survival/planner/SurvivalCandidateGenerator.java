@@ -17,6 +17,7 @@ import dev.pixelied.survival.inventory.InventorySnapshot;
 import dev.pixelied.survival.inventory.MenuSlotMap;
 import dev.pixelied.survival.inventory.SurvivalItemRoute;
 import dev.pixelied.survival.inventory.SurvivalItemRoutePlanner;
+import dev.pixelied.survival.timeline.CausalThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatEvent;
 import dev.pixelied.survival.timeline.ThreatTimeline;
 import dev.pixelied.survival.timeline.ThreatTimelineSimulator;
@@ -64,6 +65,58 @@ public final class SurvivalCandidateGenerator {
         MenuSlotMap menu
     ) {
         return generate(context, timeline, inventory, menu, RescuePolicy.smartDefaults());
+    }
+
+    public List<SurvivalAction> generate(
+        PredictionContext context,
+        CausalThreatTimeline timeline,
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        RescuePolicy policy
+    ) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(timeline, "timeline");
+        Objects.requireNonNull(inventory, "inventory");
+        Objects.requireNonNull(menu, "menu");
+        Objects.requireNonNull(policy, "policy");
+
+        List<SurvivalAction> flatCandidates = generate(
+            context,
+            timeline.expandedTimeline(),
+            inventory,
+            menu,
+            policy
+        );
+        if (!policy.deathProtection() || !policy.inventoryRouting() || !policy.proactiveDualProtection()) {
+            return flatCandidates;
+        }
+
+        DeathProtectionSnapshot protection = context.player().deathProtection();
+        if (protection.mainHand().isPresent() && protection.offHand().isPresent()) return flatCandidates;
+
+        if (protection.anyHandAvailable()) {
+            if (needsAdditionalProtection(context, timeline)) return flatCandidates;
+            return flatCandidates.stream()
+                .filter(action -> !(action instanceof SurvivalAction.EquipDeathProtection))
+                .toList();
+        }
+
+        if (policy.mainHandTakeover()
+            && dualProtectionRoutesAvailable(inventory, menu)
+            && needsMultipleProtectionsFromEmpty(context, timeline, inventory)) {
+            return flatCandidates;
+        }
+
+        List<SurvivalAction> filtered = new ArrayList<>(flatCandidates.size());
+        boolean protectionRouteKept = false;
+        for (SurvivalAction action : flatCandidates) {
+            if (action instanceof SurvivalAction.EquipDeathProtection) {
+                if (protectionRouteKept) continue;
+                protectionRouteKept = true;
+            }
+            filtered.add(action);
+        }
+        return List.copyOf(filtered);
     }
 
     public List<SurvivalAction> generate(
@@ -133,9 +186,34 @@ public final class SurvivalCandidateGenerator {
         return !baseline.survived() && baseline.consumedDeathProtectionCount() > 0;
     }
 
+    private boolean needsAdditionalProtection(PredictionContext context, CausalThreatTimeline timeline) {
+        var baseline = timelineSimulator.simulate(context.player(), timeline);
+        return !baseline.survived() && baseline.consumedDeathProtectionCount() > 0;
+    }
+
     private boolean needsMultipleProtectionsFromEmpty(
         PredictionContext context,
         ThreatTimeline timeline,
+        InventorySnapshot inventory
+    ) {
+        InventorySlotSnapshot source = inventory.slots().values().stream()
+            .filter(slot -> slot.count() > 0 && slot.deathProtection())
+            .sorted(java.util.Comparator.comparingInt(InventorySlotSnapshot::inventoryIndex))
+            .findFirst()
+            .orElse(null);
+        if (source == null) return false;
+
+        DeathProtectionSnapshot.ProtectionItem item = protectionItem(source);
+        SurvivalAction.EquipDeathProtection hypothetical = new SurvivalAction.EquipDeathProtection(
+            item, SurvivalAction.Hand.MAIN_HAND, 0, true, true, 1d, 1, 0
+        );
+        var withOneProtection = timelineSimulator.simulate(hypothetical.apply(context.player()), timeline);
+        return !withOneProtection.survived() && withOneProtection.consumedDeathProtectionCount() > 0;
+    }
+
+    private boolean needsMultipleProtectionsFromEmpty(
+        PredictionContext context,
+        CausalThreatTimeline timeline,
         InventorySnapshot inventory
     ) {
         InventorySlotSnapshot source = inventory.slots().values().stream()
@@ -213,8 +291,10 @@ public final class SurvivalCandidateGenerator {
             .orElseThrow(() -> new IllegalStateException("death-protection route has no source inventory slot"));
         DeathProtectionSnapshot.ProtectionItem item = protectionItem(routedSlot);
 
+        // ServerboundSetCarriedItem is authoritative as soon as the server handles the packet;
+        // TimingSnapshot already accounts for that packet-processing window, so no extra tick is due.
         int requiredServerTicks = route instanceof DeathProtectionRoute.HotbarSelect
-            ? 1
+            ? 0
             : context.timing().serverCorrectionReturnTicks();
         candidates.add(new SurvivalAction.EquipDeathProtection(
             item,

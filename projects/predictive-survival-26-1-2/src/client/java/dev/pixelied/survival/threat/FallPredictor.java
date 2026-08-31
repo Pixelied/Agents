@@ -21,6 +21,7 @@ import java.util.Optional;
 
 public final class FallPredictor implements ThreatPredictor {
     private final FallLandingSolver landingSolver = new FallLandingSolver();
+    private final ElytraFlightCollisionSolver elytraCollisionSolver = new ElytraFlightCollisionSolver();
 
     @Override
     public List<ThreatEvent> predict(PredictionContext context) {
@@ -144,43 +145,30 @@ public final class FallPredictor implements ThreatPredictor {
     }
 
     private Optional<ThreatEvent> predictElytraWall(PredictionContext context) {
-        PlayerSnapshot player = context.player();
-        if (!Boolean.parseBoolean(value(player.state("fall_flying"), "false"))) return Optional.empty();
-        double speed = horizontalLength(player.velocity());
-        float raw = (float) Math.max(0d, speed * 10d - 3d);
-        if (raw <= 0f) return Optional.empty();
-
-        AabbSnapshot box = player.boundingBox();
-        Vec3Snapshot velocity = player.velocity();
-        for (long tick = 1; tick <= context.limits().maxProjectileHorizonTicks(); tick++) {
-            AabbSnapshot next = move(box, velocity.x(), velocity.y(), velocity.z());
-            if (intersectsCollisionBlock(next, context.world().blocks())) {
-                DamageSourceSnapshot source = new DamageSourceSnapshot(
-                    DamageRange.exact(raw),
-                    EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
-                    false,
-                    1f,
-                    false,
-                    Optional.empty(),
-                    "minecraft:fly_into_wall"
-                );
-                return Optional.of(new ThreatEvent(
-                    "fall:elytra_wall",
-                    ThreatKind.FALL,
-                    new TickWindow(tick, tick),
-                    source,
-                    Confidence.POTENTIAL,
-                    Optional.empty(),
-                    Optional.empty(),
-                    true,
-                    false,
-                    true,
-                    false
-                ));
-            }
-            box = next;
-        }
-        return Optional.empty();
+        return elytraCollisionSolver.solve(context).map(collision -> {
+            DamageSourceSnapshot source = new DamageSourceSnapshot(
+                collision.rawDamage(),
+                EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
+                false,
+                1f,
+                false,
+                Optional.empty(),
+                "minecraft:fly_into_wall"
+            );
+            return new ThreatEvent(
+                "fall:elytra_wall",
+                ThreatKind.FALL,
+                new TickWindow(collision.tick(), collision.tick()),
+                source,
+                collision.confidence(),
+                Optional.empty(),
+                Optional.empty(),
+                true,
+                false,
+                true,
+                false
+            );
+        });
     }
 
     private List<ThreatEvent> predictFallingObjects(PredictionContext context) {
@@ -254,14 +242,6 @@ public final class FallPredictor implements ThreatPredictor {
         return DamageRange.exact((float) Math.max(0d, raw));
     }
 
-    private static boolean intersectsCollisionBlock(AabbSnapshot box, List<WorldSnapshot.BlockSnapshot> blocks) {
-        for (WorldSnapshot.BlockSnapshot block : blocks) {
-            AabbSnapshot collision = FallLandingSolver.conservativeCollisionBox(block);
-            if (collision != null && intersects(box, collision)) return true;
-        }
-        return false;
-    }
-
     private static boolean intersects(AabbSnapshot a, AabbSnapshot b) {
         return a.maxX() > b.minX() && a.minX() < b.maxX()
             && a.maxY() > b.minY() && a.minY() < b.maxY()
@@ -277,10 +257,6 @@ public final class FallPredictor implements ThreatPredictor {
 
     private static Vec3Snapshot add(Vec3Snapshot a, Vec3Snapshot b) {
         return new Vec3Snapshot(a.x() + b.x(), a.y() + b.y(), a.z() + b.z());
-    }
-
-    private static double horizontalLength(Vec3Snapshot value) {
-        return Math.sqrt(value.x() * value.x() + value.z() * value.z());
     }
 
     private static String value(String value, String fallback) {

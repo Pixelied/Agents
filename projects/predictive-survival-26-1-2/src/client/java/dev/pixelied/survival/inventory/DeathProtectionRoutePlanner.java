@@ -5,6 +5,20 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class DeathProtectionRoutePlanner {
+    /**
+     * Chooses against the adverse server-feasible hand state at the damage deadline instead of
+     * optimistic local equipment. This overload is the decision-critical authority-safe path.
+     */
+    public Optional<DeathProtectionRoute> choose(
+        InventorySnapshot inventory,
+        MenuSlotMap menu,
+        dev.pixelied.survival.execution.EquipmentAuthorityProjection equipment,
+        long damageServerTick
+    ) {
+        java.util.Objects.requireNonNull(equipment, "equipment");
+        return choose(equipment.conservativeInventoryAt(inventory, damageServerTick), menu);
+    }
+
     public Optional<DeathProtectionRoute> choose(InventorySnapshot inventory, MenuSlotMap menu) {
         var selected = inventory.slot(inventory.selectedHotbarIndex());
         if (selected.isPresent() && selected.get().deathProtection()) {

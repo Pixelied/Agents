@@ -12,7 +12,54 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
             context.waitFor(minecraft -> minecraft.player != null && minecraft.level != null);
             waitForServerClientLoaded(context, singleplayer);
             ExplosionExposureDifferentialValidationScenarios.validateExactCollisionShapeExposure(context, singleplayer);
+            ProtectionAuthorityRaceValidationScenarios.validateOptimisticLocalHotbarDoesNotCountAsServerProtection(
+                context,
+                singleplayer
+            );
+            ProtectionOffhandAuthorityRaceValidationScenarios.validateOptimisticLocalOffhandDoesNotCountAsServerProtection(
+                context,
+                singleplayer
+            );
+            MitigationAuthorityRaceValidationScenarios.validateOptimisticLocalArmorDoesNotCountAsServerMitigation(
+                context,
+                singleplayer
+            );
+            BowReleasePrecursorValidationScenarios.validatePrearmsBeforeFirstLegalRelease(context, singleplayer);
+            var victimId = singleplayer.getServer().computeOnServer(server ->
+                SurvivalValidationClientGameTest.onlyPlayer(server).getUUID()
+            );
+            BurstSequenceValidationSupport.ensureSelectedSlot(
+                context,
+                singleplayer,
+                victimId,
+                0,
+                "bow_power_v_fixture_reset"
+            );
+            BowPowerReleasePrecursorValidationScenarios.validatePowerEnchantmentWidensRealReleaseBound(
+                context,
+                singleplayer
+            );
             CrystalBurstSequenceValidationScenarios.validatePrecursorThenZeroDelayPlaceBreak(context, singleplayer);
+            ExplosionCausalityValidationScenarios.validateAdjacentObservedCrystalsNeedOnlyOneProtection(
+                context,
+                singleplayer
+            );
+            ExplosionCausalityValidationScenarios.validateExplosionCreatedTntMatchesPredictedShortFuseWindow(
+                context,
+                singleplayer
+            );
+            RepeatedDamageStateValidationScenarios.validateFullExplosionHitReconcilesAcrossClientFrames(
+                context,
+                singleplayer
+            );
+            RepeatedDamageStateValidationScenarios.validateRepeatedMeleeCooldownStaysTrustedAcrossClientFrames(
+                context,
+                singleplayer
+            );
+            RepeatedDamageStateValidationScenarios.validateLavaAndMixedSourceContinuityAcrossClientFrames(
+                context,
+                singleplayer
+            );
             BedAnchorBurstSequenceValidationScenarios.validateUnchargedAnchorChargeThenUseWithoutObservationGap(
                 context,
                 singleplayer
@@ -46,6 +93,21 @@ public final class InstantBurstValidationClientGameTest implements FabricClientG
                 context,
                 singleplayer
             );
+            KineticSpearValidationScenarios.validateSynchronizedKineticMetadataReachesProductionFrame(
+                context,
+                singleplayer
+            );
+            KineticSpearApproachContactValidationScenarios.validateFirstKineticDamageTickPopsWhileDiscreteStabIsUnready(
+                context,
+                singleplayer
+            );
+            ElytraAuthorityRaceValidationScenarios.validateOptimisticStartIsRejectedWithoutMovementAuthority(
+                context,
+                singleplayer
+            );
+            ElytraCollisionValidationScenarios.validateHeadOnAndGlancingWallParity(context, singleplayer);
+            ElytraPitchedSnapshotDiagnosticScenarios.validateLivePitchedInputs(context, singleplayer);
+            ElytraExtendedCollisionValidationScenarios.validateExtendedCollisionMatrix(context, singleplayer);
         }
     }
 

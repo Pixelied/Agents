@@ -24,14 +24,16 @@ import java.util.Optional;
 /**
  * Pre-arms against player-launched projectile families whose exact-runtime authority probe proved
  * that first-projectile observation can arrive too late for server-authoritative death protection.
- * Bow is intentionally excluded because the same probe proved a guaranteed authority tick before
- * damage at the tested minimum legal draw/range.
+ * Bow requires synchronized active-use evidence; merely holding one never creates an opportunity.
  */
 public final class ProjectileReleaseOpportunityPredictor implements LethalOpportunityPredictor {
+    private static final String BOW = "minecraft:bow";
     private static final String CROSSBOW = "minecraft:crossbow";
     private static final String WIND_CHARGE = "minecraft:wind_charge";
     private static final String SPLASH_POTION = "minecraft:splash_potion";
 
+    private static final int BOW_MIN_LEGAL_USE_TICKS = 3;
+    private static final double ARROW_BASE_DAMAGE = 2.0d;
     private static final double CROSSBOW_ARROW_SPEED = 3.15d;
     private static final double CROSSBOW_FIREWORK_SPEED = 1.6d;
     private static final double WIND_CHARGE_SPEED = 1.5d;
@@ -74,18 +76,45 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         String item = properties.getOrDefault(hand.itemKeyProperty, "minecraft:air");
         Release release = null;
 
-        if (CROSSBOW.equals(item)) {
+        if (BOW.equals(item)) {
+            release = bowRelease(context, properties, hand).orElse(null);
+        } else if (CROSSBOW.equals(item)) {
             String projectileKind = properties.getOrDefault(hand.prefix + "crossbow_projectile_kind", "none");
             if ("arrow".equals(projectileKind)) {
-                release = new Release(
-                    "crossbow_arrow",
-                    CROSSBOW_ARROW_SPEED,
-                    CROSSBOW_ARROW_RAW_DAMAGE,
-                    EnumSet.of(DamageFlag.IS_PROJECTILE),
-                    "minecraft:arrow",
-                    true,
-                    Map.of("crossbow_projectile_kind", "arrow")
-                );
+                Float instantDamage = positiveFloat(properties.get(hand.prefix + "crossbow_arrow_instant_damage"));
+                if (instantDamage != null) {
+                    // The tipped-arrow effect is applied only after the arrow successfully hurts the
+                    // entity, so a shield that stops the arrow also suppresses the follow-up. Within
+                    // vanilla hurt cooldown, the next-tick magic hit can only raise total pre-armor
+                    // damage to the larger of the arrow hit and instant effect. Modeling that bound
+                    // as armor-bypassing is fail-closed for the mixed physical/magic sequence.
+                    float upperBound = Math.max(CROSSBOW_ARROW_RAW_DAMAGE, instantDamage);
+                    release = new Release(
+                        "crossbow_tipped_harming",
+                        CROSSBOW_ARROW_SPEED,
+                        upperBound,
+                        0L,
+                        EnumSet.of(DamageFlag.BYPASSES_ARMOR),
+                        "minecraft:magic",
+                        true,
+                        Map.of(
+                            "crossbow_projectile_kind", "arrow",
+                            "crossbow_arrow_instant_damage", Float.toString(instantDamage),
+                            "sequence_damage_model", "hurt_cooldown_upper_bound"
+                        )
+                    );
+                } else {
+                    release = new Release(
+                        "crossbow_arrow",
+                        CROSSBOW_ARROW_SPEED,
+                        CROSSBOW_ARROW_RAW_DAMAGE,
+                        0L,
+                        EnumSet.of(DamageFlag.IS_PROJECTILE),
+                        "minecraft:arrow",
+                        true,
+                        Map.of("crossbow_projectile_kind", "arrow")
+                    );
+                }
             } else if ("firework".equals(projectileKind)) {
                 Integer explosions = nonNegativeInt(properties.get(hand.prefix + "crossbow_firework_explosions"));
                 if (explosions != null && explosions > 0) {
@@ -94,6 +123,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                         "crossbow_firework",
                         CROSSBOW_FIREWORK_SPEED,
                         raw,
+                        0L,
                         EnumSet.of(DamageFlag.IS_EXPLOSION),
                         "minecraft:fireworks",
                         true,
@@ -109,6 +139,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                 "wind_charge",
                 WIND_CHARGE_SPEED,
                 WIND_CHARGE_RAW_DAMAGE,
+                0L,
                 EnumSet.of(DamageFlag.IS_PROJECTILE),
                 "minecraft:wind_charge",
                 true,
@@ -121,6 +152,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
                     "splash_harming",
                     SPLASH_POTION_SPEED,
                     instantDamage,
+                    0L,
                     EnumSet.of(DamageFlag.BYPASSES_ARMOR, DamageFlag.BYPASSES_SHIELD),
                     "minecraft:indirect_magic",
                     false,
@@ -133,7 +165,8 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
             return Optional.empty();
         }
 
-        TickWindow impact = new TickWindow(0L, reactionTicks(context));
+        long latestImpact = saturatingAdd(release.earliestImpactTicks, reactionTicks(context));
+        TickWindow impact = new TickWindow(release.earliestImpactTicks, Math.max(release.earliestImpactTicks, latestImpact));
         String id = "opportunity:projectile_release:" + attacker.id() + ':' + release.family + ':' + hand.evidence;
         DamageSourceSnapshot damage = new DamageSourceSnapshot(
             DamageRange.exact(release.rawDamage),
@@ -168,6 +201,7 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         evidence.put("hand", hand.evidence);
         evidence.put("first_tick_speed", Double.toString(release.speed));
         evidence.put("first_tick_reach", "true");
+        evidence.put("release_earliest_impact_ticks", Long.toString(release.earliestImpactTicks));
         evidence.putAll(release.evidence);
         return Optional.of(new LethalOpportunity(
             id,
@@ -177,6 +211,74 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
             1,
             evidence
         ));
+    }
+
+    private static Optional<Release> bowRelease(
+        PredictionContext context,
+        Map<String, String> properties,
+        Hand hand
+    ) {
+        if (!Boolean.parseBoolean(properties.getOrDefault("using_item", "false"))) return Optional.empty();
+        if (!hand.evidence.equals(properties.getOrDefault("used_hand", "none"))) return Optional.empty();
+        Integer observedUseTicks = nonNegativeInt(properties.get("client_observed_use_ticks"));
+        if (observedUseTicks == null) return Optional.empty();
+        Integer powerEnchantmentLevel = nonNegativeInt(properties.get(hand.prefix + "bow_power_enchantment_level"));
+        if (powerEnchantmentLevel == null) powerEnchantmentLevel = 0;
+
+        TickWindow age = context.timing().observationAgeWindow();
+        long serverElapsedMax = saturatingAdd(observedUseTicks.longValue(), age.latest());
+        long earliestModeledUseTick = Math.max(BOW_MIN_LEGAL_USE_TICKS, serverElapsedMax);
+        long earliestImpactTicks = Math.max(0L, BOW_MIN_LEGAL_USE_TICKS - serverElapsedMax);
+        long latestImpactTicks = saturatingAdd(earliestImpactTicks, reactionTicks(context));
+        long latestModeledUseTick = Math.max(
+            BOW_MIN_LEGAL_USE_TICKS,
+            saturatingAdd(serverElapsedMax, latestImpactTicks)
+        );
+        int boundedUseTicks = latestModeledUseTick >= Integer.MAX_VALUE
+            ? Integer.MAX_VALUE
+            : (int)latestModeledUseTick;
+        float power = bowPowerForTime(boundedUseTicks);
+        double speed = power * 3.0d;
+        float rawDamage = bowArrowRawDamage(power, speed, powerEnchantmentLevel);
+        Map<String, String> evidence = new LinkedHashMap<>();
+        evidence.put("client_observed_use_ticks", Integer.toString(observedUseTicks));
+        evidence.put("observation_age_min", Long.toString(age.earliest()));
+        evidence.put("observation_age_max", Long.toString(age.latest()));
+        evidence.put("server_use_elapsed_max", Long.toString(serverElapsedMax));
+        evidence.put("earliest_lethal_use_tick", Long.toString(earliestModeledUseTick));
+        evidence.put("latest_modeled_use_tick", Long.toString(latestModeledUseTick));
+        evidence.put("bow_power_max", Float.toString(power));
+        evidence.put("bow_power_enchantment_level", Integer.toString(powerEnchantmentLevel));
+        return Optional.of(new Release(
+            "bow_arrow",
+            speed,
+            rawDamage,
+            earliestImpactTicks,
+            EnumSet.of(DamageFlag.IS_PROJECTILE),
+            "minecraft:arrow",
+            true,
+            evidence
+        ));
+    }
+
+    /** Mirrors Minecraft 26.1.2 BowItem.getPowerForTime. */
+    private static float bowPowerForTime(int timeHeld) {
+        float power = timeHeld / 20.0f;
+        power = (power * power + power * 2.0f) / 3.0f;
+        return Math.min(power, 1.0f);
+    }
+
+    /** Mirrors the visible Power DAMAGE effect before AbstractArrow applies velocity and crit. */
+    private static float bowArrowRawDamage(float power, double speed, int powerEnchantmentLevel) {
+        double powerBonus = powerEnchantmentLevel <= 0
+            ? 0d
+            : 1d + 0.5d * (powerEnchantmentLevel - 1L);
+        long base = (long)Math.ceil(Math.max(0d, speed * (ARROW_BASE_DAMAGE + powerBonus)));
+        long damage = base;
+        if (power >= 1.0f) {
+            damage += base / 2L + 1L;
+        }
+        return damage >= Float.MAX_VALUE ? Float.MAX_VALUE : (float)damage;
     }
 
     private static long reactionTicks(PredictionContext context) {
@@ -230,6 +332,10 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         return value >= Float.MAX_VALUE ? Float.MAX_VALUE : (float)value;
     }
 
+    private static long saturatingAdd(long value, long increment) {
+        return increment > 0L && value > Long.MAX_VALUE - increment ? Long.MAX_VALUE : value + increment;
+    }
+
     private static Double finiteDouble(String value) {
         if (value == null) return null;
         try {
@@ -279,12 +385,14 @@ public final class ProjectileReleaseOpportunityPredictor implements LethalOpport
         String family,
         double speed,
         float rawDamage,
+        long earliestImpactTicks,
         EnumSet<DamageFlag> flags,
         String sourceKey,
         boolean blockable,
         Map<String, String> evidence
     ) {
         private Release {
+            if (earliestImpactTicks < 0L) throw new IllegalArgumentException("earliestImpactTicks must be non-negative");
             flags = flags.clone();
             evidence = Map.copyOf(evidence);
         }

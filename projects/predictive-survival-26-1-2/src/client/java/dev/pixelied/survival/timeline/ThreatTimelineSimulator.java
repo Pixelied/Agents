@@ -40,12 +40,30 @@ public final class ThreatTimelineSimulator {
     }
 
     public TimelineResult simulate(PlayerSnapshot start, ThreatTimeline timeline) {
-        return simulateInternal(start, timeline, List.of());
+        return simulateInternal(start, timeline, List.of(), null);
+    }
+
+    public TimelineResult simulate(PlayerSnapshot start, CausalThreatTimeline timeline) {
+        java.util.Objects.requireNonNull(timeline, "timeline");
+        return simulateInternal(start, timeline.expandedTimeline(), List.of(), timeline);
     }
 
     public TimelineResult simulateWithActivation(
         PlayerSnapshot start,
         ThreatTimeline timeline,
+        long activationTick,
+        UnaryOperator<PlayerSnapshot> activation
+    ) {
+        return simulateWithActivations(
+            start,
+            timeline,
+            List.of(new TimedActivation(activationTick, activation))
+        );
+    }
+
+    public TimelineResult simulateWithActivation(
+        PlayerSnapshot start,
+        CausalThreatTimeline timeline,
         long activationTick,
         UnaryOperator<PlayerSnapshot> activation
     ) {
@@ -67,13 +85,34 @@ public final class ThreatTimelineSimulator {
             sortedActivations.add(java.util.Objects.requireNonNull(activation, "activation"));
         }
         sortedActivations.sort(Comparator.comparingLong(TimedActivation::tick));
-        return simulateInternal(start, timeline, List.copyOf(sortedActivations));
+        return simulateInternal(start, timeline, List.copyOf(sortedActivations), null);
+    }
+
+    public TimelineResult simulateWithActivations(
+        PlayerSnapshot start,
+        CausalThreatTimeline timeline,
+        List<TimedActivation> activations
+    ) {
+        java.util.Objects.requireNonNull(timeline, "timeline");
+        java.util.Objects.requireNonNull(activations, "activations");
+        List<TimedActivation> sortedActivations = new ArrayList<>(activations.size());
+        for (TimedActivation activation : activations) {
+            sortedActivations.add(java.util.Objects.requireNonNull(activation, "activation"));
+        }
+        sortedActivations.sort(Comparator.comparingLong(TimedActivation::tick));
+        return simulateInternal(
+            start,
+            timeline.expandedTimeline(),
+            List.copyOf(sortedActivations),
+            timeline
+        );
     }
 
     private TimelineResult simulateInternal(
         PlayerSnapshot start,
         ThreatTimeline timeline,
-        List<TimedActivation> activations
+        List<TimedActivation> activations,
+        CausalThreatTimeline causal
     ) {
         java.util.Objects.requireNonNull(start, "start");
         java.util.Objects.requireNonNull(timeline, "timeline");
@@ -92,10 +131,21 @@ public final class ThreatTimelineSimulator {
         boolean survivalGuaranteed = true;
         Set<String> acceptedEventIds = new HashSet<>();
         Set<String> processedEventIds = new HashSet<>();
+        Set<String> removedSources = causal == null
+            ? new HashSet<>()
+            : new HashSet<>(causal.spawnedSourceIds());
         int activationIndex = 0;
 
         for (List<ThreatEvent> group : overlapGroups(sorted)) {
-            long groupEarliest = group.getFirst().impact().earliest();
+            Set<String> removedAtGroupStart = Set.copyOf(removedSources);
+            List<ThreatEvent> activeGroup = causal == null
+                ? group
+                : group.stream()
+                    .filter(event -> !removedAtGroupStart.contains(causal.sourceId(event)))
+                    .toList();
+            if (activeGroup.isEmpty()) continue;
+
+            long groupEarliest = activeGroup.getFirst().impact().earliest();
             while (activationIndex < activations.size() && activations.get(activationIndex).tick() <= groupEarliest) {
                 TimedActivation activation = activations.get(activationIndex++);
                 if (activation.tick() < previousTick) {
@@ -106,11 +156,21 @@ public final class ThreatTimelineSimulator {
                 working = activation.activation().apply(working);
             }
 
-            GroupOutcome outcome = worstGroupOutcome(working, previousTick, group, acceptedEventIds, processedEventIds, timelineEventIds);
+            GroupOutcome outcome = worstGroupOutcome(
+                working,
+                previousTick,
+                activeGroup,
+                acceptedEventIds,
+                processedEventIds,
+                timelineEventIds,
+                causal,
+                removedSources
+            );
             working = outcome.player();
             previousTick = outcome.lastTick();
             acceptedEventIds = new HashSet<>(outcome.acceptedEventIds());
             processedEventIds = new HashSet<>(outcome.processedEventIds());
+            removedSources = new HashSet<>(outcome.removedSources());
             allResults.addAll(outcome.results());
             consumed += outcome.consumedProtection();
             if (firstLethal.isEmpty() && outcome.firstLethalEventId().isPresent()) firstLethal = outcome.firstLethalEventId();
@@ -173,11 +233,23 @@ public final class ThreatTimelineSimulator {
         List<ThreatEvent> group,
         Set<String> acceptedBefore,
         Set<String> processedBefore,
-        Set<String> timelineEventIds
+        Set<String> timelineEventIds,
+        CausalThreatTimeline causal,
+        Set<String> removedBefore
     ) {
         ScheduleBudget budget = new ScheduleBudget(MAX_SCHEDULE_EVALUATIONS);
         if (group.size() == 1) {
-            GroupOutcome outcome = worstOrderOutcome(start, previousTick, group, acceptedBefore, processedBefore, timelineEventIds, budget);
+            GroupOutcome outcome = worstOrderOutcome(
+                start,
+                previousTick,
+                group,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds,
+                causal,
+                removedBefore,
+                budget
+            );
             if (outcome == null) throw new IllegalArgumentException("No feasible ordering for dependent threat group");
             return budget.truncated() && outcome.survived() ? failClosed(outcome) : outcome;
         }
@@ -185,12 +257,31 @@ public final class ThreatTimelineSimulator {
         if (group.size() > MAX_PERMUTATION_GROUP) {
             List<ThreatEvent> fallback = new ArrayList<>(group);
             fallback.sort(CONSERVATIVE_FALLBACK_ORDER);
-            GroupOutcome damageOrdered = worstOrderOutcome(start, previousTick, fallback, acceptedBefore, processedBefore, timelineEventIds, budget);
+            GroupOutcome damageOrdered = worstOrderOutcome(
+                start,
+                previousTick,
+                fallback,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds,
+                causal,
+                removedBefore,
+                budget
+            );
             if (damageOrdered != null && !damageOrdered.survived()) return damageOrdered;
 
             fallback.sort(BASE_ORDER);
-            GroupOutcome baseOrdered = budget.truncated() ? null
-                : worstOrderOutcome(start, previousTick, fallback, acceptedBefore, processedBefore, timelineEventIds, budget);
+            GroupOutcome baseOrdered = budget.truncated() ? null : worstOrderOutcome(
+                start,
+                previousTick,
+                fallback,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds,
+                causal,
+                removedBefore,
+                budget
+            );
             if (baseOrdered != null && !baseOrdered.survived()) return baseOrdered;
             if (damageOrdered == null && baseOrdered == null) throw new IllegalArgumentException("No feasible ordering for dependent threat group");
 
@@ -203,7 +294,17 @@ public final class ThreatTimelineSimulator {
         permute(new ArrayList<>(group), 0, permutations);
         GroupOutcome worst = null;
         for (List<ThreatEvent> permutation : permutations) {
-            GroupOutcome candidate = worstOrderOutcome(start, previousTick, permutation, acceptedBefore, processedBefore, timelineEventIds, budget);
+            GroupOutcome candidate = worstOrderOutcome(
+                start,
+                previousTick,
+                permutation,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds,
+                causal,
+                removedBefore,
+                budget
+            );
             if (candidate != null && !candidate.survived()) return candidate;
             if (candidate != null && (worst == null || isWorse(candidate, worst))) worst = candidate;
             if (budget.truncated()) break;
@@ -219,12 +320,27 @@ public final class ThreatTimelineSimulator {
         Set<String> acceptedBefore,
         Set<String> processedBefore,
         Set<String> timelineEventIds,
+        CausalThreatTimeline causal,
+        Set<String> removedBefore,
         ScheduleBudget budget
     ) {
         long[] schedule = new long[order.size()];
         GroupOutcome[] worst = new GroupOutcome[1];
-        enumerateSchedules(start, previousTick, order, schedule, 0, previousTick,
-            acceptedBefore, processedBefore, timelineEventIds, budget, worst);
+        enumerateSchedules(
+            start,
+            previousTick,
+            order,
+            schedule,
+            0,
+            previousTick,
+            acceptedBefore,
+            processedBefore,
+            timelineEventIds,
+            causal,
+            removedBefore,
+            budget,
+            worst
+        );
         return worst[0];
     }
 
@@ -238,14 +354,25 @@ public final class ThreatTimelineSimulator {
         Set<String> acceptedBefore,
         Set<String> processedBefore,
         Set<String> timelineEventIds,
+        CausalThreatTimeline causal,
+        Set<String> removedBefore,
         ScheduleBudget budget,
         GroupOutcome[] worst
     ) {
         if (budget.truncated()) return true;
         if (index == order.size()) {
             if (!budget.tryEvaluate()) return true;
-            GroupOutcome candidate = simulateOrder(start, previousTick, order, schedule,
-                acceptedBefore, processedBefore, timelineEventIds);
+            GroupOutcome candidate = simulateOrder(
+                start,
+                previousTick,
+                order,
+                schedule,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds,
+                causal,
+                removedBefore
+            );
             if (candidate == null) return false;
             if (worst[0] == null || isWorse(candidate, worst[0])) worst[0] = candidate;
             return !candidate.survived();
@@ -256,8 +383,21 @@ public final class ThreatTimelineSimulator {
         if (upper < lower) return false;
         for (long tick = lower; ; tick++) {
             schedule[index] = tick;
-            if (enumerateSchedules(start, previousTick, order, schedule, index + 1, tick,
-                acceptedBefore, processedBefore, timelineEventIds, budget, worst)) return true;
+            if (enumerateSchedules(
+                start,
+                previousTick,
+                order,
+                schedule,
+                index + 1,
+                tick,
+                acceptedBefore,
+                processedBefore,
+                timelineEventIds,
+                causal,
+                removedBefore,
+                budget,
+                worst
+            )) return true;
             if (tick == upper) break;
         }
         return false;
@@ -270,7 +410,9 @@ public final class ThreatTimelineSimulator {
         long[] schedule,
         Set<String> acceptedBefore,
         Set<String> processedBefore,
-        Set<String> timelineEventIds
+        Set<String> timelineEventIds,
+        CausalThreatTimeline causal,
+        Set<String> removedBefore
     ) {
         PlayerSnapshot working = start;
         long lastTick = previousTick;
@@ -280,11 +422,17 @@ public final class ThreatTimelineSimulator {
         boolean survivalGuaranteed = true;
         Set<String> acceptedEventIds = new HashSet<>(acceptedBefore);
         Set<String> processedEventIds = new HashSet<>(processedBefore);
+        Set<String> removedSources = new HashSet<>(removedBefore);
         Set<String> groupEventIds = new HashSet<>();
         for (ThreatEvent event : order) groupEventIds.add(event.id());
 
         for (int i = 0; i < order.size(); i++) {
             ThreatEvent event = order.get(i);
+            if (causal != null && removedSources.contains(causal.sourceId(event))) {
+                processedEventIds.add(event.id());
+                continue;
+            }
+
             long eventTick = schedule[i];
             working = agePlayerState(working, eventTick - lastTick);
             lastTick = eventTick;
@@ -310,6 +458,7 @@ public final class ThreatTimelineSimulator {
             if (!damageResult.rejected()) acceptedEventIds.add(event.id());
             if (damageResult.deathProtectionConsumed()) consumed++;
             working = damageResult.after();
+            applyCausalTransitions(causal, event, removedSources);
 
             if (damageResult.postStateUncertain()) {
                 survivalGuaranteed = false;
@@ -321,9 +470,36 @@ public final class ThreatTimelineSimulator {
             }
         }
 
-        return new GroupOutcome(working, lastTick, results, consumed, firstLethal,
+        return new GroupOutcome(
+            working,
+            lastTick,
+            results,
+            consumed,
+            firstLethal,
             survivalGuaranteed && working.health() > 0f && firstLethal.isEmpty(),
-            Set.copyOf(acceptedEventIds), Set.copyOf(processedEventIds));
+            Set.copyOf(acceptedEventIds),
+            Set.copyOf(processedEventIds),
+            Set.copyOf(removedSources)
+        );
+    }
+
+    private static void applyCausalTransitions(
+        CausalThreatTimeline causal,
+        ThreatEvent event,
+        Set<String> removedSources
+    ) {
+        if (causal == null) return;
+        for (ThreatTransition transition : causal.transitionsAfter(event.id())) {
+            if (transition instanceof ThreatTransition.RemoveSource remove) {
+                removedSources.add(remove.sourceId());
+            } else if (transition instanceof ThreatTransition.SpawnThreat spawn) {
+                removedSources.remove(spawn.sourceId());
+            } else {
+                throw new IllegalArgumentException(
+                    "causal transition requires dynamic branch support: " + transition.getClass().getSimpleName()
+                );
+            }
+        }
     }
 
     private static DamageResult applyBlockingDisable(DamageResult result, dev.pixelied.survival.damage.DamageSourceSnapshot source) {
@@ -409,8 +585,17 @@ public final class ThreatTimelineSimulator {
     }
 
     private static GroupOutcome failClosed(GroupOutcome modeled) {
-        return new GroupOutcome(modeled.player(), modeled.lastTick(), modeled.results(), modeled.consumedProtection(),
-            modeled.firstLethalEventId(), false, modeled.acceptedEventIds(), modeled.processedEventIds());
+        return new GroupOutcome(
+            modeled.player(),
+            modeled.lastTick(),
+            modeled.results(),
+            modeled.consumedProtection(),
+            modeled.firstLethalEventId(),
+            false,
+            modeled.acceptedEventIds(),
+            modeled.processedEventIds(),
+            modeled.removedSources()
+        );
     }
 
     private static List<List<ThreatEvent>> overlapGroups(List<ThreatEvent> sorted) {
@@ -491,8 +676,16 @@ public final class ThreatTimelineSimulator {
         }
     }
 
-    private record GroupOutcome(PlayerSnapshot player, long lastTick, List<TimelineEventResult> results,
-        int consumedProtection, Optional<String> firstLethalEventId, boolean survived,
-        Set<String> acceptedEventIds, Set<String> processedEventIds) {
+    private record GroupOutcome(
+        PlayerSnapshot player,
+        long lastTick,
+        List<TimelineEventResult> results,
+        int consumedProtection,
+        Optional<String> firstLethalEventId,
+        boolean survived,
+        Set<String> acceptedEventIds,
+        Set<String> processedEventIds,
+        Set<String> removedSources
+    ) {
     }
 }

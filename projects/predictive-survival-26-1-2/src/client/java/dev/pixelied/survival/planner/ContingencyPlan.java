@@ -23,6 +23,11 @@ public record ContingencyPlan(
         }
     }
 
+    /** Number of bounded timeline evaluations consumed by this contingency search. */
+    public int evaluations() {
+        return evaluatedSequenceCount;
+    }
+
     public static ContingencyPlan baseline(TimelineResult result) {
         return new ContingencyPlan(List.of(), result, result.survived(), 0, false,
             result.survived() ? "baseline survives" : "no guaranteed rescue sequence");

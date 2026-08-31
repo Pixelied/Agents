@@ -308,10 +308,17 @@ final class ProjectileValidationScenarios {
             Entity clientEntity = minecraft.level.getEntity(entityId);
             if (clientEntity == null) throw new AssertionError("client projectile missing for " + id);
             PlayerSnapshot playerSnapshot = new MinecraftSnapshotFactory().capture(minecraft.player);
+            TimingSnapshot timing = new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0));
+            WorldSnapshot world = new MinecraftWorldSnapshotFactory().capture(
+                minecraft.level,
+                minecraft.player,
+                LIMITS,
+                timing
+            );
             PredictionContext predictionContext = new PredictionContext(
                 playerSnapshot,
-                new MinecraftWorldSnapshotFactory().capture(minecraft.level, minecraft.player, LIMITS),
-                new TimingSnapshot(0, 0d, 0d, new TickWindow(0, 0)),
+                world,
+                timing,
                 LIMITS
             );
             ThreatEvent event = new ProjectilePredictor().predict(predictionContext).stream()

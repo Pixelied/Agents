@@ -42,6 +42,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             results.addAll(DamageValidationScenarios.firstRuntimeSlice(context, singleplayer));
             results.addAll(ExplosionValidationScenarios.runtimeSlice(singleplayer));
             results.addAll(ProjectileValidationScenarios.runtimeSlice(context, singleplayer));
+            DelayedProjectileValidationScenarios.validateLatencyMatrix(context, singleplayer);
             ProjectileOwnerDifficultyValidationScenarios.validateMobOwnedScalingMetadata(context, singleplayer);
             HurtingProjectileSourceValidationScenarios.validateMobOwnedSourceMetadata(context, singleplayer);
             ProjectileSnapshotRangeValidationScenarios.validateClientTrackedDistantArrowIsSnapshotted(context, singleplayer);
@@ -86,9 +87,12 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             NonTotemCandidateValidationScenarios.validateLiveItemCapabilities(context, singleplayer);
             results.addAll(LiveExplosionScalingValidationScenarios.runtimeSlice(context, singleplayer));
             MinecartTntValidationScenarios.validatePrimedMinecartProducesBoundedExplosionThreat(context, singleplayer);
+            SurvivalStateInvalidationValidationScenarios.validateSameTickPacketEvidence(context, singleplayer);
             InstantExplosionGuardValidationScenarios.validateVisibleInstantSourcesArmBeforeDetonation(context, singleplayer);
             TriggerableExplosionRangeValidationScenarios.validateNineBlockRespawnAnchorArmsBeforeDetonation(context, singleplayer);
             HandRestorationValidationScenarios.validateConfirmedHotbarProtectionRestoresAfterDanger(context, singleplayer);
+            RestorationReentryValidationScenarios.validateSafeFlickerCannotRestoreBeforeDangerReturns(context, singleplayer);
+            DeathProtectionPopReplenishmentValidationScenarios.validateFirstPopRearmsBeforeSecondLethalHit(context, singleplayer);
             BlockingCooldownValidationScenarios.validateServerCooldownMakesShieldUnavailable(context, singleplayer);
             FirstFrameProjectileAuthorityValidationScenarios.measureFirstFrameAuthority(context, singleplayer);
             waitForServerClientLoaded(context, singleplayer);
