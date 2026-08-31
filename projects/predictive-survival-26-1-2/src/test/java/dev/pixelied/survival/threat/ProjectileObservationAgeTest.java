@@ -48,7 +48,7 @@ class ProjectileObservationAgeTest {
             )
         );
 
-        ThreatEvent event = predictor.predict(context(arrow, List.of())).getFirst();
+        ThreatEvent event = predictor.predict(context(arrow, List.of(), 5.7)).getFirst();
 
         assertEquals(new TickWindow(0, 3), event.impact());
     }
@@ -75,7 +75,7 @@ class ProjectileObservationAgeTest {
             Map.of("full_collision_cube", "true")
         );
 
-        ThreatEvent event = predictor.predict(context(potion, List.of(wall))).getFirst();
+        ThreatEvent event = predictor.predict(context(potion, List.of(wall), 6.7)).getFirst();
 
         assertEquals(new DamageRange(0f, 10f), event.damage().rawDamage());
         assertEquals(Confidence.BOUNDED, event.confidence());
@@ -83,7 +83,8 @@ class ProjectileObservationAgeTest {
 
     private static PredictionContext context(
         WorldSnapshot.EntitySnapshot entity,
-        List<WorldSnapshot.BlockSnapshot> blocks
+        List<WorldSnapshot.BlockSnapshot> blocks,
+        double playerMinX
     ) {
         PlayerSnapshot player = new PlayerSnapshot(
             20f,
@@ -97,8 +98,8 @@ class ProjectileObservationAgeTest {
             BlockingSnapshot.none(),
             HurtState.unknown(),
             DeathProtectionSnapshot.none(),
-            new AabbSnapshot(5.7, 0, 0, 6.3, 1.8, 0.6),
-            new Vec3Snapshot(5.7, 0, 0),
+            new AabbSnapshot(playerMinX, 0, 0, playerMinX + 0.6, 1.8, 0.6),
+            new Vec3Snapshot(playerMinX, 0, 0),
             new Vec3Snapshot(0, 0, 0),
             Map.of()
         );
