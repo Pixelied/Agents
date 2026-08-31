@@ -102,6 +102,7 @@ public final class AuthorityAwareCandidateGenerator {
             menu,
             policy,
             damageDeadline,
+            equipment,
             guaranteedProtection,
             base
         );
@@ -144,6 +145,7 @@ public final class AuthorityAwareCandidateGenerator {
             menu,
             policy,
             damageDeadline,
+            equipment,
             guaranteedProtection,
             base
         );
@@ -177,10 +179,19 @@ public final class AuthorityAwareCandidateGenerator {
         MenuSlotMap menu,
         RescuePolicy policy,
         long damageDeadline,
+        EquipmentAuthorityProjection equipment,
         DeathProtectionSnapshot guaranteedProtection,
         List<SurvivalAction> base
     ) {
         if (!policy.deathProtection() || !policy.inventoryRouting() || guaranteedProtection.anyHandAvailable()) {
+            return base;
+        }
+
+        // Hand preference is a tie-break only after authority feasibility. If a dispatched hand
+        // mutation can still land on either side of the lethal deadline, the delegate's candidate
+        // is the conservative re-arm/repair for that exact in-flight state. Re-routing it from the
+        // projected inventory can erase the only action that closes the authority race.
+        if (equipment.pending().stream().anyMatch(mutation -> mutation.uncertainAt(damageDeadline))) {
             return base;
         }
 
@@ -208,20 +219,23 @@ public final class AuthorityAwareCandidateGenerator {
             activeUseHand(context.player()),
             policy.mainHandTakeover()
         );
-        List<ProtectionRouteScorer.ScoredRoute> ranked = routeScorer.rank(
-            new ArrayList<>(alternatives.values()),
-            scoreContext
-        );
+        List<ProtectionRouteScorer.Candidate> safeAlternatives = alternatives.values().stream()
+            .filter(candidate -> {
+                ProtectionRouteScorer.ProtectionRouteScore score = routeScorer.score(candidate, scoreContext);
+                return score.allowed() && score.deadlineSafe();
+            })
+            .toList();
+        if (safeAlternatives.isEmpty()) return base;
 
-        List<SurvivalAction> result = new ArrayList<>(base.size() - 1 + ranked.size());
+        ProtectionRouteScorer.ScoredRoute chosen = routeScorer.rank(safeAlternatives, scoreContext).getFirst();
+        ProtectionRouteScorer.Candidate route = alternatives.get(chosen.route());
+        if (route == null) return base;
+
+        List<SurvivalAction> result = new ArrayList<>(base.size());
         for (SurvivalAction action : base) {
             if (!(action instanceof SurvivalAction.EquipDeathProtection)) result.add(action);
         }
-        for (ProtectionRouteScorer.ScoredRoute scored : ranked) {
-            ProtectionRouteScorer.Candidate route = alternatives.get(scored.route());
-            if (route == null || !scored.score().allowed()) continue;
-            result.add(toProtectionAction(context, inventory, menu, route, scoreContext));
-        }
+        result.add(toProtectionAction(context, inventory, menu, route, scoreContext));
         return List.copyOf(result);
     }
 
