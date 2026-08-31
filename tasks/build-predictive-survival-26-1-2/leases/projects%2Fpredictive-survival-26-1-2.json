@@ -5,9 +5,9 @@
   "scope": "projects/predictive-survival-26-1-2",
   "owner": "openai-survival-runtime-5f6c",
   "state": "active",
-  "intent": "Continue the approved Predictive Survival 26.1.2 deep-audit hardening after the completed runtime state-machine tranche, using regression-first TDD, supplied 26.1.2 source verification, exact-runtime GameTests, and no direct writes to canonical/main implementation state.",
-  "claimed_at": "2026-08-30T16:59:00+00:00",
-  "heartbeat_at": "2026-08-30T16:59:00+00:00",
-  "expires_at": "2026-08-30T22:59:00+00:00",
-  "generation": 15
+  "intent": "Continue the approved Predictive Survival 26.1.2 deep-audit hardening from the current Task 7 regression state into Task 8, using regression-first TDD, supplied 26.1.2 source verification, exact-runtime GameTests, and no direct writes to canonical/main implementation state.",
+  "claimed_at": "2026-08-31T12:48:00+00:00",
+  "heartbeat_at": "2026-08-31T12:48:00+00:00",
+  "expires_at": "2026-08-31T18:48:00+00:00",
+  "generation": 16
 }
