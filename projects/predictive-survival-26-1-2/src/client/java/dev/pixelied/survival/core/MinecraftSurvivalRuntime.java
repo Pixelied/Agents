@@ -324,6 +324,10 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         return nonTotemExecutor.remainingServerTicks(nonTotemContext(state));
     }
 
+    public void markRemoteEntityDiscontinuity(int entityId) {
+        worldSnapshots.markEntityDiscontinuity(entityId);
+    }
+
     public void reset() {
         resetTransientState();
         lastPlayer = null;
@@ -346,7 +350,6 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         PlayerInfo info = minecraft.getConnection().getPlayerInfo(player.getUUID());
         if (info != null) timingEstimator.observeRttMillis(Math.max(0, info.getLatency()));
     }
-
 
     private DamageReconciliation reconcileServerDamage(
         PlayerSnapshot current,
