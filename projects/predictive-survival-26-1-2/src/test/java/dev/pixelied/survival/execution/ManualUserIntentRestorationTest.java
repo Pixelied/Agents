@@ -47,25 +47,29 @@ class ManualUserIntentRestorationTest {
         controller.arm(new RestorationCheckpoint.Hotbar(0, 1, sword, totem, 100));
 
         ExecutionCommand.SelectHotbar restore = null;
+        long restoreDispatchedAt = -1L;
         for (long tick = 101; tick <= 130; tick++) {
             Optional<ExecutionCommand> command = controller.update(true, false, false, context(protectedInventory, tick));
             if (command.isPresent()) {
                 restore = assertInstanceOf(ExecutionCommand.SelectHotbar.class, command.orElseThrow());
+                restoreDispatchedAt = tick;
                 break;
             }
         }
         if (restore == null) throw new AssertionError("fixture never dispatched the automatic restore");
 
-        observeUserSelection(totem, pickaxe, 131);
-        assertTrue(controller.update(true, false, false, context(protectedInventory, 131)).isEmpty());
+        long manualIntentTick = restoreDispatchedAt + 1L;
+        observeUserSelection(totem, pickaxe, manualIntentTick);
+        assertTrue(controller.update(true, false, false, context(protectedInventory, manualIntentTick)).isEmpty());
         assertTrue(controller.hasPendingRestoration(),
             "already-sent restore must stay pending until server evidence resolves packet order");
 
+        long confirmationTick = restoreDispatchedAt + 2L;
         assertTrue(controller.update(
             true,
             false,
             false,
-            context(inventory(0, sword, totem, pickaxe), 132)
+            context(inventory(0, sword, totem, pickaxe), confirmationTick)
         ).isEmpty());
         assertFalse(controller.hasPendingRestoration());
     }
