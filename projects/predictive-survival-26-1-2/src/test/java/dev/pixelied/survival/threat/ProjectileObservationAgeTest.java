@@ -140,6 +140,37 @@ class ProjectileObservationAgeTest {
         assertEquals(Confidence.BOUNDED, event.confidence());
     }
 
+    @Test
+    void rttEnvelopeAloneKeepsStaleBlockSplashConservative() {
+        WorldSnapshot.EntitySnapshot potion = new WorldSnapshot.EntitySnapshot(
+            "splash:rtt-envelope-only",
+            "minecraft:splash_potion",
+            new Vec3Snapshot(0, 1.0, 0.3),
+            new Vec3Snapshot(1.5, 0, 0),
+            new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
+            Map.ofEntries(
+                Map.entry("potion_instant_damage", "12.0"),
+                Map.entry("potion_splash_radius", "4.0"),
+                Map.entry("potion_source_key", "minecraft:indirect_magic"),
+                Map.entry("observation_age_min_ticks", "2"),
+                Map.entry("observation_age_max_ticks", "3"),
+                Map.entry("kinematic_history_samples", "1"),
+                Map.entry("kinematic_reset_boundary", "true")
+            )
+        );
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(5, 0, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        ThreatEvent event = predictor.predict(context(potion, List.of(wall), 6.7)).getFirst();
+
+        assertEquals(new DamageRange(0f, 10f), event.damage().rawDamage());
+        assertEquals(Confidence.BOUNDED, event.confidence());
+    }
+
     private static WorldSnapshot.EntitySnapshot arrow(
         String id,
         Vec3Snapshot position,
