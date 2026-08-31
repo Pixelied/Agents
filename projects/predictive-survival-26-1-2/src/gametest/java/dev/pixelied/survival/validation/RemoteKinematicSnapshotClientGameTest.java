@@ -46,9 +46,9 @@ public final class RemoteKinematicSnapshotClientGameTest implements FabricClient
                     WorldSnapshot.EntitySnapshot first = projectileSnapshot(runtime, projectileId);
                     Map<String, String> firstProperties = first.properties();
 
-                    if (!"1".equals(firstProperties.get("observation_age_ticks"))) {
+                    if (firstProperties.containsKey("observation_age_ticks")) {
                         throw new AssertionError(
-                            "Task 9 must not silently change legacy projectile age decision semantics before Task 10"
+                            "Task 10 must not expose the fixed legacy projectile observation age"
                         );
                     }
                     long ageMin = requiredLong(firstProperties, "observation_age_min_ticks");
