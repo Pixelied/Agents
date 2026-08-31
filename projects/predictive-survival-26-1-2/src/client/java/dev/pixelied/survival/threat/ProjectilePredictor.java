@@ -536,7 +536,6 @@ public final class ProjectilePredictor implements ThreatPredictor {
                     false
                 ));
             }
-
             if (latest >= horizon) break;
             earliest = latest + 1L;
             latest = Math.min(horizon, saturatingAdd(latest, DRAGON_BREATH_REAPPLICATION_TICKS));
@@ -624,9 +623,30 @@ public final class ProjectilePredictor implements ThreatPredictor {
     }
 
     private static TickWindow observedImpactWindow(WorldSnapshot.EntitySnapshot entity, long modeledTick) {
-        int observationAge = positiveInt(entity.properties().get("observation_age_ticks"), 0);
-        long earliest = Math.max(0L, modeledTick - observationAge);
-        return new TickWindow(earliest, modeledTick);
+        TickWindow age = observationAgeWindow(entity);
+        long earliest = subtractFloorZero(modeledTick, age.latest());
+        long latest = subtractFloorZero(modeledTick, age.earliest());
+        return new TickWindow(earliest, latest);
+    }
+
+    private static TickWindow observationAgeWindow(WorldSnapshot.EntitySnapshot entity) {
+        Map<String, String> properties = entity.properties();
+        long legacyMaximum = positiveInt(properties.get("observation_age_ticks"), 0);
+        String minimumProperty = properties.get("observation_age_min_ticks");
+        String maximumProperty = properties.get("observation_age_max_ticks");
+        if (minimumProperty == null && maximumProperty == null) {
+            return new TickWindow(0L, legacyMaximum);
+        }
+
+        long minimum = nonNegativeLong(minimumProperty, 0L);
+        long maximum = nonNegativeLong(maximumProperty, Math.max(minimum, legacyMaximum));
+        if (maximum < minimum) maximum = Math.max(minimum, legacyMaximum);
+        return new TickWindow(minimum, maximum);
+    }
+
+    private static long subtractFloorZero(long value, long amount) {
+        if (value <= 0L || amount >= value) return 0L;
+        return value - amount;
     }
 
     private static Collision firstBlockCollision(
@@ -907,6 +927,16 @@ public final class ProjectilePredictor implements ThreatPredictor {
         try {
             int parsed = Integer.parseInt(value);
             return parsed >= 0 ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static long nonNegativeLong(String value, long fallback) {
+        if (value == null) return fallback;
+        try {
+            long parsed = Long.parseLong(value);
+            return parsed >= 0L ? parsed : fallback;
         } catch (NumberFormatException ignored) {
             return fallback;
         }
