@@ -86,6 +86,13 @@ public final class PredictiveSurvivalClient implements ClientModInitializer {
         THREAT_DIRTY.markDirty(reason);
     }
 
+    public static void markRemoteEntityDiscontinuity(int entityId) {
+        PredictiveSurvivalClient current = instance;
+        if (current != null && current.runtime != null) {
+            current.runtime.markRemoteEntityDiscontinuity(entityId);
+        }
+    }
+
     static boolean consumeThreatDirty() {
         return !consumeThreatDirtyReasons().isEmpty();
     }
