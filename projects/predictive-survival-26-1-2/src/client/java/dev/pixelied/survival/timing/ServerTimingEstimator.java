@@ -15,25 +15,24 @@ public final class ServerTimingEstimator {
     private final Deque<Double> rttSamplesMs = new ArrayDeque<>();
     private final Deque<Double> tickSamplesMs = new ArrayDeque<>();
     private long lastRttLogicalTick = NO_LOGICAL_TICK;
+    private Double pendingLegacyRttMs;
+    private boolean hasSnapshotted;
 
     public void observeRttMillis(int rttMillis) {
         validateRttMillis(rttMillis);
-        addBounded(rttSamplesMs, (double) rttMillis);
-        lastRttLogicalTick = NO_LOGICAL_TICK;
+        if (!hasSnapshotted) {
+            addBounded(rttSamplesMs, (double) rttMillis);
+            lastRttLogicalTick = NO_LOGICAL_TICK;
+            return;
+        }
+        pendingLegacyRttMs = (double) rttMillis;
     }
 
     public void observeRttMillis(long logicalTick, int rttMillis) {
         if (logicalTick < 0) throw new IllegalArgumentException("logicalTick must be non-negative");
         validateRttMillis(rttMillis);
-
-        if (lastRttLogicalTick == logicalTick && !rttSamplesMs.isEmpty()) {
-            rttSamplesMs.removeLast();
-            rttSamplesMs.addLast((double) rttMillis);
-            return;
-        }
-
-        addBounded(rttSamplesMs, (double) rttMillis);
-        lastRttLogicalTick = logicalTick;
+        pendingLegacyRttMs = null;
+        addOrReplaceRtt(logicalTick, rttMillis);
     }
 
     public void observeClientTickNanos(long nanos) {
@@ -45,10 +44,13 @@ public final class ServerTimingEstimator {
         rttSamplesMs.clear();
         tickSamplesMs.clear();
         lastRttLogicalTick = NO_LOGICAL_TICK;
+        pendingLegacyRttMs = null;
+        hasSnapshotted = false;
     }
 
     public TimingSnapshot snapshot(long clientTick) {
         if (clientTick < 0) throw new IllegalArgumentException("clientTick must be non-negative");
+        bindLegacyRttTo(clientTick);
 
         double rtt = rttSamplesMs.isEmpty() ? DEFAULT_RTT_MS : mean(rttSamplesMs);
         double jitter = rttSamplesMs.isEmpty() ? DEFAULT_JITTER_MS : maxAbsoluteDeviation(rttSamplesMs, rtt);
@@ -66,6 +68,26 @@ public final class ServerTimingEstimator {
             saturatingAdd(clientTick, latestTicks)
         );
         return new TimingSnapshot(clientTick, rtt, jitter, processing);
+    }
+
+    private void bindLegacyRttTo(long logicalTick) {
+        if (pendingLegacyRttMs != null) {
+            addOrReplaceRtt(logicalTick, pendingLegacyRttMs.intValue());
+            pendingLegacyRttMs = null;
+        } else if (!hasSnapshotted && !rttSamplesMs.isEmpty() && lastRttLogicalTick == NO_LOGICAL_TICK) {
+            lastRttLogicalTick = logicalTick;
+        }
+        hasSnapshotted = true;
+    }
+
+    private void addOrReplaceRtt(long logicalTick, int rttMillis) {
+        if (lastRttLogicalTick == logicalTick && !rttSamplesMs.isEmpty()) {
+            rttSamplesMs.removeLast();
+            rttSamplesMs.addLast((double) rttMillis);
+            return;
+        }
+        addBounded(rttSamplesMs, (double) rttMillis);
+        lastRttLogicalTick = logicalTick;
     }
 
     private static void validateRttMillis(int rttMillis) {
