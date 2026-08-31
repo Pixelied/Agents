@@ -93,6 +93,30 @@ class SplashStatusFalloffPredictorTest {
     }
 
     @Test
+    void rttEnvelopeAloneKeepsWallSplashPoisonConservative() {
+        List<ThreatEvent> poison = EnvironmentPredictorRegistry.defaults().predict(context(
+            splashPoison(Map.ofEntries(
+                Map.entry("potion_poison_duration_ticks", "200"),
+                Map.entry("potion_poison_amplifier", "0"),
+                Map.entry("potion_duration_scale", "1.0"),
+                Map.entry("potion_splash_radius", "4.0"),
+                Map.entry("projectile_margin", "0.0"),
+                Map.entry("observation_age_min_ticks", "2"),
+                Map.entry("observation_age_max_ticks", "3"),
+                Map.entry("kinematic_history_samples", "1"),
+                Map.entry("kinematic_reset_boundary", "true")
+            )),
+            wallAt(5)
+        )).stream().filter(event -> event.id().contains(":splash_status:poison:")).toList();
+
+        assertFalse(poison.isEmpty(), "RTT-aged wall splash must remain represented as a status threat");
+        ThreatEvent first = poison.getFirst();
+        assertEquals(Confidence.BOUNDED, first.confidence());
+        assertEquals(0f, first.damage().rawDamage().min(), 0.0001f);
+        assertEquals(1f, first.damage().rawDamage().max(), 0.0001f);
+    }
+
+    @Test
     void wallSplashPoisonOutsideFourBlockRadiusDoesNotInventStatusThreat() {
         List<ThreatEvent> poison = EnvironmentPredictorRegistry.defaults().predict(context(
             splashPoison(Map.of(
