@@ -8,7 +8,8 @@
     "fabric-client-gametest": [
       "dev.pixelied.survival.validation.SurvivalValidationClientGameTest",
       "dev.pixelied.survival.validation.SurvivalItemRoutingClientGameTest",
-      "dev.pixelied.survival.validation.InstantBurstValidationClientGameTest"
+      "dev.pixelied.survival.validation.InstantBurstValidationClientGameTest",
+      "dev.pixelied.survival.validation.DamageGauntletClientGameTest"
     ]
   },
   "depends": {
