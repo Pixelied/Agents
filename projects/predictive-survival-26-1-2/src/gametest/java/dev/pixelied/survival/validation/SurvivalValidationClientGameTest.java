@@ -42,6 +42,7 @@ public final class SurvivalValidationClientGameTest implements FabricClientGameT
             results.addAll(DamageValidationScenarios.firstRuntimeSlice(context, singleplayer));
             results.addAll(ExplosionValidationScenarios.runtimeSlice(singleplayer));
             results.addAll(ProjectileValidationScenarios.runtimeSlice(context, singleplayer));
+            DelayedProjectileValidationScenarios.validateLatencyMatrix(context, singleplayer);
             ProjectileOwnerDifficultyValidationScenarios.validateMobOwnedScalingMetadata(context, singleplayer);
             HurtingProjectileSourceValidationScenarios.validateMobOwnedSourceMetadata(context, singleplayer);
             ProjectileSnapshotRangeValidationScenarios.validateClientTrackedDistantArrowIsSnapshotted(context, singleplayer);
