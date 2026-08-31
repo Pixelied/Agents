@@ -117,6 +117,30 @@ class SplashStatusFalloffPredictorTest {
     }
 
     @Test
+    void rttEnvelopeExtendsConservativeProjectileMarginAtWallImpact() {
+        List<ThreatEvent> poison = EnvironmentPredictorRegistry.defaults().predict(context(
+            splashPoison(Map.ofEntries(
+                Map.entry("potion_poison_duration_ticks", "166"),
+                Map.entry("potion_poison_amplifier", "0"),
+                Map.entry("potion_duration_scale", "1.0"),
+                Map.entry("potion_splash_radius", "4.0"),
+                Map.entry("projectile_age_ticks", "2"),
+                Map.entry("observation_age_min_ticks", "2"),
+                Map.entry("observation_age_max_ticks", "3"),
+                Map.entry("kinematic_history_samples", "1"),
+                Map.entry("kinematic_reset_boundary", "true")
+            )),
+            wallAt(5)
+        )).stream().filter(event -> event.id().contains(":splash_status:poison:")).toList();
+
+        // Modeled collision is tick 4, translated to server-now [1,2]. Conservative vanilla
+        // projectile age is 2 + latest(2) + max observation age(3) = 7, so margin=0.25.
+        // That raises maximum rounded duration to 153 ticks, allowing six 25-tick poison applications.
+        assertEquals(6, poison.size());
+        assertEquals(new TickWindow(126, 128), poison.getLast().impact());
+    }
+
+    @Test
     void wallSplashPoisonOutsideFourBlockRadiusDoesNotInventStatusThreat() {
         List<ThreatEvent> poison = EnvironmentPredictorRegistry.defaults().predict(context(
             splashPoison(Map.of(
