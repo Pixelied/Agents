@@ -96,7 +96,7 @@ public final class SplashStatusProjectilePredictor implements ThreatPredictor {
             .map(event -> {
                 AabbSnapshot block = fullBlockAt(context.world().blocks(), event.impactPosition().orElseThrow());
                 if (block == null) return null;
-                boolean uncertain = positiveInt(entity.properties().get("observation_age_ticks"), 0) > 0
+                boolean uncertain = maximumObservationAgeTicks(entity) > 0L
                     || hasMotion(context.player().velocity());
                 return new BlockImpact(event.impact(), event.impactPosition().orElseThrow(), block, !uncertain);
             })
@@ -360,11 +360,27 @@ public final class SplashStatusProjectilePredictor implements ThreatPredictor {
             || Math.abs(velocity.z()) > EPSILON;
     }
 
+    private static long maximumObservationAgeTicks(WorldSnapshot.EntitySnapshot entity) {
+        Map<String, String> properties = entity.properties();
+        long legacy = positiveInt(properties.get("observation_age_ticks"), 0);
+        return nonNegativeLong(properties.get("observation_age_max_ticks"), legacy);
+    }
+
     private static int positiveInt(String value, int fallback) {
         if (value == null) return fallback;
         try {
             int parsed = Integer.parseInt(value);
             return parsed >= 0 ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static long nonNegativeLong(String value, long fallback) {
+        if (value == null) return fallback;
+        try {
+            long parsed = Long.parseLong(value);
+            return parsed >= 0L ? parsed : fallback;
         } catch (NumberFormatException ignored) {
             return fallback;
         }
