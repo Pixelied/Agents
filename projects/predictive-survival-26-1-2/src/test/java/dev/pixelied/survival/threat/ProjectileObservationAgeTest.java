@@ -29,28 +29,64 @@ class ProjectileObservationAgeTest {
 
     @Test
     void rttAgedArrowCanAlreadyHaveImpactedWhenObservedGeometrySaysFuture() {
-        WorldSnapshot.EntitySnapshot arrow = new WorldSnapshot.EntitySnapshot(
+        WorldSnapshot.EntitySnapshot arrow = arrow(
             "arrow:aged",
-            "minecraft:arrow",
             new Vec3Snapshot(0, 1.0, 0.3),
             new Vec3Snapshot(2.0, 0, 0),
-            new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
-            Map.of(
-                "abstract_arrow", "true",
-                "base_damage", "2.0",
-                "critical", "false",
-                "no_gravity", "true",
-                "observation_age_ticks", "1",
-                "observation_age_min_ticks", "0",
-                "observation_age_max_ticks", "3",
-                "kinematic_history_samples", "1",
-                "kinematic_reset_boundary", "true"
-            )
+            0,
+            3
         );
 
         ThreatEvent event = predictor.predict(context(arrow, List.of(), 5.7)).getFirst();
 
         assertEquals(new TickWindow(0, 3), event.impact());
+    }
+
+    @Test
+    void minimumObservationDelayMakesCloseRangeArrowImmediate() {
+        WorldSnapshot.EntitySnapshot arrow = arrow(
+            "arrow:close",
+            new Vec3Snapshot(4.0, 1.0, 0.3),
+            new Vec3Snapshot(2.0, 0, 0),
+            2,
+            3
+        );
+
+        ThreatEvent event = predictor.predict(context(arrow, List.of(), 5.7)).getFirst();
+
+        assertEquals(new TickWindow(0, 0), event.impact());
+    }
+
+    @Test
+    void wallCollisionDuringObservationAgeIsRepresentedAsImmediateSplashRisk() {
+        WorldSnapshot.EntitySnapshot potion = new WorldSnapshot.EntitySnapshot(
+            "splash:aged-wall",
+            "minecraft:splash_potion",
+            new Vec3Snapshot(0, 1.0, 0.3),
+            new Vec3Snapshot(1.5, 0, 0),
+            new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
+            Map.ofEntries(
+                Map.entry("potion_instant_damage", "12.0"),
+                Map.entry("potion_splash_radius", "4.0"),
+                Map.entry("potion_source_key", "minecraft:indirect_magic"),
+                Map.entry("no_gravity", "true"),
+                Map.entry("observation_age_ticks", "1"),
+                Map.entry("observation_age_min_ticks", "0"),
+                Map.entry("observation_age_max_ticks", "3"),
+                Map.entry("kinematic_history_samples", "1"),
+                Map.entry("kinematic_reset_boundary", "true")
+            )
+        );
+        WorldSnapshot.BlockSnapshot wall = new WorldSnapshot.BlockSnapshot(
+            new Vec3Snapshot(3, 0, 0),
+            "minecraft:stone",
+            true,
+            Map.of("full_collision_cube", "true")
+        );
+
+        ThreatEvent event = predictor.predict(context(potion, List.of(wall), 6.0)).getFirst();
+
+        assertEquals(0L, event.impact().earliest());
     }
 
     @Test
@@ -79,6 +115,36 @@ class ProjectileObservationAgeTest {
 
         assertEquals(new DamageRange(0f, 10f), event.damage().rawDamage());
         assertEquals(Confidence.BOUNDED, event.confidence());
+    }
+
+    private static WorldSnapshot.EntitySnapshot arrow(
+        String id,
+        Vec3Snapshot position,
+        Vec3Snapshot velocity,
+        long minimumAge,
+        long maximumAge
+    ) {
+        return new WorldSnapshot.EntitySnapshot(
+            id,
+            "minecraft:arrow",
+            position,
+            velocity,
+            new AabbSnapshot(
+                position.x() - 0.125, position.y() - 0.125, position.z() - 0.125,
+                position.x() + 0.125, position.y() + 0.125, position.z() + 0.125
+            ),
+            Map.ofEntries(
+                Map.entry("abstract_arrow", "true"),
+                Map.entry("base_damage", "2.0"),
+                Map.entry("critical", "false"),
+                Map.entry("no_gravity", "true"),
+                Map.entry("observation_age_ticks", "1"),
+                Map.entry("observation_age_min_ticks", Long.toString(minimumAge)),
+                Map.entry("observation_age_max_ticks", Long.toString(maximumAge)),
+                Map.entry("kinematic_history_samples", "1"),
+                Map.entry("kinematic_reset_boundary", "true")
+            )
+        );
     }
 
     private static PredictionContext context(
