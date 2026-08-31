@@ -48,14 +48,17 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public final class MinecraftWorldSnapshotFactory {
     private static final String OBSERVATION_OVERFLOW_TYPE = "predictive_survival:observation_overflow";
     private static final int REMOTE_KINEMATIC_HISTORY_LIMIT = 8;
 
+    private final Set<Integer> pendingDiscontinuities = new LinkedHashSet<>();
     private RemoteEntityKinematicEnvelope remoteKinematics;
     private int remoteKinematicEntityLimit = -1;
     private LocalPlayer remoteKinematicPlayer;
@@ -74,8 +77,18 @@ public final class MinecraftWorldSnapshotFactory {
         return captureInternal(level, player, limits, timing);
     }
 
+    public void markEntityDiscontinuity(int entityId) {
+        if (remoteKinematics == null) return;
+        pendingDiscontinuities.remove(entityId);
+        pendingDiscontinuities.add(entityId);
+        while (pendingDiscontinuities.size() > remoteKinematicEntityLimit) {
+            pendingDiscontinuities.remove(pendingDiscontinuities.iterator().next());
+        }
+    }
+
     public void reset() {
         if (remoteKinematics != null) remoteKinematics.reset();
+        pendingDiscontinuities.clear();
         remoteKinematics = null;
         remoteKinematicEntityLimit = -1;
         remoteKinematicPlayer = null;
@@ -115,7 +128,9 @@ public final class MinecraftWorldSnapshotFactory {
             Math.min(entityCap, selectedEntities.size() + 1)
         );
         for (int i = 0; i < selectedEntities.size() && entities.size() < realEntityLimit; i++) {
-            entities.add(entitySnapshot(selectedEntities.get(i), player, kinematics, timing));
+            Entity entity = selectedEntities.get(i);
+            boolean discontinuity = kinematics != null && pendingDiscontinuities.remove(entity.getId());
+            entities.add(entitySnapshot(entity, player, kinematics, timing, discontinuity));
         }
         if (overflowed) {
             long omittedRelevant = selection.omittedRelevant() + 1L;
@@ -146,6 +161,7 @@ public final class MinecraftWorldSnapshotFactory {
             || remoteKinematicEntityLimit != entityCap
             || remoteKinematicPlayer != player) {
             remoteKinematics = new RemoteEntityKinematicEnvelope(REMOTE_KINEMATIC_HISTORY_LIMIT, entityCap);
+            pendingDiscontinuities.clear();
             remoteKinematicEntityLimit = entityCap;
             remoteKinematicPlayer = player;
         }
@@ -202,7 +218,8 @@ public final class MinecraftWorldSnapshotFactory {
         Entity entity,
         LocalPlayer player,
         RemoteEntityKinematicEnvelope kinematics,
-        TimingSnapshot timing
+        TimingSnapshot timing,
+        boolean discontinuity
     ) {
         Map<String, String> properties = new LinkedHashMap<>();
         properties.put("no_gravity", Boolean.toString(entity.isNoGravity()));
@@ -359,7 +376,7 @@ public final class MinecraftWorldSnapshotFactory {
 
         Vec3Snapshot position = vec(snapshotPosition);
         Vec3Snapshot velocity = vec(entity.getDeltaMovement());
-        if (kinematics != null && timing != null) {
+        if (kinematics != null && timing != null && isThreatRelevant(entity)) {
             RemoteEntityKinematicEnvelope.Snapshot observation = kinematics.observe(
                 Integer.toString(entity.getId()),
                 entity.getUUID().toString(),
@@ -367,7 +384,7 @@ public final class MinecraftWorldSnapshotFactory {
                 position,
                 velocity,
                 timing,
-                false
+                discontinuity
             );
             TickWindow age = observation.observationAgeTicks();
             properties.put("observation_age_min_ticks", Long.toString(age.earliest()));
