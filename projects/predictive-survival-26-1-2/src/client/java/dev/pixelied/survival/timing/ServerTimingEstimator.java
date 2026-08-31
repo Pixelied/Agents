@@ -10,13 +10,30 @@ public final class ServerTimingEstimator {
     private static final double DEFAULT_RTT_MS = 250d;
     private static final double DEFAULT_JITTER_MS = 100d;
     private static final double SERVER_TICK_MS = 50d;
+    private static final long NO_LOGICAL_TICK = Long.MIN_VALUE;
 
     private final Deque<Double> rttSamplesMs = new ArrayDeque<>();
     private final Deque<Double> tickSamplesMs = new ArrayDeque<>();
+    private long lastRttLogicalTick = NO_LOGICAL_TICK;
 
     public void observeRttMillis(int rttMillis) {
-        if (rttMillis < 0) throw new IllegalArgumentException("rttMillis must be non-negative");
+        validateRttMillis(rttMillis);
         addBounded(rttSamplesMs, (double) rttMillis);
+        lastRttLogicalTick = NO_LOGICAL_TICK;
+    }
+
+    public void observeRttMillis(long logicalTick, int rttMillis) {
+        if (logicalTick < 0) throw new IllegalArgumentException("logicalTick must be non-negative");
+        validateRttMillis(rttMillis);
+
+        if (lastRttLogicalTick == logicalTick && !rttSamplesMs.isEmpty()) {
+            rttSamplesMs.removeLast();
+            rttSamplesMs.addLast((double) rttMillis);
+            return;
+        }
+
+        addBounded(rttSamplesMs, (double) rttMillis);
+        lastRttLogicalTick = logicalTick;
     }
 
     public void observeClientTickNanos(long nanos) {
@@ -27,6 +44,7 @@ public final class ServerTimingEstimator {
     public void reset() {
         rttSamplesMs.clear();
         tickSamplesMs.clear();
+        lastRttLogicalTick = NO_LOGICAL_TICK;
     }
 
     public TimingSnapshot snapshot(long clientTick) {
@@ -48,6 +66,10 @@ public final class ServerTimingEstimator {
             saturatingAdd(clientTick, latestTicks)
         );
         return new TimingSnapshot(clientTick, rtt, jitter, processing);
+    }
+
+    private static void validateRttMillis(int rttMillis) {
+        if (rttMillis < 0) throw new IllegalArgumentException("rttMillis must be non-negative");
     }
 
     private static void addBounded(Deque<Double> samples, double value) {
