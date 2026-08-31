@@ -58,6 +58,29 @@ class ProjectileObservationAgeTest {
     }
 
     @Test
+    void observationAgeExtendsModeledHorizonToPreserveServerNowThreats() {
+        WorldSnapshot.EntitySnapshot windCharge = new WorldSnapshot.EntitySnapshot(
+            "wind_charge:aged-horizon",
+            "minecraft:wind_charge",
+            new Vec3Snapshot(0, 1.0, 0.3),
+            new Vec3Snapshot(1.0, 0, 0),
+            new AabbSnapshot(-0.125, 0.875, 0.175, 0.125, 1.125, 0.425),
+            Map.ofEntries(
+                Map.entry("no_gravity", "true"),
+                Map.entry("observation_age_ticks", "1"),
+                Map.entry("observation_age_min_ticks", "2"),
+                Map.entry("observation_age_max_ticks", "3"),
+                Map.entry("kinematic_history_samples", "1"),
+                Map.entry("kinematic_reset_boundary", "true")
+            )
+        );
+
+        ThreatEvent event = predictor.predict(context(windCharge, List.of(), 81.7)).getFirst();
+
+        assertEquals(new TickWindow(79, 80), event.impact());
+    }
+
+    @Test
     void wallCollisionDuringObservationAgeIsRepresentedAsImmediateSplashRisk() {
         WorldSnapshot.EntitySnapshot potion = new WorldSnapshot.EntitySnapshot(
             "splash:aged-wall",
