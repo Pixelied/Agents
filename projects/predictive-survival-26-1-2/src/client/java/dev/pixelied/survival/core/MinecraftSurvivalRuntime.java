@@ -212,7 +212,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
             damageEvidence
         );
         playerSnapshot = damageReconciliation.player();
-        WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits);
+        WorldSnapshot rawWorld = worldSnapshots.capture(minecraft.level, player, limits, timing);
         WorldSnapshot specialWorld = specialThreatSnapshots.annotate(minecraft.level, player, rawWorld);
         WorldSnapshot world = cloudAttributions.annotate(clientTick, specialWorld);
         MinecraftReactiveThreatSnapshotAnnotator.AnnotatedSnapshot reactive = reactiveThreatSnapshots.annotate(
@@ -642,6 +642,7 @@ public final class MinecraftSurvivalRuntime implements SurvivalEngine.RuntimeAda
         authority = null;
         liveState = null;
         timingEstimator.reset();
+        worldSnapshots.reset();
         cloudAttributions.reset();
         splashStatusMemory.reset();
         protectionExecutor.reset();
