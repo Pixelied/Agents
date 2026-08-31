@@ -43,21 +43,18 @@ public final class RemoteKinematicSnapshotClientGameTest implements FabricClient
 
                 context.computeOnClient(minecraft -> {
                     MinecraftSurvivalRuntime runtime = new MinecraftSurvivalRuntime(minecraft);
-                    WorldSnapshot.EntitySnapshot projectile = runtime.capture().context().world().entities().stream()
-                        .filter(entity -> entity.id().equals(Integer.toString(projectileId)))
-                        .findFirst()
-                        .orElseThrow(() -> new AssertionError("tracked arrow missing from production world snapshot"));
-                    Map<String, String> properties = projectile.properties();
+                    WorldSnapshot.EntitySnapshot first = projectileSnapshot(runtime, projectileId);
+                    Map<String, String> firstProperties = first.properties();
 
-                    if (!"1".equals(properties.get("observation_age_ticks"))) {
+                    if (!"1".equals(firstProperties.get("observation_age_ticks"))) {
                         throw new AssertionError(
                             "Task 9 must not silently change legacy projectile age decision semantics before Task 10"
                         );
                     }
-                    long ageMin = requiredLong(properties, "observation_age_min_ticks");
-                    long ageMax = requiredLong(properties, "observation_age_max_ticks");
-                    int historySamples = requiredInt(properties, "kinematic_history_samples");
-                    boolean resetBoundary = requiredBoolean(properties, "kinematic_reset_boundary");
+                    long ageMin = requiredLong(firstProperties, "observation_age_min_ticks");
+                    long ageMax = requiredLong(firstProperties, "observation_age_max_ticks");
+                    int historySamples = requiredInt(firstProperties, "kinematic_history_samples");
+                    boolean resetBoundary = requiredBoolean(firstProperties, "kinematic_reset_boundary");
 
                     if (ageMin < 0L || ageMax < ageMin) {
                         throw new AssertionError("invalid RTT/jitter observation-age bounds: " + ageMin + ".." + ageMax);
@@ -67,6 +64,23 @@ public final class RemoteKinematicSnapshotClientGameTest implements FabricClient
                     }
                     if (!resetBoundary) {
                         throw new AssertionError("first remote observation must be marked as a reset boundary");
+                    }
+
+                    Map<String, String> repeatedProperties = projectileSnapshot(runtime, projectileId).properties();
+                    if (requiredInt(repeatedProperties, "kinematic_history_samples") != 1) {
+                        throw new AssertionError("same-logical-tick recapture must replace, not append, the kinematic sample");
+                    }
+                    if (requiredBoolean(repeatedProperties, "kinematic_reset_boundary")) {
+                        throw new AssertionError("same-logical-tick recapture must not fabricate a reset boundary");
+                    }
+
+                    runtime.markRemoteEntityDiscontinuity(projectileId);
+                    Map<String, String> resetProperties = projectileSnapshot(runtime, projectileId).properties();
+                    if (requiredInt(resetProperties, "kinematic_history_samples") != 1) {
+                        throw new AssertionError("authoritative discontinuity must reset history to one sample");
+                    }
+                    if (!requiredBoolean(resetProperties, "kinematic_reset_boundary")) {
+                        throw new AssertionError("authoritative discontinuity must be exposed as a reset boundary");
                     }
                     return true;
                 });
@@ -81,6 +95,13 @@ public final class RemoteKinematicSnapshotClientGameTest implements FabricClient
                 context.waitTick();
             }
         }
+    }
+
+    private static WorldSnapshot.EntitySnapshot projectileSnapshot(MinecraftSurvivalRuntime runtime, int projectileId) {
+        return runtime.capture().context().world().entities().stream()
+            .filter(entity -> entity.id().equals(Integer.toString(projectileId)))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("tracked arrow missing from production world snapshot"));
     }
 
     private static long requiredLong(Map<String, String> properties, String key) {
