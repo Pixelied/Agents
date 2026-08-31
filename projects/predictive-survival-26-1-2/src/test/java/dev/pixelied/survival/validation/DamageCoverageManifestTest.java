@@ -115,6 +115,12 @@ class DamageCoverageManifestTest {
                 "invalid currentStatus for " + registryId);
         }
 
+        Set<String> missing = new LinkedHashSet<>(EXPECTED_IDS);
+        missing.removeAll(ids);
+        Set<String> unexpected = new LinkedHashSet<>(ids);
+        unexpected.removeAll(EXPECTED_IDS);
+        assertTrue(missing.isEmpty(), "missing damage-type classifications: " + missing);
+        assertTrue(unexpected.isEmpty(), "unexpected damage-type classifications: " + unexpected);
         assertEquals(50, entries, "26.1.2 must have exactly 50 classified damage types");
         assertEquals(EXPECTED_IDS, ids, "manifest differs from the audited 26.1.2 damage-type registry");
     }
