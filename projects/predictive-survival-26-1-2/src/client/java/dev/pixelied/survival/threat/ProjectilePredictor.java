@@ -247,8 +247,8 @@ public final class ProjectilePredictor implements ThreatPredictor {
             if (radius <= 0d) return Optional.empty();
 
             boolean movingPlayer = hasMotion(context.player().velocity());
-            int observationAge = positiveInt(entity.properties().get("observation_age_ticks"), 0);
-            if (observationAge > 0 && blockBounds != null) {
+            boolean staleObservation = observationAgeWindow(entity).latest() > 0L;
+            if (staleObservation && blockBounds != null) {
                 AabbSnapshot possiblePlayerBounds = movingPlayer
                     ? sweptPlayerBox(context.player(), tick)
                     : context.player().boundingBox();
