@@ -42,6 +42,22 @@ class ServerTimingEstimatorTest {
     }
 
     @Test
+    void legacyRuntimeObservationReplacesAcrossSameTickDirtyReanalysis() {
+        ServerTimingEstimator estimator = new ServerTimingEstimator();
+        estimator.observeRttMillis(100);
+        estimator.snapshot(10L);
+
+        estimator.observeRttMillis(400);
+        estimator.snapshot(10L);
+
+        estimator.observeRttMillis(100);
+        TimingSnapshot snapshot = estimator.snapshot(11L);
+
+        assertEquals(250d, snapshot.rttMs(), 0.0001d);
+        assertEquals(150d, snapshot.jitterMs(), 0.0001d);
+    }
+
+    @Test
     void oldRttOutlierRollsOutOfBoundedSampleWindow() {
         ServerTimingEstimator estimator = new ServerTimingEstimator();
         estimator.observeRttMillis(1000);
