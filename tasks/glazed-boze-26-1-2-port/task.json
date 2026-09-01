@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "glazed-boze-26-1-2-port",
+  "title": "Port Glazed to Boze 26.1.2",
+  "objective": "Port the approved Glazed feature set to Boze 26.1.2 with shared infrastructure, consolidation, bug fixes, and runtime verification while keeping source-derived implementation private.",
+  "created_by": "chatgpt-glazed-inline-8f31",
+  "created_at": "2026-09-01T20:30:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "foundation",
+    "detection-esp",
+    "player-utilities",
+    "donut-automation",
+    "rtp-explorer",
+    "premium-tunnel",
+    "pvp-offhand",
+    "runtime-qa"
+  ],
+  "acceptance_criteria": [
+    "Java 25 build for Minecraft 26.1.2 passes",
+    "runBoze loads without Glazed addon or mixin errors",
+    "Final consolidated module surface matches the approved design",
+    "No Meteor or removed dependency baggage remains",
+    "Lifecycle cancellation, scan bounds, inventory restoration, and runtime smoke gates pass",
+    "No source-derived code or binary is pushed to public GitHub without confirmed publication rights"
+  ]
+}
