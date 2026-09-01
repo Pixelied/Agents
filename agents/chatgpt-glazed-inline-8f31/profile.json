@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-glazed-inline-8f31",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Executes the approved Glazed to Boze 26.1.2 port in a private local worktree while using Pixelied/Agents only for non-source coordination metadata.",
+  "capabilities": [
+    "java-25",
+    "minecraft-26.1.2",
+    "boze-addon-api",
+    "fabric",
+    "testing",
+    "github-coordination"
+  ],
+  "registered_at": "2026-09-01T20:29:00+00:00",
+  "state": "available",
+  "state_reason": "Beginning approved inline execution of the Glazed to Boze 26.1.2 implementation plan."
+}
