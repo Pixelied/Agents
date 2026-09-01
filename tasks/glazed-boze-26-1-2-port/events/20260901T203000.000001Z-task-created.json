@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "glazed-boze-task-created-20260901",
+  "task_id": "glazed-boze-26-1-2-port",
+  "agent_id": "chatgpt-glazed-inline-8f31",
+  "type": "task_created",
+  "message": "Created the approved Glazed to Boze 26.1.2 port coordination task. Source-derived implementation remains in a private local git worktree; this public repo stores coordination metadata only.",
+  "data": {
+    "execution_mode": "inline",
+    "implementation_visibility": "local-private",
+    "first_scope": "foundation"
+  },
+  "created_at": "2026-09-01T20:30:00+00:00"
+}
