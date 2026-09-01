@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "glazed-boze-foundation-source-progress-20260901",
+  "task_id": "glazed-boze-26-1-2-port",
+  "agent_id": "chatgpt-glazed-inline-8f31",
+  "type": "progress",
+  "message": "Implemented the private local Boze foundation source: stable shared config, root command, notifications/webhooks, Donut session queue, inventory restoration, bounded immutable chunk scanner, render/player-watch services, and lifecycle wiring. Local microtests passed for config/money, notifications, Donut sessions, inventory restoration, scanning, player-watch/render math, and lifecycle. Real Gradle/Boze gates remain environment-blocked because the container has Java 21 only and cannot resolve services.gradle.org.",
+  "data": {
+    "local_branch": "project/glazed-boze-26-1-2",
+    "local_head": "f118167e67e47b0967e6ecf357d9084e6a612d37",
+    "implementation_visibility": "local-private",
+    "microtests": "passed",
+    "banned_reference_scan": "clean",
+    "git_diff_check": "clean",
+    "gradle_gate": "blocked: UnknownHostException services.gradle.org",
+    "host_java": "21.0.11",
+    "target_java": "25"
+  },
+  "created_at": "2026-09-01T20:49:00+00:00"
+}
