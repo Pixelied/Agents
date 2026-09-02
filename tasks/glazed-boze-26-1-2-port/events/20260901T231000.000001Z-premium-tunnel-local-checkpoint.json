@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "glazed-boze-premium-tunnel-local-checkpoint-20260901",
+  "task_id": "glazed-boze-26-1-2-port",
+  "agent_id": "chatgpt-glazed-inline-8f31",
+  "type": "progress",
+  "message": "Premium Tunnel slice is implemented on the private local project branch. Controller, danger/movement/mining services, deterministic EventInteract placement, public Premium Tunnel Base Finder module, and TunnelFeaturePack registration are locally committed. Focused local harnesses pass; official Gradle/Java-25/runBoze verification remains blocked because this sandbox cannot resolve services.gradle.org. No source-derived implementation was pushed to this public repository.",
+  "data": {
+    "local_commits": ["5987320", "b7b027a", "0001d26", "800cfdc", "fd601be"],
+    "focused_regressions": "19/19 premium behavior tests plus feature-pack recording harness",
+    "blocked_gate": "Gradle wrapper download: java.net.UnknownHostException services.gradle.org",
+    "source_published": false
+  },
+  "created_at": "2026-09-01T23:10:00+00:00"
+}
