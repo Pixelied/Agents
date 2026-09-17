@@ -1,0 +1,68 @@
+name: Insect open science review sources
+on:
+  push:
+    branches: [feat/insect-full-plan-20260917-7d6a]
+    paths: [.github/workflows/insect-open-science-7d6a.yml]
+permissions:
+  contents: read
+jobs:
+  retrieve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify OA record first, then retrieve licensed JATS text only
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib,time,xml.etree.ElementTree as ET
+          from urllib.request import Request,urlopen
+          ids=['PMC7137955','PMC3400603','PMC4641605','PMC7392607','PMC7676868','PMC6805160','PMC4736936','PMC6030638','PMC11289642','PMC11037541']
+          root=pathlib.Path('open-science-evidence');root.mkdir()
+          def fetch(url,limit=6000000):
+              with urlopen(Request(url,headers={'User-Agent':'insect-realism-research/0.2'}),timeout=45) as r:
+                  data=r.read(limit+1)
+                  if len(data)>limit: raise ValueError('Source exceeds bounded retrieval size')
+                  return data
+          for pmcid in ids:
+              folder=root/pmcid;folder.mkdir()
+              try:
+                  oa=fetch('https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id='+pmcid,100000)
+                  record=ET.fromstring(oa).find('.//record')
+                  if record is None: raise ValueError('Not present in OA redistribution subset')
+                  licence=record.attrib.get('license','')
+                  if not licence.startswith(('CC BY','CC0')): raise ValueError('Unsupported or unverified license: '+licence)
+                  (folder/'oa_permissions.xml').write_bytes(oa)
+                  xml=fetch('https://www.ebi.ac.uk/europepmc/webservices/rest/'+pmcid+'/fullTextXML')
+                  tree=ET.fromstring(xml)
+                  permissions=tree.find('.//article-meta/permissions')
+                  permission_text=' '.join(permissions.itertext()) if permissions is not None else ''
+                  if not ('creativecommons.org' in xml.decode('utf-8') or 'Creative Commons' in permission_text):
+                      raise ValueError('Full-text permissions did not corroborate OA record')
+                  (folder/'article.xml').write_bytes(xml)
+                  def text(node):return ' '.join(' '.join(node.itertext()).split())
+                  blocks=[]
+                  abstract=tree.find('.//article-meta/abstract')
+                  if abstract is not None: blocks.append({'label':'Abstract','text':text(abstract)})
+                  body=tree.find('body')
+                  if body is None:raise ValueError('Primary article body unavailable')
+                  for i,node in enumerate(list(body)):
+                      label=text(node.find('title')) if node.find('title') is not None else node.tag+'-'+str(i)
+                      blocks.append({'label':label,'text':text(node)})
+                  article_ids={x.attrib.get('pub-id-type'):text(x) for x in tree.findall('.//article-meta/article-id')}
+                  title=text(tree.find('.//article-title'))
+                  (folder/'review_blocks.json').write_text(json.dumps(blocks,indent=2,ensure_ascii=False)+'\n')
+                  (folder/'metadata.json').write_text(json.dumps(dict(pmcid=pmcid,title=title,article_ids=article_ids,license=licence,permissions=permission_text,xml_sha256=hashlib.sha256(xml).hexdigest(),retrieved_on='2026-09-17',review_status='retrieved-not-reviewed',body_word_count=sum(len(b['text'].split()) for b in blocks)),indent=2,ensure_ascii=False)+'\n')
+                  print('RETRIEVED_NOT_REVIEWED',pmcid,article_ids.get('doi'),licence,len(xml),sum(len(b['text'].split()) for b in blocks))
+              except Exception as exc:
+                  (folder/'ACCESS_FAILURE.txt').write_text(type(exc).__name__+': '+str(exc)+'\n')
+                  print('ACCESS_FAILURE',pmcid,type(exc).__name__,str(exc))
+              time.sleep(.4)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-open-science-evidence-7d6a
+          path: open-science-evidence/
+          retention-days: 7
+          if-no-files-found: error
