@@ -6,7 +6,7 @@
 
 **Architecture:** A Rust workspace contains a platform-independent biology/simulation core, physical display model, `wgpu` procedural 2.5D renderer, small `egui` settings surface, and thin native macOS/Windows adapters. Build-time tooling compiles the approved Mega Pack evidence into versioned runtime creature profiles; runtime works offline and never needs screen capture or semantic knowledge of the UI underneath it.
 
-**Tech Stack:** Rust stable, Cargo workspace, `wgpu`, WGSL, `winit`, `egui`/`egui-wgpu`, `serde`, `postcard`, `glam`, `rand_chacha`, `bytemuck`, `tracing`, `proptest`, `criterion`, native `windows` Win32 bindings, `objc2`/AppKit bindings, GitHub Actions, platform-native packaging tools.
+**Tech Stack:** Rust stable, Cargo workspace, `wgpu`, WGSL, `winit`, `egui`/`egui-wgpu`, `serde`, `serde_json`, `toml`, `postcard`, `glam`, `rand_chacha`, `bytemuck`, `tracing`, `clap`, `sha2`, `tempfile`, `proptest`, `criterion`, `image`, native `windows` Win32 bindings, `objc2`/AppKit bindings, GitHub Actions, platform-native packaging tools.
 
 **Spec:** `docs/superpowers/specs/2026-09-17-insect-realism-desktop-app-design.md`
 
@@ -50,7 +50,7 @@ Notes:
 - <measured facts, blockers, platform limitations>
 ```
 
-`$APP_ROOT` is not a placeholder. Task 1 resolves it from repository truth and records the exact relative path at the top of `APP_EXECUTION.md`; every later `$APP_ROOT/...` path means that resolved project root.
+`$APP_ROOT` is an execution-bound variable, not an unresolved placeholder. Task 1 resolves it from repository truth and records the exact relative path at the top of `APP_EXECUTION.md`; every later `$APP_ROOT/...` path means that resolved project root. Angle-bracket tokens such as `<unique>` in Task 1 are likewise instructions to substitute concrete values during that task and record them immediately; they must not survive into generated source/configuration files.
 
 ---
 
@@ -68,7 +68,8 @@ $APP_ROOT/app/
 │   ├── display-model/               # mm/pixel calibration + monitor topology
 │   │   └── src/{lib.rs,units.rs,display.rs,calibration.rs,topology.rs}
 │   ├── simulation/                  # deterministic SoA simulation + ant behavior
-│   │   └── src/{lib.rs,clock.rs,state.rs,spatial.rs,trails.rs,behavior.rs,locomotion.rs,spawn.rs,snapshot.rs}
+│   │   ├── src/{lib.rs,clock.rs,state.rs,spatial.rs,trails.rs,behavior.rs,locomotion.rs,spawn.rs,snapshot.rs}
+│   │   └── benches/spatial.rs
 │   ├── rendering/                   # wgpu device, instances, WGSL, validation scenes
 │   │   ├── src/{lib.rs,instance.rs,renderer.rs,lod.rs,validation.rs}
 │   │   └── shaders/{ant.wgsl,composite.wgsl}
@@ -81,16 +82,14 @@ $APP_ROOT/app/
 │   ├── settings/                    # versioned config, presets, egui settings UI
 │   │   └── src/{lib.rs,config.rs,migrate.rs,preset.rs,ui.rs,calibration_ui.rs}
 │   └── desktop-app/                 # process lifecycle + subsystem orchestration
-│       └── src/{main.rs,app.rs,lifecycle.rs,compatibility.rs,diagnostics.rs}
+│       ├── src/{main.rs,app.rs,lifecycle.rs,compatibility.rs,diagnostics.rs}
+│       └── benches/{simulation.rs,stress.rs}
 ├── tools/
 │   └── profile-compiler/
 │       └── src/main.rs
 ├── assets/
 │   ├── creature-profiles/
 │   └── presets/
-├── benchmarks/
-│   ├── simulation.rs
-│   └── stress.rs
 ├── tests/
 │   ├── input-safety/README.md
 │   └── soak/README.md
@@ -322,9 +321,9 @@ impl RuntimeProfileBundle {
 
 Validation rejects non-finite values, reversed/negative physical ranges, duplicate creature ids, missing evidence for required biological fields, unsupported schema versions, and empty ant profile sets.
 
-- [ ] **Step 4: Add the workspace dependency policy.**
+- [ ] **Step 4: Add the workspace dependency/version policy.**
 
-Pin one compatible version of each shared dependency at the workspace level and inherit it from member crates. The first execution pass must run `cargo update` only intentionally and commit `Cargo.lock`. Required dependency families: `serde`, `thiserror`, `glam`, `rand_chacha`, `rand_core`, `bytemuck`, `wgpu`, `winit`, `egui`, `egui-wgpu`, `tracing`, `tracing-subscriber`, `postcard`, `directories`, `proptest`, `criterion`, `image`, `pollster`, `raw-window-handle`; platform crates add `windows` or `objc2` families under target-specific sections.
+Set workspace package version to `0.1.0` and runtime profile schema constant to `1`. Pin one compatible version of each shared dependency at the workspace level and inherit it from member crates. The first execution pass may resolve current compatible crate versions, but after that commit `Cargo.lock` and change dependencies only intentionally. Required dependency families: `serde`, `serde_json`, `toml`, `thiserror`, `glam`, `rand_chacha`, `rand_core`, `bytemuck`, `wgpu`, `winit`, `egui`, `egui-wgpu`, `tracing`, `tracing-subscriber`, `postcard`, `directories`, `proptest`, `criterion`, `image`, `pollster`, `raw-window-handle`, `clap`, `sha2`, `tempfile`; platform crates add `windows` or `objc2` families under target-specific sections.
 
 - [ ] **Step 5: Run workspace checks.**
 
@@ -353,11 +352,17 @@ git commit -m "build: establish insect app Rust workspace"
 - Modify: `$APP_ROOT/app/crates/creature-profile/src/validate.rs`
 - Create: `$APP_ROOT/app/assets/creature-profiles/README.md`
 - Create/generated: `$APP_ROOT/app/assets/creature-profiles/runtime-profiles.bin`
+- Create/generated: `$APP_ROOT/app/assets/creature-profiles/runtime-profiles.report.json`
 - Test: `$APP_ROOT/app/tools/profile-compiler/tests/compiler.rs`
 
 **Interfaces:**
 - Consumes: approved implementation-ready outputs from the resolved Mega Pack lineage.
-- Produces: deterministic `RuntimeProfileBundle` serialized with `postcard`; CLI `profile-compiler --input <mega-pack-root> --output <file> --report <json>`.
+- Produces: deterministic `RuntimeProfileBundle` serialized with `postcard` and two exact CLI forms:
+
+```text
+profile-compiler compile --input <mega-pack-root> --output <file> --report <json>
+profile-compiler verify --bundle <file>
+```
 
 - [ ] **Step 1: Inspect the actual final Mega Pack derived outputs and map fields explicitly.**
 
@@ -387,25 +392,26 @@ cargo test -p profile-compiler --test compiler -- --nocapture
 
 - [ ] **Step 4: Implement the compiler as parse -> normalize units -> validate -> serialize.**
 
-The CLI must emit a machine-readable JSON report containing:
+The `compile` subcommand emits a machine-readable JSON report containing:
 
 ```json
 {
   "schema_version": 1,
-  "profile_version": "<derived from research release>",
+  "profile_version": "research-release-id",
   "creatures": ["ant"],
   "source_files": [],
   "evidence_ids": [],
-  "sha256": "..."
+  "sha256": "hex-digest"
 }
 ```
 
-Use the profile schema's validators after conversion. Never clamp an invalid biological measurement silently.
+Use the profile schema's validators after conversion. Never clamp an invalid biological measurement silently. `verify` decodes the bundle, validates it, recomputes its digest, and exits nonzero on any schema/profile error.
 
-- [ ] **Step 5: Compile the real resolved Mega Pack and immediately decode/validate the output.**
+- [ ] **Step 5: Compile and verify the real resolved Mega Pack.**
 
 ```bash
-cargo run -p profile-compiler --release -- --input "<resolved-mega-pack-root>" --output assets/creature-profiles/runtime-profiles.bin --report assets/creature-profiles/runtime-profiles.report.json
+cargo run -p profile-compiler --release -- compile --input "<resolved-mega-pack-root>" --output assets/creature-profiles/runtime-profiles.bin --report assets/creature-profiles/runtime-profiles.report.json
+cargo run -p profile-compiler --release -- verify --bundle assets/creature-profiles/runtime-profiles.bin
 cargo test -p creature-profile -p profile-compiler
 ```
 
@@ -620,6 +626,7 @@ git commit -m "feat: add deterministic fixed-step creature simulation"
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/simulation/src/{spatial.rs,trails.rs}`
+- Create: `$APP_ROOT/app/crates/simulation/benches/spatial.rs`
 - Modify: `$APP_ROOT/app/crates/simulation/src/state.rs`
 - Test: unit + property tests
 
@@ -657,13 +664,18 @@ Bucket sizes should be derived from interaction radii, not screen pixels. Avoid 
 
 The field operates in physical millimeters with a coarse cell size documented in code and profile/config. Large-population deposits may be batched and decay may update row/tiles incrementally as long as deterministic ordering remains defined.
 
-- [ ] **Step 5: Verify complexity and commit.**
+- [ ] **Step 5: Add and run the Criterion spatial benchmark.**
 
-Add a benchmark showing neighbor-query work scales near O(n + local-neighbors), not O(n^2), between 500 and 2,000 agents.
+The benchmark compares 500, 1,000, and 2,000 agents and records neighbor-query scaling. It must not perform a hidden brute-force path in the production measurement.
+
+```bash
+cargo bench -p simulation --bench spatial
+```
+
+- [ ] **Step 6: Verify and commit.**
 
 ```bash
 cargo test -p simulation spatial trails
-cargo bench -p simulation --bench spatial --no-run || true
 git add "$APP_ROOT/app/crates/simulation" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "feat: add spatial queries and trail field"
 ```
@@ -693,6 +705,8 @@ pub struct AntPoseState {
     pub pose_blend: f32,
 }
 ```
+
+`Groom` transitions remain disabled unless the selected profile contains supporting evidence/parameters.
 
 - [ ] **Step 1: Add tests proving movement comes from profile distributions, not fake waypoint/noise logic.**
 
@@ -791,13 +805,17 @@ impl Renderer {
 }
 ```
 
-Use one instanced draw path per LOD/material batch rather than per creature.
+`SurfaceSource` is defined by Task 12 as a pair of raw display/window handles whose native overlay owner outlives the `wgpu::Surface`. `create_surface` may use `wgpu::SurfaceTargetUnsafe::RawHandle`; the unsafe block must document that lifetime invariant. Use one instanced draw path per LOD/material batch rather than per creature.
 
 - [ ] **Step 4: Implement dynamic instance-buffer growth outside the hot loop.**
 
 Allocate enough for at least 1,024 creatures initially, grow geometrically when needed, and reuse the buffer. Record upload bytes and active instance count in `RenderStats`.
 
-- [ ] **Step 5: Verify headless/offscreen initialization where supported and commit.**
+- [ ] **Step 5: Configure each surface for the monitor rather than imposing a 60 Hz simulation clock.**
+
+Choose a supported vsync/present mode that follows the compositor/display refresh; render interpolation is evaluated on every rendered frame so 120/144/165/240 Hz monitors remain smooth while biological ticks stay independent.
+
+- [ ] **Step 6: Verify headless/offscreen initialization where supported and commit.**
 
 ```bash
 cargo test -p rendering
@@ -873,7 +891,7 @@ Include: stationary 2 mm, walking 3 mm, turning 4 mm, 100, 500, 1,000 creatures,
 
 - [ ] **Step 2: Add a deterministic offscreen scene-render command.**
 
-The desktop app binary or a small rendering example must support:
+Use `clap` only for developer/CI command-line modes; normal startup with no args remains silent utility launch. The binary must support:
 
 ```bash
 cargo run -p desktop-app --release -- --render-validation all --output target/validation
@@ -914,6 +932,12 @@ pub enum OverlaySafetyState { Created, Transparent, NonActivating, ClickThrough,
 pub enum PlatformEvent { DisplaysChanged, Suspend, Resume, ForegroundAppChanged(Option<AppIdentity>), QuitRequested }
 pub struct AppIdentity { pub stable_id: String, pub display_name: String }
 
+#[derive(Clone, Copy, Debug)]
+pub struct SurfaceSource {
+    pub raw_display_handle: raw_window_handle::RawDisplayHandle,
+    pub raw_window_handle: raw_window_handle::RawWindowHandle,
+}
+
 pub trait OverlayWindow {
     fn display_id(&self) -> DisplayId;
     fn safety_state(&self) -> OverlaySafetyState;
@@ -932,6 +956,8 @@ pub trait PlatformAdapter {
     fn poll_events(&mut self) -> Result<Vec<PlatformEvent>, PlatformError>;
 }
 ```
+
+The native object implementing `OverlayWindow` owns the underlying window and must outlive every `wgpu::Surface` created from its `SurfaceSource`.
 
 - [ ] **Step 1: Test that unsafe overlays cannot be shown.**
 
@@ -1084,9 +1110,11 @@ Prove: Hide All immediately hides overlays and freezes simulation but is nonpers
 
 Main loop sequence: poll platform events -> apply lifecycle/config commands -> update display topology if dirty -> fixed-step simulation -> build per-display render instances -> render visible safe overlays -> draw settings window only when open -> collect diagnostics.
 
+On Windows, `desktop-app/src/main.rs` must use `#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]` so a normal launch does not open a console. macOS packaging uses `LSUIElement` so the utility lives in the menu bar rather than as a normal Dock app.
+
 - [ ] **Step 3: Implement compact egui settings.**
 
-Primary surface contains only Enable, Preset, Population, displays, Launch at Login, Cursor Reaction, Continuous/Independent monitors, Safe Overlay Mode, Panic Hotkey, Secondary Creatures, Advanced. Advanced holds scale, seed, trail/population tuning, developer diagnostics, and research-backed range indicators.
+Primary surface contains only Enable, Preset, Population, displays, Launch at Login, Cursor Reaction, Continuous/Independent monitors, Safe Overlay Mode, Panic Hotkey, Secondary Creatures, Advanced. Advanced holds scale, seed, trail/population tuning, developer diagnostics, and research-backed range indicators. Secondary-creature controls are generated dynamically from qualified packaged `CreatureProfile` entries; do not compile fixed species names into the UI.
 
 - [ ] **Step 4: Implement the 85.60 mm credit-card calibration UI.**
 
@@ -1206,23 +1234,36 @@ git commit -m "feat: gate and integrate evidence-qualified secondary creatures"
 ### Task 18: Add instrumentation, deterministic benchmarks, and optimize the 1,000+ creature target
 
 **Files:**
-- Create: `$APP_ROOT/app/benchmarks/{simulation.rs,stress.rs}`
-- Modify: `$APP_ROOT/app/crates/desktop-app/src/diagnostics.rs`
+- Create: `$APP_ROOT/app/crates/desktop-app/benches/{simulation.rs,stress.rs}`
+- Modify: `$APP_ROOT/app/crates/desktop-app/src/{main.rs,diagnostics.rs}`
 - Modify hot paths discovered by profiling
 - Create/update: `$APP_ROOT/docs/PERFORMANCE.md`
 
 **Interfaces:**
-- Produces reproducible benchmark commands and `BenchmarkReport` JSON containing median/p95/p99/worst metrics.
+- Produces reproducible Criterion benches plus developer CLI benchmark mode and `BenchmarkReport` JSON containing median/p95/p99/worst metrics.
 
 - [ ] **Step 1: Create four deterministic benchmark scenarios.**
 
 Realistic = 50 ants; Heavy = 500; Required Stress = 1,000 with normal interactions/trails/render prep; Extreme = 2,000-5,000 stability. Use fixed seeds and the compiled runtime profile version.
 
-- [ ] **Step 2: Record the full metric set.**
+- [ ] **Step 2: Implement benchmark CLI modes before measuring.**
+
+Using the developer-only `clap` path established in Task 11, support:
+
+```text
+desktop-app --benchmark-scenario realistic --json <file>
+desktop-app --benchmark-scenario heavy --json <file>
+desktop-app --benchmark-scenario stress1000 --json <file>
+desktop-app --benchmark-scenario extreme --json <file>
+```
+
+Normal no-argument app launch remains unaffected.
+
+- [ ] **Step 3: Record the full metric set.**
 
 Simulation, behavior, spatial, trails, render prep, GPU frame time when measurable, upload bytes, overlay overhead, total frame time, allocations, resident memory, LOD counts, dropped ticks. Compute median, p95, p99, worst.
 
-- [ ] **Step 3: Establish pre-optimization release baselines.**
+- [ ] **Step 4: Establish pre-optimization release baselines.**
 
 ```bash
 cargo bench --workspace
@@ -1234,23 +1275,23 @@ cargo run -p desktop-app --release -- --benchmark-scenario extreme --json target
 
 Inspect the JSON. Do not claim performance from architecture alone.
 
-- [ ] **Step 4: Profile the actual largest contributors before optimizing.**
+- [ ] **Step 5: Profile the actual largest contributors before optimizing.**
 
 Use platform-appropriate profiler/instruments available in the environment. Optimize measured bottlenecks only: allocations, cache layout, spatial bucket churn, trail update schedule, render instance upload, shader overdraw, unnecessary hidden-surface work, or decision cadence.
 
-- [ ] **Step 5: Enforce hard hot-path invariants.**
+- [ ] **Step 6: Enforce hard hot-path invariants.**
 
 Required: no all-pairs neighbor pass; no one-draw-call-per-creature; zero steady-state simulation allocations; no spawn/despawn hitch from vector growth after warm capacity; hidden overlays submit zero render work; paused state approaches idle.
 
-- [ ] **Step 6: Re-run until the required 1,000-creature 60 FPS target passes on available ordinary modern reference hardware or a genuine hardware limitation is documented.**
+- [ ] **Step 7: Re-run until the required 1,000-creature 60 FPS target passes on available ordinary modern reference hardware or a genuine hardware limitation is documented.**
 
 60 FPS means frame budget <=16.67 ms with no recurring p99 spikes that make the result visibly stutter. If the available environment lacks representative GPU access, finish CPU/simulation optimization and record the GPU benchmark as an external hardware validation blocker rather than inventing a pass.
 
-- [ ] **Step 7: Soak the extreme scenario.**
+- [ ] **Step 8: Soak the extreme scenario.**
 
 Run a long release-mode session (target at least 2 hours when environment permits) with hide/show, spawn/exit, preset changes, config saves, renderer recreation, and topology events. Record start/end memory and handle/resource counts. No unbounded growth or increasing frame-time trend.
 
-- [ ] **Step 8: Write measured results to `PERFORMANCE.md` and commit.**
+- [ ] **Step 9: Write measured results to `PERFORMANCE.md` and commit.**
 
 ```bash
 git add "$APP_ROOT/app" "$APP_ROOT/docs/PERFORMANCE.md" "$APP_ROOT/APP_EXECUTION.md"
@@ -1291,7 +1332,7 @@ Project CI must run at minimum:
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-profile compiler validation
+profile compiler compile + verify
 macOS release build
 Windows release build
 ```
@@ -1300,7 +1341,7 @@ Add separate/manual or nightly jobs for renderer validation and benchmarks where
 
 - [ ] **Step 5: Add release workflow.**
 
-Tag release must: clean checkout -> compile profiles -> full tests -> release builds -> packaging -> signing/notarization when credentials exist -> SHA-256 checksums -> upload artifacts. App version, profile bundle version, and profile schema version must be printed separately.
+Tag release must: clean checkout -> compile profiles -> verify profiles -> full tests -> release builds -> packaging -> signing/notarization when credentials exist -> SHA-256 checksums -> upload artifacts. App version, profile bundle version, and profile schema version must be printed separately.
 
 - [ ] **Step 6: Locally exercise packaging as far as the current host permits and inspect produced contents.**
 
@@ -1340,7 +1381,8 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --release
 cargo check --workspace --all-targets
-cargo run -p profile-compiler --release -- --input "<resolved-mega-pack-root>" --output target/final-profiles.bin --report target/final-profiles.json
+cargo run -p profile-compiler --release -- compile --input "<resolved-mega-pack-root>" --output target/final-profiles.bin --report target/final-profiles.json
+cargo run -p profile-compiler --release -- verify --bundle target/final-profiles.bin
 cargo run -p desktop-app --release -- --render-validation all --output target/final-validation
 cargo run -p desktop-app --release -- --benchmark-scenario stress1000 --json target/final-bench-1000.json
 ```
@@ -1399,6 +1441,24 @@ Use `agentctl.py event` to record exact verification commands/results, `task-sta
 Report: branch + final SHA; what is implemented; automated test counts/results; measured 1,000-creature performance and reference hardware; macOS/Windows manual validation status; artifact paths; secondary-creature gate result; known OS limitations; signing/notarization status; any genuine remaining blocker. Do not use "complete" for an unverified target.
 
 ---
+
+# Self-review coverage record
+
+Before handing this plan to the user, the author checked it against the approved spec:
+
+- Spec Sections 1-4 (purpose, locked decisions, repo rule, architecture): Tasks 1-3 plus Global Constraints.
+- Section 5 (ant behavior): Tasks 6-8.
+- Section 6 (rendering): Tasks 9-11.
+- Section 7 (overlay/platform behavior): Tasks 12-16.
+- Section 8 (settings/UX): Tasks 4, 5, 15, 16.
+- Sections 9-10 (performance/testing): Tasks 6-11, 16, 18, 20.
+- Sections 11-12 (packaging/CI/versioning): Tasks 2, 3, 19.
+- Section 13 (documentation): Tasks 17-20.
+- Section 14 (one-shot execution): One-shot Astra invocation contract + Tasks 1-20 continuous execution rule.
+- Section 15 (definition of done): Task 20 + Definition of Done below.
+- Section 16 (non-goals): Global Constraints + Non-goals reminder below.
+
+Type/interface consistency was checked after defining `SurfaceSource`, benchmark locations, compiler subcommands, settings/profile dependencies, and developer CLI modes. No task intentionally references an undefined neighboring interface.
 
 # Definition of Done
 
