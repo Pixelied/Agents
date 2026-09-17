@@ -8,43 +8,37 @@ permissions:
 jobs:
   resolve:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 5
     steps:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Verify original CC BY 4.0 data archive; inspect without executing code
+      - name: Inspect ZIP central directory through bounded public range reads
         run: |
           python - <<'PY'
-          import hashlib,json,pathlib,zipfile
-          from urllib.request import urlopen
-          with urlopen('https://api.figshare.com/v2/articles/9786260',timeout=30) as r:
-              meta=json.load(r)
-          assert meta['license']['url']=='https://creativecommons.org/licenses/by/4.0/'
-          item=meta['files'][0]
-          assert item['id']==22588088 and item['size']==1227522364
-          dest=pathlib.Path('DataAndCode.zip')
-          md5=hashlib.md5(); sha=hashlib.sha256(); size=0
-          with urlopen(item['download_url'],timeout=90) as r,dest.open('wb') as f:
-              while chunk:=r.read(1024*1024):
-                  size+=len(chunk)
-                  if size>item['size']: raise ValueError('Download exceeds declared length')
-                  md5.update(chunk);sha.update(chunk);f.write(chunk)
-          assert size==item['size'] and md5.hexdigest()==item['computed_md5']
-          print('ARCHIVE_VERIFIED',size,sha.hexdigest(),meta['doi'],meta['license'])
-          with zipfile.ZipFile(dest) as z:
-              for info in z.infolist():
-                  name=info.filename
-                  if ('/raw/' in name or 'readme' in name.lower()) and not info.is_dir():
-                      print('RAW_MEMBER',name,info.file_size)
-                      if name.lower().endswith(('.csv','.txt','.md')) and info.file_size<100000:
-                          text=z.read(info).decode('utf-8-sig')
-                          print('TEXT_DATA',name,json.dumps(text[:12000]))
-                      elif name.lower().endswith('.rda') and 'temnothorax' in name.lower():
-                          payload=z.read(info)
-                          print('RDA_PROVENANCE',name,hashlib.sha256(payload).hexdigest(),hashlib.sha1(b'blob '+str(len(payload)).encode()+b'\0'+payload).hexdigest())
-              scripts=[x for x in z.namelist() if x.lower().endswith('preprocess.r')]
-              for name in scripts:
-                  text=z.read(name).decode('utf-8-sig')
-                  print('CALIBRATION_SCRIPT_PREFIX',name,json.dumps(text[:16000]))
+          import io,json,pathlib,struct,zipfile
+          from urllib.request import Request,urlopen
+          url='https://ndownloader.figshare.com/files/22588088'
+          size=1227522364
+          def read_range(start,end):
+              with urlopen(Request(url,headers={'Range':f'bytes={start}-{end}','Accept-Encoding':'identity'}),timeout=60) as r:
+                  if r.status!=206: raise ValueError('Server did not honor bounded Range request')
+                  data=r.read(end-start+2)
+                  if len(data)!=end-start+1: raise ValueError('Incorrect range length')
+                  if r.headers.get('Content-Range')!=f'bytes {start}-{end}/{size}': raise ValueError('Incorrect Content-Range')
+                  return data
+          tail=read_range(size-65557,size-1)
+          at=tail.rfind(b'PK\x05\x06')
+          if at<0: raise ValueError('ZIP end record missing')
+          fields=struct.unpack('<4s4H2LH',tail[at:at+22])
+          cd_size,cd_offset=fields[5:7]
+          assert cd_size<5000000 and cd_offset+cd_size<=size
+          directory=read_range(cd_offset,cd_offset+cd_size-1)
+          path=pathlib.Path('archive-directory.sparse')
+          with path.open('wb') as f:
+              f.truncate(size);f.seek(size-len(tail));f.write(tail);f.seek(cd_offset);f.write(directory)
+          with zipfile.ZipFile(path) as z:
+              print('MEMBER_COUNT',len(z.infolist()))
+              for info in z.infolist()[:150]:
+                  print('MEMBER',json.dumps({'name':info.filename,'bytes':info.file_size,'compressed':info.compress_size,'offset':info.header_offset,'method':info.compress_type}))
           PY
