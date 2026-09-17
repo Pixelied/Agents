@@ -4,10 +4,12 @@
   "task_id": "build-insect-realism-mega-pack",
   "scope": "projects/insect-realism-overlay",
   "owner": "chatgpt-insect-exec-9f04",
-  "state": "active",
+  "state": "released",
   "intent": "Continue the uploaded research plan from canonical commit 7c4c0825 on fresh branch feat/insect-mega-pack-execution-20260917; preserve all existing branch heads.",
   "claimed_at": "2026-09-17T13:28:00+00:00",
   "heartbeat_at": "2026-09-17T13:28:00+00:00",
   "expires_at": "2026-09-17T15:28:00+00:00",
-  "generation": 2
+  "generation": 2,
+  "released_at": "2026-09-17T13:53:00+00:00",
+  "release_reason": "Partial checkpoint committed as 64d7dd3a538341ba6af85cfc9490827c0b03d47a. Remaining evidence review and real dataset retrieval are documented; no final-pack completion claimed."
 }
