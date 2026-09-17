@@ -1,0 +1,44 @@
+name: Insect public source metadata
+on:
+  push:
+    branches: [feat/insect-full-plan-20260917-7d6a]
+    paths: [.github/workflows/insect-source-access-7d6a.yml]
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Resolve public dataset metadata without deserializing payloads
+        run: |
+          python - <<'PY'
+          import json
+          from urllib.request import Request, urlopen
+          from urllib.parse import quote, urljoin
+          urls = [
+            'https://datadryad.org/api/v2/datasets/' + quote('doi:10.6075/J0RR1WM2', safe=''),
+            'https://datadryad.org/api/v2/datasets/' + quote('doi:10.6075/J0RR1WM2', safe=':')
+          ]
+          for url in urls:
+              try:
+                  with urlopen(Request(url, headers={'Accept':'application/json', 'User-Agent':'insect-research/0.2'}), timeout=30) as r:
+                      data = json.load(r)
+                  print('DATASET_METADATA', json.dumps(data, sort_keys=True))
+                  links = data.get('_links', {})
+                  href = links.get('stash:version', {}).get('href') or links.get('stash:versions', {}).get('href')
+                  if href:
+                      with urlopen(urljoin('https://datadryad.org', href), timeout=30) as r:
+                          version = json.load(r)
+                      print('VERSION_METADATA', json.dumps(version, sort_keys=True))
+                      href = version.get('_links', {}).get('stash:files', {}).get('href')
+                      if href:
+                          with urlopen(urljoin('https://datadryad.org', href), timeout=30) as r:
+                              print('FILE_METADATA', json.dumps(json.load(r), sort_keys=True))
+                  break
+              except Exception as exc:
+                  print('ACCESS_RESULT', url, type(exc).__name__, str(exc))
+          PY
