@@ -13,12 +13,12 @@
 
 | Task | Status | Evidence |
 | --- | --- | --- |
-| 1. Workspace | Implemented and locally tested | 13 exact directories, idempotence, path and symlink guards, initializer CLI |
-| 2. Schemas | Implemented and locally tested | Required metadata, dates/enums, finite measurements, safe provenance, exact CSV fields |
-| 3. Catalog | Implemented and locally tested | Atomic writes, lock contention, DOI/URL aliases, stable ordering, intake CLI |
-| 4. License policy | Implemented and locally tested | Four exact decisions, manifest consistency and canonical booleans |
-| 5. Downloads/manifests | Implemented and locally tested | Streaming hashes; strict deterministic JSON; real local HTTP interruption/Range/hash tests |
-| 6. Primary evidence collection | Not started at foundation checkpoint | 0 cataloged sources; 0 reviewed page-equivalents |
+| 1. Workspace | Implemented; local and CI tests pass | 13 exact directories, idempotence, path and symlink guards, initializer CLI |
+| 2. Schemas | Implemented; local and CI tests pass | Required metadata, dates/enums, finite measurements, safe provenance, exact CSV fields |
+| 3. Catalog | Implemented; local and CI tests pass | Atomic writes, lock contention, DOI/URL aliases, stable ordering, intake CLI |
+| 4. License policy | Implemented; local and CI tests pass | Four exact decisions, manifest consistency and canonical booleans |
+| 5. Downloads/manifests | Implemented; local and CI tests pass | Streaming hashes; strict deterministic JSON; real local HTTP interruption/Range/hash tests |
+| 6. Primary evidence collection | Started; provisional text/metadata review | 5 cataloged sources, matching notes and licence rows; 0 accepted reviewed page-equivalents |
 | 7-13. Derived data and specialist research | Not started | No invented measurements or placeholder completion claims |
 | 14. Whole-corpus audit | Not implemented at foundation checkpoint | Final acceptance is not available |
 | 15. Evidence-based runtime specifications | Not started | Requires reviewed evidence and successful audit |
@@ -28,7 +28,7 @@
 
 Each task's tests were written and executed before its implementation. The initial runs failed because the planned modules did not yet exist. After implementation, cumulative full-suite results were: task 1: 14 passed; task 2: 55 passed; task 3: 70 passed; task 4: 89 passed; task 5: 137 passed.
 
-Local verification: Python 3.13.5, NumPy 2.3.5, pandas 2.2.3, pytest 9.0.2, warnings treated as errors. **The preinstalled local pytest version is outside the plan's pytest >=8,<9 contract.** The dependency declaration has not been weakened; the project CI requests Python 3.12 and installs the declared test extra. CI results must be checked separately before claiming that environment passes.
+Local verification: Python 3.13.5, NumPy 2.3.5, pandas 2.2.3, pytest 9.0.2, warnings treated as errors. **The preinstalled local pytest version is outside the plan's pytest >=8,<9 contract.** The dependency declaration has not been weakened. Actual GitHub CI at commit `21bba13210f8a31ea3f4f2ce3d3b52308cbd5166` verified Python 3.12.14, pytest 8.4.2, NumPy 2.5.3 and pandas 2.3.3: 137 project tests passed, 35 shared tests passed, and workspace validation reported no errors. Run `35230696595`, job `105233720924`. See `VERIFICATION.md`.
 
 The download tests use a real loopback HTTP server, not external internet. They cover 200/206 responses, interruption, restart when Range is ignored, changed ETag and bad Content-Range rejection, incomplete bodies, cache validation, corrupt-data rejection, symlink paths, locks, and unchanged destination on errors. They do not prove that every external host supports resumption.
 
@@ -42,3 +42,11 @@ The download tests use a real loopback HTTP server, not external internet. They 
 6. Tests deliberately allow signed acceleration; generic rejection of every negative physical value would incorrectly reject deceleration.
 
 These strengthen the approved goal without asserting that infrastructure satisfies the research gate.
+
+## First source collection checkpoint
+
+Five sources are indexed: Argentine-ant uneven-terrain gait; its calibrated dataset metadata; carpenter-ant antenna behavior; the anTraX tracking paper; and an arolium-mechanics abstract. Scope and retrieval limitations are explicit in `SOURCE_REVIEW_STATUS.csv`. This is not a claim that all five studies were fully reviewed.
+
+No original scientific PDFs, media, repository snapshots or dataset payloads are bundled. An attempted public PDF retrieval failed; it is not counted as a PDF review. The HTML/abstract reviews retain short, original observations, not copied articles. The permissive article classification for anTraX does not apply to its separate GPLv3 software.
+
+No page credit has yet been accepted. This stricter initial accounting prevents partial indexed text, duplicated abstracts, or page counts from unopened PDFs from filling the 2,000-page gate. The complete-source/figure/data review and review-unit record remain required before credit is assigned. Task 6 and every downstream acceptance gate are open.

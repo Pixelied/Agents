@@ -1,0 +1,12 @@
+{
+  "download_entries": [],
+  "expected_size_bytes": null,
+  "landing_page": "https://datadryad.org/dataset/doi:10.6075/J0RR1WM2",
+  "next_action": "Resolve exact file endpoints and item-level permissions; obtain independent integrity metadata before controlled conversion.",
+  "note": "No landing page is misrepresented as a raw-file URL. This record does not satisfy the normalized-dataset acceptance gate.",
+  "retrieved_on": "2026-09-17",
+  "sha256": null,
+  "source_id": "dataset-clifton-2020-ant-tracks",
+  "stable_identifier": "10.6075/J0RR1WM2",
+  "status": "metadata-reviewed-payload-not-retrieved"
+}
