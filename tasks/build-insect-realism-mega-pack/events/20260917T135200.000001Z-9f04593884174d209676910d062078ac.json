@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "9f04593884174d209676910d062078ac",
+  "task_id": "build-insect-realism-mega-pack",
+  "agent_id": "chatgpt-insect-exec-9f04",
+  "type": "progress",
+  "message": "Saved a partial plan-execution checkpoint on a new branch. Task 8 trajectory tooling and an early review-depth safeguard are implemented; 68 local pipeline tests passed and all 15 changed remote blobs match tested local bytes. No existing implementation branch was overwritten. The overall research task is NOT complete.",
+  "data": {
+    "project_branch": "feat/insect-mega-pack-execution-20260917",
+    "base_commit": "7c4c0825f069ceea75d8a0764e9598983f3e60a1",
+    "project_commit": "64d7dd3a538341ba6af85cfc9490827c0b03d47a",
+    "checkpoint_path": "projects/insect-realism-overlay/EXECUTION_CHECKPOINT.md",
+    "changed_files": 15,
+    "remote_blobs_verified": 15,
+    "local_tests_passing": 68,
+    "full_remote_suite_verified": false,
+    "environment": "Python 3.13.5; NumPy 2.3.5; pandas 2.2.3; pytest 9.0.2. Requested Python 3.12/pytest 8 compatibility remains unverified.",
+    "research_depth_status": "Inherited whole-book counts are unverified. A 1990 source note incorrectly labels 1994-2018 works as citations from that book. Original evidence is retained; a new review ledger starts empty rather than inventing reviewed pages.",
+    "dataset_status": "Primary metadata reviewed; actual dataset downloads failed in this environment. No synthetic tracks promoted into biological evidence.",
+    "remaining": ["Revalidate Task 6 reviewed depth and inherited evidence", "Normalize a licensed calibrated real trajectory dataset", "Complete Tasks 9-13", "Complete full Task 14 corpus auditor", "Complete Tasks 15-16 evidence-based specs and certified final ZIP"],
+    "next_action": "Read EXECUTION_CHECKPOINT.md at the saved commit; establish actual page/section review records, retrieve a licensed measured dataset with its calibration, run the new analysis CLI, and continue through the remaining review gates.",
+    "final_pack_ready": false
+  },
+  "created_at": "2026-09-17T13:52:00+00:00"
+}
