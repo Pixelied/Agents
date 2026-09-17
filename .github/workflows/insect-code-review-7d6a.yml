@@ -1,0 +1,63 @@
+name: Insect pinned code review inputs
+on:
+  push:
+    branches: [feat/insect-full-plan-20260917-7d6a]
+    paths: [.github/workflows/insect-code-review-7d6a.yml]
+permissions:
+  contents: read
+jobs:
+  retrieve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Retrieve selected source and license files without executing them
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib,time
+          from urllib.request import Request,urlopen
+          from urllib.parse import quote
+          repos={
+            'johnBuffer/AntSimulator':('57255f5bf0eb361a92d582b4cdf4fa8b96343d61','LICENSE',['CMakeLists.txt','include/simulation/ant/ant.hpp','include/simulation/ant/worker.hpp','include/simulation/ant/ant_updater.hpp','include/simulation/colony/colony.hpp','include/simulation/world/world_grid.hpp','include/simulation/simulation.hpp','include/render/colony_renderer.hpp','include/render/async_va_renderer.hpp','include/common/dynamic_blur.hpp']),
+            'StrandedKitty/ants-simulation':('d7715f7da7b04c0d6dbf2238ca5175e50efad442','LICENSE',['package.json','src/Renderer.ts','src/scenes/AntsComputeScene.ts','src/shaders/antsCompute.frag','src/shaders/antsDiscretize.vert','src/shaders/world.frag','src/shaders/worldBlur.frag','src/shaders/ants.vert']),
+            'itamadev/ant-colony-simulation':('c3a6d9e5dffd5d5bb0aa93078095d431fb43808b','LICENSE',['Assets/Scripts/AntLogic.cs','Assets/Scripts/FoodCraver.cs','Assets/Scripts/FoodExplorerAnt.cs','Assets/Scripts/SpawnAnts.cs']),
+            'Entendore/AntSim':('ff2122d101bdd8edee9fa1bba857f31e89f4823c','LICENSE.md',['app.py']),
+            'SebLague/Ant-Simulation':('e638aa267e0b58eb0092b9c15a2732c501baa2b0','LICENSE',['Assets/Scripts/Ant.cs','Assets/Scripts/AntColony.cs','Assets/Scripts/AntSettings.cs','Assets/Scripts/PerceptionMap.cs']),
+            'Social-Evolution-and-Behavior/anTraX':('9467e3328ecc64f963f3ad9199f9823c2810805c','LICENSE',['antrax/classifier.py','antrax/data.py','matlab/@trgraph/solve.m','matlab/@trgraph/export_xy.m','matlab/tracking/detect_blobs.m','matlab/tracking/link_blobs.m','matlab/tracking/track_single_movie.m']),
+            '7ang0n1n3/desktop-pet':('71be8e410909103521fc8e0c5024618de0d2b725','LICENSE',['Cargo.toml','src/main.rs']),
+            'jordansbc/pixelpaws':('626ef333a3d87a1c8cd7782f5ba956f48ab47ae7','LICENSE',['src/DesktopPet/Native/Win32.cs','src/DesktopPet/UI/PetWindow.xaml.cs','src/DesktopPet/UI/PetWindow.xaml','src/DesktopPet/Engine/SurfaceProvider.cs','src/DesktopPet/Engine/PetEngine.cs','src/DesktopPet/Engine/SpriteAnimator.cs','src/DesktopPet/app.manifest']),
+            'raman0c17/pet-therapy':('2f500f587ab5fd3485ad5f38f178d854f70181a9','LICENSE',['Packages/OnScreen/Sources/OnScreen/Views/EntityWindow.swift','Packages/OnScreen/Sources/OnScreen/Obstacles/WorldWindows.swift','Packages/OnScreen/Sources/OnScreen/Obstacles/WindowObstacles.swift','DesktopPets/Sources/App/MainWindow.swift']),
+            'tauri-apps/tao':('27fe28c73ace307eb0b1d1abf457508410f1340e','LICENSE',['src/platform_impl/macos/window.rs','src/platform_impl/macos/monitor.rs','src/platform_impl/windows/window.rs','src/platform_impl/windows/dpi.rs','src/platform_impl/windows/monitor.rs','src/platform_impl/linux/window.rs','src/platform_impl/linux/monitor.rs'])
+          }
+          root=pathlib.Path('code-review-inputs');root.mkdir()
+          failures=[]
+          for repo,(commit,license_path,paths) in repos.items():
+              folder=root/repo.replace('/','__');folder.mkdir();manifest=[]
+              for path in [license_path,*paths]:
+                  url='https://raw.githubusercontent.com/'+repo+'/'+commit+'/'+quote(path)
+                  try:
+                      with urlopen(Request(url,headers={'User-Agent':'insect-research/0.2'}),timeout=30) as r:
+                          payload=r.read(2000001)
+                      if len(payload)>2000000: raise ValueError('Source file exceeds bounded review limit')
+                      text=payload.decode('utf-8')
+                      if path==license_path and not any(x in text for x in ['MIT License','GNU GENERAL PUBLIC LICENSE','Apache License','CC0']):
+                          raise ValueError('License text did not match reviewed open licence families')
+                      dest=folder/path;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(payload)
+                      manifest.append(dict(path=path,url=url,sha256=hashlib.sha256(payload).hexdigest(),bytes=len(payload),lines=len(text.splitlines()),review_status='retrieved-not-reviewed'))
+                  except Exception as exc:
+                      failures.append([repo,path,type(exc).__name__,str(exc)])
+                      print('ACCESS_FAILURE',repo,path,type(exc).__name__,str(exc))
+                      if path==license_path: break
+                  time.sleep(.1)
+              (folder/'RETRIEVAL_MANIFEST.json').write_text(json.dumps(dict(repository=repo,commit=commit,license_path=license_path,files=manifest),indent=2,sort_keys=True)+'\n')
+              print('SOURCE_INPUTS',repo,len(manifest))
+          (root/'ACCESS_FAILURES.json').write_text(json.dumps(failures,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-pinned-code-inputs-7d6a
+          path: code-review-inputs/
+          retention-days: 7
+          if-no-files-found: error
