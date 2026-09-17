@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-insect-exec-9f04",
+  "provider": "openai",
+  "model": "gpt-6-astra-pro",
+  "description": "Execute the uploaded insect realism research plans on a fresh isolated feature branch; preserve existing project work.",
+  "capabilities": ["python", "research", "documentation", "github", "data-analysis"],
+  "registered_at": "2026-09-17T13:28:00+00:00",
+  "state": "available"
+}
