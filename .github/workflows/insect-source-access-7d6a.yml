@@ -13,28 +13,20 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Read public repository and archive metadata only
+      - name: Read primary dataset metadata and calibration text
         run: |
           python - <<'PY'
           import json
-          from urllib.request import Request, urlopen
-          urls=[
-            'https://zenodo.org/api/records/7688262',
-            'https://api.github.com/repos/nobuaki-mzmt/diacamma-tandem/commits/main',
-            'https://api.github.com/repos/nobuaki-mzmt/diacamma-tandem/contents/data/trajectory/raw',
-            'https://api.github.com/repos/invernie/Hidden-Markov-models-of-Temnothorax-nest-building/contents'
-          ]
-          for url in urls:
+          from urllib.request import Request,urlopen
+          for url in ['https://api.figshare.com/v2/articles/9786260','https://api.github.com/repos/nobuaki-mzmt/diacamma-tandem/contents/data/trajectory/raw/body-length.txt']:
               try:
-                  with urlopen(Request(url,headers={'Accept':'application/json','User-Agent':'insect-research/0.2'}),timeout=30) as r:
+                  with urlopen(Request(url,headers={'User-Agent':'insect-research/0.2'}),timeout=30) as r:
                       data=json.load(r)
-                  if 'zenodo' in url:
-                      data={k:data.get(k) for k in ['id','doi','metadata','files','links']}
-                  elif '/commits/' in url:
-                      data={'sha':data['sha'],'date':data['commit']['committer']['date']}
-                  elif isinstance(data,list):
-                      data=[{k:x.get(k) for k in ['name','path','sha','size','download_url','type']} for x in data]
-                  print('PUBLIC_METADATA',url,json.dumps(data,sort_keys=True))
+                  if 'figshare' in url:
+                      data={k:data.get(k) for k in ['id','title','doi','version','license','files','description','references','published_date']}
+                  else:
+                      data={k:data.get(k) for k in ['path','size','sha','encoding','content']}
+                  print('METADATA',json.dumps(data,sort_keys=True))
               except Exception as exc:
                   print('ACCESS_FAILURE',url,type(exc).__name__,str(exc))
           PY
