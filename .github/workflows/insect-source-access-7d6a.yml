@@ -8,37 +8,68 @@ permissions:
 jobs:
   resolve:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Inspect ZIP central directory through bounded public range reads
+      - name: Install isolated research-format converter
+        run: python -m pip install 'pyreadr==0.5.6' 'pandas>=2.2,<3'
+      - name: Retrieve explicit archive members and convert data without running R code
         run: |
           python - <<'PY'
-          import io,json,pathlib,struct,zipfile
+          import hashlib,json,pathlib,struct,zipfile
+          import pyreadr
           from urllib.request import Request,urlopen
-          url='https://ndownloader.figshare.com/files/22588088'
-          size=1227522364
+          url='https://ndownloader.figshare.com/files/22588088'; size=1227522364
+          with urlopen('https://api.figshare.com/v2/articles/9786260',timeout=30) as r: meta=json.load(r)
+          assert meta['license']['url']=='https://creativecommons.org/licenses/by/4.0/'
+          assert meta['files'][0]['size']==size
           def read_range(start,end):
+              assert 0<=start<=end<size and end-start<10000000
               with urlopen(Request(url,headers={'Range':f'bytes={start}-{end}','Accept-Encoding':'identity'}),timeout=60) as r:
-                  if r.status!=206: raise ValueError('Server did not honor bounded Range request')
+                  if r.status!=206: raise ValueError('Server ignored bounded Range request')
                   data=r.read(end-start+2)
-                  if len(data)!=end-start+1: raise ValueError('Incorrect range length')
-                  if r.headers.get('Content-Range')!=f'bytes {start}-{end}/{size}': raise ValueError('Incorrect Content-Range')
+                  if len(data)!=end-start+1 or r.headers.get('Content-Range')!=f'bytes {start}-{end}/{size}':
+                      raise ValueError('Incorrect range response')
                   return data
-          tail=read_range(size-65557,size-1)
-          at=tail.rfind(b'PK\x05\x06')
-          if at<0: raise ValueError('ZIP end record missing')
-          fields=struct.unpack('<4s4H2LH',tail[at:at+22])
-          cd_size,cd_offset=fields[5:7]
+          tail=read_range(size-65557,size-1); at=tail.rfind(b'PK\x05\x06')
+          assert at>=0
+          fields=struct.unpack('<4s4H2LH',tail[at:at+22]); cd_size,cd_offset=fields[5:7]
           assert cd_size<5000000 and cd_offset+cd_size<=size
           directory=read_range(cd_offset,cd_offset+cd_size-1)
           path=pathlib.Path('archive-directory.sparse')
           with path.open('wb') as f:
-              f.truncate(size);f.seek(size-len(tail));f.write(tail);f.seek(cd_offset);f.write(directory)
+              f.truncate(size); f.seek(size-len(tail));f.write(tail);f.seek(cd_offset);f.write(directory)
+          selected=['figshare/data/temnothorax.RData','figshare/data/body-length.txt','figshare/scripts/preprocessdata.R']
+          out=pathlib.Path('trajectory-evidence');out.mkdir()
+          manifest=[]
           with zipfile.ZipFile(path) as z:
-              print('MEMBER_COUNT',len(z.infolist()))
-              for info in z.infolist()[:150]:
-                  print('MEMBER',json.dumps({'name':info.filename,'bytes':info.file_size,'compressed':info.compress_size,'offset':info.header_offset,'method':info.compress_type}))
+              for name in selected:
+                  info=z.getinfo(name);off=info.header_offset
+                  assert info.file_size<10000000 and info.compress_size<10000000
+                  header=read_range(off,off+29); assert header[:4]==b'PK\x03\x04'
+                  fn_len,extra_len=struct.unpack('<HH',header[26:30])
+                  block=read_range(off+30,off+30+fn_len+extra_len+info.compress_size-1)
+                  with path.open('r+b') as f: f.seek(off);f.write(header);f.write(block)
+                  payload=z.read(info)
+                  assert len(payload)==info.file_size
+                  dest=out/pathlib.PurePosixPath(name).name;dest.write_bytes(payload)
+                  row={'member':name,'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest(),'git_blob_sha1':hashlib.sha1(b'blob '+str(len(payload)).encode()+b'\0'+payload).hexdigest(),'crc32':info.CRC}
+                  manifest.append(row);print('EXTRACTED',json.dumps(row))
+          (out/'source_metadata.json').write_text(json.dumps(meta,indent=2,sort_keys=True)+'\n')
+          (out/'extraction_manifest.json').write_text(json.dumps({'archive_url':url,'archive_size':size,'archive_sha256_previously_verified':'f76d029dbd4cd2ed12d89ee62b755071340f722e6f804ae173f3cc0ca944e5f4','full_archive_verification_run':35236114243,'members':manifest},indent=2,sort_keys=True)+'\n')
+          objects=pyreadr.read_r(str(out/'temnothorax.RData'))
+          print('OBJECTS',list(objects))
+          for key,df in objects.items():
+              assert hasattr(df,'columns') and key=='df'
+              print('TABLE',key,df.shape,list(df.columns));print(df.head(6).to_string(index=False))
+              df.to_csv(out/'temnothorax-source-coordinates.csv',index=False,float_format='%.17g',lineterminator='\n')
+          (out/'README.md').write_text('Original source: Valentini et al., Data and code from: Revealing the structure of information flows discriminates similar animal social behaviors. DOI 10.6084/m9.figshare.9786260.v1. CC BY 4.0: https://creativecommons.org/licenses/by/4.0/. Original selected bytes retained unchanged. CSV is a format conversion with pyreadr 0.5.6; no R source was executed. The converter is an isolated research tool, not bundled application code. Coordinates are not yet asserted normalized or calibrated; review source methods before analysis.\n')
           PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-trajectory-evidence-7d6a
+          path: trajectory-evidence/
+          retention-days: 7
+          if-no-files-found: error
