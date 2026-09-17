@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-insect-desktop-20260917-d41e",
+  "scope": ".github/workflows/insect-desktop.yml",
+  "owner": "astra-insect-desktop-d41e",
+  "state": "active",
+  "intent": "Project-specific builds, offline toolchain bootstrap and packaging only on the new project lineage.",
+  "claimed_at": "2026-09-17T22:07:00+00:00",
+  "heartbeat_at": "2026-09-17T22:07:00+00:00",
+  "expires_at": "2026-09-18T02:07:00+00:00",
+  "generation": 1
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "astra-insect-desktop-d41e",
+  "provider": "openai",
+  "model": "gpt-6-astra-pro",
+  "description": "Implement the user-supplied desktop app plan from the authoritative uploaded Mega Pack; preserve all existing research work.",
+  "capabilities": ["rust", "graphics", "testing", "macos", "windows"],
+  "registered_at": "2026-09-17T22:07:00+00:00",
+  "state": "available"
+}

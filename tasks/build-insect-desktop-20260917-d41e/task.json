@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "build-insect-desktop-20260917-d41e",
+  "title": "Implement evidence-backed insect desktop application",
+  "objective": "Execute the approved 20-task desktop app plan using the user-uploaded Mega Pack, with honest release verification and no edits to existing research lineages.",
+  "created_by": "astra-insect-desktop-d41e",
+  "created_at": "2026-09-17T22:07:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": ["projects/insect-realism-desktop-app", ".github/workflows/insect-desktop.yml"],
+  "acceptance_criteria": ["Deterministic provenance-preserving profile compilation", "Tested physical-mm simulation and procedural renderer", "Fail-closed native overlays and settings", "Release tests, benchmarks and platform packaging inspected", "Unavailable hardware checks and incomplete requirements reported explicitly"]
+}

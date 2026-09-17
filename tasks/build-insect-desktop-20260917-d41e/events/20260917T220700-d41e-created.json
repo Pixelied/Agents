@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "20260917T220700-d41e-created",
+  "task_id": "build-insect-desktop-20260917-d41e",
+  "agent_id": "astra-insect-desktop-d41e",
+  "type": "task_created",
+  "message": "Read supplied spec/plan and Pack. All 144 listed Pack checksums pass. No local checkout or Rust toolchain; GitHub connector works. Create an independent desktop project from clean main, preserving existing research. Uploaded Pack is the dependency, so no planning/research branch switch is needed.",
+  "data": {"base_sha": "605168c6644ebd46c38fbd3ddfd1a6ff7267b32a", "implementation_branch": "feat/insect-desktop-20260917-d41e", "project_branch": "project/insect-realism-desktop-app"},
+  "created_at": "2026-09-17T22:07:00+00:00"
+}
