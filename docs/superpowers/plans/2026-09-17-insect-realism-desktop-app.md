@@ -54,39 +54,42 @@ Notes:
 
 ---
 
-# File and crate map
+# Final file and crate map
 
-The executor must create the following application subtree under the resolved project root unless the selected project already contains an equivalent, compatible file that should be extended rather than duplicated:
+The executor grows the workspace task-by-task into this final structure. Do not pre-create empty placeholder crates; each task creates a crate when it has a real tested responsibility.
 
 ```text
 $APP_ROOT/app/
-├── Cargo.toml                       # workspace and shared dependency versions
-├── rust-toolchain.toml              # pinned stable toolchain channel/components
+├── Cargo.toml
+├── Cargo.lock
+├── rust-toolchain.toml
 ├── crates/
-│   ├── creature-profile/            # runtime profile schema + provenance
+│   ├── creature-profile/
 │   │   └── src/{lib.rs,schema.rs,validate.rs}
-│   ├── display-model/               # mm/pixel calibration + monitor topology
+│   ├── display-model/
 │   │   └── src/{lib.rs,units.rs,display.rs,calibration.rs,topology.rs}
-│   ├── simulation/                  # deterministic SoA simulation + ant behavior
+│   ├── settings/
+│   │   └── src/{lib.rs,config.rs,migrate.rs,preset.rs,ui.rs,calibration_ui.rs}
+│   ├── simulation/
 │   │   ├── src/{lib.rs,clock.rs,state.rs,spatial.rs,trails.rs,behavior.rs,locomotion.rs,spawn.rs,snapshot.rs}
 │   │   └── benches/spatial.rs
-│   ├── rendering/                   # wgpu device, instances, WGSL, validation scenes
+│   ├── rendering/
 │   │   ├── src/{lib.rs,instance.rs,renderer.rs,lod.rs,validation.rs}
-│   │   └── shaders/{ant.wgsl,composite.wgsl}
-│   ├── platform-api/                # cross-platform overlay/lifecycle contracts
+│   │   ├── shaders/{ant.wgsl,composite.wgsl}
+│   │   └── examples/validation.rs
+│   ├── platform-api/
 │   │   └── src/{lib.rs,overlay.rs,event.rs,app_identity.rs}
-│   ├── platform-macos/              # AppKit/CoreGraphics native behavior
+│   ├── platform-macos/
 │   │   └── src/{lib.rs,overlay.rs,status_item.rs,hotkey.rs,login.rs,display.rs}
-│   ├── platform-windows/            # Win32/DWM native behavior
+│   ├── platform-windows/
 │   │   └── src/{lib.rs,overlay.rs,tray.rs,hotkey.rs,startup.rs,display.rs}
-│   ├── settings/                    # versioned config, presets, egui settings UI
-│   │   └── src/{lib.rs,config.rs,migrate.rs,preset.rs,ui.rs,calibration_ui.rs}
-│   └── desktop-app/                 # process lifecycle + subsystem orchestration
+│   └── desktop-app/
 │       ├── src/{main.rs,app.rs,lifecycle.rs,compatibility.rs,diagnostics.rs}
 │       └── benches/{simulation.rs,stress.rs}
 ├── tools/
 │   └── profile-compiler/
-│       └── src/main.rs
+│       ├── src/main.rs
+│       └── tests/compiler.rs
 ├── assets/
 │   ├── creature-profiles/
 │   └── presets/
@@ -98,7 +101,7 @@ $APP_ROOT/app/
     └── windows/{wix/Product.wxs,build-msi.ps1}
 ```
 
-Project docs live at:
+Project docs:
 
 ```text
 $APP_ROOT/README.md
@@ -108,7 +111,24 @@ $APP_ROOT/docs/BIOLOGY_PROFILE_FORMAT.md
 $APP_ROOT/docs/PERFORMANCE.md
 $APP_ROOT/docs/RELEASE.md
 $APP_ROOT/docs/TESTING.md
+$APP_ROOT/docs/SECONDARY_CREATURE_GATE.md
 ```
+
+Dependency direction is one-way:
+
+```text
+creature-profile   display-model   settings
+       \              |             /
+        \             |            /
+             simulation
+                 |
+             rendering <---- platform-api
+                 ^              ^
+                 |              |
+             desktop-app ---- platform-{macos,windows}
+```
+
+`simulation` never imports `rendering` or a platform crate. `platform-api` never imports `rendering`. `rendering` may consume raw surface handles defined by `platform-api` after Task 12. `desktop-app` is the composition root.
 
 ---
 
@@ -124,11 +144,9 @@ $APP_ROOT/docs/TESTING.md
 
 **Interfaces:**
 - Consumes: repository coordination protocol plus the approved spec/plan.
-- Produces: exact `APP_ROOT`, exact implementation branch, an exclusive non-conflicting app scope, and durable execution checklist used by every later task.
+- Produces: exact `APP_ROOT`, exact implementation branch, exclusive non-conflicting app/docs scopes, and durable execution checklist used by every later task.
 
 - [ ] **Step 1: Refresh coordination state and inspect all insect-related work before editing.**
-
-Run from a synchronized checkout:
 
 ```bash
 git fetch --all --prune
@@ -138,25 +156,24 @@ python agentctl.py agent-list
 python agentctl.py task-list
 ```
 
-Then inspect `AGENTS.md`, `.agent-workspace.json`, the project-branch protocol, current insect tasks, active leases, events, handoffs, and candidate project branches. Do not infer newest/canonical from branch names.
+Read the workspace contract, current insect tasks, active leases, events, handoffs, and candidate project branches. Do not infer newest/canonical from branch names.
 
 - [ ] **Step 2: Resolve the implementation base using explicit evidence.**
 
-Create a short comparison note in your working notes containing, for every candidate Mega Pack lineage: branch/ref, project root, head SHA, task intent, active/released lease state, verification evidence, and whether its derived profiles/final pack are complete. Select the newest validated lineage by content + ancestry + intent + verification. If research is still actively changing the same project root under an unexpired lease, do not write into that root.
+For each candidate Mega Pack lineage record branch/ref, project root, head SHA, task intent, lease state, verification evidence, and whether the final derived profiles/pack are actually complete. Select the newest validated lineage by content + ancestry + intent + verification. If an unexpired lease still covers the same project root, do not begin implementation there.
 
-- [ ] **Step 3: Register/claim the smallest safe app scope and create the implementation branch.**
+- [ ] **Step 3: Register/claim the smallest safe app scopes and create the implementation branch.**
 
-Use the repository CLI rather than manually inventing coordination records. Example shape, substituting the exact resolved project id and unique agent id:
+Substitute concrete values for every angle-bracket token below:
 
 ```bash
 python agentctl.py register --id astra-insect-app-<unique> --provider openai --model astra --capability rust --capability macos --capability windows --capability graphics
 python agentctl.py task-create --id build-insect-realism-desktop-app-<unique> --title "Build insect realism desktop app" --created-by astra-insect-app-<unique> --objective "Implement the approved desktop app spec end-to-end" --scope "<resolved-project>/app" --scope "<resolved-project>/docs" --accept "Approved spec definition-of-done passes" --priority high
 python agentctl.py claim --task build-insect-realism-desktop-app-<unique> --scope "<resolved-project>/app" --agent astra-insect-app-<unique> --ttl 240 --intent "Implement the one-shot desktop app plan"
+python agentctl.py claim --task build-insect-realism-desktop-app-<unique> --scope "<resolved-project>/docs" --agent astra-insect-app-<unique> --ttl 240 --intent "Document and verify the desktop app"
 ```
 
-If project docs are outside the app scope, claim that declared docs scope separately. Claims must reach `main` before implementation begins.
-
-Create a feature branch from the resolved project base, for example:
+Claims must reach `main` before implementation starts.
 
 ```bash
 git switch <resolved-project-base>
@@ -164,15 +181,12 @@ git pull --ff-only
 git switch -c feat/insect-realism-desktop-app-<unique>
 ```
 
-Never reuse a branch that already contains unrelated work.
+If that feature branch already exists with unrelated/incomplete work, choose a fresh unique branch rather than overwriting it.
 
-- [ ] **Step 4: Create the execution log before application code.**
-
-`APP_EXECUTION.md` must begin with:
+- [ ] **Step 4: Create `APP_EXECUTION.md`.**
 
 ```markdown
 # Desktop App Execution Log
-
 Resolved project root: `projects/<exact-id>`
 Base branch: `<exact-ref>`
 Base SHA: `<exact-sha>`
@@ -183,88 +197,92 @@ Agent/task: `<exact ids>`
 ## Global status
 - [ ] Workspace foundation
 - [ ] Profile compiler
+- [ ] Settings/presets
 - [ ] Display/calibration model
 - [ ] Simulation + spatial + trails
 - [ ] Ant behavior/locomotion
-- [ ] Renderer + validation
-- [ ] macOS platform adapter
-- [ ] Windows platform adapter
-- [ ] Settings/app shell
-- [ ] Multi-monitor/compatibility/lifecycle
+- [ ] Renderer + visual validation
+- [ ] Platform contract
+- [ ] macOS adapter
+- [ ] Windows adapter
+- [ ] App shell/settings UI
+- [ ] Multi-monitor/compatibility/recovery
 - [ ] Secondary creature gate
-- [ ] Performance targets
+- [ ] Performance/soak
 - [ ] Packaging/CI
-- [ ] Full release verification
+- [ ] Final release verification
 ```
 
-- [ ] **Step 5: Commit only the execution-log/bootstrap decision.**
+- [ ] **Step 5: Commit the bootstrap decision and continue automatically.**
 
 ```bash
 git add "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "chore: start insect desktop app execution"
 ```
 
-Do not proceed if the scope is leased by another worker or the base cannot be established honestly.
-
 ---
 
-### Task 2: Create the Rust workspace and lock cross-crate domain contracts
+### Task 2: Create the Rust workspace and shared domain foundations
 
 **Files:**
 - Create: `$APP_ROOT/app/Cargo.toml`
 - Create: `$APP_ROOT/app/rust-toolchain.toml`
+- Create: `$APP_ROOT/app/crates/creature-profile/Cargo.toml`
 - Create: `$APP_ROOT/app/crates/creature-profile/src/{lib.rs,schema.rs,validate.rs}`
+- Create: `$APP_ROOT/app/crates/display-model/Cargo.toml`
 - Create: `$APP_ROOT/app/crates/display-model/src/{lib.rs,units.rs}`
-- Create: minimal `Cargo.toml` files for every crate in the file map
-- Test: inline unit tests in `creature-profile` and `display-model`
 
 **Interfaces:**
-- Produces: `Millimeters`, `Vec2Mm`, `CreatureId`, `DisplayId`, `CreatureKind`, `CreatureProfile`, `RuntimeProfileBundle`, and `ProfileError`. Later tasks must reuse these exact public names.
+- Produces `Millimeters`, `Vec2Mm`, `CreatureId`, `DisplayId`, `CreatureKind`, `CreatureProfile`, `RuntimeProfileBundle`, `RangeF32`, `EvidenceRef`, `ProfileError`.
 
-- [ ] **Step 1: Write failing unit tests for physical units and profile validation.**
-
-In `display-model/src/units.rs`:
+- [ ] **Step 1: Write failing unit tests for units and invalid biology.**
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[test]
+fn millimeters_reject_negative_and_non_finite_values() {
+    assert!(Millimeters::new(-1.0).is_err());
+    assert!(Millimeters::new(f32::NAN).is_err());
+    assert_eq!(Millimeters::new(3.0).unwrap().get(), 3.0);
+}
 
-    #[test]
-    fn millimeters_are_not_logical_pixels() {
-        let mm = Millimeters::new(3.0).unwrap();
-        assert_eq!(mm.get(), 3.0);
-        assert!(Millimeters::new(-1.0).is_err());
-    }
-
-    #[test]
-    fn vec2_mm_rejects_non_finite_components() {
-        assert!(Vec2Mm::new(f32::NAN, 1.0).is_err());
-    }
+#[test]
+fn vec2_mm_rejects_non_finite_components() {
+    assert!(Vec2Mm::new(f32::NAN, 1.0).is_err());
 }
 ```
 
-In `creature-profile/src/validate.rs` add a test constructing a profile with a negative body length and assert validation returns `ProfileError::InvalidRange`.
+Add a creature-profile test constructing a negative body-length range and requiring `ProfileError::InvalidRange`.
 
-- [ ] **Step 2: Run the focused tests and verify they fail.**
+- [ ] **Step 2: Create the workspace root with glob members so later real crates join automatically.**
+
+Use:
+
+```toml
+[workspace]
+resolver = "2"
+members = ["crates/*", "tools/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+```
+
+Add workspace dependencies for `serde`, `serde_json`, `toml`, `thiserror`, `glam`, `rand_chacha`, `rand_core`, `bytemuck`, `wgpu`, `winit`, `egui`, `egui-wgpu`, `tracing`, `tracing-subscriber`, `postcard`, `directories`, `proptest`, `criterion`, `image`, `pollster`, `raw-window-handle`, `clap`, `sha2`, and `tempfile`. Pin compatible versions, commit `Cargo.lock`, and change them intentionally thereafter.
+
+- [ ] **Step 3: Run tests to confirm failure, then implement domain types.**
 
 ```bash
 cd "$APP_ROOT/app"
-cargo test -p display-model units -- --nocapture
-cargo test -p creature-profile validate -- --nocapture
+cargo test -p display-model
+cargo test -p creature-profile
 ```
 
-Expected: compile/test failure because the types are not implemented.
-
-- [ ] **Step 3: Implement the shared domain types.**
-
-Use the following public contract:
+Required contracts:
 
 ```rust
-// display-model/src/units.rs
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Millimeters(f32);
-
 impl Millimeters {
     pub fn new(value: f32) -> Result<Self, UnitError>;
     pub const fn get(self) -> f32;
@@ -279,19 +297,12 @@ pub struct DisplayId(pub u64);
 ```
 
 ```rust
-// creature-profile/src/schema.rs
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct CreatureId(pub u64);
-
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct CreatureKind(pub String);
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct EvidenceRef {
-    pub source_id: String,
-    pub field: String,
-}
-
+pub struct EvidenceRef { pub source_id: String, pub field: String }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct RangeF32 { pub min: f32, pub max: f32 }
 
@@ -313,101 +324,74 @@ pub struct RuntimeProfileBundle {
     pub profile_version: String,
     pub creatures: Vec<CreatureProfile>,
 }
-
-impl RuntimeProfileBundle {
-    pub fn validate(&self) -> Result<(), ProfileError>;
-}
+impl RuntimeProfileBundle { pub fn validate(&self) -> Result<(), ProfileError>; }
 ```
 
-Validation rejects non-finite values, reversed/negative physical ranges, duplicate creature ids, missing evidence for required biological fields, unsupported schema versions, and empty ant profile sets.
+Schema version starts at `1`. Validation rejects non-finite/reversed/negative ranges, duplicate creature ids, unsupported schema versions, missing evidence for required biology, and bundles without an ant profile.
 
-- [ ] **Step 4: Add the workspace dependency/version policy.**
-
-Set workspace package version to `0.1.0` and runtime profile schema constant to `1`. Pin one compatible version of each shared dependency at the workspace level and inherit it from member crates. The first execution pass may resolve current compatible crate versions, but after that commit `Cargo.lock` and change dependencies only intentionally. Required dependency families: `serde`, `serde_json`, `toml`, `thiserror`, `glam`, `rand_chacha`, `rand_core`, `bytemuck`, `wgpu`, `winit`, `egui`, `egui-wgpu`, `tracing`, `tracing-subscriber`, `postcard`, `directories`, `proptest`, `criterion`, `image`, `pollster`, `raw-window-handle`, `clap`, `sha2`, `tempfile`; platform crates add `windows` or `objc2` families under target-specific sections.
-
-- [ ] **Step 5: Run workspace checks.**
+- [ ] **Step 4: Verify and commit.**
 
 ```bash
 cargo fmt --all -- --check
-cargo check --workspace --all-targets
-cargo test -p display-model -p creature-profile
-```
-
-Expected: PASS.
-
-- [ ] **Step 6: Update execution log and commit.**
-
-```bash
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 git add "$APP_ROOT/app" "$APP_ROOT/APP_EXECUTION.md"
-git commit -m "build: establish insect app Rust workspace"
+git commit -m "build: establish insect app Rust foundations"
 ```
 
 ---
 
-### Task 3: Compile the Mega Pack into strict runtime creature profiles
+### Task 3: Compile the Mega Pack into deterministic runtime profiles
 
 **Files:**
+- Create: `$APP_ROOT/app/tools/profile-compiler/Cargo.toml`
 - Create: `$APP_ROOT/app/tools/profile-compiler/src/main.rs`
-- Modify: `$APP_ROOT/app/crates/creature-profile/src/schema.rs`
-- Modify: `$APP_ROOT/app/crates/creature-profile/src/validate.rs`
+- Create: `$APP_ROOT/app/tools/profile-compiler/tests/compiler.rs`
+- Modify: `$APP_ROOT/app/crates/creature-profile/src/{schema.rs,validate.rs}` as required by actual final evidence fields
 - Create: `$APP_ROOT/app/assets/creature-profiles/README.md`
 - Create/generated: `$APP_ROOT/app/assets/creature-profiles/runtime-profiles.bin`
 - Create/generated: `$APP_ROOT/app/assets/creature-profiles/runtime-profiles.report.json`
-- Test: `$APP_ROOT/app/tools/profile-compiler/tests/compiler.rs`
 
 **Interfaces:**
-- Consumes: approved implementation-ready outputs from the resolved Mega Pack lineage.
-- Produces: deterministic `RuntimeProfileBundle` serialized with `postcard` and two exact CLI forms:
 
 ```text
 profile-compiler compile --input <mega-pack-root> --output <file> --report <json>
 profile-compiler verify --bundle <file>
 ```
 
-- [ ] **Step 1: Inspect the actual final Mega Pack derived outputs and map fields explicitly.**
+- [ ] **Step 1: Inspect the actual resolved final Mega Pack app-consumable outputs.**
 
-Do not guess filenames from this plan. Read the final app-consumable specs/CSVs/JSONs and write a mapping table to `assets/creature-profiles/README.md` showing source file, source field, unit, runtime field, evidence id, and transformation. If the required ant measurements/trajectory distributions are absent, record a blocker; do not synthesize fake biology.
+Write a source mapping table to `assets/creature-profiles/README.md`: source file, source field, unit, runtime field, evidence id, transformation. Do not guess source filenames from this plan. If required ant anatomy/trajectory parameters are absent, record a real blocker instead of inventing values.
 
-- [ ] **Step 2: Write compiler tests before the compiler.**
-
-Create a tiny fixture directory under the compiler test temp dir with one valid ant profile and one invalid profile. Test:
+- [ ] **Step 2: Write deterministic compiler tests.**
 
 ```rust
 #[test]
-fn compiler_is_deterministic_and_rejects_bad_units() {
+fn compile_is_byte_deterministic() {
     let a = compile_fixture("valid").unwrap();
     let b = compile_fixture("valid").unwrap();
     assert_eq!(a.bytes, b.bytes);
+}
+
+#[test]
+fn invalid_physical_units_are_rejected() {
     assert!(compile_fixture("negative_body_length").is_err());
 }
 ```
 
-Also assert the report contains the exact source/evidence ids consumed.
+Also assert the JSON report lists the exact evidence ids and input files used.
 
-- [ ] **Step 3: Run the compiler tests and confirm failure.**
+- [ ] **Step 3: Run tests and verify failure.**
 
 ```bash
 cargo test -p profile-compiler --test compiler -- --nocapture
 ```
 
-- [ ] **Step 4: Implement the compiler as parse -> normalize units -> validate -> serialize.**
+- [ ] **Step 4: Implement parse -> normalize units -> validate -> serialize.**
 
-The `compile` subcommand emits a machine-readable JSON report containing:
+`compile` outputs `postcard` bytes plus a JSON report containing schema version, research/profile version, creature ids, source files, evidence ids, and SHA-256. `verify` decodes, validates, recomputes the digest, and exits nonzero on any error. Never silently clamp bad measurements.
 
-```json
-{
-  "schema_version": 1,
-  "profile_version": "research-release-id",
-  "creatures": ["ant"],
-  "source_files": [],
-  "evidence_ids": [],
-  "sha256": "hex-digest"
-}
-```
-
-Use the profile schema's validators after conversion. Never clamp an invalid biological measurement silently. `verify` decodes the bundle, validates it, recomputes its digest, and exits nonzero on any schema/profile error.
-
-- [ ] **Step 5: Compile and verify the real resolved Mega Pack.**
+- [ ] **Step 5: Compile and verify the real pack.**
 
 ```bash
 cargo run -p profile-compiler --release -- compile --input "<resolved-mega-pack-root>" --output assets/creature-profiles/runtime-profiles.bin --report assets/creature-profiles/runtime-profiles.report.json
@@ -415,9 +399,9 @@ cargo run -p profile-compiler --release -- verify --bundle assets/creature-profi
 cargo test -p creature-profile -p profile-compiler
 ```
 
-Expected: deterministic output and valid ant profile. If secondary profiles exist, leave them packaged but not enabled until Task 17's quality gate.
+Secondary profiles may remain packaged but are not enabled until Task 17.
 
-- [ ] **Step 6: Commit the compiler and only reproducible generated profile artifacts.**
+- [ ] **Step 6: Commit.**
 
 ```bash
 git add "$APP_ROOT/app/tools/profile-compiler" "$APP_ROOT/app/crates/creature-profile" "$APP_ROOT/app/assets/creature-profiles" "$APP_ROOT/APP_EXECUTION.md"
@@ -429,17 +413,16 @@ git commit -m "feat: compile research evidence into runtime profiles"
 ### Task 4: Implement versioned settings and data-driven presets
 
 **Files:**
+- Create: `$APP_ROOT/app/crates/settings/Cargo.toml`
 - Create: `$APP_ROOT/app/crates/settings/src/{lib.rs,config.rs,migrate.rs,preset.rs}`
 - Create: `$APP_ROOT/app/assets/presets/{realistic.toml,light.toml,heavy.toml,nightmare.toml}`
-- Test: inline tests in settings crate
 
 **Interfaces:**
-- Produces: `AppConfig`, `PresetId`, `Preset`, `ConfigStore`, `ConfigError`.
-
-Required public contract:
 
 ```rust
 pub enum PresetId { Realistic, Light, Heavy, Nightmare, Custom }
+pub enum AppExclusionMode { Hide, Compatibility }
+pub struct AppExclusion { pub stable_id: String, pub mode: AppExclusionMode }
 
 pub struct AppConfig {
     pub schema_version: u32,
@@ -465,25 +448,19 @@ pub trait ConfigStore {
 }
 ```
 
-- [ ] **Step 1: Write failing tests for defaults, preset boundaries, atomic save, and corrupt recovery.**
+- [ ] **Step 1: Write failing tests for defaults, preset behavior, atomic save, migration, and corrupt recovery.**
 
-Tests must prove Realistic has cursor reaction OFF, Nightmare changes population pressure without multiplying biological speed, editing a preset-controlled value yields `Custom`, and corrupted config is preserved as `.corrupt-<timestamp>` before defaults are restored.
+Prove Realistic has cursor reaction OFF; Nightmare changes population pressure rather than biological speed; changing a preset-controlled value yields Custom; corrupt config is preserved as `.corrupt-<timestamp>` before defaults are restored.
 
-- [ ] **Step 2: Run focused tests and confirm failure.**
+- [ ] **Step 2: Implement preset files as data.**
 
-```bash
-cargo test -p settings -- --nocapture
-```
+Preset data may alter target population, spawn pressure, trail persistence multiplier, activity weighting, and secondary composition. It must not replace research profile speed/morphology distributions.
 
-- [ ] **Step 3: Implement preset files as data and strict loaders.**
+- [ ] **Step 3: Implement atomic persistence and explicit migrations.**
 
-Each preset file defines only population-level controls: target population, spawn pressure, trail persistence multiplier, activity weighting, secondary composition. Biological speed ranges continue to come from creature profiles.
+Write sibling temp -> `sync_all` -> atomic rename where supported -> parent sync where practical. Unknown future schema versions fail safely rather than being overwritten.
 
-- [ ] **Step 4: Implement atomic configuration persistence and migration.**
-
-Write to a sibling temporary file, `sync_all`, rename atomically where supported, then sync the parent directory where practical. Migrations must be explicit functions such as `migrate_v1_to_v2`; unknown future versions return an error rather than being overwritten.
-
-- [ ] **Step 5: Verify and commit.**
+- [ ] **Step 4: Verify and commit.**
 
 ```bash
 cargo test -p settings
@@ -494,20 +471,21 @@ git commit -m "feat: add versioned settings and infestation presets"
 
 ---
 
-### Task 5: Build physical display calibration and multi-monitor topology
+### Task 5: Build physical display calibration and topology
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/display-model/src/{display.rs,calibration.rs,topology.rs}`
 - Modify: `$APP_ROOT/app/crates/display-model/src/lib.rs`
-- Test: inline unit + property tests
 
 **Interfaces:**
-- Produces:
 
 ```rust
 pub struct PixelSize { pub width: u32, pub height: u32 }
 pub struct PhysicalSizeMm { pub width: f32, pub height: f32 }
 pub struct DisplayFingerprint(pub String);
+pub enum CalibrationConfidence { TrustedMetadata, Manual, NeedsManual }
+pub struct DisplayCalibration { pub mm_per_physical_px: f32, pub confidence: CalibrationConfidence }
+
 pub struct DisplaySurface {
     pub id: DisplayId,
     pub fingerprint: DisplayFingerprint,
@@ -518,9 +496,8 @@ pub struct DisplaySurface {
     pub desktop_origin_px: (i32, i32),
     pub rotation_deg: u16,
 }
-pub struct DisplayCalibration { pub mm_per_physical_px: f32, pub confidence: CalibrationConfidence }
-pub struct DisplayTopology { /* private graph */ }
 
+pub struct DisplayTopology { /* private graph */ }
 impl DisplaySurface {
     pub fn mm_to_physical_px(&self, point: Vec2Mm, calibration: &DisplayCalibration) -> glam::Vec2;
 }
@@ -530,31 +507,23 @@ impl DisplayTopology {
 }
 ```
 
-- [ ] **Step 1: Write conversion and topology tests.**
+- [ ] **Step 1: Write mixed-density unit tests.**
 
-Include a mixed-density case proving the same 3.0 mm body maps to different pixel lengths while preserving 3.0 mm physical size. Add a two-monitor continuous crossing test where velocity in mm/s is unchanged across the boundary.
+The same 3.0 mm body must map to different pixel lengths on two densities while remaining 3.0 mm physically. A continuous crossing preserves mm/s velocity and heading.
 
-- [ ] **Step 2: Add property tests for random sane monitor layouts.**
+- [ ] **Step 2: Add `proptest` monitor-layout invariants.**
 
-Using `proptest`, generate finite positive dimensions/scale factors and assert transforms are finite, invertible within tolerance, and topology never creates self-crossings or NaN overlap intervals.
+Finite positive display/calibration inputs must yield finite transforms; random sane layouts must not create NaN overlap intervals or invalid self-connections.
 
-- [ ] **Step 3: Run tests and confirm failure.**
+- [ ] **Step 3: Implement calibration priority.**
 
-```bash
-cargo test -p display-model
-```
+Trusted physical metadata -> saved per-fingerprint manual calibration -> `NeedsManual`. Do not infer high-confidence PPI from logical UI scale. Manual calibration uses the 85.60 mm ISO/IEC ID-1 credit-card width.
 
-- [ ] **Step 4: Implement calibration selection.**
+- [ ] **Step 4: Implement physical overlap topology.**
 
-Priority: trusted OS/EDID physical dimensions -> saved per-fingerprint manual calibration -> `CalibrationConfidence::NeedsManual`. Never fabricate a high-confidence PPI from logical UI scale alone.
+Continuous connections exist only across adjacent OS edges with physically overlapping calibrated segments. Independent mode disables connections.
 
-Manual credit-card calibration uses ISO/IEC ID-1 width 85.60 mm as the reference. The UI slider ultimately stores effective `mm_per_physical_px`, not a fake monitor size.
-
-- [ ] **Step 5: Implement topology using physical overlapping edge segments.**
-
-Continuous mode only creates a connection where two display rectangles are adjacent in OS topology and have a physically overlapping edge after calibration. Independent mode disables all connections.
-
-- [ ] **Step 6: Verify and commit.**
+- [ ] **Step 5: Verify and commit.**
 
 ```bash
 cargo test -p display-model
@@ -565,21 +534,20 @@ git commit -m "feat: model calibrated physical display topology"
 
 ---
 
-### Task 6: Create the deterministic fixed-step simulation and cache-friendly creature storage
+### Task 6: Create the deterministic fixed-step simulation and cache-friendly storage
 
 **Files:**
-- Create: `$APP_ROOT/app/crates/simulation/src/{clock.rs,state.rs,snapshot.rs}`
-- Modify: `$APP_ROOT/app/crates/simulation/src/lib.rs`
-- Test: inline tests
+- Create: `$APP_ROOT/app/crates/simulation/Cargo.toml`
+- Create: `$APP_ROOT/app/crates/simulation/src/{lib.rs,clock.rs,state.rs,snapshot.rs}`
 
 **Interfaces:**
-- Produces:
 
 ```rust
+pub struct CursorDisturbance { pub display: DisplayId, pub position_mm: Vec2Mm, pub velocity_mm_s: glam::Vec2, pub strength: f32 }
 pub struct SimulationConfig { pub tick_hz: u32, pub capacity: usize, pub seed: u64 }
 pub struct EnvironmentSnapshot<'a> { pub topology: &'a DisplayTopology, pub cursor: Option<CursorDisturbance> }
-pub struct Simulation { /* SoA buffers + clock + rng + fields */ }
 
+pub struct Simulation { /* SoA buffers + clock + RNG + reusable scratch */ }
 impl Simulation {
     pub fn new(config: SimulationConfig, profiles: std::sync::Arc<RuntimeProfileBundle>) -> Result<Self, SimulationError>;
     pub fn advance(&mut self, real_dt: std::time::Duration, env: &EnvironmentSnapshot<'_>) -> Result<AdvanceReport, SimulationError>;
@@ -589,29 +557,25 @@ impl Simulation {
 }
 ```
 
-- [ ] **Step 1: Write tests for deterministic stepping, pause, and sleep-size time jumps.**
+- [ ] **Step 1: Write deterministic/pause tests and a steady-state allocation test.**
 
-A simulation created twice with the same seed/profile and stepped with the same sequence must produce identical snapshot signatures. `set_paused(true)` followed by large `real_dt` must not advance biological time.
+Two simulations with identical seed/profile/time inputs produce identical snapshot signatures. Paused simulation does not advance under a large `real_dt`. A warmed fixed-capacity tick performs zero heap allocations in its steady-state hot path.
 
-- [ ] **Step 2: Write a no-allocation hot-loop test harness.**
-
-Provide a test-only counting allocator or benchmark instrumentation proving a warmed simulation step with fixed capacity performs zero heap allocations in the normal steady-state path.
-
-- [ ] **Step 3: Run tests and verify failure.**
+- [ ] **Step 2: Run tests and confirm failure.**
 
 ```bash
-cargo test -p simulation clock state snapshot -- --nocapture
+cargo test -p simulation -- --nocapture
 ```
 
-- [ ] **Step 4: Implement structure-of-arrays storage.**
+- [ ] **Step 3: Implement structure-of-arrays storage.**
 
-Keep aligned vectors for ids, display ids, positions mm, velocities mm/s, headings, body size sample, gait phase, behavior state, timers, stable trait seed, and render-relevant state. Preallocate to configured capacity; spawn/despawn uses free-list indices rather than reallocating every frame.
+Aligned vectors hold ids, display ids, previous/current positions mm, velocities mm/s, headings, morphology samples, behavior state/timers, gait/pose fields, stable trait seed, and active/free indices. Preallocate capacity and use a free list for spawn/despawn.
 
-- [ ] **Step 5: Implement a fixed biological tick with render interpolation state.**
+- [ ] **Step 4: Implement a default 30 Hz biological fixed step with interpolation state.**
 
-Default high-level tick target is 30 Hz. `advance` accumulates real time, runs bounded fixed ticks, and records previous/current transforms for interpolation. Cap catch-up after long stalls; sleep/wake is handled as a lifecycle pause, not thousands of catch-up ticks.
+`advance` accumulates real time, runs bounded fixed ticks, and exposes interpolation alpha. Cap catch-up after stalls. Lifecycle suspend/resume pauses biological time rather than simulating hours of sleep.
 
-- [ ] **Step 6: Verify deterministic snapshots and commit.**
+- [ ] **Step 5: Verify and commit.**
 
 ```bash
 cargo test -p simulation
@@ -622,16 +586,14 @@ git commit -m "feat: add deterministic fixed-step creature simulation"
 
 ---
 
-### Task 7: Implement the spatial hash and coarse trail field
+### Task 7: Implement spatial hash and coarse trail field
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/simulation/src/{spatial.rs,trails.rs}`
 - Create: `$APP_ROOT/app/crates/simulation/benches/spatial.rs`
-- Modify: `$APP_ROOT/app/crates/simulation/src/state.rs`
-- Test: unit + property tests
+- Modify: `$APP_ROOT/app/crates/simulation/Cargo.toml`
 
 **Interfaces:**
-- Produces:
 
 ```rust
 pub struct SpatialHash { /* reusable buckets */ }
@@ -648,50 +610,49 @@ impl TrailField {
 }
 ```
 
-- [ ] **Step 1: Test spatial hash against brute force.**
+- [ ] **Step 1: Test spatial results against brute force and trail bounds.**
 
-Generate small random populations and assert the sorted neighbor set exactly matches brute-force radius checks.
+Property-test small populations; sorted neighbor sets must match brute force exactly. Trail intensity stays finite/bounded and decays monotonically without deposits.
 
-- [ ] **Step 2: Test bounded trail decay and direction accumulation.**
+- [ ] **Step 2: Implement reusable buckets/scratch buffers.**
 
-Trail intensity must stay finite and within `[0, max_intensity]`; repeated decay monotonically reduces intensity when no deposits occur.
+Bucket size derives from interaction radius in millimeters. Callers reuse neighbor output capacity; production queries do not allocate per creature.
 
-- [ ] **Step 3: Implement reusable buckets and scratch buffers.**
+- [ ] **Step 3: Implement deterministic amortizable trail updates.**
 
-Bucket sizes should be derived from interaction radii, not screen pixels. Avoid per-query allocation by passing reusable output buffers owned by simulation workers.
+Use a coarse physical-mm grid, directional accumulation, bounded intensity, and deterministic batching/tile order.
 
-- [ ] **Step 4: Implement amortized trail updates.**
+- [ ] **Step 4: Add Criterion bench metadata.**
 
-The field operates in physical millimeters with a coarse cell size documented in code and profile/config. Large-population deposits may be batched and decay may update row/tiles incrementally as long as deterministic ordering remains defined.
+Add:
 
-- [ ] **Step 5: Add and run the Criterion spatial benchmark.**
-
-The benchmark compares 500, 1,000, and 2,000 agents and records neighbor-query scaling. It must not perform a hidden brute-force path in the production measurement.
-
-```bash
-cargo bench -p simulation --bench spatial
+```toml
+[[bench]]
+name = "spatial"
+harness = false
 ```
 
-- [ ] **Step 6: Verify and commit.**
+Benchmark 500, 1,000, and 2,000 agents.
+
+- [ ] **Step 5: Verify and commit.**
 
 ```bash
-cargo test -p simulation spatial trails
+cargo test -p simulation
+cargo bench -p simulation --bench spatial
 git add "$APP_ROOT/app/crates/simulation" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "feat: add spatial queries and trail field"
 ```
 
 ---
 
-### Task 8: Implement research-backed ant behavior, locomotion, gait, encounters, edges, and spawn/exit
+### Task 8: Implement evidence-driven ant behavior, locomotion, gait, antennae, encounters, edges, and spawn/exit
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/simulation/src/{behavior.rs,locomotion.rs,spawn.rs}`
 - Modify: `$APP_ROOT/app/crates/simulation/src/state.rs`
-- Modify: `$APP_ROOT/app/crates/creature-profile/src/schema.rs` if the final profile needs additional measured distributions
-- Test: unit + deterministic statistical tests
+- Modify: `$APP_ROOT/app/crates/creature-profile/src/schema.rs` only for evidence-backed fields needed by the final pack
 
 **Interfaces:**
-- Produces `BehaviorState`, `AntTraits`, `AntPoseState`, and per-tick update functions used by `Simulation`.
 
 ```rust
 pub enum BehaviorState { Explore, Transit, Probe, Pause, EdgeFollow, TrailFollow, Encounter, Avoid, Disturbance, Groom }
@@ -704,42 +665,64 @@ pub struct AntPoseState {
     pub antenna_right: f32,
     pub pose_blend: f32,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct VisualCreatureState {
+    pub id: CreatureId,
+    pub kind_index: u16,
+    pub display: DisplayId,
+    pub previous_position_mm: Vec2Mm,
+    pub position_mm: Vec2Mm,
+    pub heading_rad: f32,
+    pub body_length_mm: f32,
+    pub body_width_mm: f32,
+    pub gait_phase: f32,
+    pub speed_norm: f32,
+    pub turn_amount: f32,
+    pub pose_blend: f32,
+    pub antenna: [f32; 2],
+    pub morphology_seed: u32,
+}
+
+impl Simulation {
+    pub fn visual_states(&self) -> &[VisualCreatureState];
+}
 ```
 
-`Groom` transitions remain disabled unless the selected profile contains supporting evidence/parameters.
+`Groom` transitions remain disabled unless selected evidence supports them.
 
-- [ ] **Step 1: Add tests proving movement comes from profile distributions, not fake waypoint/noise logic.**
+- [ ] **Step 1: Test that profile distributions drive motion.**
 
-With a tiny deterministic profile fixture, assert sampled run duration, angular velocity, pause duration, and preferred speed stay within profile ranges and are reproducible from seed. There must be no primary random-waypoint or Perlin-noise steering implementation.
+With a deterministic tiny profile, run duration, angular velocity, pause duration, and preferred speed must stay inside profile ranges and repeat from seed. Do not add random-waypoint or Perlin-noise steering as the primary locomotion model.
 
-- [ ] **Step 2: Add state-transition tests.**
+- [ ] **Step 2: Test state transitions and physical edges.**
 
-Test examples: a paused ant eventually leaves Pause according to its sampled timer; a detected outer edge may turn/follow/exit but never hard-bounces; an encounter can produce no reaction/slow/antennate/follow/avoid; Realistic cursor-off environment cannot enter Disturbance from cursor motion.
+Pause exits according to its timer; an outer edge may investigate/turn/follow/exit but never hard-bounces; encounters may no-op/slow/antennate/follow/avoid; Realistic cursor-off cannot enter Disturbance due to cursor movement.
 
-- [ ] **Step 3: Implement persistent `AntTraits` sampled once at spawn.**
+- [ ] **Step 3: Implement stable `AntTraits` sampled once at spawn.**
 
-Traits include preferred speed, stride characteristic, turn tendency, pause tendency, direction persistence, edge-following tendency, trail sensitivity, encounter response weighting, body-size sample, antenna variation, and short behavior-memory parameters. Store them stably for the ant lifetime.
+Sample preferred speed, stride characteristic, turn tendency, pause tendency, direction persistence, edge-following tendency, trail sensitivity, encounter weighting, morphology, antenna variation, and short behavior-memory parameters from validated profiles.
 
-- [ ] **Step 4: Implement context-sensitive transition hazards and smooth locomotion intentions.**
+- [ ] **Step 4: Implement context-sensitive transition hazards and smooth intentions.**
 
-Use probability/hazard evaluation at biological decision intervals; blend speed/curvature/heading over time. Do not rotate instantly to waypoints. Outer-edge behavior must investigate, turn, follow, or exit. A topology crossing transforms position/heading while preserving physical mm/s velocity.
+Evaluate expensive decisions at staggered biological intervals; blend velocity/curvature/heading instead of snapping to waypoints. Topology crossings preserve physical mm/s velocity.
 
-- [ ] **Step 5: Couple gait and antennae to locomotion/behavior.**
+- [ ] **Step 5: Couple gait and antennae to motion/behavior.**
 
-`stride_frequency_hz` derives from translational speed and measured/derived stride relationships. When speed approaches zero the walking cycle settles rather than continuing. Normal ant locomotion uses alternating tripod phase where appropriate. Antenna targets use correlated asymmetric processes conditioned on Probe/Transit/Encounter/EdgeFollow, not two independent sine waves.
+Stride frequency derives from translational speed; near-zero speed settles the gait. Use alternating tripod coordination where supported. Antenna targets are correlated/asymmetric and conditioned on Probe/Transit/Encounter/EdgeFollow, not independent sine waves.
 
-- [ ] **Step 6: Implement plausible spawn/exit dynamics.**
+- [ ] **Step 6: Implement edge entry/exit population dynamics.**
 
-Population target changes adjust edge-entry/exit rates; normal spawns occur off-screen/edge regions. Only explicit developer `spawn_now` bypasses that rule.
+Target population changes influence edge-entry/exit rates. Normal creatures do not materialize in the center; only explicit developer spawn-now may do so.
 
 - [ ] **Step 7: Add deterministic statistical validation.**
 
-Run at least 10,000 simulated samples and compare empirical min/max/mean/quantiles to profile constraints/tolerances. Store the test seed. This is not a claim that the simulation reproduces biology perfectly; it is a guard against silently drifting outside the approved profile.
+At least 10,000 sampled runs compare empirical bounds/quantiles to profile constraints/tolerances. Store the seed.
 
 - [ ] **Step 8: Verify and commit.**
 
 ```bash
-cargo test -p simulation behavior locomotion spawn -- --nocapture
+cargo test -p simulation -- --nocapture
 cargo test --workspace
 git add "$APP_ROOT/app/crates/simulation" "$APP_ROOT/app/crates/creature-profile" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "feat: implement evidence-driven ant behavior and locomotion"
@@ -747,15 +730,13 @@ git commit -m "feat: implement evidence-driven ant behavior and locomotion"
 
 ---
 
-### Task 9: Define compact render instances and initialize the shared wgpu renderer
+### Task 9: Build the offscreen wgpu renderer and compact instance pipeline
 
 **Files:**
+- Create: `$APP_ROOT/app/crates/rendering/Cargo.toml`
 - Create: `$APP_ROOT/app/crates/rendering/src/{lib.rs,instance.rs,renderer.rs,lod.rs}`
-- Modify: `$APP_ROOT/app/crates/simulation/src/lib.rs`
-- Test: rendering unit tests that do not require visible windows
 
 **Interfaces:**
-- Produces:
 
 ```rust
 #[repr(C)]
@@ -775,95 +756,74 @@ pub struct CreatureRenderInstance {
     pub material: [f32; 4],
 }
 
-pub struct RenderFrame<'a> { pub instances: &'a [CreatureRenderInstance], pub interpolation_alpha: f32 }
-```
+pub struct InstanceBuilder { /* reusable output */ }
+impl InstanceBuilder {
+    pub fn build<'a>(&'a mut self, states: &[VisualCreatureState], display: &DisplaySurface, calibration: &DisplayCalibration, alpha: f32) -> &'a [CreatureRenderInstance];
+}
 
-`Simulation` gains `build_render_instances(&mut self, display: &DisplaySurface, calibration: &DisplayCalibration, alpha: f32) -> &[CreatureRenderInstance]` using a preallocated scratch vector.
-
-- [ ] **Step 1: Write tests for instance packing and LOD hysteresis.**
-
-Assert `CreatureRenderInstance` is `Pod`, finite, tightly bounded in size, and that LOD does not toggle repeatedly around the threshold when pixel coverage jitters inside hysteresis.
-
-- [ ] **Step 2: Run tests to confirm failure.**
-
-```bash
-cargo test -p rendering
-```
-
-- [ ] **Step 3: Implement a renderer owning one shared device/queue and per-overlay surface state.**
-
-Expose:
-
-```rust
-pub struct Renderer { /* instance buffers, pipelines, device, queue */ }
-pub struct SurfaceRenderer { /* wgpu surface/config for one monitor */ }
-
+pub struct Renderer { /* device, queue, pipelines, reusable instance buffers */ }
 impl Renderer {
-    pub async fn new(adapter_hint: AdapterHint) -> Result<Self, RenderError>;
-    pub fn create_surface(&mut self, source: SurfaceSource, size: PixelSize) -> Result<SurfaceRenderer, RenderError>;
-    pub fn render(&mut self, surface: &mut SurfaceRenderer, frame: &RenderFrame<'_>) -> Result<RenderStats, RenderError>;
+    pub async fn new_headless(adapter_hint: AdapterHint) -> Result<Self, RenderError>;
+    pub fn render_offscreen(&mut self, target: &mut OffscreenTarget, frame: &[CreatureRenderInstance]) -> Result<RenderStats, RenderError>;
 }
 ```
 
-`SurfaceSource` is defined by Task 12 as a pair of raw display/window handles whose native overlay owner outlives the `wgpu::Surface`. `create_surface` may use `wgpu::SurfaceTargetUnsafe::RawHandle`; the unsafe block must document that lifetime invariant. Use one instanced draw path per LOD/material batch rather than per creature.
+- [ ] **Step 1: Write instance packing, interpolation, and LOD-hysteresis tests.**
 
-- [ ] **Step 4: Implement dynamic instance-buffer growth outside the hot loop.**
+`CreatureRenderInstance` must be `Pod`, finite, compact, and generated without simulation importing rendering. Interpolation happens while converting previous/current mm positions to pixels. LOD must not flap around thresholds.
 
-Allocate enough for at least 1,024 creatures initially, grow geometrically when needed, and reuse the buffer. Record upload bytes and active instance count in `RenderStats`.
+- [ ] **Step 2: Implement a headless/offscreen wgpu device and reusable instance buffers.**
 
-- [ ] **Step 5: Configure each surface for the monitor rather than imposing a 60 Hz simulation clock.**
+Initial capacity >=1,024; geometric growth only outside steady-state hot paths. One instanced draw path per LOD/material batch, never per creature.
 
-Choose a supported vsync/present mode that follows the compositor/display refresh; render interpolation is evaluated on every rendered frame so 120/144/165/240 Hz monitors remain smooth while biological ticks stay independent.
+- [ ] **Step 3: Record render stats.**
 
-- [ ] **Step 6: Verify headless/offscreen initialization where supported and commit.**
+At minimum: active instances, upload bytes, CPU render-prep duration, submitted draws, and GPU duration where timestamp-query support exists.
+
+- [ ] **Step 4: Verify and commit.**
 
 ```bash
 cargo test -p rendering
 cargo clippy -p rendering --all-targets -- -D warnings
-git add "$APP_ROOT/app/crates/rendering" "$APP_ROOT/app/crates/simulation" "$APP_ROOT/APP_EXECUTION.md"
+git add "$APP_ROOT/app/crates/rendering" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "feat: add instanced wgpu rendering core"
 ```
 
 ---
 
-### Task 10: Implement the procedural ant shader, subpixel appendages, material model, and LODs
+### Task 10: Implement procedural ant shaders, stable subpixel appendages, material, and LOD
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/rendering/shaders/{ant.wgsl,composite.wgsl}`
 - Modify: `$APP_ROOT/app/crates/rendering/src/{renderer.rs,lod.rs}`
-- Test: shader compilation + offscreen image tests
 
-**Interfaces:**
-- Consumes: `CreatureRenderInstance`.
-- Produces: Tiny, Standard, and Detailed ant LODs with stable screen-space coverage.
+- [ ] **Step 1: Add WGSL compile tests and offscreen rotation fixtures.**
 
-- [ ] **Step 1: Add shader compilation tests and offscreen 360-degree rotation fixtures.**
+Render a 3 mm ant across headings and representative 96/144/220+ PPI equivalents. Assert body coverage remains nonzero and appendage coverage does not vanish over long angle ranges.
 
-For headings `0..360` in fixed increments, render a 3 mm ant at representative 96, 144, 220+ PPI equivalents. Assert output has nonzero body coverage and appendage coverage does not disappear for long heading ranges. Store deterministic PNGs only for deliberately chosen golden cases.
+- [ ] **Step 2: Implement the ant body as a procedural three-mass silhouette with narrow waist.**
 
-- [ ] **Step 2: Implement the body as procedural three-mass silhouette plus narrow waist.**
+Reconstruct head, thorax, abdomen, and connections in WGSL from compact instance/morphology data.
 
-Use a small instanced quad/bounds and analytic signed-distance/coverage math in WGSL to reconstruct head, thorax, abdomen and connections from stable morphology seed and physical pixel dimensions.
+- [ ] **Step 3: Implement six segmented legs and two antennae using analytically anti-aliased screen-space capsules/strips.**
 
-- [ ] **Step 3: Implement six segmented legs and two antennae with analytically anti-aliased capsules/strips.**
+Joint positions derive from gait phase, turn amount, pose blend, and antenna state. Tiny LOD may simplify geometry while preserving the visible insect silhouette.
 
-Coverage must remain stable through rotation. Joint targets derive from gait phase, turn amount, and pose state. Tiny LOD may simplify segment count but must preserve six-leg/paired-antenna read at usable pixel coverage.
+- [ ] **Step 4: Implement restrained emissive-screen material response.**
 
-- [ ] **Step 4: Implement restrained emissive-screen material behavior.**
+Dark/translucent coverage + subtle stable body variation + tiny bounded contact darkening. No bloom, rim light, obvious drop shadow, AO halo, or forced bright outline.
 
-Default output is dark/translucent coverage with subtle body variation and tiny bounded contact darkening. Explicitly do not add bloom, rim light, large shadow, AO halo, or forced bright outline. On dark backgrounds the ant may become less visible naturally.
+- [ ] **Step 5: Implement physical-pixel-coverage LOD with hysteresis.**
 
-- [ ] **Step 5: Implement LOD by physical pixel coverage with hysteresis.**
+Tiny -> Standard -> Detailed thresholds live centrally in `lod.rs`, not scattered through shaders.
 
-Tiny -> Standard -> Detailed thresholds must be centralized in `lod.rs`, configurable for validation, and based on projected physical size rather than camera distance.
-
-- [ ] **Step 6: Run image tests and inspect 1:1 output, not only zoomed output.**
+- [ ] **Step 6: Verify and inspect 1:1 output.**
 
 ```bash
-cargo test -p rendering shader image lod -- --nocapture
+cargo test -p rendering -- --nocapture
 ```
 
-Record the exact validation image directory and manual 1:1 observations in `APP_EXECUTION.md`.
+Record actual validation image paths and observations in `APP_EXECUTION.md`.
 
 - [ ] **Step 7: Commit.**
 
@@ -874,63 +834,73 @@ git commit -m "feat: render articulated ant impostors with stable subpixel limbs
 
 ---
 
-### Task 11: Build deterministic visual-validation scenes and developer diagnostics
+### Task 11: Add deterministic visual-validation scenes
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/rendering/src/validation.rs`
-- Create: `$APP_ROOT/app/crates/desktop-app/src/diagnostics.rs`
+- Create: `$APP_ROOT/app/crates/rendering/examples/validation.rs`
 - Create: `$APP_ROOT/app/tests/visual/README.md`
-- Test: rendering validation tests
 
 **Interfaces:**
-- Produces `ValidationSceneId`, `ValidationScene`, and `DiagnosticsSnapshot`.
 
-- [ ] **Step 1: Define fixed scenes required by the spec.**
-
-Include: stationary 2 mm, walking 3 mm, turning 4 mm, 100, 500, 1,000 creatures, heading sweep, gait sweep, bright background, dark background, high-contrast background, representative PPI values, Retina/high-DPI, and LOD transition sweep.
-
-- [ ] **Step 2: Add a deterministic offscreen scene-render command.**
-
-Use `clap` only for developer/CI command-line modes; normal startup with no args remains silent utility launch. The binary must support:
-
-```bash
-cargo run -p desktop-app --release -- --render-validation all --output target/validation
+```rust
+pub enum ValidationSceneId { Ant2mmStatic, Ant3mmWalk, Ant4mmTurn, Population100, Population500, Population1000, HeadingSweep, GaitSweep, LodSweep }
+pub struct ValidationScene { /* deterministic profile/display/background/seed */ }
 ```
 
-It writes images plus JSON metadata containing profile version, app commit, scene id, effective PPI, ant physical size, render backend, and image hash.
+- [ ] **Step 1: Define all required deterministic scenes.**
 
-- [ ] **Step 3: Add developer diagnostic data contracts.**
+Include 2/3/4 mm ants, 100/500/1,000 populations, heading/gait sweeps, bright/dark/high-contrast backgrounds, representative PPIs, high-DPI, and LOD transitions.
 
-`DiagnosticsSnapshot` includes creature count, rendered/culled count, simulation ms, behavior ms, spatial ms, trails ms, render prep ms, GPU ms when available, upload bytes, LOD counts, memory estimate, dropped simulation ticks, and current seed.
-
-- [ ] **Step 4: Verify deterministic metadata/images within documented backend tolerances.**
-
-Do not require bit-identical pixels across Metal and D3D if backend rasterization differs. Golden-image thresholds must be backend-aware and narrow enough to catch missing limbs/LOD regressions.
-
-- [ ] **Step 5: Commit.**
+- [ ] **Step 2: Implement a standalone rendering example so validation does not depend on the not-yet-built desktop shell.**
 
 ```bash
-cargo test -p rendering -p desktop-app
-cargo run -p desktop-app --release -- --render-validation core --output target/validation-core
-git add "$APP_ROOT/app/crates/rendering" "$APP_ROOT/app/crates/desktop-app" "$APP_ROOT/app/tests/visual" "$APP_ROOT/APP_EXECUTION.md"
-git commit -m "test: add deterministic visual validation harness"
+cargo run -p rendering --example validation --release -- --scene all --output target/validation
+```
+
+Use `clap` in the example. Emit PNGs plus JSON metadata: scene id, app/git commit if available, profile version, PPI, physical size, backend, image hash.
+
+- [ ] **Step 3: Add backend-aware image checks.**
+
+Do not demand bit-identical Metal/D3D pixels. Use narrow documented tolerances that still catch missing limbs, silhouette breakage, and LOD popping.
+
+- [ ] **Step 4: Verify and commit.**
+
+```bash
+cargo test -p rendering
+cargo run -p rendering --example validation --release -- --scene core --output target/validation-core
+git add "$APP_ROOT/app/crates/rendering" "$APP_ROOT/app/tests/visual" "$APP_ROOT/APP_EXECUTION.md"
+git commit -m "test: add deterministic ant visual validation"
 ```
 
 ---
 
-### Task 12: Define the platform contract and fail-safe overlay state machine
+### Task 12: Define platform contracts, fail-safe overlay states, and live wgpu surface creation
 
 **Files:**
+- Create: `$APP_ROOT/app/crates/platform-api/Cargo.toml`
 - Create: `$APP_ROOT/app/crates/platform-api/src/{lib.rs,overlay.rs,event.rs,app_identity.rs}`
-- Test: platform-api state-machine tests
+- Modify: `$APP_ROOT/app/crates/rendering/Cargo.toml`
+- Modify: `$APP_ROOT/app/crates/rendering/src/renderer.rs`
 
 **Interfaces:**
-- Produces:
 
 ```rust
 pub enum OverlaySafetyState { Created, Transparent, NonActivating, ClickThrough, SafeToShow, HiddenUnsafe }
-pub enum PlatformEvent { DisplaysChanged, Suspend, Resume, ForegroundAppChanged(Option<AppIdentity>), QuitRequested }
+
 pub struct AppIdentity { pub stable_id: String, pub display_name: String }
+pub struct ForegroundContext { pub app: AppIdentity, pub fullscreen: bool }
+
+pub enum UtilityAction { ToggleVisible, TogglePause, OpenSettings, SetPreset(String), ToggleLaunchAtLogin, Quit }
+pub enum PlatformEvent {
+    DisplaysChanged,
+    Suspend,
+    Resume,
+    ForegroundChanged(Option<ForegroundContext>),
+    PanicHotkey,
+    UtilityAction(UtilityAction),
+    QuitRequested,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceSource {
@@ -951,143 +921,153 @@ pub trait PlatformAdapter {
     fn create_overlay(&mut self, display: &DisplaySurface) -> Result<Box<dyn OverlayWindow>, PlatformError>;
     fn register_panic_hotkey(&mut self, binding: &str) -> Result<(), PlatformError>;
     fn set_launch_at_login(&self, enabled: bool) -> Result<(), PlatformError>;
-    fn foreground_app(&self) -> Result<Option<AppIdentity>, PlatformError>;
+    fn foreground_context(&self) -> Result<Option<ForegroundContext>, PlatformError>;
     fn recent_apps(&self) -> Result<Vec<AppIdentity>, PlatformError>;
     fn poll_events(&mut self) -> Result<Vec<PlatformEvent>, PlatformError>;
 }
 ```
 
-The native object implementing `OverlayWindow` owns the underlying window and must outlive every `wgpu::Surface` created from its `SurfaceSource`.
+Rendering adds:
 
-- [ ] **Step 1: Test that unsafe overlays cannot be shown.**
+```rust
+pub struct SurfaceRenderer { /* wgpu::Surface + config + display metadata */ }
+impl Renderer {
+    pub fn create_surface(&mut self, source: SurfaceSource, size: PixelSize, refresh_hz: f32) -> Result<SurfaceRenderer, RenderError>;
+    pub fn render_surface(&mut self, surface: &mut SurfaceRenderer, instances: &[CreatureRenderInstance]) -> Result<RenderStats, RenderError>;
+}
+```
 
-A mock overlay in `Created`, `Transparent`, or `NonActivating` state must reject `set_visible(true)`. Only `SafeToShow` may become visible.
+The native `OverlayWindow` owns the underlying OS window and must outlive its `SurfaceRenderer`. If `wgpu::SurfaceTargetUnsafe::RawHandle` is used, document that exact lifetime invariant in the unsafe block.
 
-- [ ] **Step 2: Test panic-hide semantics independent of focus.**
+- [ ] **Step 1: Test overlay state-machine visibility rules.**
 
-Mock adapter must dispatch a global-hotkey event that hides all overlays without relying on an interactive overlay surface.
+Mock windows in Created/Transparent/NonActivating/ClickThrough cannot show until safety verification moves them to SafeToShow. Failure moves to HiddenUnsafe.
 
-- [ ] **Step 3: Implement the state machine and common error taxonomy.**
+- [ ] **Step 2: Test panic events independent of focus and tray/menu actions as events.**
 
-Errors distinguish unsupported compositor behavior, safety-verification failure, native API error, hotkey conflict, and surface creation/device loss. Never downgrade a safety failure to a warning that still shows the window.
+No business logic belongs in native menu callbacks; they emit `UtilityAction`.
+
+- [ ] **Step 3: Implement live wgpu surface creation after the platform type exists.**
+
+Configure each surface using supported compositor present modes so render cadence can track 60/120/144/165/240 Hz displays independently of the 30 Hz biological tick.
 
 - [ ] **Step 4: Verify and commit.**
 
 ```bash
-cargo test -p platform-api
-cargo clippy -p platform-api --all-targets -- -D warnings
-git add "$APP_ROOT/app/crates/platform-api" "$APP_ROOT/APP_EXECUTION.md"
-git commit -m "feat: define fail-safe native overlay contract"
+cargo test -p platform-api -p rendering
+cargo clippy -p platform-api -p rendering --all-targets -- -D warnings
+git add "$APP_ROOT/app/crates/platform-api" "$APP_ROOT/app/crates/rendering" "$APP_ROOT/APP_EXECUTION.md"
+git commit -m "feat: define fail-safe overlay and live surface contracts"
 ```
 
 ---
 
-### Task 13: Implement the macOS AppKit platform adapter
+### Task 13: Implement the macOS AppKit adapter
 
 **Files:**
+- Create: `$APP_ROOT/app/crates/platform-macos/Cargo.toml`
 - Create: `$APP_ROOT/app/crates/platform-macos/src/{lib.rs,overlay.rs,status_item.rs,hotkey.rs,login.rs,display.rs}`
-- Modify: target-specific dependencies in `$APP_ROOT/app/Cargo.toml`
-- Test: macOS-only unit/smoke tests
+- Create/update: `$APP_ROOT/app/tests/input-safety/README.md`
 
 **Interfaces:**
-- Implements `PlatformAdapter` and `OverlayWindow` from Task 12.
+- Implements `PlatformAdapter` and `OverlayWindow`.
 
-- [ ] **Step 1: Add macOS-only tests for display discovery and safety-state transitions.**
+- [ ] **Step 1: Write macOS-only display/safety tests.**
 
-Tests should verify Retina backing scale is separated from physical calibration, overlay configuration requests non-activating/click-through semantics, and failed native calls keep state below `SafeToShow`.
+Retina backing scale stays separate from physical calibration. Failed transparent/nonactivating/click-through setup never reaches SafeToShow.
 
 - [ ] **Step 2: Implement display enumeration.**
 
-Use AppKit/CoreGraphics to obtain screen/frame, backing scale, pixel dimensions/refresh where available, physical size/EDID-like metadata where trustworthy, rotation, and stable fingerprint components. Flag uncertain physical size for manual calibration rather than inventing confidence.
+Use AppKit/CoreGraphics for screen frame, backing scale, pixel dimensions/refresh where available, rotation, stable fingerprint data, and trustworthy physical metadata. Uncertain size is `NeedsManual`.
 
-- [ ] **Step 3: Implement one borderless transparent overlay per display.**
+- [ ] **Step 3: Implement one native transparent borderless non-activating click-through overlay per display.**
 
-Use native AppKit APIs to create non-activating transparent windows, ignore mouse events, avoid normal Dock/Cmd-Tab presence, and select a normal permissible high window level. Apply native behavior through small documented `unsafe` FFI blocks only where required.
+Ignore mouse events, avoid ordinary Dock/Cmd-Tab presence, and choose a permissible high window level without fighting protected/system surfaces. Keep unsafe FFI blocks small and invariant-documented.
 
-- [ ] **Step 4: Verify click-through before visibility.**
+- [ ] **Step 4: Verify pass-through before show.**
 
-The adapter must perform its best available programmatic verification plus a manual smoke check documented in `tests/input-safety/README.md`. Failure means overlay remains hidden.
+Programmatic native state checks + manual input-safety matrix. Any failure keeps the overlay hidden.
 
-- [ ] **Step 5: Implement NSStatusItem menu, global panic hotkey, launch-at-login, Spaces/full-screen events, and sleep/wake notifications.**
+- [ ] **Step 5: Implement NSStatusItem, global panic hotkey, launch-at-login, Spaces/full-screen metadata, and sleep/wake/display notifications.**
 
-Quick menu actions: Show/Hide, Pause/Resume, preset shortcuts, Settings, launch-at-login toggle, Quit.
+Menu callbacks emit `UtilityAction`; they do not own app state.
 
-- [ ] **Step 6: Run macOS validation in release mode.**
+- [ ] **Step 6: Validate on actual macOS release build.**
+
+On Apple Silicon:
 
 ```bash
 cargo test --workspace --release --target aarch64-apple-darwin
-cargo build -p desktop-app --release --target aarch64-apple-darwin
+cargo build -p platform-macos --release --target aarch64-apple-darwin
 ```
 
-On an actual Mac, manually verify clicks, double-clicks, drag, scroll, mouse move, keyboard focus to underlying app, Mission Control/Spaces, full-screen video, borderless game if available, hot-plug, and panic hotkey. Record exact results, including unsupported cases.
+Manually test underlying click/double-click/drag/scroll/mouse motion/keyboard focus, Mission Control/Spaces, full-screen video, borderless game if available, monitor hot-plug, and panic hotkey. Record unsupported cases honestly.
 
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add "$APP_ROOT/app/crates/platform-macos" "$APP_ROOT/app/Cargo.toml" "$APP_ROOT/app/tests/input-safety" "$APP_ROOT/APP_EXECUTION.md"
+git add "$APP_ROOT/app/crates/platform-macos" "$APP_ROOT/app/tests/input-safety" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "feat: add safe macOS click-through overlay adapter"
 ```
 
 ---
 
-### Task 14: Implement the Windows Win32/DWM platform adapter
+### Task 14: Implement the Windows Win32/DWM adapter
 
 **Files:**
+- Create: `$APP_ROOT/app/crates/platform-windows/Cargo.toml`
 - Create: `$APP_ROOT/app/crates/platform-windows/src/{lib.rs,overlay.rs,tray.rs,hotkey.rs,startup.rs,display.rs}`
-- Modify: target-specific dependencies in `$APP_ROOT/app/Cargo.toml`
-- Test: Windows-only unit/smoke tests
+- Update: `$APP_ROOT/app/tests/input-safety/README.md`
 
 **Interfaces:**
-- Implements the same `PlatformAdapter` and `OverlayWindow` contracts.
+- Implements the same platform contracts.
 
-- [ ] **Step 1: Add Windows-only tests for DPI/display descriptors and safety-state transitions.**
+- [ ] **Step 1: Write Windows-only DPI/display/safety tests.**
 
-Tests cover mixed per-monitor DPI, top-left origins including negative desktop coordinates, and refusal to show before hit-test/pass-through configuration is verified.
+Cover negative virtual-desktop origins, mixed per-monitor DPI, and refusal to show before explicit pass-through state is established.
 
-- [ ] **Step 2: Enable per-monitor-v2 DPI awareness before creating windows.**
+- [ ] **Step 2: Enable per-monitor-v2 DPI awareness before any overlay/settings window creation.**
 
-Use Win32 DPI APIs so logical scaling never becomes biological physical size.
+Logical scaling must never be used as physical ant size.
 
-- [ ] **Step 3: Implement transparent tool-style overlay windows.**
+- [ ] **Step 3: Implement transparent non-activating tool-style overlays with explicit hit-test pass-through.**
 
-Use Win32/DWM styles/hit testing to create borderless transparent non-taskbar windows, explicit input pass-through, no activation, and topmost behavior that does not constantly fight legitimate OS surfaces.
+Use Win32/DWM styles and normal topmost ordering; do not constantly reassert over legitimate secure/system surfaces.
 
-- [ ] **Step 4: Implement display enumeration and topology notifications.**
+- [ ] **Step 4: Implement display/topology notifications.**
 
-Collect pixel bounds, refresh, rotation, stable monitor identity, and trustworthy physical data where available. Handle `WM_DISPLAYCHANGE`, DPI change, session/suspend/resume notifications, and monitor hot-plug.
+Handle display change, per-monitor DPI change, suspend/resume/session notifications, hot-plug, refresh/rotation where available, stable monitor identity, and trustworthy physical metadata.
 
-- [ ] **Step 5: Implement notification-area menu, global hotkey, and per-user launch-at-login.**
+- [ ] **Step 5: Implement `Shell_NotifyIconW`, `RegisterHotKey`, and per-user launch-at-login.**
 
-Use `Shell_NotifyIconW`, `RegisterHotKey`, and a per-user startup mechanism that does not require a service/kernel driver/admin rights.
+No service, kernel driver, or admin requirement for normal operation. Tray callbacks emit `UtilityAction`.
 
-- [ ] **Step 6: Run Windows validation in release mode.**
+- [ ] **Step 6: Validate on actual x64 Windows release build.**
 
 ```powershell
 cargo test --workspace --release --target x86_64-pc-windows-msvc
-cargo build -p desktop-app --release --target x86_64-pc-windows-msvc
+cargo build -p platform-windows --release --target x86_64-pc-windows-msvc
 ```
 
-On actual Windows hardware, verify underlying input delivery, Alt-Tab absence, taskbar absence, full-screen video, borderless game if available, mixed-DPI multi-monitor, display changes, panic hotkey, and no console window.
+Manually test input pass-through, Alt-Tab/taskbar absence, full-screen video, borderless game if available, mixed-DPI monitors, hot-plug, and panic hotkey.
 
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add "$APP_ROOT/app/crates/platform-windows" "$APP_ROOT/app/Cargo.toml" "$APP_ROOT/APP_EXECUTION.md"
+git add "$APP_ROOT/app/crates/platform-windows" "$APP_ROOT/app/tests/input-safety" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "feat: add safe Windows click-through overlay adapter"
 ```
 
 ---
 
-### Task 15: Build the app shell, settings UI, calibration UI, tray/menu actions, and lifecycle orchestration
+### Task 15: Build the desktop app shell, diagnostics, settings UI, and calibration flow
 
 **Files:**
+- Create: `$APP_ROOT/app/crates/desktop-app/Cargo.toml`
+- Create: `$APP_ROOT/app/crates/desktop-app/src/{main.rs,app.rs,lifecycle.rs,diagnostics.rs}`
 - Create: `$APP_ROOT/app/crates/settings/src/{ui.rs,calibration_ui.rs}`
-- Create: `$APP_ROOT/app/crates/desktop-app/src/{main.rs,app.rs,lifecycle.rs}`
-- Modify: `$APP_ROOT/app/crates/desktop-app/Cargo.toml`
-- Test: app-state tests with mock platform/renderer
 
 **Interfaces:**
-- Produces `DesktopApp`, `AppCommand`, and pure state reducers where practical.
 
 ```rust
 pub enum AppCommand {
@@ -1100,79 +1080,89 @@ pub enum AppCommand {
     Recalibrate(DisplayId),
     Quit,
 }
+
+pub struct DiagnosticsSnapshot {
+    pub creature_count: usize,
+    pub rendered_count: usize,
+    pub simulation_ms: f32,
+    pub behavior_ms: f32,
+    pub spatial_ms: f32,
+    pub trails_ms: f32,
+    pub render_prep_ms: f32,
+    pub gpu_ms: Option<f32>,
+    pub upload_bytes: u64,
+    pub lod_counts: [u32; 3],
+    pub dropped_ticks: u64,
+    pub seed: u64,
+}
 ```
 
 - [ ] **Step 1: Write app-state tests before the UI.**
 
-Prove: Hide All immediately hides overlays and freezes simulation but is nonpersistent; Pause persists and remains paused across restart; closing Settings does not stop the infestation; first-run with low calibration confidence opens calibration; first-run with trusted calibration starts Realistic silently.
+Hide All immediately hides overlays and freezes simulation but is nonpersistent. Pause persists. Closing Settings does not stop creatures. Low-confidence first-run opens calibration; trusted calibration starts Realistic silently.
 
-- [ ] **Step 2: Implement `DesktopApp` orchestration without platform details leaking into simulation.**
+- [ ] **Step 2: Implement the composition root.**
 
-Main loop sequence: poll platform events -> apply lifecycle/config commands -> update display topology if dirty -> fixed-step simulation -> build per-display render instances -> render visible safe overlays -> draw settings window only when open -> collect diagnostics.
+Main loop: poll `PlatformEvent` -> map `UtilityAction`/hotkey into `AppCommand` -> apply config/lifecycle -> rebuild display topology if dirty -> advance fixed simulation -> convert `VisualCreatureState` into per-display render instances -> render only visible SafeToShow surfaces -> draw settings only when open -> collect diagnostics.
 
-On Windows, `desktop-app/src/main.rs` must use `#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]` so a normal launch does not open a console. macOS packaging uses `LSUIElement` so the utility lives in the menu bar rather than as a normal Dock app.
+Use `#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]` in `main.rs` so Windows has no console. macOS packaging later uses `LSUIElement`.
 
 - [ ] **Step 3: Implement compact egui settings.**
 
-Primary surface contains only Enable, Preset, Population, displays, Launch at Login, Cursor Reaction, Continuous/Independent monitors, Safe Overlay Mode, Panic Hotkey, Secondary Creatures, Advanced. Advanced holds scale, seed, trail/population tuning, developer diagnostics, and research-backed range indicators. Secondary-creature controls are generated dynamically from qualified packaged `CreatureProfile` entries; do not compile fixed species names into the UI.
+Primary controls: Enable, Preset, Population, displays, Launch at Login, Cursor Reaction, Continuous/Independent, Safe Overlay Mode, Panic Hotkey, Secondary Creatures, Advanced. Advanced: population cap/spawn pressure/trails/activity, creature scale, seed, developer diagnostics/visualizations. Secondary controls are generated dynamically from packaged qualified profiles; no fixed species names in UI code.
 
-- [ ] **Step 4: Implement the 85.60 mm credit-card calibration UI.**
+- [ ] **Step 4: Implement 85.60 mm credit-card calibration.**
 
-The reference rectangle must be rendered in physical pixels from the current candidate scale and update `DisplayCalibration` live; Save persists per display fingerprint. A deliberate creature-scale multiplier remains separate from calibration.
+Display a rectangle at the current candidate physical size; slider updates `mm_per_physical_px`; save per `DisplayFingerprint`. Creature scale remains a separate setting.
 
-- [ ] **Step 5: Wire tray/menu actions to `AppCommand`.**
+- [ ] **Step 5: Add hidden developer diagnostics.**
 
-Do not duplicate business logic in tray callbacks. Platform menus dispatch commands into the same app reducer.
+Expose creature ids/state colors, spatial grid, trail field, LOD visualization, physical coordinates, seed, forced population, and performance counters behind developer mode only.
 
-- [ ] **Step 6: Verify with mock adapters and both target builds.**
+- [ ] **Step 6: Verify and commit.**
 
 ```bash
 cargo test -p settings -p desktop-app
 cargo check --workspace --all-targets
-```
-
-- [ ] **Step 7: Commit.**
-
-```bash
+cargo clippy --workspace --all-targets -- -D warnings
 git add "$APP_ROOT/app/crates/settings" "$APP_ROOT/app/crates/desktop-app" "$APP_ROOT/APP_EXECUTION.md"
-git commit -m "feat: add utility lifecycle settings and calibration UX"
+git commit -m "feat: add utility shell settings and calibration UX"
 ```
 
 ---
 
-### Task 16: Implement continuous multi-monitor migration, compatibility exclusions, hidden-state efficiency, and renderer recovery
+### Task 16: Implement compatibility rules, continuous monitor migration, hidden-state efficiency, and renderer recovery
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/desktop-app/src/compatibility.rs`
 - Modify: `$APP_ROOT/app/crates/desktop-app/src/{app.rs,lifecycle.rs}`
 - Modify: `$APP_ROOT/app/crates/simulation/src/state.rs`
 - Modify: `$APP_ROOT/app/crates/rendering/src/renderer.rs`
-- Test: integration tests using mock displays/platform apps/device-loss injection
 
 **Interfaces:**
-- Produces `CompatibilityPolicy`, `VisibilityDecision`, and renderer recovery path.
 
-- [ ] **Step 1: Write integration tests for monitor crossing and independent mode.**
+```rust
+pub enum VisibilityDecision { Show, HideCompatibility, HidePanic, HidePaused, HideUnsafe }
+pub struct CompatibilityPolicy { /* safe-mode + AppExclusion rules */ }
+```
 
-A creature crossing from 220 PPI display A to 110 PPI display B preserves mm/s velocity and heading while pixel velocity changes. With independent mode, the same edge is exterior and cannot topology-cross.
+- [ ] **Step 1: Test continuous vs independent monitor behavior.**
 
-- [ ] **Step 2: Write compatibility-policy tests.**
+Crossing from a 220 PPI display to 110 PPI preserves mm/s velocity/heading but changes pixel velocity. Independent mode treats the same edge as exterior.
 
-Per-app exclusion by stable app identity hides the relevant overlays. Safe mode may hide in full-screen/selected apps. Policy uses process/window metadata only; there is no screenshot/OCR path.
+- [ ] **Step 2: Test per-app and full-screen compatibility rules.**
 
-- [ ] **Step 3: Write hidden-state efficiency tests.**
+Use `ForegroundContext.fullscreen` plus stable app id. Exclusions are metadata-only; no screenshot/OCR/content inspection path may appear.
 
-When all overlays are panic-hidden, renderer submission count remains zero and biological ticks are frozen. When one monitor is hidden, its render count is zero without corrupting its population.
+- [ ] **Step 3: Test hidden-state efficiency.**
 
-- [ ] **Step 4: Inject renderer/device-loss failures and test fail-safe recovery.**
+Panic-hidden all displays -> zero render submissions + frozen biology. One hidden monitor -> zero draws for that monitor while its state remains valid.
 
-Sequence must be: hide affected overlay -> keep utility controls alive -> recreate device/surface within bounded retries -> rebuild GPU resources -> re-run overlay safety verification -> show only on success. After final failure, remain hidden and surface diagnostic.
+- [ ] **Step 4: Inject renderer/device loss.**
 
-- [ ] **Step 5: Implement policies and recovery.**
+Required sequence: hide affected overlay -> keep utility controls alive -> bounded renderer/surface recreation -> rebuild GPU resources from CPU state -> re-run overlay safety verification -> show only after success. Permanent failure remains hidden and reports the diagnostic.
 
-Do not add retry loops that continuously thrash GPU/window APIs. Use bounded backoff/retry count and record the final native/wgpu error.
-
-- [ ] **Step 6: Verify and commit.**
+- [ ] **Step 5: Implement and verify.**
 
 ```bash
 cargo test -p desktop-app -p simulation -p rendering
@@ -1183,87 +1173,83 @@ git commit -m "feat: handle topology compatibility and renderer recovery"
 
 ---
 
-### Task 17: Qualify and integrate up to two secondary creatures without weakening ants
+### Task 17: Qualify and integrate up to two secondary creatures
 
 **Files:**
-- Modify: `$APP_ROOT/app/assets/creature-profiles/runtime-profiles.bin` through the compiler, not by hand
-- Modify: `$APP_ROOT/app/crates/creature-profile/src/schema.rs` only if a truly generic field is missing
-- Modify: `$APP_ROOT/app/crates/simulation/src/*` with species-specific modules if required
-- Modify: `$APP_ROOT/app/crates/rendering/src/*` with species-specific renderers if required
-- Modify: `$APP_ROOT/app/crates/settings/src/ui.rs`
 - Create: `$APP_ROOT/docs/SECONDARY_CREATURE_GATE.md`
+- Regenerate: `$APP_ROOT/app/assets/creature-profiles/runtime-profiles.bin` through profile compiler when needed
+- Modify species-specific simulation/rendering modules only for passing candidates
+- Modify: `$APP_ROOT/app/crates/settings/src/ui.rs`
 
-**Interfaces:**
-- Consumes: research candidates from the final Mega Pack.
-- Produces: zero, one, or two qualified secondary runtime profiles/render paths.
+- [ ] **Step 1: Evaluate each research candidate factually.**
 
-- [ ] **Step 1: Score candidates using a factual gate, not preference.**
+Record evidence depth, calibrated morphology, locomotion/behavior measurements, legal data/asset status, implementation complexity, screen-size readability, and predicted performance cost.
 
-For each research candidate record: evidence depth, calibrated morphology, measured locomotion data, behavior data, usable/legal asset/data status, implementation complexity, expected screen-size readability, and predicted performance cost. Do not rank by aesthetics alone.
+- [ ] **Step 2: Apply the quality gate.**
 
-A candidate passes only if it has enough evidence to avoid implementing "an ant with a different skin" and does not require unrelated v1 systems such as full flight physics unless the research/design explicitly justifies them.
+A candidate passes only if it can have its own evidence-backed locomotion/render behavior rather than being an ant skin. Do not add unrelated full flight physics just to ship an extra creature. Zero passing candidates is a valid v1 result.
 
-- [ ] **Step 2: Write `SECONDARY_CREATURE_GATE.md` with the pass/fail rationale.**
+- [ ] **Step 3: Write species-specific failing tests before any passing candidate implementation.**
 
-If no candidate passes, record that result and ship ants only. That is a successful gate, not a failure of the app plan.
+For example, a springtail candidate needs an evidence-derived jump/landing model rather than an ant walk state plus vertical animation.
 
-- [ ] **Step 3: For each passing creature, write species-specific tests before implementation.**
+- [ ] **Step 4: Integrate behind `CreatureKind` dispatch without weakening ant-specialized internals.**
 
-Tests must cover its own locomotion invariants and renderer signature. A jumping springtail, for example, must have an explicit jump impulse/landing model from evidence rather than toggling an ant state.
+Settings discovers qualified secondary profiles dynamically.
 
-- [ ] **Step 4: Implement passing creatures behind `CreatureKind` dispatch while retaining ant-specialized code.**
-
-Do not refactor ant internals into a weak lowest-common-denominator interface merely to reduce lines of code.
-
-- [ ] **Step 5: Verify ant benchmarks and visuals did not regress.**
+- [ ] **Step 5: Re-run ant regression suite/visuals and commit.**
 
 ```bash
 cargo test --workspace
-cargo run -p desktop-app --release -- --render-validation core --output target/validation-post-secondary
-```
-
-- [ ] **Step 6: Commit.**
-
-```bash
+cargo run -p rendering --example validation --release -- --scene core --output target/validation-post-secondary
 git add "$APP_ROOT/docs/SECONDARY_CREATURE_GATE.md" "$APP_ROOT/app" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "feat: gate and integrate evidence-qualified secondary creatures"
 ```
 
 ---
 
-### Task 18: Add instrumentation, deterministic benchmarks, and optimize the 1,000+ creature target
+### Task 18: Instrument, benchmark, profile, and optimize 1,000+ creatures
 
 **Files:**
 - Create: `$APP_ROOT/app/crates/desktop-app/benches/{simulation.rs,stress.rs}`
+- Modify: `$APP_ROOT/app/crates/desktop-app/Cargo.toml`
 - Modify: `$APP_ROOT/app/crates/desktop-app/src/{main.rs,diagnostics.rs}`
-- Modify hot paths discovered by profiling
+- Modify measured hot paths only
 - Create/update: `$APP_ROOT/docs/PERFORMANCE.md`
+- Create/update: `$APP_ROOT/app/tests/soak/README.md`
 
-**Interfaces:**
-- Produces reproducible Criterion benches plus developer CLI benchmark mode and `BenchmarkReport` JSON containing median/p95/p99/worst metrics.
+- [ ] **Step 1: Add Criterion bench declarations and four fixed scenarios.**
 
-- [ ] **Step 1: Create four deterministic benchmark scenarios.**
+```toml
+[[bench]]
+name = "simulation"
+harness = false
 
-Realistic = 50 ants; Heavy = 500; Required Stress = 1,000 with normal interactions/trails/render prep; Extreme = 2,000-5,000 stability. Use fixed seeds and the compiled runtime profile version.
-
-- [ ] **Step 2: Implement benchmark CLI modes before measuring.**
-
-Using the developer-only `clap` path established in Task 11, support:
-
-```text
-desktop-app --benchmark-scenario realistic --json <file>
-desktop-app --benchmark-scenario heavy --json <file>
-desktop-app --benchmark-scenario stress1000 --json <file>
-desktop-app --benchmark-scenario extreme --json <file>
+[[bench]]
+name = "stress"
+harness = false
 ```
 
-Normal no-argument app launch remains unaffected.
+Scenarios: Realistic=50, Heavy=500, Required Stress=1,000, Extreme=2,000-5,000. Fixed seed + exact profile version.
 
-- [ ] **Step 3: Record the full metric set.**
+- [ ] **Step 2: Add developer benchmark CLI.**
 
-Simulation, behavior, spatial, trails, render prep, GPU frame time when measurable, upload bytes, overlay overhead, total frame time, allocations, resident memory, LOD counts, dropped ticks. Compute median, p95, p99, worst.
+`desktop-app` accepts only in developer/CI invocation:
 
-- [ ] **Step 4: Establish pre-optimization release baselines.**
+```text
+--benchmark-scenario realistic --json <file>
+--benchmark-scenario heavy --json <file>
+--benchmark-scenario stress1000 --json <file>
+--benchmark-scenario extreme --json <file>
+```
+
+Normal no-argument launch remains the silent utility.
+
+- [ ] **Step 3: Measure the complete metric set.**
+
+Simulation, behavior, spatial, trails, render prep, GPU time when supported, upload bytes, overlay overhead, total frame time, steady-state allocations, resident memory, LOD counts, dropped ticks. Report median/p95/p99/worst.
+
+- [ ] **Step 4: Capture pre-optimization release baselines.**
 
 ```bash
 cargo bench --workspace
@@ -1273,25 +1259,25 @@ cargo run -p desktop-app --release -- --benchmark-scenario stress1000 --json tar
 cargo run -p desktop-app --release -- --benchmark-scenario extreme --json target/bench-extreme.json
 ```
 
-Inspect the JSON. Do not claim performance from architecture alone.
+Inspect files; architecture alone is not performance evidence.
 
-- [ ] **Step 5: Profile the actual largest contributors before optimizing.**
+- [ ] **Step 5: Profile before changing hot paths.**
 
-Use platform-appropriate profiler/instruments available in the environment. Optimize measured bottlenecks only: allocations, cache layout, spatial bucket churn, trail update schedule, render instance upload, shader overdraw, unnecessary hidden-surface work, or decision cadence.
+Use Instruments/platform profiler available on the current host. Optimize measured costs only: layout/cache, allocations, spatial bucket churn, trail scheduling, instance upload, shader overdraw, hidden surfaces, or decision cadence.
 
-- [ ] **Step 6: Enforce hard hot-path invariants.**
+- [ ] **Step 6: Enforce hard invariants.**
 
-Required: no all-pairs neighbor pass; no one-draw-call-per-creature; zero steady-state simulation allocations; no spawn/despawn hitch from vector growth after warm capacity; hidden overlays submit zero render work; paused state approaches idle.
+No O(n^2) neighbor loop, no per-creature draw call, zero warmed steady-state simulation allocations, no capacity-growth spawn hitch after warm-up, zero hidden-overlay submissions, paused state near idle.
 
-- [ ] **Step 7: Re-run until the required 1,000-creature 60 FPS target passes on available ordinary modern reference hardware or a genuine hardware limitation is documented.**
+- [ ] **Step 7: Re-run until the 1,000-creature reference target passes or hardware access is the only blocker.**
 
-60 FPS means frame budget <=16.67 ms with no recurring p99 spikes that make the result visibly stutter. If the available environment lacks representative GPU access, finish CPU/simulation optimization and record the GPU benchmark as an external hardware validation blocker rather than inventing a pass.
+Reference: <=16.67 ms frame budget at 60 FPS on available ordinary modern hardware with no recurring p99 stutter. If representative GPU access is unavailable, finish measurable CPU/simulation optimization and document the hardware validation blocker honestly.
 
 - [ ] **Step 8: Soak the extreme scenario.**
 
-Run a long release-mode session (target at least 2 hours when environment permits) with hide/show, spawn/exit, preset changes, config saves, renderer recreation, and topology events. Record start/end memory and handle/resource counts. No unbounded growth or increasing frame-time trend.
+Target >=2 hours when environment permits, exercising spawn/exit, hide/show, preset changes, config writes, renderer recreation, and topology events. Record start/end memory plus OS/GPU resource counts; no unbounded growth/trend.
 
-- [ ] **Step 9: Write measured results to `PERFORMANCE.md` and commit.**
+- [ ] **Step 9: Write measured results and commit.**
 
 ```bash
 git add "$APP_ROOT/app" "$APP_ROOT/docs/PERFORMANCE.md" "$APP_ROOT/APP_EXECUTION.md"
@@ -1300,52 +1286,49 @@ git commit -m "perf: validate and optimize thousand-creature workloads"
 
 ---
 
-### Task 19: Add macOS/Windows packaging and project-specific CI/release workflows
+### Task 19: Package macOS/Windows and add project CI/release workflows
 
 **Files:**
 - Create: `$APP_ROOT/app/packaging/macos/{Info.plist,build-dmg.sh}`
 - Create: `$APP_ROOT/app/packaging/windows/wix/Product.wxs`
 - Create: `$APP_ROOT/app/packaging/windows/build-msi.ps1`
-- Create/modify project-specific workflows under `.github/workflows/` on the selected project lineage
+- Create/modify: project-specific `.github/workflows/*.yml` on selected project lineage
 - Create: `$APP_ROOT/docs/RELEASE.md`
 
-**Interfaces:**
-- Produces: macOS `.app` + `.dmg`, Windows GUI binary + `.msi` (or documented equivalent if toolchain constraints require), CI validation, checksums, optional signing when secrets exist.
+- [ ] **Step 1: Add packaging smoke assertions before release scripts.**
 
-- [ ] **Step 1: Add packaging smoke checks before release scripting.**
+macOS: executable, `Info.plist`, `LSUIElement`, profiles/presets/shaders, minimal entitlements. Windows: GUI subsystem/no console, assets, install/uninstall metadata, no service/driver requirement.
 
-macOS smoke check asserts the `.app` has executable, `Info.plist`, packaged profiles/presets/shaders, LSUIElement/menu-bar behavior, and no unnecessary entitlements. Windows smoke check asserts GUI subsystem/no console, packaged assets, clean install/uninstall metadata, and no service/driver requirement.
+- [ ] **Step 2: Implement macOS `.app` + `.dmg`.**
 
-- [ ] **Step 2: Implement macOS bundling.**
+Primary Apple Silicon. Add x86_64/Universal 2 only if toolchain/dependencies reasonably support it. Unsigned/ad-hoc development artifacts must build without signing credentials. If signing/notarization secrets exist, use them; otherwise record unsigned status and continue.
 
-Primary build is Apple Silicon. Add x86_64/Universal 2 only if all dependencies compile reasonably. `build-dmg.sh` must work unsigned/ad-hoc for development; if signing identity/notarization credentials are present, use them, otherwise emit a clear unsigned-artifact note and continue.
+- [ ] **Step 3: Implement Windows x64 GUI binary + conventional per-user installer.**
 
-- [ ] **Step 3: Implement Windows installer.**
+No kernel component. Code signing is conditional on available credentials; unsigned test MSI remains valid.
 
-Build x64 MSVC release binary and conventional per-user installer. Install/uninstall must not require a kernel component. Code signing is conditional on credentials; unsigned test MSI remains a valid build artifact.
+- [ ] **Step 4: Add normal CI.**
 
-- [ ] **Step 4: Add CI.**
-
-Project CI must run at minimum:
+At minimum:
 
 ```text
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-profile compiler compile + verify
+profile-compiler compile + verify
 macOS release build
 Windows release build
 ```
 
-Add separate/manual or nightly jobs for renderer validation and benchmarks where hosted GPU limitations make ordinary CI unreliable.
+Renderer validation/benchmark jobs can be separate/manual/nightly where hosted GPU capability is insufficient.
 
-- [ ] **Step 5: Add release workflow.**
+- [ ] **Step 5: Add tag-triggered release workflow.**
 
-Tag release must: clean checkout -> compile profiles -> verify profiles -> full tests -> release builds -> packaging -> signing/notarization when credentials exist -> SHA-256 checksums -> upload artifacts. App version, profile bundle version, and profile schema version must be printed separately.
+Clean checkout -> compile/verify profiles -> tests -> release builds -> package -> optional sign/notarize -> SHA-256 checksums -> release artifacts. Print app version, profile version, and schema version separately.
 
-- [ ] **Step 6: Locally exercise packaging as far as the current host permits and inspect produced contents.**
+- [ ] **Step 6: Exercise actual packaging as far as current target environments permit and inspect package contents.**
 
-Do not mark the non-host platform package verified merely because YAML exists; use cross-platform CI or actual target hardware for that evidence.
+A YAML workflow is not evidence that a non-host package works; use target CI/hardware where available.
 
 - [ ] **Step 7: Commit.**
 
@@ -1356,24 +1339,18 @@ git commit -m "build: package and validate macOS and Windows releases"
 
 ---
 
-### Task 20: Finish documentation, full test matrix, input safety, final release verification, and handoff
+### Task 20: Finish docs, full verification, input-safety blocker, and handoff
 
 **Files:**
 - Create/update: `$APP_ROOT/README.md`
 - Create/update: `$APP_ROOT/docs/{ARCHITECTURE.md,PLATFORM_SUPPORT.md,BIOLOGY_PROFILE_FORMAT.md,TESTING.md,PERFORMANCE.md,RELEASE.md}`
 - Update: `$APP_ROOT/APP_EXECUTION.md`
-- No unrelated source refactors in this task unless verification exposes a bug.
 
-**Interfaces:**
-- Produces the final evidence-backed completion record and maintainable project documentation.
+- [ ] **Step 1: Write docs from actual implementation/results.**
 
-- [ ] **Step 1: Write documentation from the actual implementation, not the old plan wording.**
+`ARCHITECTURE.md`: crate boundaries/dependency direction. `PLATFORM_SUPPORT.md`: verified/best-effort/unsupported compositor/full-screen cases. `BIOLOGY_PROFILE_FORMAT.md`: evidence -> compiler -> runtime bundle. `TESTING.md`: automated/manual matrices. `PERFORMANCE.md`: hardware/backend + measured percentiles. `RELEASE.md`: reproducible packaging/signing/notarization.
 
-`ARCHITECTURE.md` names crate boundaries/dependency direction. `PLATFORM_SUPPORT.md` distinguishes verified, best-effort, unsupported/protected compositor cases. `BIOLOGY_PROFILE_FORMAT.md` documents source-to-runtime schema/provenance. `TESTING.md` contains exact automated + manual matrices. `PERFORMANCE.md` contains measured numbers and hardware/backend details. `RELEASE.md` contains reproducible packaging/signing steps.
-
-- [ ] **Step 2: Run the full repository/project verification from a clean working tree state.**
-
-At minimum:
+- [ ] **Step 2: Run full project verification after the last code change.**
 
 ```bash
 cd "$APP_ROOT/app"
@@ -1383,109 +1360,101 @@ cargo test --workspace --release
 cargo check --workspace --all-targets
 cargo run -p profile-compiler --release -- compile --input "<resolved-mega-pack-root>" --output target/final-profiles.bin --report target/final-profiles.json
 cargo run -p profile-compiler --release -- verify --bundle target/final-profiles.bin
-cargo run -p desktop-app --release -- --render-validation all --output target/final-validation
+cargo run -p rendering --example validation --release -- --scene all --output target/final-validation
 cargo run -p desktop-app --release -- --benchmark-scenario stress1000 --json target/final-bench-1000.json
 ```
 
-Then run the workspace-level coordination tests required by `AGENTS.md` from repo root:
+From repo root:
 
 ```bash
 python -m unittest discover -s tests -v
 python agentctl.py validate
 ```
 
-- [ ] **Step 3: Execute the platform input-safety release blocker on each available target.**
+- [ ] **Step 3: Execute the platform input-safety release blocker.**
 
-With overlay active, underlying test app must receive click, double-click, drag, scroll, mouse movement, and keyboard input. Also verify panic hotkey while another app/game has focus. A target failing this test is not releasable; fix it and rerun.
+With overlay active, an underlying test app must receive click, double-click, drag, scroll, mouse movement, and keyboard input normally. Verify panic hotkey while another app/game has focus. Any failing target is not releasable; fix and rerun.
 
-- [ ] **Step 4: Inspect final release-mode visual output at calibrated 1:1 physical scale.**
+- [ ] **Step 4: Inspect final release-mode visuals at calibrated 1:1 physical size.**
 
-Check 2/3/4 mm sizes, 360-degree headings, gait/antenna coupling, bright/dark content, LOD transitions, high refresh where hardware allows, and absence of major shimmer/disappearing limbs/cartoon shadow/outline. Record concrete observations, not "looks good" alone.
+2/3/4 mm, 360-degree heading sweep, gait/antenna coupling, bright/dark backgrounds, LOD transitions, high refresh where hardware exists. Record concrete observations about shimmer, missing appendages, shadows/outlines, and transition stability.
 
-- [ ] **Step 5: Inspect artifacts, not just build exit codes.**
+- [ ] **Step 5: Inspect produced packages, not just exit codes.**
 
-Open/list the `.app`, `.dmg`, Windows binary, and installer contents. Confirm runtime profiles, presets, shaders, icons/metadata are present and executable launch behavior is correct. Record signatures/notarization status honestly.
+List/open `.app`, `.dmg`, Windows binary, installer; verify profiles/presets/shaders/icons/metadata, launch behavior, signature/notarization state.
 
-- [ ] **Step 6: Scan for unfinished implementation markers and accidental policy violations.**
-
-Run targeted searches:
+- [ ] **Step 6: Scan for unfinished markers and prohibited architecture creep.**
 
 ```bash
 rg -n "TODO|TBD|FIXME|unimplemented!\(|todo!\(|panic!\(\"not implemented" "$APP_ROOT/app" "$APP_ROOT/docs"
-rg -n "screen.?capture|OCR|inject|hook DirectX|kernel driver|telemetry|analytics" "$APP_ROOT/app"
+rg -n "screen.?capture|OCR|inject|graphics.?hook|kernel driver|telemetry|analytics" "$APP_ROOT/app"
 ```
 
-Every match must be reviewed. Remove unfinished markers from required paths or document truly intentional future/non-v1 notes in docs rather than executable code.
+Review every match; remove unfinished required implementation or move intentional future/non-v1 notes into documentation.
 
-- [ ] **Step 7: Compare the finished implementation against every section of the approved design spec.**
+- [ ] **Step 7: Map every design section 1-16 to implementation evidence in `APP_EXECUTION.md`.**
 
-Create a final checklist in `APP_EXECUTION.md` mapping design sections 1-16 to concrete code/tests/docs/artifacts. Any missing required item reopens the relevant earlier task; implement/fix it before continuing.
+A gap reopens the owning earlier task. Implement/fix and rerun affected tests before proceeding.
 
-- [ ] **Step 8: Re-run all affected tests after any final fixes.**
-
-No completion claim based on stale pre-fix output.
-
-- [ ] **Step 9: Commit final docs/verification.**
+- [ ] **Step 8: Commit final verified docs.**
 
 ```bash
 git add "$APP_ROOT/README.md" "$APP_ROOT/docs" "$APP_ROOT/APP_EXECUTION.md"
 git commit -m "docs: record verified insect desktop app release"
 ```
 
-- [ ] **Step 10: Record coordination completion, release scopes, and close the agent session.**
+- [ ] **Step 9: Record coordination result and release all scopes.**
 
-Use `agentctl.py event` to record exact verification commands/results, `task-state ... completed` only if all available-environment acceptance gates pass, then release every claimed scope and mark the one-shot agent offline/retired according to repository policy. If a genuine external blocker remains, set the task to blocked with everything completed, blocker details, exact artifact/commit paths, and next action; still release scopes.
+Use `agentctl.py event` with exact test/benchmark/artifact evidence. Mark completed only if all available-environment gates pass; otherwise mark blocked with the exact external blocker and completed unaffected work. Release every lease and set the one-shot worker offline/retired per repository policy.
 
-- [ ] **Step 11: Final report to the user.**
+- [ ] **Step 10: Final report.**
 
-Report: branch + final SHA; what is implemented; automated test counts/results; measured 1,000-creature performance and reference hardware; macOS/Windows manual validation status; artifact paths; secondary-creature gate result; known OS limitations; signing/notarization status; any genuine remaining blocker. Do not use "complete" for an unverified target.
+Report branch/final SHA, implemented features, test results/counts, measured 1,000-creature performance + hardware, macOS/Windows validation status, artifact paths, secondary-creature gate result, known platform limitations, signing/notarization status, and genuine blockers. Do not call an unverified target complete.
 
 ---
 
 # Self-review coverage record
 
-Before handing this plan to the user, the author checked it against the approved spec:
+- Spec Sections 1-4: Global Constraints + Tasks 1-3.
+- Section 5 ant simulation: Tasks 6-8.
+- Section 6 rendering: Tasks 9-11.
+- Section 7 platform/overlay: Tasks 12-16.
+- Section 8 settings/UX: Tasks 4, 5, 15, 16.
+- Sections 9-10 performance/testing: Tasks 6-11, 16, 18, 20.
+- Sections 11-12 packaging/CI/versioning: Tasks 2, 3, 19.
+- Section 13 documentation: Tasks 17-20.
+- Section 14 one-shot Astra execution: One-shot contract + continuous Task 1-20 instruction.
+- Section 15 definition of done: Task 20 + checklist below.
+- Section 16 non-goals: Global Constraints + non-goals reminder.
 
-- Spec Sections 1-4 (purpose, locked decisions, repo rule, architecture): Tasks 1-3 plus Global Constraints.
-- Section 5 (ant behavior): Tasks 6-8.
-- Section 6 (rendering): Tasks 9-11.
-- Section 7 (overlay/platform behavior): Tasks 12-16.
-- Section 8 (settings/UX): Tasks 4, 5, 15, 16.
-- Sections 9-10 (performance/testing): Tasks 6-11, 16, 18, 20.
-- Sections 11-12 (packaging/CI/versioning): Tasks 2, 3, 19.
-- Section 13 (documentation): Tasks 17-20.
-- Section 14 (one-shot execution): One-shot Astra invocation contract + Tasks 1-20 continuous execution rule.
-- Section 15 (definition of done): Task 20 + Definition of Done below.
-- Section 16 (non-goals): Global Constraints + Non-goals reminder below.
-
-Type/interface consistency was checked after defining `SurfaceSource`, benchmark locations, compiler subcommands, settings/profile dependencies, and developer CLI modes. No task intentionally references an undefined neighboring interface.
+Self-review also checked dependency direction and execution order: simulation exports `VisualCreatureState` rather than importing rendering; offscreen renderer exists before platform types; `SurfaceSource` is introduced before live surfaces; platform menus emit platform-neutral `UtilityAction` before the app shell maps it; benchmark crates exist before benchmark commands; all multi-name `cargo test` filters were replaced with valid commands.
 
 # Definition of Done
 
-The one-shot execution is finished only when, as far as the available environment permits, all of the following are evidenced in `APP_EXECUTION.md` and the repository:
+The one-shot execution is finished only when, as far as the available environment permits, all are evidenced:
 
-- macOS menu-bar utility launches without a terminal and Windows tray utility launches without a console.
+- macOS menu-bar utility launches without terminal; Windows tray utility launches without console.
 - Transparent overlays render correctly and normal input passes through.
-- Global panic hide works independently of overlay focus.
-- True physical creature size uses trustworthy display metadata or per-display manual calibration.
-- Runtime profiles are compiled deterministically from the Mega Pack with provenance; no arbitrary missing biology is invented.
-- Ant behavior is deterministic in tests, trajectory/profile bounded, and not primarily random-waypoint/Perlin-noise movement.
-- Gait and antennae follow locomotion/behavior; stopping actually settles walking motion.
-- Independent and continuous multi-monitor modes work and preserve physical speed across density changes.
-- Presets/settings/config migration/corruption recovery work and Realistic keeps cursor reaction off.
-- Maximum overlay mode plus optional compatibility/per-app exclusions work without process injection or screen capture.
-- 1,000-creature required stress workload meets the defined 60 FPS reference target on available representative hardware, or the unavailable hardware gate is explicitly documented after all measurable optimization work is complete.
+- Panic hide works independently of overlay focus.
+- True physical size uses trusted metadata or per-display manual calibration.
+- Profiles compile deterministically from Mega Pack evidence with provenance; missing biology is not invented.
+- Ant simulation is deterministic in tests and bounded by measured profile distributions rather than primary random-waypoint/Perlin motion.
+- Gait/antennae follow locomotion/behavior; stopped ants stop walking.
+- Independent/continuous monitors work and preserve physical speed across density changes.
+- Presets/config migration/corruption recovery work; Realistic keeps cursor reaction OFF.
+- Maximum overlay mode and compatibility/per-app exclusions work without process injection or screen capture.
+- Required 1,000-creature workload meets the defined 60 FPS reference target on available representative hardware, or unavailable hardware is the only documented validation blocker after measurable optimization is complete.
 - High-refresh interpolation is smooth on available 120/144/165/240 Hz hardware.
-- Visual validation shows no major LOD popping, persistent subpixel-leg disappearance/shimmer, giant game-like shadows, or forced glow outlines.
-- Panic-hidden overlays submit no render work and paused state approaches idle.
-- Renderer/device-loss failure cannot leave an input-trapping/opaque topmost window.
-- Soak/stress testing shows no unbounded memory/handle/GPU-resource growth or simulation degradation.
-- Secondary creatures are included only if their research/quality gate passes; ants remain uncompromised.
-- Installable/testable macOS and Windows artifacts are produced as far as target toolchains/hardware permit; missing signing credentials do not block unsigned artifacts.
-- CI, release workflows, checksums, and separate app/profile/schema versioning exist.
-- `README.md`, `ARCHITECTURE.md`, `PLATFORM_SUPPORT.md`, `BIOLOGY_PROFILE_FORMAT.md`, `PERFORMANCE.md`, `RELEASE.md`, and `TESTING.md` reflect actual verified behavior.
-- Final release-mode test, benchmark, visual, packaging, and platform outputs are inspected after the last code change before any completion claim.
+- Validation shows no major LOD popping, persistent subpixel appendage disappearance/shimmer, giant game-style shadows, or forced glow outlines.
+- Hidden overlays submit no render work; paused state approaches idle.
+- Device-loss/failure paths cannot leave an opaque or input-trapping topmost window.
+- Soak/stress testing shows no unbounded memory/handle/GPU-resource growth or increasing degradation.
+- Secondary creatures are included only if the evidence/quality gate passes; ants remain uncompromised.
+- Installable/testable macOS and Windows artifacts exist as far as target toolchains/hardware permit; missing signing credentials do not block unsigned artifacts.
+- CI/release workflows/checksums and separate app/profile/schema versions exist.
+- `README.md`, `ARCHITECTURE.md`, `PLATFORM_SUPPORT.md`, `BIOLOGY_PROFILE_FORMAT.md`, `PERFORMANCE.md`, `RELEASE.md`, and `TESTING.md` describe actual verified behavior.
+- Final release-mode tests, benchmarks, visuals, packages, and platform outputs are inspected after the last source change before completion is claimed.
 
 # Non-goals reminder
 
-Do not spend the one-shot request adding accounts, cloud sync, analytics, mandatory auto-update, app-store integration, game injection, UI/content understanding, elaborate feeding/health gameplay, per-ant rigid-body/3D physics, Linux release work, or weakly evidenced secondary species. Those are outside v1 unless the user explicitly changes the approved design.
+Do not spend the one-shot request adding accounts, cloud sync, analytics, mandatory auto-update, app-store integration, game/process injection, UI/content understanding, elaborate feeding/health gameplay, per-ant full rigid-body/3D physics, Linux release work, or weakly evidenced secondary species. Those are outside v1 unless the user explicitly changes the approved design.
