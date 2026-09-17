@@ -7,5 +7,5 @@
   "description": "Design and planning session for the insect realism desktop utility",
   "capabilities": ["documentation", "architecture", "planning"],
   "registered_at": "2026-09-17T14:53:00+00:00",
-  "state": "offline"
+  "state": "available"
 }
