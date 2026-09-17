@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "design-insect-realism-desktop-app-20260917-a317",
+  "scope": "docs/superpowers/specs",
+  "owner": "chatgpt-insect-app-design-a317",
+  "state": "active",
+  "intent": "Write and self-review the approved insect realism desktop app architecture spec without touching the active Mega Pack implementation scope.",
+  "claimed_at": "2026-09-17T14:54:50+00:00",
+  "heartbeat_at": "2026-09-17T14:54:50+00:00",
+  "expires_at": "2026-09-17T18:54:50+00:00",
+  "generation": 1
+}
