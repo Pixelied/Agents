@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "plan-insect-realism-desktop-app-20260917-a317",
+  "title": "Write one-shot insect realism desktop app implementation plan",
+  "objective": "Turn the approved desktop app design spec into one comprehensive implementation plan that an Astra agent can execute end-to-end in a single request without stopping between milestones.",
+  "created_by": "chatgpt-insect-app-design-a317",
+  "created_at": "2026-09-17T15:00:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": ["docs/superpowers/plans"],
+  "acceptance_criteria": [
+    "Plan covers the entire approved design from repository inspection through packaged macOS and Windows artifacts",
+    "Tasks use explicit files, interfaces, test-first steps, commands, acceptance gates, and meaningful commits",
+    "Plan instructs the executor to continue autonomously through all milestones in one request",
+    "Plan contains no placeholders and is self-reviewed for design coverage and interface consistency"
+  ]
+}
