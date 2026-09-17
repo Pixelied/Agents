@@ -13,45 +13,28 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Read public archive and metadata; do not run downloaded code
+      - name: Read public repository and archive metadata only
         run: |
           python - <<'PY'
-          import hashlib, io, json, zipfile
+          import json
           from urllib.request import Request, urlopen
-          from urllib.parse import quote, urljoin
-          base='https://datadryad.org'
-          def get_json(url):
-              with urlopen(Request(url, headers={'Accept':'application/json'}), timeout=30) as r:
-                  return json.load(r)
-          for doi in ['10.5061/dryad.jk53j', '10.5061/dryad.g79cnp5tq', '10.6078/D15T50']:
+          urls=[
+            'https://zenodo.org/api/records/7688262',
+            'https://api.github.com/repos/nobuaki-mzmt/diacamma-tandem/commits/main',
+            'https://api.github.com/repos/nobuaki-mzmt/diacamma-tandem/contents/data/trajectory/raw',
+            'https://api.github.com/repos/invernie/Hidden-Markov-models-of-Temnothorax-nest-building/contents'
+          ]
+          for url in urls:
               try:
-                  data=get_json(base+'/api/v2/datasets/'+quote('doi:'+doi,safe=''))
-                  print('DATASET',doi,json.dumps({k:data.get(k) for k in ['title','license','usageNotes','relatedWorks','_links']},sort_keys=True))
-                  version=get_json(urljoin(base,data['_links']['stash:version']['href']))
-                  files=get_json(urljoin(base,version['_links']['stash:files']['href']))
-                  print('FILES',doi,json.dumps(files,sort_keys=True))
-                  if doi!='10.5061/dryad.jk53j':
-                      continue
-                  assert data.get('license','').endswith('/CC0-1.0.html')
-                  entry=files['_embedded']['stash:files'][0]
-                  assert entry['size'] < 20000000
-                  with urlopen('https://datadryad.org/downloads/file_stream/68511',timeout=60) as r:
-                      payload=r.read(20000001)
-                  assert len(payload)==entry['size']
-                  actual=hashlib.new(entry['digestType'].replace('-',''),payload).hexdigest()
-                  assert actual==entry['digest']
-                  print('VERIFIED_ARCHIVE_SHA256',hashlib.sha256(payload).hexdigest())
-                  with zipfile.ZipFile(io.BytesIO(payload)) as z:
-                      assert sum(x.file_size for x in z.infolist()) < 100000000
-                      for info in z.infolist():
-                          print('MEMBER',info.filename,info.file_size)
-                          if info.is_dir():
-                              continue
-                          if info.filename.lower().endswith(('.txt','.csv','.tsv','.md')):
-                              text=z.read(info).decode('utf-8-sig')
-                              print('TEXT_PREVIEW',info.filename,json.dumps(text.splitlines()[:8]))
-                              if 'readme' in info.filename.lower():
-                                  print('README_TEXT',text[:20000])
+                  with urlopen(Request(url,headers={'Accept':'application/json','User-Agent':'insect-research/0.2'}),timeout=30) as r:
+                      data=json.load(r)
+                  if 'zenodo' in url:
+                      data={k:data.get(k) for k in ['id','doi','metadata','files','links']}
+                  elif '/commits/' in url:
+                      data={'sha':data['sha'],'date':data['commit']['committer']['date']}
+                  elif isinstance(data,list):
+                      data=[{k:x.get(k) for k in ['name','path','sha','size','download_url','type']} for x in data]
+                  print('PUBLIC_METADATA',url,json.dumps(data,sort_keys=True))
               except Exception as exc:
-                  print('ACCESS_FAILURE',doi,type(exc).__name__,str(exc))
+                  print('ACCESS_FAILURE',url,type(exc).__name__,str(exc))
           PY
