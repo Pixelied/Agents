@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-insect-full-7d6a",
+  "provider": "openai",
+  "model": "gpt-6-astra-pro",
+  "description": "Continue the fresh insect research checkpoint through the complete approved plan, without modifying other project lineages.",
+  "capabilities": ["python", "testing", "research", "documentation"],
+  "registered_at": "2026-09-17T14:27:23+00:00",
+  "state": "available"
+}
