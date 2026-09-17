@@ -1,0 +1,28 @@
+name: Fresh insect research verification
+on:
+  push:
+    branches: [project/insect-realism-fresh-20260917-c82e]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Shared workspace tests and validation
+        run: |
+          python -m unittest discover -s tests -v
+          python agentctl.py validate
+      - name: Install research test dependencies
+        working-directory: projects/insect-realism-fresh-20260917-c82e
+        run: python -m pip install -e '.[test]'
+      - name: Verify project dependency contract and tests
+        working-directory: projects/insect-realism-fresh-20260917-c82e
+        run: |
+          python -c "import sys, pytest, numpy, pandas; print(sys.version); print('pytest', pytest.__version__, 'numpy', numpy.__version__, 'pandas', pandas.__version__); assert sys.version_info[:2] == (3,12); assert pytest.__version__.split('.')[0] == '8'"
+          python -m pytest -q
+          python scripts/init_pack.py
