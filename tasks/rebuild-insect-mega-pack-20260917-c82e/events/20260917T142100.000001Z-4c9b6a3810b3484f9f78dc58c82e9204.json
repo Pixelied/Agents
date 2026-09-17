@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "4c9b6a3810b3484f9f78dc58c82e9204",
+  "task_id": "rebuild-insect-mega-pack-20260917-c82e",
+  "agent_id": "chatgpt-insect-fresh-c82e",
+  "type": "metadata_correction",
+  "message": "Workspace validation rejected the unregistered 'unassigned' handoff recipient. Corrected only this session's handoff to an explicitly archival self-reference. The session remains offline, the scope released, and no future worker assigned. Research code and all other agents' records are unchanged.",
+  "data": {
+    "handoff_id": "4c9b6a3810b3484f9f78dc58c82e9201",
+    "failed_run_id": 35232812687,
+    "root_cause": "ValidationMixin requires both from_agent and to_agent to be registered agent identities; unassigned is not a supported sentinel.",
+    "correction_commit": "8797253ff179ff7c5d225567264ad4787ecc98b6",
+    "project_commit_unchanged": "1799f9a2c7f42249b9dd3d7db0f99f685cdd3ee1"
+  },
+  "created_at": "2026-09-17T14:21:00+00:00"
+}
