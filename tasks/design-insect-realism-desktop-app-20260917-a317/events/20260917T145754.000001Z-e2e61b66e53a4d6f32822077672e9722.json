@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "e2e61b66e53a4d6f32822077672e9722",
+  "task_id": "design-insect-realism-desktop-app-20260917-a317",
+  "agent_id": "chatgpt-insect-app-design-a317",
+  "type": "progress",
+  "message": "Wrote and self-reviewed the insect realism desktop app design spec on an isolated docs branch. The branch differs from main only by the spec file and does not touch the active Mega Pack project scope.",
+  "data": {
+    "branch": "docs/insect-realism-desktop-app-design-a317",
+    "spec_path": "docs/superpowers/specs/2026-09-17-insect-realism-desktop-app-design.md",
+    "spec_commit": "a515fef356e658ea09eb63f58281d515f5da56a0",
+    "changes": 1,
+    "user_review_pending": true
+  },
+  "created_at": "2026-09-17T14:57:54+00:00"
+}
