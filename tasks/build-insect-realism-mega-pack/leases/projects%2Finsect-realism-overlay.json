@@ -3,11 +3,11 @@
   "protocol_version": "1.0",
   "task_id": "build-insect-realism-mega-pack",
   "scope": "projects/insect-realism-overlay",
-  "owner": "chatgpt-insect-research-4112",
+  "owner": "chatgpt-insect-exec-9f04",
   "state": "active",
-  "intent": "Build the reproducible ant/insect realism research corpus, analysis tooling, derived biology tables, and Mega Pack artifact",
-  "claimed_at": "2026-08-25T13:08:00+00:00",
-  "heartbeat_at": "2026-08-25T13:08:00+00:00",
-  "expires_at": "2026-08-26T13:08:00+00:00",
-  "generation": 1
+  "intent": "Continue the uploaded research plan from canonical commit 7c4c0825 on fresh branch feat/insect-mega-pack-execution-20260917; preserve all existing branch heads.",
+  "claimed_at": "2026-09-17T13:28:00+00:00",
+  "heartbeat_at": "2026-09-17T13:28:00+00:00",
+  "expires_at": "2026-09-17T15:28:00+00:00",
+  "generation": 2
 }
