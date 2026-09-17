@@ -7,5 +7,5 @@
   "description": "Execute the uploaded insect realism research plans on a fresh isolated feature branch; preserve existing project work.",
   "capabilities": ["python", "research", "documentation", "github", "data-analysis"],
   "registered_at": "2026-09-17T13:28:00+00:00",
-  "state": "available"
+  "state": "retired"
 }
