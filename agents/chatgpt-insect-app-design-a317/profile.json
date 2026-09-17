@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-insect-app-design-a317",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Design and planning session for the insect realism desktop utility",
+  "capabilities": ["documentation", "architecture", "planning"],
+  "registered_at": "2026-09-17T14:53:00+00:00",
+  "state": "available"
+}
