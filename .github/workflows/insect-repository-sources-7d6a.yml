@@ -1,0 +1,55 @@
+name: Insect repository evidence inventory
+on:
+  push:
+    branches: [feat/insect-full-plan-20260917-7d6a]
+    paths: [.github/workflows/insect-repository-sources-7d6a.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Read public repository metadata and actual license files
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json, pathlib, time
+          from urllib.request import Request,urlopen
+          from urllib.parse import quote
+          repos=['johnBuffer/AntSimulator','StrandedKitty/ants-simulation','itamadev/ant-colony-simulation','Entendore/AntSim','SebLague/Ant-Simulation','antkeeper/antkeeper-source','Social-Evolution-and-Behavior/anTraX','raman0c17/pet-therapy','jordansbc/pixelpaws','7ang0n1n3/desktop-pet','tauri-apps/tao']
+          root=pathlib.Path('repository-evidence');root.mkdir()
+          def get(url):
+              with urlopen(Request(url,headers={'User-Agent':'insect-research/0.2','Accept':'application/vnd.github+json'}),timeout=30) as r:
+                  return json.load(r)
+          for repo in repos:
+              folder=root/repo.replace('/','__');folder.mkdir()
+              try:
+                  meta=get('https://api.github.com/repos/'+repo)
+                  commit=get('https://api.github.com/repos/'+repo+'/commits/'+quote(meta['default_branch'],safe=''))
+                  sha=commit['sha'];tree=get('https://api.github.com/repos/'+repo+'/git/trees/'+sha+'?recursive=1')
+                  if tree.get('truncated'): raise ValueError('Truncated source inventory')
+                  result=dict(repository=repo,commit=sha,commit_date=commit['commit']['committer']['date'],commit_message=commit['commit']['message'],language=meta.get('language'),archived=meta['archived'],license_metadata=meta.get('license'),default_branch=meta['default_branch'],tree=tree['tree'])
+                  (folder/'metadata.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+                  for item in tree['tree']:
+                      path=item['path']
+                      if item['type']=='blob' and '/' not in path and any(path.lower().startswith(x) for x in ('license','copying','unlicense')):
+                          if item.get('size',0)>150000: continue
+                          url='https://raw.githubusercontent.com/'+repo+'/'+sha+'/'+quote(path)
+                          with urlopen(url,timeout=30) as r: data=r.read(150001)
+                          if len(data)>150000: raise ValueError('License file too large')
+                          data.decode('utf-8');(folder/path).write_bytes(data)
+                  print('INVENTORIED',repo,sha,commit['commit']['committer']['date'],len(tree['tree']),meta.get('license',{}))
+              except Exception as exc:
+                  (folder/'ACCESS_FAILURE.txt').write_text(type(exc).__name__+': '+str(exc)+'\n')
+                  print('ACCESS_FAILURE',repo,type(exc).__name__,str(exc))
+              time.sleep(.2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-repository-inventory-7d6a
+          path: repository-evidence/
+          retention-days: 7
+          if-no-files-found: error
