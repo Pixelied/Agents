@@ -4,10 +4,12 @@
   "task_id": "plan-insect-realism-desktop-app-20260917-a317",
   "scope": "docs/superpowers/plans",
   "owner": "chatgpt-insect-app-design-a317",
-  "state": "active",
+  "state": "released",
   "intent": "Write and self-review the one-shot Astra implementation plan for the approved insect realism desktop app design.",
   "claimed_at": "2026-09-17T15:01:00+00:00",
   "heartbeat_at": "2026-09-17T15:01:00+00:00",
   "expires_at": "2026-09-17T19:01:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-09-17T15:16:00+00:00",
+  "release_reason": "One-shot implementation plan completed and self-reviewed at 81a0de5313619db1e25917bc3ad6714337c3260d."
 }
