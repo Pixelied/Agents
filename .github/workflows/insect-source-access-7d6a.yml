@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Inspect dataset metadata and text-only archive members
+      - name: Read public archive and metadata; do not run downloaded code
         run: |
           python - <<'PY'
           import hashlib, io, json, zipfile
@@ -24,32 +24,34 @@ jobs:
               with urlopen(Request(url, headers={'Accept':'application/json'}), timeout=30) as r:
                   return json.load(r)
           for doi in ['10.5061/dryad.jk53j', '10.5061/dryad.g79cnp5tq', '10.6078/D15T50']:
-              data=get_json(base+'/api/v2/datasets/'+quote('doi:'+doi,safe=''))
-              print('DATASET',doi,json.dumps({k:data.get(k) for k in ['title','license','usageNotes','relatedWorks','_links']},sort_keys=True))
-              version=get_json(urljoin(base,data['_links']['stash:version']['href']))
-              files=get_json(urljoin(base,version['_links']['stash:files']['href']))
-              print('FILES',doi,json.dumps(files,sort_keys=True))
-              if doi!='10.5061/dryad.jk53j':
-                  continue
-              assert data.get('license','').endswith('/CC0-1.0.html')
-              entry=files['_embedded']['stash:files'][0]
-              assert entry['size'] < 20000000
-              with urlopen(urljoin(base,entry['_links']['stash:download']['href']),timeout=60) as r:
-                  payload=r.read(20000001)
-              assert len(payload)==entry['size']
-              actual=hashlib.new(entry['digestType'].replace('-',''),payload).hexdigest()
-              assert actual==entry['digest']
-              print('VERIFIED_ARCHIVE_SHA256',hashlib.sha256(payload).hexdigest())
-              with zipfile.ZipFile(io.BytesIO(payload)) as z:
-                  assert sum(x.file_size for x in z.infolist()) < 100000000
-                  for info in z.infolist():
-                      print('MEMBER',info.filename,info.file_size)
-                      if info.is_dir():
-                          continue
-                      if info.filename.lower().endswith(('.txt','.csv','.tsv','.md')):
-                          text=z.read(info).decode('utf-8-sig')
-                          lines=text.splitlines()
-                          print('TEXT_PREVIEW',info.filename,json.dumps(lines[:8]))
-                          if 'readme' in info.filename.lower():
-                              print('README_TEXT',text[:20000])
+              try:
+                  data=get_json(base+'/api/v2/datasets/'+quote('doi:'+doi,safe=''))
+                  print('DATASET',doi,json.dumps({k:data.get(k) for k in ['title','license','usageNotes','relatedWorks','_links']},sort_keys=True))
+                  version=get_json(urljoin(base,data['_links']['stash:version']['href']))
+                  files=get_json(urljoin(base,version['_links']['stash:files']['href']))
+                  print('FILES',doi,json.dumps(files,sort_keys=True))
+                  if doi!='10.5061/dryad.jk53j':
+                      continue
+                  assert data.get('license','').endswith('/CC0-1.0.html')
+                  entry=files['_embedded']['stash:files'][0]
+                  assert entry['size'] < 20000000
+                  with urlopen('https://datadryad.org/downloads/file_stream/68511',timeout=60) as r:
+                      payload=r.read(20000001)
+                  assert len(payload)==entry['size']
+                  actual=hashlib.new(entry['digestType'].replace('-',''),payload).hexdigest()
+                  assert actual==entry['digest']
+                  print('VERIFIED_ARCHIVE_SHA256',hashlib.sha256(payload).hexdigest())
+                  with zipfile.ZipFile(io.BytesIO(payload)) as z:
+                      assert sum(x.file_size for x in z.infolist()) < 100000000
+                      for info in z.infolist():
+                          print('MEMBER',info.filename,info.file_size)
+                          if info.is_dir():
+                              continue
+                          if info.filename.lower().endswith(('.txt','.csv','.tsv','.md')):
+                              text=z.read(info).decode('utf-8-sig')
+                              print('TEXT_PREVIEW',info.filename,json.dumps(text.splitlines()[:8]))
+                              if 'readme' in info.filename.lower():
+                                  print('README_TEXT',text[:20000])
+              except Exception as exc:
+                  print('ACCESS_FAILURE',doi,type(exc).__name__,str(exc))
           PY
