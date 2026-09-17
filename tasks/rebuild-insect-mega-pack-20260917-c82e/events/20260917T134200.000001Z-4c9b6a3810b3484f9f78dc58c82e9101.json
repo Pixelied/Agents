@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "4c9b6a3810b3484f9f78dc58c82e9101",
+  "task_id": "rebuild-insect-mega-pack-20260917-c82e",
+  "agent_id": "chatgpt-insect-fresh-c82e",
+  "type": "task_created",
+  "message": "User explicitly requested a fresh implementation, not continuation of an occupied insect branch.",
+  "data": {"project_branch": "project/insect-realism-fresh-20260917-c82e", "base_commit": "243c2dbf1100aa0a706cee5de90c9cb73c1a011e", "existing_branches_untouched": true},
+  "created_at": "2026-09-17T13:42:00+00:00"
+}

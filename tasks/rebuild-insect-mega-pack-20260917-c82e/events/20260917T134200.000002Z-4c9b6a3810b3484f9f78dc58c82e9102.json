@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "4c9b6a3810b3484f9f78dc58c82e9102",
+  "task_id": "rebuild-insect-mega-pack-20260917-c82e",
+  "agent_id": "chatgpt-insect-fresh-c82e",
+  "type": "claim",
+  "message": "Claimed the new non-overlapping fresh project scope and its own CI only; existing insect work is not leased by this worker.",
+  "data": {"scope": "insect-realism-fresh-20260917-c82e", "lease_minutes": 240},
+  "created_at": "2026-09-17T13:42:00+00:00"
+}

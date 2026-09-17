@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "rebuild-insect-mega-pack-20260917-c82e",
+  "scope": "insect-realism-fresh-20260917-c82e",
+  "owner": "chatgpt-insect-fresh-c82e",
+  "state": "active",
+  "intent": "Implement only projects/insect-realism-fresh-20260917-c82e and its uniquely named CI on a new branch; no old insect project code is reused or changed.",
+  "claimed_at": "2026-09-17T13:42:00+00:00",
+  "heartbeat_at": "2026-09-17T13:42:00+00:00",
+  "expires_at": "2026-09-17T17:42:00+00:00",
+  "generation": 1
+}

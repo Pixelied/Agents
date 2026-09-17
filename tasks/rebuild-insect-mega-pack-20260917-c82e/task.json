@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "rebuild-insect-mega-pack-20260917-c82e",
+  "title": "Rebuild insect realism research pack from scratch",
+  "objective": "Execute the two user-uploaded 2026-08-25 plans from an empty project directory on a new branch based directly on clean main. Preserve every existing insect branch and implementation. Keep the 2000-reviewed-page and evidence acceptance gates honest.",
+  "created_by": "chatgpt-insect-fresh-c82e",
+  "created_at": "2026-09-17T13:42:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": ["insect-realism-fresh-20260917-c82e"],
+  "acceptance_criteria": ["Fresh project and project-specific CI remain on project/insect-realism-fresh-20260917-c82e, never ordinary project code on main", "Test-first implementation of the attached plan with recorded verification", "Only actually reviewed, licensed and traceable evidence is counted", "Final INSECT_REALISM_MEGA_PACK.zip is not represented as complete before all plan gates pass"]
+}
