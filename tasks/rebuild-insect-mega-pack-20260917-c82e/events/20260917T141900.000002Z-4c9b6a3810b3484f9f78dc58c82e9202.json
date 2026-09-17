@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "4c9b6a3810b3484f9f78dc58c82e9202",
+  "task_id": "rebuild-insect-mega-pack-20260917-c82e",
+  "agent_id": "chatgpt-insect-fresh-c82e",
+  "type": "handoff",
+  "message": "Saved the verified fresh source checkpoint and explicit remaining work. The overall research-pack task is not complete.",
+  "data": {"handoff_id": "4c9b6a3810b3484f9f78dc58c82e9201", "project_commit": "1799f9a2c7f42249b9dd3d7db0f99f685cdd3ee1", "project_branch": "project/insect-realism-fresh-20260917-c82e", "implemented_tasks": [1, 2, 3, 4, 5], "in_progress_task": 6, "provisional_sources": 5, "accepted_page_equivalent": 0, "latest_ci_run": 35232311463},
+  "created_at": "2026-09-17T14:19:00+00:00"
+}

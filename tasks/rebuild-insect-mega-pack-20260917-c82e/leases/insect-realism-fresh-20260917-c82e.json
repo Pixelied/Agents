@@ -4,10 +4,12 @@
   "task_id": "rebuild-insect-mega-pack-20260917-c82e",
   "scope": "insect-realism-fresh-20260917-c82e",
   "owner": "chatgpt-insect-fresh-c82e",
-  "state": "active",
+  "state": "released",
   "intent": "Implement only projects/insect-realism-fresh-20260917-c82e and its uniquely named CI on a new branch; no old insect project code is reused or changed.",
   "claimed_at": "2026-09-17T13:42:00+00:00",
   "heartbeat_at": "2026-09-17T13:42:00+00:00",
   "expires_at": "2026-09-17T17:42:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-09-17T14:19:00+00:00",
+  "release_reason": "Verified Tasks 1-5 and provisional Task 6 checkpoint saved at 1799f9a2c7f42249b9dd3d7db0f99f685cdd3ee1. Full task remains unfinished. No worker continues in the background."
 }

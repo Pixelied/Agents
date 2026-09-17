@@ -7,5 +7,5 @@
   "description": "Fresh insect research implementation requested on 2026-09-17; does not reuse existing insect project code.",
   "capabilities": ["python", "testing", "research", "documentation"],
   "registered_at": "2026-09-17T13:42:00+00:00",
-  "state": "available"
+  "state": "offline"
 }

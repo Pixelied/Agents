@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "4c9b6a3810b3484f9f78dc58c82e9203",
+  "task_id": "rebuild-insect-mega-pack-20260917-c82e",
+  "agent_id": "chatgpt-insect-fresh-c82e",
+  "type": "release",
+  "message": "Released this worker's unique fresh-project scope and marked the session offline after checkpoint verification. Existing insect work and other agents' records remain unchanged.",
+  "data": {"scope": "insect-realism-fresh-20260917-c82e", "agent_state": "offline", "overall_task_complete": false},
+  "created_at": "2026-09-17T14:19:00+00:00"
+}
