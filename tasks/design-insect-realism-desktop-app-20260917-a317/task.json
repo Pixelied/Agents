@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "design-insect-realism-desktop-app-20260917-a317",
+  "title": "Design insect realism desktop app",
+  "objective": "Produce an approved architecture/design spec and one-shot implementation plan for the cross-platform insect realism desktop utility without colliding with the active Mega Pack rebuild.",
+  "created_by": "chatgpt-insect-app-design-a317",
+  "created_at": "2026-09-17T14:54:07+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": ["docs/superpowers/specs", "docs/superpowers/plans"],
+  "acceptance_criteria": [
+    "The design spec captures all user-approved architecture, simulation, rendering, overlay, UX, performance, testing, packaging, and one-shot Astra execution requirements",
+    "The spec does not edit or claim the active insect Mega Pack project scope",
+    "The final implementation plan can be executed as one continuous Astra request with internal checkpoints rather than user-driven stop points"
+  ]
+}
