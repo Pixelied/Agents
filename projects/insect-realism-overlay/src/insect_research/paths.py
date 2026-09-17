@@ -26,3 +26,25 @@ def derived_db_path(name: str) -> Path:
 def initialize_pack(root: Path = ARCHIVE_ROOT) -> None:
     for name in TOP_LEVEL_DIRS:
         (root / name).mkdir(parents=True, exist_ok=True)
+
+
+def safe_relative_path(root: Path, name: str) -> Path:
+    """Resolve an archive-relative POSIX path without accepting symlink traversal."""
+    from pathlib import PurePosixPath
+    if not isinstance(name, str) or not name or '\\' in name or '\x00' in name:
+        raise ValueError('invalid archive-relative path')
+    relative = PurePosixPath(name)
+    if relative.is_absolute() or '..' in relative.parts or str(relative) == '.':
+        raise ValueError('path must stay inside the archive')
+    if str(relative) != name or ':' in relative.parts[0]:
+        raise ValueError('path must be normalized and portable')
+    candidate = root
+    for part in relative.parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise ValueError('symlinks are not permitted in archive paths')
+    try:
+        candidate.resolve().relative_to(root.resolve())
+    except ValueError as exc:
+        raise ValueError('path escapes the archive') from exc
+    return candidate
