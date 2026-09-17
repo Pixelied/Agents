@@ -8,25 +8,43 @@ permissions:
 jobs:
   resolve:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Read primary dataset metadata and calibration text
+      - name: Verify original CC BY 4.0 data archive; inspect without executing code
         run: |
           python - <<'PY'
-          import json
-          from urllib.request import Request,urlopen
-          for url in ['https://api.figshare.com/v2/articles/9786260','https://api.github.com/repos/nobuaki-mzmt/diacamma-tandem/contents/data/trajectory/raw/body-length.txt']:
-              try:
-                  with urlopen(Request(url,headers={'User-Agent':'insect-research/0.2'}),timeout=30) as r:
-                      data=json.load(r)
-                  if 'figshare' in url:
-                      data={k:data.get(k) for k in ['id','title','doi','version','license','files','description','references','published_date']}
-                  else:
-                      data={k:data.get(k) for k in ['path','size','sha','encoding','content']}
-                  print('METADATA',json.dumps(data,sort_keys=True))
-              except Exception as exc:
-                  print('ACCESS_FAILURE',url,type(exc).__name__,str(exc))
+          import hashlib,json,pathlib,zipfile
+          from urllib.request import urlopen
+          with urlopen('https://api.figshare.com/v2/articles/9786260',timeout=30) as r:
+              meta=json.load(r)
+          assert meta['license']['url']=='https://creativecommons.org/licenses/by/4.0/'
+          item=meta['files'][0]
+          assert item['id']==22588088 and item['size']==1227522364
+          dest=pathlib.Path('DataAndCode.zip')
+          md5=hashlib.md5(); sha=hashlib.sha256(); size=0
+          with urlopen(item['download_url'],timeout=90) as r,dest.open('wb') as f:
+              while chunk:=r.read(1024*1024):
+                  size+=len(chunk)
+                  if size>item['size']: raise ValueError('Download exceeds declared length')
+                  md5.update(chunk);sha.update(chunk);f.write(chunk)
+          assert size==item['size'] and md5.hexdigest()==item['computed_md5']
+          print('ARCHIVE_VERIFIED',size,sha.hexdigest(),meta['doi'],meta['license'])
+          with zipfile.ZipFile(dest) as z:
+              for info in z.infolist():
+                  name=info.filename
+                  if ('/raw/' in name or 'readme' in name.lower()) and not info.is_dir():
+                      print('RAW_MEMBER',name,info.file_size)
+                      if name.lower().endswith(('.csv','.txt','.md')) and info.file_size<100000:
+                          text=z.read(info).decode('utf-8-sig')
+                          print('TEXT_DATA',name,json.dumps(text[:12000]))
+                      elif name.lower().endswith('.rda') and 'temnothorax' in name.lower():
+                          payload=z.read(info)
+                          print('RDA_PROVENANCE',name,hashlib.sha256(payload).hexdigest(),hashlib.sha1(b'blob '+str(len(payload)).encode()+b'\0'+payload).hexdigest())
+              scripts=[x for x in z.namelist() if x.lower().endswith('preprocess.r')]
+              for name in scripts:
+                  text=z.read(name).decode('utf-8-sig')
+                  print('CALIBRATION_SCRIPT_PREFIX',name,json.dumps(text[:16000]))
           PY
