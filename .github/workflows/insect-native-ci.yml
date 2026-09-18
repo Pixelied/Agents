@@ -1,0 +1,32 @@
+name: Insect native build baseline
+on:
+  push:
+    branches: ['feat/insect-native-build-20260918-n8e6']
+    paths: ['.github/workflows/insect-native-ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Export source and coordination truth
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/insect-baseline"
+          git archive HEAD -o "$RUNNER_TEMP/insect-baseline/implementation.zip"
+          git ls-tree -r HEAD > "$RUNNER_TEMP/insect-baseline/implementation-tree.txt"
+          gh api repos/Pixelied/Agents/zipball/main > "$RUNNER_TEMP/insect-baseline/coordination.zip"
+          gh api repos/Pixelied/Agents/git/ref/heads/main > "$RUNNER_TEMP/insect-baseline/coordination-head.json"
+          gh api repos/Pixelied/Agents/git/trees/HEAD > "$RUNNER_TEMP/insect-baseline/root-tree.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-native-baseline
+          path: ${{ runner.temp }}/insect-baseline/
+          retention-days: 7
