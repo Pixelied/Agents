@@ -1,187 +1,91 @@
-name: Insect native packages - verified source import
+name: Insect native continuation - pinned source preparation
 "on":
   push:
-    branches: ['feat/insect-native-build-20260918-n8e6']
+    branches: ['feat/insect-native-verified-20260918-a6d2']
     paths:
       - '.github/workflows/insect-native-ci.yml'
-      - 'projects/insect-realism-native-n8e6/**'
+      - 'projects/insect-realism-native-n8e6/BUILD_READY.json'
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: insect-native-n8e6-${{ github.ref }}
+  group: insect-native-a6d2-${{ github.ref }}
   cancel-in-progress: false
-env:
-  PROJECT: projects/insect-realism-native-n8e6
 jobs:
-  prepare-source:
+  source-data:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    outputs:
-      source_commit: ${{ steps.source.outputs.source_commit }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
-      - name: Test import safeguards
-        run: python -m unittest discover -s "$PROJECT/import-tests" -v
-      - name: Import exact source or identify the required upload
-        id: source
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_TAG: insect-source-import-n8e6
-          SOURCE_ASSET: Insect_Desktop_Verified_Continuation.zip
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          if [ ! -f "$PROJECT/app/Cargo.toml" ]; then
-            python - <<'PY'
-          import json, os
-          from pathlib import Path
-          from urllib.request import Request, urlopen
-          base='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']
-          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','User-Agent':'insect-native-source-import'}
-          def api(path, body=None):
-              req=Request(base+path,headers=headers,data=None if body is None else json.dumps(body).encode(),method='GET' if body is None else 'POST')
-              with urlopen(req,timeout=45) as response: return json.load(response)
-          release=None
-          for page in range(1,101):
-              entries=api('/releases?per_page=100&page='+str(page))
-              release=next((r for r in entries if r['tag_name']==os.environ['SOURCE_TAG']),None)
-              if release or len(entries)<100:break
-          else:raise SystemExit('Release listing exceeded safety limit; no release created')
-          if release is None:
-              release=api('/releases',{'tag_name':os.environ['SOURCE_TAG'],'target_commitish':os.environ['GITHUB_SHA'],'name':'Source upload for native builds - NOT an app release','draft':True,'prerelease':True,'body':'Upload Insect_Desktop_Verified_Continuation.zip as an asset and save this DRAFT. Expected SHA-256: ac7985166f1acedfaed3c4ce04706b71af0aaa18b7aee284185480ecb77afbca. This release only transfers the exact verified source into the build environment. It is not an application release or a native-verification claim. Do not publish it as a finished app.'})
-          available=any(a['name']==os.environ['SOURCE_ASSET'] and a['state']=='uploaded' for a in release.get('assets',[]))
-          note='Source archive is available.' if available else 'Upload '+os.environ['SOURCE_ASSET']+' as an asset, save this draft, then re-run the failed source-preparation job.'
-          print(note);print(release['html_url'])
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as stream:stream.write('## Source import\n'+note+'\n\n'+release['html_url']+'\n')
-          record={'source_release_id':release['id'],'source_release_url':release['html_url'],'source_asset_uploaded':available,'native_build_verified':False}
-          Path(os.environ['RUNNER_TEMP'],'source-upload-status.json').write_text(json.dumps(record,indent=2),encoding='utf-8')
-          if not available:raise SystemExit('Verified source archive has not been uploaded. No application build was attempted.')
-          PY
-            mkdir -p "$RUNNER_TEMP/source-input"
-            gh release download "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$SOURCE_ASSET" --dir "$RUNNER_TEMP/source-input"
-            python "$PROJECT/import_checkpoint.py" --archive "$RUNNER_TEMP/source-input/$SOURCE_ASSET" --manifest "$PROJECT/SOURCE_BLOBS.txt" --output "$RUNNER_TEMP/imported-insect-source"
-            REMOTE_SHA="$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)"
-            test "$REMOTE_SHA" = "$GITHUB_SHA" || { echo 'Branch moved; refusing to overwrite newer work.' >&2; exit 1; }
-            cp -a "$RUNNER_TEMP/imported-insect-source/." "$PROJECT/"
-            git add -- "$PROJECT"
-            git -c user.name='Insect source import' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build: publish exact verified insect source for native packages'
-            git push origin "HEAD:refs/heads/$BRANCH"
-          fi
-          SOURCE_COMMIT="$(git rev-parse HEAD)"
-          echo "source_commit=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "$SOURCE_COMMIT" > "$PROJECT/CI_SOURCE_COMMIT.txt"
-          tar -cf "$RUNNER_TEMP/insect-native-source.tar" -C "$PROJECT" .
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: insect-native-source
-          path: ${{ runner.temp }}/insect-native-source.tar
-          retention-days: 30
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: insect-source-import-status
-          path: ${{ runner.temp }}/source-upload-status.json
-          if-no-files-found: ignore
-          retention-days: 30
-
-  native-toolchain:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, windows-2022]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Verify pinned native Rust toolchain and linker
-        run: |
-          set -euo pipefail
-          rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
-          rustc +1.98.1 -vV
-          printf 'fn main() { println!("native linker probe only, not the insect app"); }\n' > "$RUNNER_TEMP/linker-probe.rs"
-          rustc +1.98.1 --crate-name linker_probe "$RUNNER_TEMP/linker-probe.rs" -o "$RUNNER_TEMP/linker-probe.exe"
-          "$RUNNER_TEMP/linker-probe.exe"
-          if [ "$RUNNER_OS" = 'macOS' ]; then xcrun --find clang; xcrun --show-sdk-path; fi
-
-  verify:
-    needs: [prepare-source, native-toolchain]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            label: linux-validation
-          - os: macos-15
-            label: macos-arm64
-          - os: windows-2022
-            label: windows-x64
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 180
-    env:
-      CARGO_BUILD_JOBS: 2
-      SOURCE_COMMIT: ${{ needs.prepare-source.outputs.source_commit }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Resolve runner-local paths after runner allocation
-        run: |
-          echo "APP_ROOT=$RUNNER_TEMP/insect-project" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/insect-target" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@v4
-        with:
-          name: insect-native-source
-          path: ${{ runner.temp }}/source-transfer
-      - name: Restore exact prepared source
-        run: |
-          mkdir -p "$APP_ROOT"
-          tar -xf "$RUNNER_TEMP/source-transfer/insect-native-source.tar" -C "$APP_ROOT"
-          test "$(cat "$APP_ROOT/CI_SOURCE_COMMIT.txt")" = "$SOURCE_COMMIT"
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - uses: actions/setup-dotnet@v4
-        if: runner.os == 'Windows'
+          python-version: '3.11'
+      - uses: actions/cache@v4
         with:
-          dotnet-version: '6.0.x'
-      - name: Install exact project toolchain
+          path: .cache/insect-pinned-source
+          key: insect-rdata-6771911286c806a675a171a21e64a52798ba4e902083e61d2aa66ea3fe0c8cbf
+      - name: Acquire only the pinned original research payload
+        shell: bash
         run: |
-          TOOLCHAIN="$(python -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1],"rb"))["toolchain"]["channel"])' "$APP_ROOT/app/rust-toolchain.toml")"
-          rustup toolchain install "$TOOLCHAIN" --profile minimal --component rustfmt,clippy
-          cd "$APP_ROOT/app"
-          rustc -vV
-          cargo --version
-      - name: Install software Vulkan dependencies
-        if: runner.os == 'Linux'
+          set -euo pipefail
+          mkdir -p .cache/insect-pinned-source
+          if [ ! -f .cache/insect-pinned-source/temnothorax.RData ]; then
+            curl --fail --location --retry 3 --connect-timeout 30 --max-time 900 \
+              https://ndownloader.figshare.com/files/22588088 \
+              --output "$RUNNER_TEMP/insect-original-data.zip"
+            printf '%s  %s\n' f76d029dbd4cd2ed12d89ee62b755071340f722e6f804ae173f3cc0ca944e5f4 "$RUNNER_TEMP/insect-original-data.zip" | sha256sum --check
+            python - <<'PY'
+          from pathlib import Path
+          import os, zipfile
+          source = Path(os.environ['RUNNER_TEMP']) / 'insect-original-data.zip'
+          with zipfile.ZipFile(source) as archive:
+              info = archive.getinfo('figshare/data/temnothorax.RData')
+              if info.file_size != 7145834:
+                  raise SystemExit('Unexpected original RData size; refusing extraction')
+              data = archive.read(info)
+          Path('.cache/insect-pinned-source/temnothorax.RData').write_bytes(data)
+          source.unlink()
+          PY
+          fi
+          printf '%s  %s\n' 6771911286c806a675a171a21e64a52798ba4e902083e61d2aa66ea3fe0c8cbf .cache/insect-pinned-source/temnothorax.RData | sha256sum --check
+      - name: Convert original coordinates without executing research R code
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libxkbcommon0 libx11-6 libxcursor1 libxi6 libxrandr2
-          mkdir -p "$RUNNER_TEMP/insect-xdg"
-          chmod 700 "$RUNNER_TEMP/insect-xdg"
-          echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/insect-xdg" >> "$GITHUB_ENV"
-      - name: Full Linux regression and GPU checks
-        if: runner.os == 'Linux'
-        run: python "$APP_ROOT/scripts/verify_release.py" --root "$APP_ROOT" --gpu --benchmark
-      - name: Native tests and actual packages
-        if: runner.os != 'Linux'
-        run: python "$APP_ROOT/scripts/verify_release.py" --root "$APP_ROOT" --package
-      - name: Preserve test logs and produced packages
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check numpy==1.26.4 pandas==2.2.3 pyreadr==0.5.6
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, pandas, pyreadr
+          root = Path('.cache/insect-pinned-source')
+          objects = pyreadr.read_r(str(root / 'temnothorax.RData'))
+          frame = objects['df']
+          output = root / 'temnothorax-source-coordinates.csv'
+          frame.to_csv(output, index=False, float_format='%.17g', lineterminator='\n')
+          actual = hashlib.sha256(output.read_bytes()).hexdigest()
+          report = {
+              'source': 'Valentini et al. (2020), DOI 10.6084/m9.figshare.9786260.v1',
+              'license': 'CC BY 4.0', 'r_source_executed': False,
+              'pyreadr_version': pyreadr.__version__, 'pandas_version': pandas.__version__,
+              'rows': len(frame), 'columns': list(frame.columns),
+              'coordinate_sha256': actual, 'application_build_verified': False,
+          }
+          (root / 'source-data-report.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          if actual != '810c67bfcc2c078a01c3af8657d688c804027eb661c2b614a6a74c4b0d92da31':
+              raise SystemExit('Coordinate conversion differs from the verified continuation; no substitute data accepted')
+          PY
+      - name: Preserve authenticated source input and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: insect-native-${{ matrix.label }}
-          path: |
-            ${{ runner.temp }}/insect-project/verification/final/
-            ${{ runner.temp }}/insect-project/dist/
-            ${{ runner.temp }}/insect-project/CI_SOURCE_COMMIT.txt
+          name: insect-pinned-source-a6d2
+          path: .cache/insect-pinned-source/
           retention-days: 30
           if-no-files-found: error
+      - name: Record the limited scope of this preparation stage
+        if: success()
+        shell: bash
+        run: |
+          printf '%s\n' '## Original source authenticated' 'The original RData and coordinate CSV match the supplied continuation exactly.' 'This source-preparation stage is not an application build, installer, or native input-safety qualification.' >> "$GITHUB_STEP_SUMMARY"
