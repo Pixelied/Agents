@@ -1,0 +1,142 @@
+name: Insect continuation - native foundation verification
+"on":
+  push:
+    branches: ['feat/insect-continuation-03-q7b4']
+    paths:
+      - '.github/workflows/insect-continuation-native.yml'
+      - 'projects/insect-realism-desktop-app/RESTORED_SOURCE.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: insect-resume-m5r2-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native-foundations:
+    name: Platform foundation (${{ matrix.os }}) - not full app
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Preserve source line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify restored files against the supplied checkpoint
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('projects/insect-realism-desktop-app').resolve()
+          manifest = json.loads((root / 'RESTORED_SOURCE.json').read_text())
+          if manifest['publication_complete'] or len(manifest['source_files']) != 43:
+              raise SystemExit('This workflow qualifies exactly 43 restored foundation files, not the full app')
+          for name, expected in manifest['source_files'].items():
+              path = (root / name).resolve()
+              if not path.is_relative_to(root) or not path.is_file():
+                  raise SystemExit(f'Invalid or missing restored source: {name}')
+              if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                  raise SystemExit(f'Checkpoint source mismatch: {name}')
+          Path('native-evidence').mkdir()
+          Path('native-evidence/source.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          print('43 exact checkpoint files verified. Full application publication is still incomplete.')
+          PY
+      - name: Install the checkpoint Rust toolchain
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          rustc +1.98.1 --version --verbose | tee native-evidence/rustc.txt
+          cargo +1.98.1 --version | tee native-evidence/cargo.txt
+      - name: Format restored source
+        working-directory: projects/insect-realism-desktop-app/app
+        run: |
+          set -o pipefail
+          cargo fmt --all -- --check 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/fmt.log"
+      - name: Native platform compiler and lint checks
+        working-directory: projects/insect-realism-desktop-app/app
+        run: |
+          set -o pipefail
+          cargo clippy -p creature-profile -p display-model -p platform-api -p platform-macos -p platform-windows --all-targets -- -D warnings 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/clippy.log"
+      - name: Release-mode platform and domain tests
+        working-directory: projects/insect-realism-desktop-app/app
+        run: |
+          set -o pipefail
+          cargo test --release -p creature-profile -p display-model -p platform-api -p platform-macos -p platform-windows 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/tests.log"
+      - name: Record exact verification boundary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path('native-evidence'); root.mkdir(exist_ok=True)
+          result = {'commit': os.environ['GITHUB_SHA'], 'runner_os': os.environ['RUNNER_OS_NAME'], 'job_status': os.environ['JOB_STATUS'], 'scope': 'platform foundation compilation and unit tests only', 'full_app_build': False, 'native_input_acceptance': False, 'installer_qualified': False}
+          (root / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('## Platform foundation only\nNative compilation and unit-test evidence is separate from a full application build, interactive input safety, or an installer. Those release gates remain open.\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: insect-foundation-m5r2-${{ matrix.os }}
+          path: native-evidence/
+          if-no-files-found: error
+          retention-days: 30
+  offline-build-dependencies:
+    name: Prepare pinned toolchain for offline continuation (not a build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Preserve source line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install original Rust version
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Download dependencies without fabricating an application build
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          source = Path('projects/insect-realism-desktop-app/app/Cargo.toml').read_text()
+          dependencies = source.split('[workspace.dependencies]\n', 1)[1].split('[profile.release]', 1)[0]
+          root = Path(os.environ['RUNNER_TEMP']) / 'insect-dependency-cache'
+          (root / 'src').mkdir(parents=True)
+          (root / 'Cargo.toml').write_text('[package]\nname="insect-dependency-cache"\nversion="0.0.0"\nedition="2024"\n[dependencies]\n' + dependencies)
+          (root / 'src/lib.rs').write_text('// Dependency fetch manifest only; not application code.\n')
+          PY
+          cargo +1.98.1 fetch --manifest-path "$RUNNER_TEMP/insect-dependency-cache/Cargo.toml"
+          cargo +1.98.1 fetch --manifest-path projects/insect-realism-desktop-app/app/Cargo.toml
+      - name: Package only public compiler and registry bytes
+        run: |
+          set -euo pipefail
+          mkdir -p offline-toolchain
+          SYSROOT="$(rustc +1.98.1 --print sysroot)"
+          tar -C "$SYSROOT" -czf offline-toolchain/rust-1.98.1-linux.tar.gz .
+          tar -C "$HOME/.cargo" -czf offline-toolchain/registry.tar.gz registry
+          cp "$RUNNER_TEMP/insect-dependency-cache/Cargo.lock" offline-toolchain/dependency-fetch.lock
+          printf '%s\n' 'Compiler/registry transport for the existing offline source. No app build or native runtime acceptance is claimed. No credential/config directories are included.' > offline-toolchain/README.txt
+          sha256sum offline-toolchain/*.tar.gz > offline-toolchain/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-offline-toolchain-m5r2
+          path: offline-toolchain/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
