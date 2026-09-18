@@ -1,0 +1,27 @@
+name: Insect qualified build preparation
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/insect-qualified-20260918-c9a2]
+    paths: [.github/workflows/insect-qualify-c9a2.yml]
+permissions:
+  contents: read
+jobs:
+  fixture-reader:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact build-time RData reader
+        run: |
+          mkdir -p fixture-tools
+          python -m pip download --no-deps --only-binary=:all: rdata==1.1.0 -d fixture-tools
+          echo '12efb7597725d6db6cc78d84eb522a9634008f8fce1c2733b7fd42b9013bc41f  fixture-tools/rdata-1.1.0-py3-none-any.whl' | sha256sum -c -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-ci-fixture-tools-c9a2
+          path: fixture-tools/
+          retention-days: 2
+          if-no-files-found: error
