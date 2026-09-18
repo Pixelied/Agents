@@ -1,0 +1,15 @@
+[package]
+name = "profile-compiler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+creature-profile = { path = "../../crates/creature-profile" }
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+csv.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+[dev-dependencies]
+tempfile.workspace = true
