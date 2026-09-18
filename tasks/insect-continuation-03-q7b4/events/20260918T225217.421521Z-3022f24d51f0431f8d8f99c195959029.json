@@ -1,0 +1,11 @@
+{
+  "agent_id": "astra-insect-resume-m5r2",
+  "created_at": "2026-09-18T22:52:17+00:00",
+  "data": {"scope": "ci-insect-continuation-native"},
+  "event_id": "3022f24d51f0431f8d8f99c195959029",
+  "message": "Claimed ci-insect-continuation-native",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "insect-continuation-03-q7b4",
+  "type": "scope_claimed"
+}
