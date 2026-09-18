@@ -93,50 +93,36 @@ jobs:
           path: native-evidence/
           if-no-files-found: error
           retention-days: 30
-  offline-build-dependencies:
-    name: Prepare pinned toolchain for offline continuation (not a build)
+  offline-locked-dependencies:
+    name: Fetch two missing exact locked crates (not an app build)
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    defaults:
-      run:
-        shell: bash
+    timeout-minutes: 10
     steps:
-      - name: Preserve source line endings
-        run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Install original Rust version
-        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
-      - name: Download dependencies without fabricating an application build
+      - name: Download and authenticate the original lockfile dependencies
+        shell: bash
         run: |
-          set -euo pipefail
-          python - <<'PY'
+          python - <<'PYCODE'
           from pathlib import Path
-          import os
-          source = Path('projects/insect-realism-desktop-app/app/Cargo.toml').read_text()
-          dependencies = source.split('[workspace.dependencies]\n', 1)[1].split('[profile.release]', 1)[0]
-          root = Path(os.environ['RUNNER_TEMP']) / 'insect-dependency-cache'
-          (root / 'src').mkdir(parents=True)
-          (root / 'Cargo.toml').write_text('[package]\nname="insect-dependency-cache"\nversion="0.0.0"\nedition="2024"\n[dependencies]\n' + dependencies)
-          (root / 'src/lib.rs').write_text('// Dependency fetch manifest only; not application code.\n')
-          PY
-          cargo +1.98.1 fetch --manifest-path "$RUNNER_TEMP/insect-dependency-cache/Cargo.toml"
-          cargo +1.98.1 fetch --manifest-path projects/insect-realism-desktop-app/app/Cargo.toml
-      - name: Package only public compiler and registry bytes
-        run: |
-          set -euo pipefail
-          mkdir -p offline-toolchain
-          SYSROOT="$(rustc +1.98.1 --print sysroot)"
-          tar -C "$SYSROOT" -czf offline-toolchain/rust-1.98.1-linux.tar.gz .
-          tar -C "$HOME/.cargo" -czf offline-toolchain/registry.tar.gz registry
-          cp "$RUNNER_TEMP/insect-dependency-cache/Cargo.lock" offline-toolchain/dependency-fetch.lock
-          printf '%s\n' 'Compiler/registry transport for the existing offline source. No app build or native runtime acceptance is claimed. No credential/config directories are included.' > offline-toolchain/README.txt
-          sha256sum offline-toolchain/*.tar.gz > offline-toolchain/SHA256SUMS.txt
+          from urllib.request import urlopen
+          import hashlib, json
+          crates = [
+              ('cc', '1.4.6', 'a3eb0f42d6c360dc3f8a821f6bf2fdea7f72bfd36b3076eb0e6d1e9e0752fff4'),
+              ('find-msvc-tools', '0.1.12', '3e0f1c7c3a72c66fd80abe965175f7523475c0489a87d3ff9d6e8c87d87a9d2d'),
+          ]
+          root = Path('locked-crates'); root.mkdir()
+          for name, version, expected in crates:
+              filename = f'{name}-{version}.crate'
+              with urlopen(f'https://static.crates.io/crates/{name}/{filename}', timeout=60) as response:
+                  data = response.read(10_000_001)
+              if len(data) > 10_000_000 or hashlib.sha256(data).hexdigest() != expected:
+                  raise SystemExit(f'Lockfile checksum mismatch: {filename}')
+              (root / filename).write_bytes(data)
+          (root / 'SHA256SUMS.txt').write_text(''.join(f'{digest}  {name}-{version}.crate\n' for name, version, digest in crates))
+          print('Both original locked crates authenticated; no application build is claimed.')
+          PYCODE
       - uses: actions/upload-artifact@v4
         with:
-          name: insect-offline-toolchain-m5r2
-          path: offline-toolchain/
-          compression-level: 0
+          name: insect-locked-crates-m5r2
+          path: locked-crates/
           if-no-files-found: error
           retention-days: 7
