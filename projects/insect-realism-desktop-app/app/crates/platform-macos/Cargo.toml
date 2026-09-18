@@ -1,0 +1,16 @@
+[package]
+name = "platform-macos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+platform-api = { path = "../platform-api" }
+display-model = { path = "../display-model" }
+raw-window-handle.workspace = true
+tempfile.workspace = true
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.4"
+objc2-foundation = "=0.3.2"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "libc", "objc2-core-foundation", "NSApplication", "NSResponder", "NSWindow", "NSPanel", "NSView", "NSMenu", "NSMenuItem", "NSEvent", "NSScreen", "NSColor", "NSGraphics", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSCell", "NSWorkspace", "NSRunningApplication", "NSAlert"] }
+objc2-core-foundation = "=0.3.2"
+objc2-core-graphics = { version = "=0.3.2", default-features = false, features = ["std", "libc", "CGDirectDisplay", "CGDisplayConfiguration", "CGGeometry", "CGWindow"] }

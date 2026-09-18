@@ -1,0 +1,10 @@
+[package]
+name = "platform-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+display-model = { path = "../display-model" }
+raw-window-handle.workspace = true
+thiserror.workspace = true
+serde.workspace = true
