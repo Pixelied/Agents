@@ -1,0 +1,30 @@
+name: Insect release preparation
+on:
+  push:
+    branches: [feat/insect-release-20260918-r4d8]
+    paths: [.github/workflows/insect-release.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evidence-reader:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Download reader wheel and record immutable package hashes
+        run: |
+          mkdir -p evidence-tools
+          python3 -m pip download --no-deps --only-binary=:all: rdata -d evidence-tools
+          python3 - <<'PY'
+          import hashlib,json,pathlib,urllib.request
+          root=pathlib.Path('evidence-tools')
+          data=json.load(urllib.request.urlopen('https://pypi.org/pypi/rdata/json'))
+          (root/'pypi-metadata.json').write_text(json.dumps(data,indent=2))
+          (root/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in sorted(root.iterdir()) if p.is_file()))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-evidence-reader
+          path: evidence-tools/
+          retention-days: 7
+          if-no-files-found: error
