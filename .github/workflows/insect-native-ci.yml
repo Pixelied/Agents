@@ -1,4 +1,4 @@
-name: Insect native build baseline
+name: Insect verified source inventory
 on:
   push:
     branches: ['feat/insect-native-build-20260918-n8e6']
@@ -7,26 +7,58 @@ on:
 permissions:
   contents: read
 jobs:
-  baseline:
+  inventory:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          fetch-depth: 1
-      - name: Export source and coordination truth
+      - name: Resolve exact content-addressed source objects
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p "$RUNNER_TEMP/insect-baseline"
-          git archive HEAD -o "$RUNNER_TEMP/insect-baseline/implementation.zip"
-          git ls-tree -r HEAD > "$RUNNER_TEMP/insect-baseline/implementation-tree.txt"
-          gh api repos/Pixelied/Agents/zipball/main > "$RUNNER_TEMP/insect-baseline/coordination.zip"
-          gh api repos/Pixelied/Agents/git/ref/heads/main > "$RUNNER_TEMP/insect-baseline/coordination-head.json"
-          gh api repos/Pixelied/Agents/git/trees/HEAD > "$RUNNER_TEMP/insect-baseline/root-tree.json"
+          python - <<'PY'
+          import base64, concurrent.futures, hashlib, json, os, time
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+          root=Path('projects/insect-realism-native-n8e6')
+          entries=[line.split(' ',1) for line in (root/'SOURCE_BLOBS.txt').read_text().splitlines() if line]
+          output=Path(os.environ['RUNNER_TEMP'])/'insect-inventory';output.mkdir()
+          payload=output/'existing-source';payload.mkdir()
+          def fetch(sha):
+              request=Request('https://api.github.com/repos/Pixelied/Agents/git/blobs/'+sha,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','User-Agent':'insect-source-verification'})
+              for attempt in range(3):
+                  try:
+                      with urlopen(request,timeout=45) as response: value=json.load(response)
+                      if value['encoding']!='base64': raise RuntimeError('Unexpected encoding')
+                      data=base64.b64decode(value['content'])
+                      if hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()!=sha: raise RuntimeError('SHA mismatch')
+                      return sha,data
+                  except HTTPError as e:
+                      if e.code==404:return sha,None
+                      if e.code in (429,500,502,503,504) and attempt<2:time.sleep(2**attempt);continue
+                      raise
+              raise RuntimeError('Fetch retry exhausted')
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+              blobs=dict(pool.map(fetch,sorted({sha for sha,path in entries})))
+          found=[];missing=[]
+          for sha,path in entries:
+              destination=(payload/path).resolve()
+              if not destination.is_relative_to(payload.resolve()):raise RuntimeError('Unsafe source path')
+              item={'path':path,'sha':sha}
+              data=blobs[sha]
+              if data is None:missing.append(item);continue
+              destination.parent.mkdir(parents=True,exist_ok=True);destination.write_bytes(data)
+              found.append(item)
+          report={'expected':len(entries),'found':found,'missing':missing,'commit':os.environ['GITHUB_SHA']}
+          (output/'inventory.json').write_text(json.dumps(report,indent=2))
+          print('EXACT_EXISTING',len(found),'MISSING',len(missing))
+          for item in missing:print(item['sha'],item['path'])
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: insect-native-baseline
-          path: ${{ runner.temp }}/insect-baseline/
+          name: insect-native-inventory
+          path: ${{ runner.temp }}/insect-inventory/
           retention-days: 7
