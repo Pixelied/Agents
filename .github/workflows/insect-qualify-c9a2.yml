@@ -7,21 +7,45 @@ on:
 permissions:
   contents: read
 jobs:
-  fixture-reader:
+  native-tools:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Download exact build-time RData reader
+      - name: Install Windows cross-linker and MSI tooling
         run: |
-          mkdir -p fixture-tools
-          python -m pip download --no-deps --only-binary=:all: rdata==1.1.0 -d fixture-tools
-          echo '12efb7597725d6db6cc78d84eb522a9634008f8fce1c2733b7fd42b9013bc41f  fixture-tools/rdata-1.1.0-py3-none-any.whl' | sha256sum -c -
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-mingw-w64-x86-64-posix binutils-mingw-w64-x86-64 mingw-w64-x86-64-dev wixl msitools
+      - name: Preserve relocatable tools and dependency records
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tools/usr/bin tools/usr/lib tools/runtime-libs
+          cp -a /usr/x86_64-w64-mingw32 tools/usr/
+          mkdir -p tools/usr/lib/gcc
+          cp -a /usr/lib/gcc/x86_64-w64-mingw32 tools/usr/lib/gcc/
+          for f in /usr/bin/x86_64-w64-mingw32-* /usr/bin/wixl /usr/bin/msiinfo /usr/bin/msiextract /usr/bin/msibuild; do
+            cp -L "$f" tools/usr/bin/
+          done
+          cp -a /usr/share/wixl* tools/usr/ 2>/dev/null || true
+          find tools/usr -type f -exec file {} + | grep ELF | cut -d: -f1 | while read -r f; do
+            ldd "$f" 2>/dev/null | awk '/=> \/|^\s*\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' || true
+          done | sort -u > tools/dynamic-dependencies.txt
+          while read -r f; do
+            case "$(basename "$f")" in libc.so.*|libm.so.*|libpthread.so.*|libdl.so.*|librt.so.*|ld-linux*) continue;; esac
+            cp -L "$f" tools/runtime-libs/
+          done < tools/dynamic-dependencies.txt
+          dpkg-query -W gcc-mingw-w64-x86-64-posix gcc-mingw-w64-x86-64-posix-runtime binutils-mingw-w64-x86-64 mingw-w64-x86-64-dev wixl msitools > tools/PACKAGE_VERSIONS.txt
+          mkdir -p tools/licenses
+          for p in gcc-mingw-w64-x86-64-posix gcc-mingw-w64-x86-64-posix-runtime binutils-mingw-w64-x86-64 mingw-w64-x86-64-dev wixl msitools; do
+            cp -L "/usr/share/doc/$p/copyright" "tools/licenses/$p-copyright.txt" 2>/dev/null || true
+          done
+          tar -czf insect-windows-build-tools.tar.gz tools
+          sha256sum insect-windows-build-tools.tar.gz > insect-windows-build-tools.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: insect-ci-fixture-tools-c9a2
-          path: fixture-tools/
+          name: insect-windows-build-tools-c9a2
+          path: |
+            insect-windows-build-tools.tar.gz
+            insect-windows-build-tools.sha256
           retention-days: 2
           if-no-files-found: error
