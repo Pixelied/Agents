@@ -1,0 +1,1 @@
+{"agent_id":"astra-insect-recovery-e82f","created_at":"2026-09-18T01:49:50+00:00","data":{"scope":"ci-insect-desktop-recovery"},"event_id":"b5c61e09513b418b95868c78ec6a9184","message":"Claimed new recovery-only workflow; original bootstrap workflow remains untouched","protocol_version":"1.0","schema_version":1,"task_id":"recover-insect-desktop-e82f","type":"scope_claimed"}
