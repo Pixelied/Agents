@@ -128,13 +128,15 @@ jobs:
     timeout-minutes: 180
     env:
       CARGO_BUILD_JOBS: 2
-      CARGO_TARGET_DIR: ${{ runner.temp }}/insect-target
-      APP_ROOT: ${{ runner.temp }}/insect-project
       SOURCE_COMMIT: ${{ needs.prepare-source.outputs.source_commit }}
     defaults:
       run:
         shell: bash
     steps:
+      - name: Resolve runner-local paths after runner allocation
+        run: |
+          echo "APP_ROOT=$RUNNER_TEMP/insect-project" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/insect-target" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with:
           name: insect-native-source
