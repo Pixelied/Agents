@@ -1,0 +1,8 @@
+# Population policy, not biological measurements. Locomotion stays profile-driven.
+id = "nightmare"
+population = 1200
+spawn_per_second = 70.0
+trail_strength = 1.1
+trail_lifetime_multiplier = 1.8
+cursor_reaction = false
+activity = 1.0

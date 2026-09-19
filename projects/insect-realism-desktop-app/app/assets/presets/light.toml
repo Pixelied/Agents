@@ -1,0 +1,8 @@
+# Population policy, not biological measurements. Locomotion stays profile-driven.
+id = "light"
+population = 150
+spawn_per_second = 8.0
+trail_strength = 0.8
+trail_lifetime_multiplier = 1.0
+cursor_reaction = false
+activity = 1.0
