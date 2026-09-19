@@ -34,6 +34,8 @@ ALLOWED_LICENSE_PATTERNS = [
     r"creativecommons\.org/licenses/by-sa/(?:2\.0|2\.5|3\.0|4\.0)",
     r"creativecommons\.org/publicdomain/(?:zero|mark)/1\.0",
     r"\bcc0\b",
+    r"\bcc-zero\b",
+    r"\bcc-by(?:-sa)?-(?:2(?:\.0)?|2\.5|3(?:\.0)?|4(?:\.0)?)\b",
     r"\bcc by(?:-sa)?(?: |-|/)?(?:2(?:\.0)?|2\.5|3(?:\.0)?|4(?:\.0)?)\b",
     r"public domain",
 ]
