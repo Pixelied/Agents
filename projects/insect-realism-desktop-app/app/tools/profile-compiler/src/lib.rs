@@ -482,12 +482,19 @@ pub fn compile(input: &InputSnapshot) -> Result<Compiled, CompileError> {
             }
             let dx = x - x0;
             let dy = y - y0;
-            let v = dx.hypot(dy) / dt;
-            let heading = if v > 0.0 { Some(dy.atan2(dx)) } else { None };
+            // std transcendental functions use platform libm. Tiny differences
+            // survive cancellation in acceleration, breaking exact profile bytes.
+            // Pin the software implementation; do not round or discard measurements.
+            let v = libm::hypot(dx, dy) / dt;
+            let heading = if v > 0.0 {
+                Some(libm::atan2(dy, dx))
+            } else {
+                None
+            };
             let omega = match (heading, prev_heading) {
                 (Some(h), Some(p)) => {
                     let d: f64 = h - p;
-                    d.sin().atan2(d.cos()) / dt
+                    libm::atan2(libm::sin(d), libm::cos(d)) / dt
                 }
                 _ => {
                     excluded_undefined_turns += 1;
@@ -706,7 +713,7 @@ pub fn compile(input: &InputSnapshot) -> Result<Compiled, CompileError> {
  ];
     let bundle = RuntimeProfileBundle {
         schema_version: 1,
-        profile_version: "2026.09.17-donor-transfer.1".into(),
+        profile_version: "2026.09.17-donor-transfer.2".into(),
         pack_sha256: input.pack_manifest_sha256.clone(),
         creatures: vec![CreatureProfile {
             id: CreatureKind("ant".into()),

@@ -26,7 +26,7 @@
   "interval_count": 53940,
   "operational_run_count": 11138,
   "pack_manifest_sha256": "da036b860ff32d12a2c8d659b7c456dd79ac5089492a16f236bc2e1ca6a6caaf",
-  "profile_version": "2026.09.17-donor-transfer.1",
+  "profile_version": "2026.09.17-donor-transfer.2",
   "provenance": {
     "abdomen_length_fraction": {
       "evidence": [
@@ -824,7 +824,7 @@
   "runtime_p95_winsorized_intervals": 2694,
   "schema_version": 1,
   "selected_condition": "Temnothorax rugatulus tandem-leader, first 900 seconds, every tenth original frame",
-  "sha256": "d58754a7064a10bc87cf415462dfe1ee5a48b528962fae3852ee0d3dd1dba07e",
+  "sha256": "ce558669b3b17d5e85282c1bc94ea8c0e34b6d86311ded3a2acc2d31552c502b",
   "source_ids": [
     "dataset-antweb-specimen-images",
     "dataset-valentini-2020-tandem",
