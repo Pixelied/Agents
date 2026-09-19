@@ -1,0 +1,13 @@
+{
+  "claimed_at": "2026-09-19T03:20:07+00:00",
+  "expires_at": "2026-09-19T05:20:07+00:00",
+  "generation": 1,
+  "heartbeat_at": "2026-09-19T03:20:07+00:00",
+  "intent": "Own only .github/workflows/insect-release.yml: promote the preserved template to tag/manual-only release CI; no automatic branch duplication or publication.",
+  "owner": "astra-insect-resume-m5r2",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "scope": "ci-insect-release",
+  "state": "active",
+  "task_id": "insect-continuation-03-q7b4"
+}

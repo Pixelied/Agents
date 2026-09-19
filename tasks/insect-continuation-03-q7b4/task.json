@@ -8,6 +8,17 @@
   "created_at": "2026-09-18T22:45:00+00:00",
   "priority": "high",
   "status": "open",
-  "scopes": [".github/workflows/insect-continuation-03.yml", "projects/insect-realism-desktop-app", "ci-insect-continuation-native", ".github/workflows/insect-packages-m5r2.yml"],
-  "acceptance_criteria": ["No modifications to scopes actively leased by other workers", "Uploaded source identity preserved and checked before compilation", "Native build and package outcomes inspected rather than inferred from source", "Physical hardware acceptance and other external blockers remain explicit"]
+  "scopes": [
+    ".github/workflows/insect-continuation-03.yml",
+    "projects/insect-realism-desktop-app",
+    "ci-insect-continuation-native",
+    ".github/workflows/insect-packages-m5r2.yml",
+    "ci-insect-release"
+  ],
+  "acceptance_criteria": [
+    "No modifications to scopes actively leased by other workers",
+    "Uploaded source identity preserved and checked before compilation",
+    "Native build and package outcomes inspected rather than inferred from source",
+    "Physical hardware acceptance and other external blockers remain explicit"
+  ]
 }
