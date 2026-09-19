@@ -221,6 +221,12 @@ def main():
 
         original_manifest=manifest.with_name("MANIFEST_R8_2_FULL.csv")
         manifest.rename(original_manifest)
+        old_sums=base/"SHA256SUMS.txt"
+        if old_sums.exists():
+            old_sums.rename(base/"SHA256SUMS_R8_2_FULL.txt")
+        old_summary=base/"ACQUISITION_SUMMARY.json"
+        if old_summary.exists():
+            old_summary.rename(base/"ACQUISITION_SUMMARY_R8_2_FULL.json")
 
         fieldnames=[k for k in rows[0].keys() if not k.startswith("_")]
         with manifest.open("w",newline="",encoding="utf-8") as f:
