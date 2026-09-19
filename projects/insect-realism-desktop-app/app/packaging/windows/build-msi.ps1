@@ -15,12 +15,22 @@ $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $Stage = Join-Path ([System.IO.Path]::GetTempPath()) ('insect-package-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $Stage | Out-Null
 try {
+    if ($env:CARGO_ENCODED_RUSTFLAGS) {
+        throw 'CARGO_ENCODED_RUSTFLAGS would override static CRT policy; unset it for packaging.'
+    }
+    $PreviousRustFlags = $env:RUSTFLAGS
     Push-Location $App
     try {
+        # Apply to all target dependencies, not just the final crate. Host build
+        # tools remain host artifacts because an explicit --target is supplied.
+        $env:RUSTFLAGS = (($PreviousRustFlags + ' -C target-feature=+crt-static').Trim())
         Invoke-Checked { cargo build --locked --release -p desktop-app --target x86_64-pc-windows-msvc }
         $Metadata = cargo metadata --no-deps --format-version=1 | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) { throw 'Cargo metadata failed' }
-    } finally { Pop-Location }
+    } finally {
+        $env:RUSTFLAGS = $PreviousRustFlags
+        Pop-Location
+    }
     $Licenses = Join-Path $Stage 'notices'
     Invoke-Checked { python (Join-Path $Root 'scripts/collect_licenses.py') --manifest (Join-Path $App 'Cargo.toml') --target x86_64-pc-windows-msvc --output $Licenses }
     $Payload = Join-Path $Stage 'Insect Realism'

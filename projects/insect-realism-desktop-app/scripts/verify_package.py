@@ -7,29 +7,105 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import plistlib
+import re
 import struct
 
 MANIFEST = 'PACKAGE_SHA256.json'
 FONT_SUFFIXES = {'.ttf','.otf','.woff','.woff2','.ttc'}
 
 def inspect_pe(data: bytes) -> dict:
+    """Inspect actual PE import directories, including delay-load descriptors.
+
+    Package policy is static Visual C++ CRT linkage. System DLLs remain OS
+    dependencies. This is not a native launch or transitive loader proof.
+    Layout: Microsoft PE/COFF specification, PE32+ optional header.
+    """
     if len(data) < 64 or data[:2] != b'MZ':
         raise ValueError('not a PE executable')
     offset = struct.unpack_from('<I', data, 0x3c)[0]
     if offset > len(data)-24 or data[offset:offset+4] != b'PE\0\0':
         raise ValueError('invalid PE signature/header offset')
-    machine = struct.unpack_from('<H', data, offset+4)[0]
+    machine, sections = struct.unpack_from('<HH', data, offset+4)
     optional_size = struct.unpack_from('<H', data, offset+20)[0]
     opt = offset+24
-    if optional_size < 70 or opt+optional_size > len(data):
+    if optional_size < 112 or opt+optional_size > len(data):
         raise ValueError('truncated PE optional header')
-    magic = struct.unpack_from('<H',data,opt)[0]
-    subsystem = struct.unpack_from('<H',data,opt+68)[0]
+    magic = struct.unpack_from('<H', data, opt)[0]
+    subsystem = struct.unpack_from('<H', data, opt+68)[0]
     if machine != 0x8664 or magic != 0x20b:
         raise ValueError('package requires a Windows x64 PE32+ executable')
     if subsystem != 2:
         raise ValueError('Windows executable is not GUI-subsystem (console must not appear)')
-    return {'format':'PE32+','architecture':'x64','subsystem':subsystem,'native_launch_verified':False}
+    directory_count = struct.unpack_from('<I', data, opt+108)[0]
+    if directory_count > (optional_size-112)//8:
+        raise ValueError('truncated PE import data directories')
+    header_size = struct.unpack_from('<I', data, opt+60)[0]
+    image_base = struct.unpack_from('<Q', data, opt+24)[0]
+    table = opt+optional_size
+    if sections > 96 or table+sections*40 > len(data):
+        raise ValueError('invalid PE section table')
+    regions = []
+    for index in range(sections):
+        virtual_size, rva, raw_size, raw = struct.unpack_from('<4I', data, table+index*40+8)
+        if raw_size and raw+raw_size > len(data):
+            raise ValueError('truncated PE section data')
+        regions.append((rva, max(virtual_size, raw_size), raw, raw_size))
+
+    def mapped(rva: int, size: int = 1) -> tuple[int, int]:
+        if rva < 0 or size <= 0 or rva+size > 0x100000000:
+            raise ValueError('invalid PE import RVA range')
+        matches = []
+        if rva+size <= min(header_size, len(data)):
+            matches.append((rva, min(header_size, len(data))))
+        for start, extent, raw, raw_size in regions:
+            relative = rva-start
+            if 0 <= relative < extent and relative+size <= raw_size:
+                matches.append((raw+relative, raw+raw_size))
+        if len(matches) != 1:
+            raise ValueError('unmapped or ambiguous PE import RVA')
+        return matches[0]
+
+    imports = set()
+    for directory, stride, name_offset in ((1, 20, 12), (13, 32, 4)):
+        if directory >= directory_count:
+            continue
+        rva, size = struct.unpack_from('<II', data, opt+112+directory*8)
+        if rva == size == 0:
+            continue
+        if not rva or size < stride or size > len(data):
+            raise ValueError('truncated or invalid PE import table')
+        terminated = False
+        for delta in range(0, size-stride+1, stride):
+            record, _ = mapped(rva+delta, stride)
+            if not any(data[record:record+stride]):
+                terminated = True
+                break
+            name_rva = struct.unpack_from('<I', data, record+name_offset)[0]
+            if directory == 13:
+                attributes = struct.unpack_from('<I', data, record)[0]
+                if attributes & ~1:
+                    raise ValueError('invalid delay-import attributes')
+                if not attributes & 1:
+                    name_rva -= image_base
+            if not name_rva:
+                raise ValueError('missing PE import name RVA')
+            name_start, name_limit = mapped(name_rva)
+            name_end = data.find(b'\0', name_start, min(name_limit, name_start+512))
+            if name_end <= name_start:
+                raise ValueError('unterminated PE import DLL name')
+            raw_name = data[name_start:name_end]
+            if any(c < 33 or c > 126 or c in (47, 92, 58) for c in raw_name):
+                raise ValueError('invalid PE import DLL name')
+            imports.add(raw_name.decode('ascii'))
+        if not terminated:
+            raise ValueError('unterminated PE import table')
+    dlls = sorted(imports, key=str.casefold)
+    runtime = [name for name in dlls if re.fullmatch(
+        r'(?:vcruntime|msvcp|msvcr|concrt)[0-9][a-z0-9_]*\.dll', name, re.IGNORECASE)]
+    if runtime:
+        raise ValueError('external Visual C++ runtime dependency in portable package: ' + ', '.join(runtime))
+    return {'format':'PE32+','architecture':'x64','subsystem':subsystem,
+            'imported_dlls':dlls,'external_visual_cpp_runtime':False,'native_launch_verified':False}
 
 def inspect_macho(data: bytes) -> dict:
     if len(data) < 32 or struct.unpack_from('<I',data)[0] != 0xfeedfacf:

@@ -13,11 +13,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   source:
-    name: Verify portable profiles and publish the checked source delta
+    name: Verify the published checkpoint without rewriting the branch
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: write
+    timeout-minutes: 10
     outputs:
       sha: ${{ steps.revision.outputs.sha }}
     steps:
@@ -25,88 +23,17 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
           fetch-depth: 0
-          persist-credentials: true
-      - name: Apply the authenticated portable-math correction only
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          python - <<'PYCODE'
-          import datetime, hashlib, json, subprocess
-          from pathlib import Path
-          root = Path.cwd()
-          lease_path = 'tasks/insect-continuation-03-q7b4/leases/projects%2Finsect-realism-desktop-app.json'
-          lease = json.loads(subprocess.check_output(['git', 'show', 'origin/main:' + lease_path], text=True))
-          if (lease.get('owner') != 'astra-insect-resume-m5r2' or lease.get('state') != 'active'
-                  or datetime.datetime.fromisoformat(lease['expires_at']) <= datetime.datetime.now(datetime.timezone.utc)):
-              raise SystemExit('Source lease is not active; refusing modification')
-          recovery = root / 'projects/insect-realism-desktop-app/scripts/recovery'
-          patch = recovery / 'portable-math.patch'
-          manifest = recovery / 'portable-math-revision.json'
-          if hashlib.sha256(patch.read_bytes()).hexdigest() != '18681c0389b87b2685b3760ccd14926ea732c1fb379a6d822e0dfa8d194db4d6':
-              raise SystemExit('Portable patch checksum mismatch')
-          if hashlib.sha256(manifest.read_bytes()).hexdigest() != 'c6453cca6cf3958f4764322ba50e6b66723c3a222b5c7293af2acbe2efd823e5':
-              raise SystemExit('Portable revision manifest checksum mismatch')
-          files = json.loads(manifest.read_text())['files']
-          actual = {}
-          for name in files:
-              path = root / name
-              if not path.resolve().is_relative_to(root) or path.is_symlink():
-                  raise SystemExit('Unsafe revision path: ' + name)
-              actual[name] = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
-          if all(actual[name] == data['after'] for name, data in files.items()):
-              print('Exact portable revision already present; not reapplied.')
-          elif all(actual[name] == data['before'] for name, data in files.items()):
-              subprocess.run(['git', 'apply', '--check', '--index', str(patch)], check=True)
-              subprocess.run(['git', 'apply', '--index', str(patch)], check=True)
-          else:
-              raise SystemExit('Source diverged from the authenticated before/after states; no overwrite permitted')
-          for name, data in files.items():
-              if hashlib.sha256((root / name).read_bytes()).hexdigest() != data['after']:
-                  raise SystemExit('Applied source checksum mismatch: ' + name)
-          PYCODE
-      - name: Prove the corrected compiler before publication
-        shell: bash
-        working-directory: projects/insect-realism-desktop-app/app
-        run: |
-          set -euo pipefail
-          rustup toolchain install 1.98.1 --profile minimal
-          cargo test --release --locked -p profile-compiler
-          cargo run --release --locked -p profile-compiler -- compile --input assets/creature-profiles/build-input.json --output "$RUNNER_TEMP/portable-profiles.bin" --report "$RUNNER_TEMP/portable-profiles.report.json"
-          cmp "$RUNNER_TEMP/portable-profiles.bin" assets/creature-profiles/runtime-profiles.bin
-          cmp "$RUNNER_TEMP/portable-profiles.report.json" assets/creature-profiles/runtime-profiles.report.json
-      - name: Publish only the tested seven-file delta without a force push
-        id: revision
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PYCODE'
-          import hashlib, json, subprocess
-          from pathlib import Path
-          files = json.loads(Path('projects/insect-realism-desktop-app/scripts/recovery/portable-math-revision.json').read_text())['files']
-          for name, data in files.items():
-              if hashlib.sha256(Path(name).read_bytes()).hexdigest() != data['after']:
-                  raise SystemExit('Source changed during compiler verification: ' + name)
-          changed = {p for p in subprocess.check_output(['git', 'diff', '--cached', '--name-only', '-z'], text=True).split('\0') if p}
-          if changed and changed != set(files):
-              raise SystemExit('Unexpected staged changes; refusing publication')
-          PYCODE
-          if ! git diff --cached --quiet; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'fix: use pinned software math for reproducible research profile compilation'
-            git push origin "HEAD:$GITHUB_REF_NAME"
-          fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          persist-credentials: false
       - name: Export the exact revision for resumable verification
+        id: revision
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/insect-checkpoint"
           git bundle create "$RUNNER_TEMP/insect-checkpoint/history.bundle" --all
           git rev-parse HEAD > "$RUNNER_TEMP/insect-checkpoint/commit.txt"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git ls-tree -r HEAD > "$RUNNER_TEMP/insect-checkpoint/tree.txt"
           sha256sum "$RUNNER_TEMP/insect-checkpoint/history.bundle" > "$RUNNER_TEMP/insect-checkpoint/SHA256SUMS.txt"
       - uses: actions/upload-artifact@v4
@@ -135,7 +62,7 @@ jobs:
               path = root / 'app/assets/creature-profiles' / name
               if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
                   raise SystemExit('Versioned profile identity mismatch: ' + name)
-          print('Full source, unchanged input, and versioned portable profile digests verified.')
+          print('Full source, unchanged input, and portable profile digests verified.')
           PY
   native:
     name: Full application and package (${{ matrix.os }})

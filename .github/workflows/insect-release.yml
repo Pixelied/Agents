@@ -1,0 +1,177 @@
+name: Insect tagged development packages
+"on":
+  push:
+    tags: ['insect-desktop-v*']
+  workflow_dispatch:
+    inputs:
+      project_root:
+        description: 'Optional checkout-relative application root; required when multiple apps are present'
+        required: false
+        default: ''
+        type: string
+      soak:
+        description: 'Run the two-hour wall-clock software-GPU soak on Linux'
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: insect-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            label: linux-validation
+          - os: macos-14
+            label: macos-arm64
+          - os: windows-2022
+            label: windows-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    env:
+      CARGO_BUILD_JOBS: 2
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Preserve source line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        if: runner.os == 'Windows'
+        with:
+          # Pinned WiX 4.0.6 targets .NET 6; this is a build tool, not an app runtime requirement.
+          dotnet-version: '6.0.x'
+      - name: Locate the single intended project
+        id: project
+        env:
+          REQUESTED_PROJECT_ROOT: ${{ inputs.project_root }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path.cwd().resolve()
+          requested = os.environ.get('REQUESTED_PROJECT_ROOT', '')
+          if requested:
+              relative = Path(requested)
+              if relative.is_absolute() or '..' in relative.parts or any(c in requested for c in ('\\', '\n', '\r', '\0')):
+                  raise SystemExit('Project root must be a safe checkout-relative path')
+              options = [(root / relative).resolve()]
+              if not options[0].is_relative_to(root):
+                  raise SystemExit('Project root escapes the checkout')
+          else:
+              options = [root] if (root / 'app/Cargo.toml').is_file() else sorted(
+                  p.parent.parent.resolve() for p in (root / 'projects').glob('*/app/Cargo.toml')
+                  if p.is_file() and p.parent.parent.resolve().is_relative_to(root))
+          found = [p for p in options if (p / 'app/Cargo.toml').is_file()]
+          if len(found) != 1:
+              raise SystemExit('Expected one app project; use project_root with an explicit checkout-relative path')
+          p = found[0].as_posix()
+          temporary = Path(os.environ['RUNNER_TEMP'])
+          target = (temporary / 'insect-target').as_posix()
+          verification = (temporary / 'insect-verification').as_posix()
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
+              f.write('APP_ROOT=' + p + '\nCARGO_TARGET_DIR=' + target + '\nVERIFICATION_ROOT=' + verification + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write('root=' + p + '\nverification=' + verification + '\n')
+          PY
+      - name: Install the project's pinned Rust toolchain
+        run: |
+          TOOLCHAIN="$(python -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1],"rb"))["toolchain"]["channel"])' "$APP_ROOT/app/rust-toolchain.toml")"
+          rustup toolchain install "$TOOLCHAIN" --profile minimal --component rustfmt,clippy
+          cd "$APP_ROOT/app"
+          rustc --version
+          cargo --version
+      - name: Validate release-tag version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os,tomllib
+          from pathlib import Path
+          version=tomllib.loads((Path(os.environ['APP_ROOT'])/'app/Cargo.toml').read_text())['workspace']['package']['version']
+          if os.environ['RELEASE_TAG'] != 'insect-desktop-v'+version: raise SystemExit('Tag does not match app version')
+          PY
+      - name: Install offscreen Vulkan dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libxkbcommon0 libx11-6 libxcursor1 libxi6 libxrandr2
+          mkdir -p "$RUNNER_TEMP/insect-xdg"
+          chmod 700 "$RUNNER_TEMP/insect-xdg"
+          echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/insect-xdg" >> "$GITHUB_ENV"
+      - name: Full Linux GPU, profile, unit, packaging, and measurement verification
+        if: runner.os == 'Linux'
+        run: python "$APP_ROOT/scripts/verify_release.py" --root "$APP_ROOT" --output "$VERIFICATION_ROOT" --gpu --benchmark
+      - name: Native core tests and real macOS or Windows packages
+        if: runner.os != 'Linux'
+        run: python "$APP_ROOT/scripts/verify_release.py" --root "$APP_ROOT" --output "$VERIFICATION_ROOT" --package
+      - name: Optional two-hour wall-clock soak
+        if: runner.os == 'Linux' && github.event_name == 'workflow_dispatch' && inputs.soak
+        run: |
+          cd "$APP_ROOT/app"
+          cargo run --locked --release -p desktop-app --features allocation-metrics -- --soak-seconds 7200 --json "$VERIFICATION_ROOT/soak-two-hours.json"
+          python "$APP_ROOT/scripts/verify_measurements.py" soak --input "$VERIFICATION_ROOT/soak-two-hours.json" --seconds 7200 --output "$VERIFICATION_ROOT/audit-soak-two-hours.json"
+      - name: Preserve actual logs and produced packages
+        if: always() && steps.project.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: insect-${{ matrix.label }}
+          path: |
+            ${{ steps.project.outputs.verification }}/
+            ${{ steps.project.outputs.root }}/dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/insect-desktop-v')
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: insect-*
+          path: artifacts
+      - name: Create a DRAFT only; interactive/native gates require separate sign-off
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -n "$(find artifacts -type f -name '*.dmg' -print -quit)"
+          test -n "$(find artifacts -type f -name '*.msi' -print -quit)"
+          mapfile -d '' FILES < <(find artifacts -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.app.zip' -o -name '*-portable.zip' \) -print0)
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'A release for this tag already exists. Review it manually rather than overwriting it.' >&2
+            exit 1
+          fi
+          printf '%s\n' 'Development packages from native builds. Not a release-readiness certification. Interactive input pass-through, calibrated physical size, native compositor performance, display hot-plug and signing/notarization must be separately verified. Inspect all attached verification artifacts before publication.' > RELEASE-NOTES.txt
+          PROJECT_ROOT="$(python - <<'PYROOT'
+          from pathlib import Path
+          root=Path.cwd()
+          options=[root] if (root/'app/Cargo.toml').is_file() else sorted(p.parent.parent.resolve() for p in (root/'projects').glob('*/app/Cargo.toml') if p.is_file() and p.parent.parent.resolve().is_relative_to(root))
+          found=[p for p in options if (p/'app/Cargo.toml').is_file()]
+          if len(found)!=1: raise SystemExit('Expected one project for the release checksum helper')
+          print(found[0])
+          PYROOT
+          )"
+          python "$PROJECT_ROOT/scripts/release_checksums.py" --output SHA256SUMS.txt "${FILES[@]}"
+          gh release create "$RELEASE_TAG" "${FILES[@]}" SHA256SUMS.txt --verify-tag --draft --prerelease --title "$RELEASE_TAG development candidate" --notes-file RELEASE-NOTES.txt
