@@ -45,9 +45,9 @@ ZENODO = [
 # Only data/video supplements with clear implementation value are selected.
 PMC = [
     ("Blattella germanica", "PMC9385682",
-     [r"mmc(?:2|3|4|5|6|7|8|9|10|11|12|13|14)\.xlsx$"],
+     [r"mmc(?:2|3|4|5)\.xlsx$"],
      "raw_publisher_supplement",
-     "shelter/thigmotaxis preference plus associated stage/development transcriptomic tables"),
+     "male/female/nymph 15-min and adult 24-h shelter/thigmotaxis preference tables"),
     ("Blattella germanica", "PMC6393502",
      [r"\.xlsx$", r"\.mp4$"],
      "raw_publisher_supplement",
