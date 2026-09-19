@@ -7,7 +7,9 @@ Oryzaephilus surinamensis body low,2.0,context lower bound,7.56,8.66,11.34,17.32
 Oryzaephilus surinamensis Purdue adult,2.5,direct extension value,9.45,10.83,14.17,21.65
 Oryzaephilus surinamensis body high,3.0,common contextual upper body value,11.34,12.99,17.01,25.98
 Oryzaephilus exemplar fore-aft,3.35,derived from 2.70 mm body + 0.65 mm antenna exemplar; context only,12.66,14.51,18.99,29.02
-Chelifer cancroides body,3.5,representative body value,13.23,15.16,19.84,30.31
+Chelifer cancroides body min,2.13,direct adult observed minimum,8.05,9.22,12.08,18.45
+Chelifer cancroides body mean,3.09,direct adult mean n=10,11.68,13.38,17.52,26.76
+Chelifer cancroides body max,3.84,direct adult observed maximum,14.51,16.63,21.77,33.26
 Chelifer cancroides total span low,7.0,independent extended-pedipalp contextual span,26.46,30.31,39.69,60.63
 Chelifer cancroides total span high,9.0,independent extended-pedipalp contextual span,34.02,38.98,51.02,77.95
 Willowsia nigromaculata body low,1.51,direct examined material,5.71,6.54,8.56,13.08
