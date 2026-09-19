@@ -62,8 +62,48 @@ def read_csv(p:Path):
 def main(root:Path):
     empirical=root/"02_EMPIRICAL_DATA"
     visual=root/"03_REFERENCE_MEDIA"
+    start=root/"00_START_HERE"
+    evidence=root/"01_CURRENT_EVIDENCE"
     require(empirical.is_dir(),"02_EMPIRICAL_DATA missing")
     require(visual.is_dir(),"03_REFERENCE_MEDIA missing")
+    require(start.is_dir(),"00_START_HERE missing")
+    require(evidence.is_dir(),"01_CURRENT_EVIDENCE missing")
+
+    # Single-authority plan / ant-scope audit.
+    plan_path=start/"CURRENT_IMPLEMENTATION_PLAN_R8_3.md"
+    require(plan_path.exists(),"R8.3 implementation plan missing")
+    plan=plan_path.read_text(encoding="utf-8")
+    tasks=[int(x) for x in re.findall(r"^## Task (\d+)\b",plan,re.M)]
+    sections=[int(x) for x in re.findall(r"^# (\d+)\.",plan,re.M)]
+    require(tasks==list(range(1,58)),f"R8.3 plan tasks are not exactly 1..57: {tasks}")
+    require(sections==list(range(0,26)),f"R8.3 numbered plan sections are not exactly 0..25: {sections}")
+    for phrase in [
+        "single current implementation authority",
+        "Linepithema humile",
+        "worker morphology",
+        "callow",
+        "queens",
+        "males",
+        "eggs",
+        "larvae",
+        "pupae",
+        "02_EMPIRICAL_DATA",
+        "03_REFERENCE_MEDIA",
+        "raw_repository_data",
+        "optional rare pseudoscorpion predator",
+    ]:
+        require(phrase.lower() in plan.lower(),f"current plan missing required concept: {phrase}")
+    for stale in [
+        "exactly three secondary implementation targets",
+        "Chelifer cancroides: not a microfauna target",
+        "Do not force a fourth",
+        "## Task 7A",
+    ]:
+        require(stale not in plan,f"stale plan authority remains: {stale}")
+    handoff=(start/"ASTRA_READ_THIS_FIRST_R8_3.md").read_text(encoding="utf-8")
+    require("previous R8.2 plan is superseded" in handoff,"Astra handoff does not supersede R8.2 clearly")
+    require("Do not delete, reduce or replace" in handoff,"Astra handoff does not explicitly preserve ant system")
+    require(not list(start.glob("*R8_2*")),"current START_HERE contains stale R8.2 authority filenames")
 
     # Visual curation must really remove ~40-60%, not silently keep the old image dump.
     cur=json.loads((visual/"CURATION_SUMMARY.json").read_text())
@@ -177,6 +217,7 @@ def main(root:Path):
 
     report={
         "status":"PASS",
+        "authority":{"tasks":len(tasks),"sections":len(sections),"plan":str(plan_path.relative_to(root))},
         "visual":{"original_files":total_orig,"kept_files":total_kept,"dropped_files":total_orig-total_kept,
                   "keep_fraction":total_kept/total_orig,"unique_kept_hashes":len(hashes)},
         "empirical":{"files":len(rows),"bytes":sum(int(r["bytes"]) for r in rows),
