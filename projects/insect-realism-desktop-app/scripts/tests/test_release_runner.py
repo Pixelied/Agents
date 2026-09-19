@@ -57,7 +57,7 @@ class ReleaseRunnerTests(unittest.TestCase):
             selected = root / 'projects/insect-realism-desktop-app'
             (selected / 'app').mkdir(parents=True)
             (selected / 'app/Cargo.toml').write_text('[workspace]')
-            self.assertEqual(module.find_project(root), selected)
+            self.assertEqual(module.find_project(root), selected.resolve())
             other = root / 'projects/insect-realism-desktop-app-recovery'
             (other / 'app').mkdir(parents=True)
             (other / 'app/Cargo.toml').write_text('[workspace]')

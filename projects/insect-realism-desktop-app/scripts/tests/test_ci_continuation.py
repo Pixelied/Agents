@@ -59,7 +59,7 @@ class WorkflowContinuationTests(unittest.TestCase):
             selected = project(root, 'projects/insect-realism-native-n8e6')
             result = locate(root)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('root=' + selected.as_posix(), (root / 'output.txt').read_text())
+            self.assertIn('root=' + selected.resolve().as_posix(), (root / 'output.txt').read_text())
 
     def test_explicit_project_disambiguates_without_picking_a_branch_name(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,7 +68,7 @@ class WorkflowContinuationTests(unittest.TestCase):
             selected = project(root, 'projects/insect-realism-desktop-app-recovery')
             result = locate(root, 'projects/insect-realism-desktop-app-recovery')
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('root=' + selected.as_posix(), (root / 'output.txt').read_text())
+            self.assertIn('root=' + selected.resolve().as_posix(), (root / 'output.txt').read_text())
 
     def test_override_cannot_escape_checkout(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -93,7 +93,7 @@ class WorkflowContinuationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             selected = project(root, 'projects/insect-realism-native-n8e6')
-            self.assertEqual(module.find_project(root), selected)
+            self.assertEqual(module.find_project(root), selected.resolve())
 
 
 if __name__ == '__main__':

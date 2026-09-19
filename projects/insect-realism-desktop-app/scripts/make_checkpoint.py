@@ -54,7 +54,8 @@ def checkpoint(root: Path, output: Path) -> dict:
             for name, digest in manifest.items():
                 if hashlib.sha256(archive.read(root.name + '/' + name)).hexdigest() != digest:
                     raise ValueError('Checkpoint digest mismatch: ' + name)
-        with temporary.open('rb') as file:
+        # Windows _commit (os.fsync) requires a writable descriptor.
+        with temporary.open('r+b') as file:
             os.fsync(file.fileno())
         os.replace(temporary, output)
     finally:

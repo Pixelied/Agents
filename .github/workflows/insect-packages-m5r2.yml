@@ -13,70 +13,17 @@ concurrency:
   cancel-in-progress: false
 jobs:
   source:
-    name: Preserve exact revision and require complete application source
+    name: Verify the published checkpoint without rewriting the branch
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    permissions:
-      contents: write
-      actions: read
-    outputs:
-      root: ${{ steps.ready.outputs.root }}
+    timeout-minutes: 10
     steps:
+      - name: Preserve source line endings
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Check whether exact profile assets are already published
-        id: profiles
-        shell: bash
-        run: |
-          if test -f projects/insect-realism-desktop-app/app/assets/creature-profiles/build-input.json; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: actions/setup-python@v5
-        if: steps.profiles.outputs.present == 'false'
-        with:
-          python-version: '3.11'
-      - uses: actions/download-artifact@v4
-        if: steps.profiles.outputs.present == 'false'
-        with:
-          name: insect-pinned-source-a6d2
-          run-id: 35402190083
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: ${{ runner.temp }}/insect-original-data
-      - name: Reconstruct only exact checkpoint profile bytes
-        if: steps.profiles.outputs.present == 'false'
-        shell: bash
-        env:
-          CARGO_TARGET_DIR: ${{ runner.temp }}/insect-profile-target
-        run: |
-          set -euo pipefail
-          python -m pip install --disable-pip-version-check pandas==2.2.3
-          rustup toolchain install 1.98.1 --profile minimal
-          cargo +1.98.1 build --release --locked --manifest-path projects/insect-realism-desktop-app/app/Cargo.toml -p profile-compiler
-          python -m unittest discover -s projects/insect-realism-desktop-app/scripts/recovery/tests -v
-          python projects/insect-realism-desktop-app/scripts/recovery/restore_profiles.py --coordinates "$RUNNER_TEMP/insect-original-data/temnothorax-source-coordinates.csv" --compiler "$CARGO_TARGET_DIR/release/profile-compiler" --output projects/insect-realism-desktop-app/app/assets/creature-profiles
-      - name: Publish generated actual assets without overwriting a moving branch
-        if: steps.profiles.outputs.present == 'false'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh auth setup-git
-          git fetch origin main
-          git show FETCH_HEAD:tasks/insect-continuation-03-q7b4/leases/projects%2Finsect-realism-desktop-app.json > "$RUNNER_TEMP/insect-source-lease.json"
-          python -c 'import json,os; from pathlib import Path; from datetime import datetime,timezone; x=json.loads((Path(os.environ["RUNNER_TEMP"])/"insect-source-lease.json").read_text()); valid=x["owner"]=="astra-insect-resume-m5r2" and x["state"]=="active" and datetime.fromisoformat(x["expires_at"])>datetime.now(timezone.utc); exit(0 if valid else "Source publication lease is not active")'
-          git fetch origin "$GITHUB_REF_NAME"
-          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA" || { echo 'Branch advanced; preserve newer work and reconcile before publishing'; exit 1; }
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- projects/insect-realism-desktop-app/app/assets/creature-profiles/build-input.json projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.bin projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.report.json
-          git commit -m 'build: publish byte-exact original runtime profiles and provenance'
-          git push origin "HEAD:$GITHUB_REF_NAME"
-      - name: Export resumable history without changing source
+      - name: Export the exact revision for resumable verification
         shell: bash
         run: |
           set -euo pipefail
@@ -91,20 +38,27 @@ jobs:
           path: ${{ runner.temp }}/insect-checkpoint/
           retention-days: 30
           if-no-files-found: error
-      - name: Require full application, not only platform foundations
-        id: ready
+      - name: Require complete application and exact original profile bytes
         shell: bash
         run: |
           python - <<'PY'
-          import os
+          import hashlib
           from pathlib import Path
           root = Path('projects/insect-realism-desktop-app')
-          required = ['app/Cargo.lock', 'app/crates/settings/Cargo.toml', 'app/crates/simulation/Cargo.toml', 'app/crates/rendering/Cargo.toml', 'app/crates/desktop-app/Cargo.toml', 'app/assets/creature-profiles/build-input.json', 'app/assets/creature-profiles/runtime-profiles.bin', 'scripts/verify_release.py', 'scripts/verify_package.py', 'app/packaging/macos/build-dmg.sh', 'app/packaging/windows/build-msi.ps1']
+          required = ['app/Cargo.lock', 'app/crates/settings/Cargo.toml', 'app/crates/simulation/Cargo.toml', 'app/crates/rendering/Cargo.toml', 'app/crates/desktop-app/Cargo.toml', 'scripts/verify_release.py', 'scripts/verify_package.py', 'app/packaging/macos/build-dmg.sh', 'app/packaging/windows/build-msi.ps1', 'docs/BIOLOGY_NOTICES.md', 'docs/INSTALL.md', 'LICENSE']
           missing = [name for name in required if not (root / name).is_file()]
           if missing:
               raise SystemExit('Application source publication remains incomplete: ' + ', '.join(missing))
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('root=' + root.as_posix() + '\n')
+          profiles = {
+              'build-input.json': 'b5cc912378a92c8b9f838047c7a2fef6d7a115c1b9520a4c350d477fea319375',
+              'runtime-profiles.bin': 'd58754a7064a10bc87cf415462dfe1ee5a48b528962fae3852ee0d3dd1dba07e',
+              'runtime-profiles.report.json': '45569198db7df759b8bb036f6f3e4798ef0b61b0046286b11a824a29e2306ebf',
+          }
+          for name, expected in profiles.items():
+              path = root / 'app/assets/creature-profiles' / name
+              if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                  raise SystemExit('Original checkpoint profile changed: ' + name)
+          print('Full source and all three original profile digests verified.')
           PY
   native:
     name: Full application and package (${{ matrix.os }})
@@ -127,6 +81,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - uses: actions/setup-dotnet@v4
+        if: runner.os == 'Windows'
+        with:
+          dotnet-version: '6.0.x'
       - name: Install the checkpoint compiler
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
       - name: Test complete source and construct native package

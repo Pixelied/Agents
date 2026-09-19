@@ -74,7 +74,7 @@ class CheckpointDurabilityTests(unittest.TestCase):
                 self.assertFalse(any('/.cargo/' in name for name in archive.namelist()))
                 self.assertIn('project/app/source.rs',archive.namelist())
 
-    def test_equal_content_ignores_source_mtime_and_preserves_executable_permission(self):
+    def test_equal_content_ignores_source_mtime_and_preserves_available_permissions(self):
         import os
         with tempfile.TemporaryDirectory() as d:
             base=Path(d);root=base/'project';root.mkdir()
@@ -85,7 +85,8 @@ class CheckpointDurabilityTests(unittest.TestCase):
             self.tool().checkpoint(root,b)
             self.assertEqual(a.read_bytes(),b.read_bytes())
             with zipfile.ZipFile(a) as archive:
-                self.assertTrue((archive.getinfo('project/build.sh').external_attr>>16)&0o111)
+                self.assertEqual(bool((archive.getinfo('project/build.sh').external_attr >> 16) & 0o111),
+                                 bool(script.stat().st_mode & 0o111))
 
     def test_source_file_cannot_be_overwritten_as_archive(self):
         with tempfile.TemporaryDirectory() as d:
