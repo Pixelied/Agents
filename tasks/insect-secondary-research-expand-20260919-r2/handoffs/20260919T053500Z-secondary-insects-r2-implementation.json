@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "handoff_id": "secondary-insects-r2-implementation-handoff-20260919",
+  "task_id": "insect-secondary-research-expand-20260919-r2",
+  "from_agent": "sol-insect-secondary-expand-r2",
+  "to_agent": "future-secondary-insects-implementation",
+  "summary": "R2 extends the existing secondary-insect research with 509,971,606 verified empirical bytes, 68 source records, 26 dataset records, a 57-row population-morphology ledger, exact Linepithema humile brood/caste rules, and future polymorphic-ant candidates. Verified application runtime code was not changed.",
+  "completed": [
+    "Continued from the existing secondary research lineage instead of restarting.",
+    "Mirrored and verified five public Drosophila behavior/trajectory files totaling 509,971,606 bytes using provider MD5 and local SHA-256 checks.",
+    "Rejected the failed Dryad challenge-page responses through minimum-size validation; no invalid bytes were counted.",
+    "Expanded the source catalog to 68 records and dataset catalog to 26 records.",
+    "Added 57 population-morphology/life-stage parameter rows alongside the original 92 movement/behavior parameter rows.",
+    "Added direct Linepithema humile egg, three larval instar, worker-pupa and male-pupa measurements and explicit queen-brood gaps.",
+    "Separated Argentine-ant worker variation from true polymorphic-ant profiles; added future Solenopsis invicta, Atta cephalotes and Pheidole research tracks.",
+    "Added full life-stage/sex/morph inventories and surface-visibility priors for Drosophila, German cockroach, bed bug and red flour beetle.",
+    "Preserved the durable R2 summary and implementation plan at research commit 5eb2e454941eb0096152fd5f3d667002330aa1f0."
+  ],
+  "remaining": [
+    "Implement Wave 1 Drosophila and first-instar German cockroach from the verified app lineage using the R2 evidence model.",
+    "Acquire direct adult bed-bug footfall timing before enabling articulated bed-bug release gait.",
+    "Acquire direct adult Tribolium leg-phase gait before enabling the fourth articulated species.",
+    "Acquire authenticated Pratt 2024 free-walking CSV when available; its 34.43 MB direct target-strain track file remains a high-value P0 source.",
+    "Implement Linepithema humile worker correlated morphology, queen/male/callow rigs and brood only in context-appropriate modes.",
+    "If a visibly polymorphic ant is desired, build it as a separate species profile rather than adding fake majors/soldiers to Linepithema humile.",
+    "Repeat 1:1 scale review, native input safety, representative 1000+ mixed-species performance and full two-hour endurance after implementation."
+  ],
+  "next_action": "Start implementation from the verified application lineage, consuming R2 research commit 5eb2e454 and raw empirical artifact 10578147657. Keep ant runtime regression-clean while adding population identity and Drosophila first.",
+  "files_changed": [
+    ".github/workflows/insect-secondary-data-expansion.yml",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-expanded/README_EXPANDED.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-expanded/DATA_MIRROR_REPORT.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-expanded/ANT_POPULATION_MODEL.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-expanded/LIFE_STAGE_MATRIX.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-expanded/SECONDARY_INSECTS_IMPLEMENTATION_PLAN_R2.md"
+  ],
+  "verification": [
+    "GitHub Actions run 35423878989 completed successfully.",
+    "Artifact 10578147657 size 509,976,983 bytes; artifact digest sha256:e01abb275ea8888316f33b685a8d486d860409cc76090dcb1dc06b9787bcfef3.",
+    "Selected raw files total 509,971,606 bytes and all five provider MD5/local SHA-256 checks passed.",
+    "Downloaded empirical ZIP archive integrity test passed and its SHA-256 is e01abb275ea8888316f33b685a8d486d860409cc76090dcb1dc06b9787bcfef3.",
+    "Expanded local research pack JSON/CSV parse passed; 34/34 internal checksum entries passed.",
+    "Research/docs ZIP integrity passed; SHA-256 b6175f09db913a6a7fddaec909417e05ad2c9230c2c3733073ff0c824d32b2a6."
+  ],
+  "risks": [
+    "The >500 MB empirical mirror is Drosophila-heavy because open fly motion corpora are much larger; byte count must not be mistaken for equal evidence depth across species.",
+    "Siliciano navigation logs are odor/cue-conditioned and must not become baseline locomotion or fake screen-content sensing.",
+    "Linepithema humile is monomorphic/unimodal at worker caste level; inventing major/minor/soldier workers would be biologically wrong.",
+    "Direct queen-larva/queen-pupa dimensions for the current Argentine-ant profile remain incomplete.",
+    "Bed-bug and adult Tribolium leg-phase gait remain release gates."
+  ],
+  "created_at": "2026-09-19T05:35:00+00:00"
+}

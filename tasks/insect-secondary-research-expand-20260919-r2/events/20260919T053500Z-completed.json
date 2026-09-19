@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "secondary-expand-complete-20260919T053500Z",
+  "task_id": "insect-secondary-research-expand-20260919-r2",
+  "agent_id": "sol-insect-secondary-expand-r2",
+  "type": "task_completed",
+  "message": "Expanded secondary-insect research with >500 MB verified empirical data and species-aware ant/population life-stage modeling without modifying verified runtime code.",
+  "data": {
+    "research_branch": "feat/insect-secondary-research-expansion-20260919",
+    "research_commit": "5eb2e454941eb0096152fd5f3d667002330aa1f0",
+    "workflow_run_id": 35423878989,
+    "workflow_artifact_id": 10578147657,
+    "empirical_payload_bytes": 509971606,
+    "empirical_artifact_zip_sha256": "e01abb275ea8888316f33b685a8d486d860409cc76090dcb1dc06b9787bcfef3",
+    "docs_zip_sha256": "b6175f09db913a6a7fddaec909417e05ad2c9230c2c3733073ff0c824d32b2a6",
+    "source_records": 68,
+    "dataset_records": 26,
+    "original_parameter_rows": 92,
+    "population_morphology_rows": 57,
+    "runtime_changes": false
+  },
+  "created_at": "2026-09-19T05:35:00+00:00"
+}

@@ -4,10 +4,12 @@
   "task_id": "insect-secondary-research-expand-20260919-r2",
   "scope": ".github/workflows/insect-secondary-data-expansion.yml",
   "owner": "sol-insect-secondary-expand-r2",
-  "state": "active",
+  "state": "released",
   "intent": "Research/data expansion only; preserve verified runtime code and existing research history.",
   "claimed_at": "2026-09-19T05:15:00+00:00",
   "heartbeat_at": "2026-09-19T05:15:00+00:00",
   "expires_at": "2026-09-19T09:15:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-09-19T05:35:00+00:00",
+  "release_reason": "R2 empirical mirror, ant population/life-stage research, updated implementation plan, and durable handoff completed."
 }
