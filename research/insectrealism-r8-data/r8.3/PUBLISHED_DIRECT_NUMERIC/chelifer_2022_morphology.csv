@@ -1,0 +1,9 @@
+parameter,mean,sd,min,max,unit,n,sex_context,evidence_class,source
+body_length,3.09,0.47,2.13,3.84,mm,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
+prosoma_length,0.97,0.16,0.71,1.21,mm,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
+leg_L1_length,1.37,0.13,1.24,1.64,mm,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
+leg_L2_length,1.47,0.20,1.19,1.72,mm,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
+leg_L3_length,1.77,0.16,1.46,1.96,mm,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
+leg_L4_length,2.10,0.19,1.75,2.41,mm,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
+pedipalp_length,3.88,0.72,2.98,5.45,mm,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
+body_mass,2.48,0.51,1.64,3.45,mg,10,"3 male; 7 female",published_direct_aggregate,10.1242/jeb.243930
