@@ -98,6 +98,25 @@ MENDELEY = [
      "acute/sublethal toxicity, reproduction and hatchability data; CC BY 4.0"),
 ]
 
+DIRECT_FILES = [
+    ("Oryzaephilus surinamensis", "adult",
+     "USDA-ARS contact-insecticide metal-surface raw datasheet",
+     "10.15482/USDA.ADC/25013951.v1", "Ag Data Commons / USDA-ARS",
+     "raw_repository_data", "direct target species within a six-species raw datasheet",
+     "CC0 / U.S. public domain", "https://ndownloader.figshare.com/files/57974548",
+     "Datasheets_-_Metal.xlsx",
+     "individual arena observations at 1, 3 and 7 d: live, affected/uncoordinated/twitching/unable-to-walk, dead; surface/treatment context",
+     "adult impairment/movement-state response and surface-context evidence"),
+    ("Oryzaephilus surinamensis", "adult",
+     "USDA-ARS contact-insecticide concrete-surface raw datasheet",
+     "10.15482/USDA.ADC/25013951.v1", "Ag Data Commons / USDA-ARS",
+     "raw_repository_data", "direct target species within a six-species raw datasheet",
+     "CC0 / U.S. public domain", "https://ndownloader.figshare.com/files/57974551",
+     "Datasheets_-_Concrete.xlsx",
+     "individual arena observations at 1, 3 and 7 d: live, affected/uncoordinated/twitching/unable-to-walk, dead; surface/treatment context",
+     "adult impairment/movement-state response and surface-context evidence"),
+]
+
 REMOTE_ONLY = [
     {
         "species":"Chelifer cancroides","stage":"adult","study":"Locomotion in the pseudoscorpion Chelifer cancroides",
@@ -434,6 +453,15 @@ def mendeley_download(species, dsid, version, data_class, use, outroot, rows, fa
     except Exception as e:
         failures.append({"source":"Mendeley","species":species,"id":dsid,"error":str(e)})
 
+def direct_files_download(outroot, rows, failures):
+    for species,stage,study,doi,repo,data_class,directness,license_,url,name,contents,intended in DIRECT_FILES:
+        try:
+            p=outroot/safe_name(species)/"raw_repository"/safe_name(doi)/safe_name(name)
+            download(url,p)
+            manifest_row(rows,species,stage,study,doi,repo,data_class,directness,license_,p,url,contents,intended)
+        except Exception as e:
+            failures.append({"source":repo,"species":species,"id":doi,"url":url,"error":str(e)})
+
 def write_published_aggregates(outroot: Path, rows):
     agg=outroot/"published_aggregate_extracts"; agg.mkdir(parents=True,exist_ok=True)
     files={
@@ -556,6 +584,7 @@ def main(root: Path):
     for x in PMC: pmc_download(*x,empirical,rows,failures)
     for x in EDMOND: edmond_download(*x,empirical,rows,failures)
     for x in MENDELEY: mendeley_download(*x,empirical,rows,failures)
+    direct_files_download(empirical,rows,failures)
     write_published_aggregates(empirical,rows)
     write_remote(empirical)
     fields=["species","life_stage_or_form","study","doi","repository_or_publisher","data_class","directness",
