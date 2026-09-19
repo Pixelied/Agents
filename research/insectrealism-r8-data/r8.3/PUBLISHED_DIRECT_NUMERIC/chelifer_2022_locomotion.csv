@@ -1,0 +1,12 @@
+metric,value,sd,unit,n_or_context,evidence_class,source,implementation_note
+one_hour_distance_rate,13.59,0.35,m/hour,"EthoVision group recordings; paper reports ~14 m/h",published_direct_aggregate,10.1242/jeb.243930,"arena activity; may reflect hiding-place search"
+one_hour_distance_rate_mm_s,3.775,,mm/s,"13.59 m/h converted exactly",derived_unit_conversion,10.1242/jeb.243930,"do not treat as universal natural preferred speed"
+mobile_fraction,61,,percent,"1 h observation",published_direct_aggregate,10.1242/jeb.243930,
+immobile_fraction,39,,percent,"1 h observation",published_direct_aggregate,10.1242/jeb.243930,
+immobile_state_duration,0.48,1.92,s,"includes short and long stops",published_direct_aggregate,10.1242/jeb.243930,
+microstop_duration,0.16,0.04,s,"high-speed forward locomotion",published_direct_aggregate,10.1242/jeb.243930,
+straightness_after_microstop,0.99,0.01,index,"n=20 tracks; min 0.95 max 1.0",published_direct_aggregate,10.1242/jeb.243930,
+forward_max_speed,30,,mm/s,"n=30 individuals; 63 runs; up to ~14 BL/s",published_direct_aggregate,10.1242/jeb.243930,"maximum not preferred-speed distribution"
+backward_max_speed,40,,mm/s,"n=15 individuals; 24 runs; up to ~17 BL/s",published_direct_aggregate,10.1242/jeb.243930,"escape maximum"
+upside_down_max_speed,10,,mm/s,"n=9 individuals; 10 runs; up to ~4 BL/s",published_direct_aggregate,10.1242/jeb.243930,"ceiling/sheet context only"
+high_speed_sampling_rate,500,,frames/s,"97 runs; 65 individuals total across high-speed recordings",published_direct_aggregate,10.1242/jeb.243930,
