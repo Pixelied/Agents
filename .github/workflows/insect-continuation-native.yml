@@ -1,155 +1,78 @@
-name: Insect continuation - native foundation and spatial verification
+name: Insect continuation - exact Cargo lock publication
 "on":
   push:
     branches: ['feat/insect-continuation-03-q7b4']
     paths:
       - '.github/workflows/insect-continuation-native.yml'
-      - 'projects/insect-realism-desktop-app/RESTORED_SOURCE.json'
-      - 'projects/insect-realism-desktop-app/CONTINUED_SOURCE.json'
-      - 'projects/insect-realism-desktop-app/app/**'
+      - 'projects/insect-realism-desktop-app/scripts/recovery/Cargo.lock.patch'
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: insect-resume-m5r2-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  native-foundations:
-    name: Platform and spatial checks (${{ matrix.os }}) - not full app
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-14, windows-2022]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
+  publish-original-lock:
+    if: github.repository == 'Pixelied/Agents' && github.ref == 'refs/heads/feat/insect-continuation-03-q7b4'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
     steps:
-      - name: Preserve source line endings
+      - name: Preserve exact source line endings
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
+          ref: ${{ github.sha }}
+          persist-credentials: true
+      - name: Retrieve the existing dependency-lock transport artifact
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.11'
-      - name: Verify original foundations and continued simulation source
+          name: insect-offline-toolchain-m5r2
+          run-id: 35404293846
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/insect-lock-source
+      - name: Reconstruct and authenticate the original checkpoint lockfile
+        shell: bash
         run: |
-          python - <<'PY'
-          import hashlib, json
-          from pathlib import Path
-          root = Path('projects/insect-realism-desktop-app').resolve()
-          evidence = Path('native-evidence'); evidence.mkdir()
-          for filename, count in [('RESTORED_SOURCE.json', 43), ('CONTINUED_SOURCE.json', 17)]:
-              manifest = json.loads((root / filename).read_text())
-              if manifest['publication_complete'] or len(manifest['source_files']) != count:
-                  raise SystemExit('This workflow checks a partial source publication, not the full app')
-              for name, expected in manifest['source_files'].items():
-                  path = (root / name).resolve()
-                  if not path.is_relative_to(root) or not path.is_file():
-                      raise SystemExit(f'Invalid or missing source: {name}')
-                  if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-                      raise SystemExit(f'Source mismatch: {name}')
-              (evidence / filename).write_text(json.dumps(manifest, indent=2) + '\n')
-          print('43 original foundation files and 17 continued simulation files verified.')
-          print('Full application source publication and release qualification remain incomplete.')
-          PY
-      - name: Install the checkpoint Rust toolchain
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/insect-lock-source/dependency-fetch.lock"
+          echo "a8f6f166ef118c3dd15d6c73abd091b0d3a2399d2c94139afb454acb57d2e3ba  $SRC" | sha256sum --check
+          mkdir "$RUNNER_TEMP/insect-lock-recovery"
+          cp "$SRC" "$RUNNER_TEMP/insect-lock-recovery/Cargo.lock"
+          PATCH="$GITHUB_WORKSPACE/projects/insect-realism-desktop-app/scripts/recovery/Cargo.lock.patch"
+          git -C "$RUNNER_TEMP/insect-lock-recovery" apply --check "$PATCH"
+          git -C "$RUNNER_TEMP/insect-lock-recovery" apply "$PATCH"
+          RECOVERED="$RUNNER_TEMP/insect-lock-recovery/Cargo.lock"
+          echo "d8ab5fba9f4b3f1cbba35485e748792f68ca9a34d2c45c393e2c062fa1cdd883  $RECOVERED" | sha256sum --check
+          DEST="projects/insect-realism-desktop-app/app/Cargo.lock"
+          if test -e "$DEST"; then
+            cmp "$RECOVERED" "$DEST"
+          else
+            cp "$RECOVERED" "$DEST"
+          fi
+      - name: Commit only the verified ordinary Cargo.lock source file
+        shell: bash
         run: |
-          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
-          rustc +1.98.1 --version --verbose | tee native-evidence/rustc.txt
-          cargo +1.98.1 --version | tee native-evidence/cargo.txt
-      - name: Format restored source
-        working-directory: projects/insect-realism-desktop-app/app
-        run: |
-          set -o pipefail
-          cargo fmt --all -- --check 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/fmt.log"
-      - name: Native platform compiler and lint checks
-        working-directory: projects/insect-realism-desktop-app/app
-        run: |
-          set -o pipefail
-          cargo clippy -p creature-profile -p display-model -p platform-api -p platform-macos -p platform-windows --all-targets -- -D warnings 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/clippy.log"
-          cargo clippy -p simulation --lib -- -D warnings 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/simulation-clippy.log"
-      - name: Release-mode platform and domain tests
-        working-directory: projects/insect-realism-desktop-app/app
-        run: |
-          set -o pipefail
-          cargo test --release -p creature-profile -p display-model -p platform-api -p platform-macos -p platform-windows 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/tests.log"
-      - name: Release-mode spatial regression and property tests
-        working-directory: projects/insect-realism-desktop-app/app
-        run: |
-          set -o pipefail
-          cargo test --release -p simulation --test fields --test spatial_rebuild 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/spatial-tests.log"
-      - name: Record exact verification boundary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-          RUNNER_OS_NAME: ${{ runner.os }}
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          root = Path('native-evidence'); root.mkdir(exist_ok=True)
-          result = {'commit': os.environ['GITHUB_SHA'], 'runner_os': os.environ['RUNNER_OS_NAME'], 'job_status': os.environ['JOB_STATUS'], 'scope': 'platform foundation and selected spatial tests only', 'full_app_build': False, 'native_input_acceptance': False, 'installer_qualified': False}
-          (root / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-              out.write('## Platform and spatial checks only\nNative compilation and these unit tests do not establish full application builds, interactive input safety, physical display calibration, or installer qualification. Those release gates remain open.\n')
-          PY
-      - uses: actions/upload-artifact@v4
-        if: always()
+          set -euo pipefail
+          DEST="projects/insect-realism-desktop-app/app/Cargo.lock"
+          git add -- "$DEST"
+          if git diff --cached --quiet; then
+            echo 'The exact original Cargo.lock is already present.'
+            exit 0
+          fi
+          test "$(git diff --cached --name-only)" = "$DEST"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: publish exact checkpoint Cargo.lock without resolving new versions'
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo 'Published the exact original lockfile. This import is not a build or a release qualification.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve the authenticated lockfile as evidence
+        uses: actions/upload-artifact@v4
         with:
-          name: insect-foundation-spatial-m5r2-${{ matrix.os }}
-          path: native-evidence/
+          name: insect-original-cargo-lock-m5r2
+          path: projects/insect-realism-desktop-app/app/Cargo.lock
           if-no-files-found: error
           retention-days: 30
-  software-vulkan-runtime:
-    name: Fetch matching Debian software Vulkan runtime (not a GPU test)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Fetch public packages through authenticated Debian package metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir software-vulkan
-          docker pull debian:13-slim
-          docker image inspect debian:13-slim --format '{{json .RepoDigests}}' > software-vulkan/image-digest.json
-          docker run --rm -v "$PWD/software-vulkan:/out" debian:13-slim sh -ec '
-            apt-get update
-            cd /out
-            apt-cache show mesa-vulkan-drivers libvulkan1 > package-metadata.txt
-            apt-get download mesa-vulkan-drivers libvulkan1
-            sha256sum ./*.deb > SHA256SUMS.txt
-          '
-          printf '%s\n' 'Public software Vulkan packages for the Debian 13 continuation host. Package preparation is not rendering, native runtime acceptance, or representative GPU performance evidence.' > software-vulkan/README.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: insect-software-vulkan-m5r2
-          path: software-vulkan/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 7
-  offline-data-reader:
-    name: Fetch original data-reader version (not research regeneration)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - name: Download wheel dependencies for the disconnected continuation host
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir data-reader
-          python -m pip download --only-binary=:all: --dest data-reader pyreadr==0.5.6 pandas==2.2.3 numpy==2.2.6
-          sha256sum data-reader/*.whl > data-reader/SHA256SUMS.txt
-          printf '%s\n' 'Public parser wheels only. Scientific source bytes must be authenticated separately, and reconstructed profile bytes must match the existing checkpoint before they can be used.' > data-reader/README.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: insect-data-reader-m5r2
-          path: data-reader/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 7
