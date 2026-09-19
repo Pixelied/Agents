@@ -1,0 +1,11 @@
+{
+  "agent_id": "astra-insect-resume-m5r2",
+  "created_at": "2026-09-19T03:06:36+00:00",
+  "data": {},
+  "event_id": "9a66dcf70cbb4a9b87eaa4e402c9c5b2",
+  "message": "Resumed existing branch at a8938d42, no reset. Verified native run 35416400017: both platforms pass code and unit gates but profile reproducibility fails. Decoded evidence isolates 25 near-zero acceleration differences per host, maximum absolute delta 1.33094e-15. Fix will preserve exact-byte checking with a versioned portable compiler math kernel.",
+  "protocol_version": "1.0",
+  "schema_version": 1,
+  "task_id": "insect-continuation-03-q7b4",
+  "type": "progress"
+}
