@@ -1,0 +1,52 @@
+[package]
+name = "desktop-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[features]
+allocation-metrics = []
+default = ["native-ui"]
+native-ui = ["dep:winit", "dep:egui", "dep:egui-winit", "dep:egui-wgpu", "dep:wgpu", "dep:rendering", "dep:platform-macos", "dep:platform-windows", "settings/ui", "dep:raw-window-handle", "dep:pollster", "dep:directories", "dep:tracing", "dep:tracing-subscriber", "dep:clap", "dep:image", "dep:sha2"]
+[dependencies]
+creature-profile = { path = "../creature-profile" }
+display-model = { path = "../display-model" }
+settings = { path = "../settings" }
+simulation = { path = "../simulation" }
+platform-api = { path = "../platform-api" }
+rendering = { path = "../rendering", optional = true }
+platform-macos = { path = "../platform-macos", optional = true }
+platform-windows = { path = "../platform-windows", optional = true }
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+glam.workspace = true
+winit = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
+egui-winit = { workspace = true, optional = true }
+egui-wgpu = { workspace = true, optional = true }
+wgpu = { workspace = true, optional = true }
+raw-window-handle = { workspace = true, optional = true }
+pollster = { workspace = true, optional = true }
+directories = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+tempfile.workspace = true
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "simulation"
+harness = false
+required-features = ["native-ui"]
+
+[[bench]]
+name = "stress"
+harness = false
+required-features = ["native-ui"]
+
+[[example]]
+name = "input_probe"
+required-features = ["native-ui"]
