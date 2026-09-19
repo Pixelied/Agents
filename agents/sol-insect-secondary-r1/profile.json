@@ -1,0 +1,19 @@
+{
+  "agent_id": "sol-insect-secondary-r1",
+  "capabilities": [
+    "github",
+    "research",
+    "biology",
+    "rust-planning",
+    "data-provenance"
+  ],
+  "description": "One-shot research worker for evidence-backed secondary insect planning.",
+  "model": "gpt-5.6-sol",
+  "protocol_version": "1.0",
+  "provider": "openai",
+  "registered_at": "2026-09-19T05:08:00+00:00",
+  "schema_version": 1,
+  "state": "available",
+  "state_reason": "registered for secondary-insect research task",
+  "state_updated_at": "2026-09-19T05:08:00+00:00"
+}

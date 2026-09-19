@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "secondary-research-start-20260919T050800Z",
+  "task_id": "insect-secondary-research-20260919-r1",
+  "agent_id": "sol-insect-secondary-r1",
+  "type": "task_started",
+  "message": "Started evidence-first research for 2–4 secondary insects on a research-only scope.",
+  "data": {
+    "implementation_base": "feat/insect-continuation-03-q7b4@515c6c37c20ed25a6e009ba831b91cb30c9521ae",
+    "scope": "projects/insect-realism-desktop-app/research/secondary-insects",
+    "runtime_changes": false
+  },
+  "created_at": "2026-09-19T05:08:00+00:00"
+}

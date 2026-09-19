@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "insect-secondary-research-20260919-r1",
+  "title": "Research and plan evidence-backed secondary insects",
+  "objective": "Collect and structure direct quantitative evidence for 2–4 secondary insect species, preserve life-stage/source provenance, and produce a concrete implementation plan without changing the verified ant runtime.",
+  "created_by": "sol-insect-secondary-r1",
+  "created_at": "2026-09-19T05:08:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "projects/insect-realism-desktop-app/research/secondary-insects"
+  ],
+  "acceptance_criteria": [
+    "Candidate selection is based on direct target-species/life-stage evidence and explicit gaps",
+    "Large public datasets are indexed reproducibly without falsely claiming unmirrored bytes are bundled",
+    "No cross-species or cross-life-stage measurements are silently treated as direct calibration",
+    "A detailed implementation plan maps research into the existing profile, simulation, renderer, settings, performance, and validation architecture",
+    "Existing verified application source is not modified during the research-only task"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "insect-secondary-research-20260919-r1",
+  "scope": "projects/insect-realism-desktop-app/research/secondary-insects",
+  "owner": "sol-insect-secondary-r1",
+  "state": "active",
+  "intent": "Publish research manifests, evidence gaps, candidate decision, and implementation plan only; do not modify existing application/runtime code.",
+  "claimed_at": "2026-09-19T05:08:00+00:00",
+  "heartbeat_at": "2026-09-19T05:08:00+00:00",
+  "expires_at": "2026-09-19T09:08:00+00:00",
+  "generation": 1
+}
