@@ -1,8 +1,10 @@
-metric,mean,sd,range,unit,context,source_id
-body length,3.09,0.47,2.13–3.84,mm,adult morphology,R8-CHE-001
-pedipalp length,3.88,0.72,2.98–5.45,mm,adult morphology,R8-CHE-001
-1 h mean velocity across individuals,3.88,,2.16–5.45,mm/s,10 individuals; 1 h trajectories,R8-CHE-001
-1 h mean max velocity,44.59,,,mm/s,10 individuals; 1 h trajectories,R8-CHE-001
-mobile fraction,60.67,,,%,10 individuals; 1 h trajectories,R8-CHE-001
-high-speed trial velocity,17.73,,11.71–26.05,mm/s,17 runs; high-speed footfall trials,R8-CHE-001
-microstop fraction,16.35,,,%,high-speed locomotion,R8-CHE-001
+metric,mean,sd,range,unit,context,source_id,evidence_class
+body length,3.09,0.47,2.13–3.84,mm,adult morphology n=10,R8-CHE-001,direct adult
+pedipalp length,3.88,0.72,2.98–5.45,mm,adult morphology n=10,R8-CHE-001,direct adult
+approximate 1 h aggregate walking rate,3.89,,,mm/s,"paper text reports approximately 14 m h^-1; converted to mm/s",R8-CHE-001,direct paper text + unit conversion
+mobile fraction,61,,,%,paper text rounds EthoVision 1 h mobile state to 61%,R8-CHE-001,direct paper text
+immobile-state duration,0.48,1.92,,s,"includes short and long stops, cleaning/rest/social interactions",R8-CHE-001,direct paper text
+microstop duration,0.16,0.04,0.10–0.20,s,forward locomotion high-speed analysis,R8-CHE-001,direct adult
+forward maximum speed,,,up to 30,mm/s,high-speed study maximum; not preferred/natural distribution,R8-CHE-001,direct adult maximum
+backward maximum speed,,,up to 40,mm/s,escape high-speed study maximum ~17 BL/s; not preferred/natural distribution,R8-CHE-001,direct adult maximum
+upside-down maximum speed,,,up to 10,mm/s,high-speed study maximum ~4 BL/s,R8-CHE-001,direct adult maximum
