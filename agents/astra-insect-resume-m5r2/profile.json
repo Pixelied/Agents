@@ -1,13 +1,19 @@
 {
   "agent_id": "astra-insect-resume-m5r2",
-  "capabilities": ["github", "native-builds", "rust", "testing"],
+  "capabilities": [
+    "github",
+    "native-builds",
+    "rust",
+    "testing"
+  ],
   "description": "",
   "model": "gpt-6-astra-pro",
   "protocol_version": "1.0",
   "provider": "openai",
   "registered_at": "2026-09-18T22:51:20+00:00",
   "schema_version": 1,
-  "state": "available",
-  "state_reason": "registered",
-  "state_updated_at": "2026-09-18T22:51:20+00:00"
+  "state": "retired",
+  "state_reason": "Continuation 03 automated source/native qualification completed and handed off for physical-machine acceptance.",
+  "state_updated_at": "2026-09-19T04:08:13+00:00",
+  "retired_at": "2026-09-19T04:08:13+00:00"
 }

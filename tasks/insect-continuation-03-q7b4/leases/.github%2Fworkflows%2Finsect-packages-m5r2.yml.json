@@ -8,6 +8,8 @@
   "protocol_version": "1.0",
   "schema_version": 1,
   "scope": ".github/workflows/insect-packages-m5r2.yml",
-  "state": "active",
-  "task_id": "insect-continuation-03-q7b4"
+  "state": "released",
+  "task_id": "insect-continuation-03-q7b4",
+  "released_at": "2026-09-19T04:08:13+00:00",
+  "release_reason": "Continuation source publication and native package qualification completed; remaining gates require physical-machine acceptance."
 }

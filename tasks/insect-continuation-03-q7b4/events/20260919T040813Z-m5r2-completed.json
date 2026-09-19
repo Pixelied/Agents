@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "m5r2-completed-20260919T040813Z",
+  "task_id": "insect-continuation-03-q7b4",
+  "agent_id": "astra-insect-resume-m5r2",
+  "type": "task_completed",
+  "message": "Completed continuation source publication and automated native package qualification without restarting the project. Final package CI passed on macOS and Windows; hardware-only release gates remain explicit.",
+  "data": {
+    "branch": "feat/insect-continuation-03-q7b4",
+    "application_revision": "f3415f05d3bffcfb74be696938f59b112431f8c8",
+    "evidence_docs_revision": "515c6c37c20ed25a6e009ba831b91cb30c9521ae",
+    "native_run_id": 35419485077,
+    "local_rust_tests_passed": 152,
+    "local_tooling_tests_passed": 94,
+    "offscreen_soak_wall_seconds": 600.006058677,
+    "two_hour_endurance_verified": false,
+    "native_input_verified": false,
+    "physical_scale_verified": false
+  },
+  "created_at": "2026-09-19T04:08:13+00:00"
+}

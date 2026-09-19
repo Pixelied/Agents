@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "handoff_id": "m5r2-native-acceptance-handoff-20260919",
+  "task_id": "insect-continuation-03-q7b4",
+  "from_agent": "astra-insect-resume-m5r2",
+  "to_agent": "human-native-acceptance",
+  "summary": "The existing continuation branch was preserved and completed through automated native source/package qualification. macOS arm64 and Windows x64 package jobs are green at application revision f3415f05; final evidence/status docs are at 515c6c37. The application remains a development candidate until physical-machine acceptance is recorded.",
+  "completed": [
+    "Preserved and continued the existing source/history rather than restarting from older ZIPs.",
+    "Published the complete tested application, renderer, settings, profile compiler, packaging and tests.",
+    "Fixed duplicate-slot spatial bucket cycles with regression coverage.",
+    "Made profile compilation reproducible across Linux, macOS and Windows with byte-exact profile .2 output.",
+    "Fixed Windows packaging to statically link the Visual C++ runtime and audit normal plus delay-load PE imports.",
+    "GitHub Actions run 35419485077 passed the source verification job and both full native package jobs.",
+    "Recorded final package checksums and explicit qualification boundaries in docs/CONTINUATION_STATUS.md.",
+    "Fresh local final-code verification passed 152 Rust tests and 94 tooling tests with no skips.",
+    "Offscreen stress1000 audit passed at 1186+ live ants with p99 15.306883 ms and zero warmed simulation allocations.",
+    "Fresh final-code lifecycle soak passed its independent 600.006-second audit."
+  ],
+  "remaining": [
+    "Run real input passthrough/focus/panic-hide acceptance on physical macOS and Windows systems.",
+    "Verify mixed-DPI, rotation, hot-plug, sleep/wake and physical 2/3/4 mm calibration.",
+    "Install and uninstall the actual MSI and DMG/app, including startup cleanup behavior.",
+    "Measure representative native hardware performance with 1000+ live creatures.",
+    "Complete the required two-hour wall-clock endurance run and review resource trends.",
+    "Use Developer-ID signing/notarization if the macOS build is intended for public distribution."
+  ],
+  "next_action": "Use the exact final packages and hashes recorded in projects/insect-realism-desktop-app/docs/CONTINUATION_STATUS.md for physical-machine acceptance. Do not restart from Continuation 02 or reapply historical recovery patches.",
+  "files_changed": [
+    "projects/insect-realism-desktop-app",
+    ".github/workflows/insect-packages-m5r2.yml",
+    ".github/workflows/insect-continuation-native.yml"
+  ],
+  "verification": [
+    "GitHub Actions run 35419485077: source verification success, Windows package success, macOS package success.",
+    "Application/package commit f3415f05d3bffcfb74be696938f59b112431f8c8.",
+    "Evidence/status commit 515c6c37c20ed25a6e009ba831b91cb30c9521ae.",
+    "Runtime profile SHA-256 ce558669b3b17d5e85282c1bc94ea8c0e34b6d86311ded3a2acc2d31552c502b.",
+    "macOS DMG SHA-256 5b2e8a0144ebab0e3e2f470909d8fbae5e5f417a80514ffe06d698e82444f6c2.",
+    "Windows MSI SHA-256 feabd39df94745c225449c75305996175d489ca9a74f4417fb5414c345de6f80.",
+    "Local 152 Rust / 94 tooling tests passed; final 600.006-second offscreen soak audit passed."
+  ],
+  "risks": [
+    "Automated packaging does not prove click-through, focus safety, compositor behavior or native launch reliability.",
+    "The ten-minute offscreen soak is not the required two-hour endurance qualification and does not prove leak freedom.",
+    "Software-Vulkan performance is not representative native GPU/compositor certification.",
+    "macOS package is a development build, not a Developer-ID notarized public release."
+  ],
+  "created_at": "2026-09-19T04:08:13+00:00"
+}

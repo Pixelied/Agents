@@ -7,7 +7,7 @@
   "created_by": "astra-insect-ci-q7b4",
   "created_at": "2026-09-18T22:45:00+00:00",
   "priority": "high",
-  "status": "open",
+  "status": "completed",
   "scopes": [
     ".github/workflows/insect-continuation-03.yml",
     "projects/insect-realism-desktop-app",
