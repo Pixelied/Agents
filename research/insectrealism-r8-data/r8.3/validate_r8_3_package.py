@@ -7,6 +7,8 @@ import hashlib
 import json
 import re
 import sys
+import gzip
+import zipfile
 from pathlib import Path
 
 TARGET_SPECIES = {
@@ -114,6 +116,7 @@ def main(root: Path):
     # The remote-only registry + direct published locomotion tables below are mandatory.
 
     study_hashes=set()
+    validated_containers=0
     for r in rows:
         p=study/r["local_path"]
         require(p.exists(),f"study data file missing: {p}")
@@ -126,6 +129,44 @@ def main(root: Path):
         require((r.get("intended_use") or "").strip(),f"study file lacks intended use: {p}")
         require((r.get("baseline_calibration_permission") or "").strip(),
                 f"study file lacks calibration permission: {p}")
+
+        # Validate common research-data containers without assuming UTF-8.
+        # One proven Edmond CSV uses a micro-symbol byte outside UTF-8; that is
+        # legitimate tabular data, not a reason to discard the study.
+        ext=p.suffix.lower()
+        if ext in {".xlsx",".zip"}:
+            try:
+                with zipfile.ZipFile(p) as zf:
+                    bad=zf.testzip()
+                    require(bad is None,f"corrupt ZIP/XLSX member {bad}: {p}")
+                    require(len(zf.namelist())>0,f"empty ZIP/XLSX container: {p}")
+                validated_containers+=1
+            except zipfile.BadZipFile:
+                die(f"invalid ZIP/XLSX container: {p}")
+        elif ext==".gz":
+            try:
+                with gzip.open(p,"rb") as gf:
+                    require(bool(gf.read(64)),f"empty gzip data file: {p}")
+                validated_containers+=1
+            except OSError:
+                die(f"invalid gzip data file: {p}")
+        elif ext==".xls":
+            head=p.read_bytes()[:8]
+            require(head==bytes.fromhex("d0cf11e0a1b11ae1"),f"invalid legacy XLS OLE header: {p}")
+            validated_containers+=1
+        elif ext in {".csv",".tsv",".txt"}:
+            raw=p.read_bytes()[:65536]
+            require(len(raw)>0,f"empty text/tabular data file: {p}")
+            decoded=False
+            for enc in ("utf-8-sig","cp1252","latin-1"):
+                try:
+                    raw.decode(enc)
+                    decoded=True
+                    break
+                except UnicodeDecodeError:
+                    pass
+            require(decoded,f"tabular/text data not decodable under audited encodings: {p}")
+            validated_containers+=1
 
     # Published numerical movement/biology data: small but high authority.
     num=study/"PUBLISHED_DIRECT_NUMERIC"
@@ -202,6 +243,7 @@ def main(root: Path):
         f"- direct published numerical rows: {numeric_rows:,}",
         f"- remote-only high-value records: {len(remote_rows):,}",
         f"- acquisition failures/blocks recorded transparently: {len(error_rows):,}",
+        f"- empirical containers/signatures validated: {validated_containers:,}",
         "",
         "The validator intentionally does not count the visual-reference corpus as movement data.",
         "Contextual genomics/transcriptomics also cannot silently calibrate movement.",
@@ -224,6 +266,7 @@ def main(root: Path):
         "published_numeric_rows":numeric_rows,
         "remote_only_records":len(remote_rows),
         "acquisition_errors_or_blocks":len(error_rows),
+        "validated_empirical_containers":validated_containers,
         "plan_tasks":len(tasks),
         "plan_sections":len(sections),
     },indent=2))
