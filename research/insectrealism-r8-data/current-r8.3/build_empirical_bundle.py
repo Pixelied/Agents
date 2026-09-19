@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv, hashlib, io, json, math, os, re, shutil, tarfile, tempfile, time, zipfile
+from collections import defaultdict
 from pathlib import Path
 from urllib.parse import quote, urlparse
 import xml.etree.ElementTree as ET
