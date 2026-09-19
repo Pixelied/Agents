@@ -4,10 +4,12 @@
   "task_id": "insect-secondary-research-20260919-r1",
   "scope": "projects/insect-realism-desktop-app/research/secondary-insects",
   "owner": "sol-insect-secondary-r1",
-  "state": "active",
+  "state": "released",
   "intent": "Publish research manifests, evidence gaps, candidate decision, and implementation plan only; do not modify existing application/runtime code.",
   "claimed_at": "2026-09-19T05:08:00+00:00",
   "heartbeat_at": "2026-09-19T05:08:00+00:00",
   "expires_at": "2026-09-19T09:08:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-09-19T05:12:00+00:00",
+  "release_reason": "Research pack, candidate decision, evidence gates, and implementation plan completed and preserved on the research branch."
 }

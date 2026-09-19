@@ -13,7 +13,8 @@
   "provider": "openai",
   "registered_at": "2026-09-19T05:08:00+00:00",
   "schema_version": 1,
-  "state": "available",
-  "state_reason": "registered for secondary-insect research task",
-  "state_updated_at": "2026-09-19T05:08:00+00:00"
+  "state": "retired",
+  "state_reason": "One-shot secondary-insect research task completed and handed off for implementation.",
+  "state_updated_at": "2026-09-19T05:12:00+00:00",
+  "retired_at": "2026-09-19T05:12:00+00:00"
 }

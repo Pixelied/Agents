@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "handoff_id": "secondary-insects-implementation-handoff-20260919",
+  "task_id": "insect-secondary-research-20260919-r1",
+  "from_agent": "sol-insect-secondary-r1",
+  "to_agent": "future-secondary-insects-implementation",
+  "summary": "Research selected four evidence-backed candidates in staged waves. Fruit fly and first-instar German cockroach are ready for Wave 1 implementation. Bed bug requires direct adult gait extraction; red flour beetle has a hard adult-gait gate. Existing ant runtime was not changed.",
+  "completed": [
+    "Indexed 38 scientific/project sources with target species/life-stage directness.",
+    "Indexed 16 public datasets with reported sizes, priority files, reuse status, and acquisition notes.",
+    "Produced 92 implementation-facing parameter ledger rows and four structured species parameter packs.",
+    "Defined non-transfer rules that prohibit silent cross-species and cross-life-stage calibration.",
+    "Produced a 20-task implementation plan mapped to the current profile, simulation, renderer, settings, performance, and release architecture.",
+    "Preserved durable research summary and plan on feat/insect-secondary-research-20260919 at a081960d570d092ee6c1576d5e503e1f42e60e96.",
+    "Verified local research artifact structured files, 21 internal SHA-256 entries, and ZIP integrity."
+  ],
+  "remaining": [
+    "Acquire priority raw public files, starting with the 34.43 MB Drosophila freely-walking CSV and compact gait source data.",
+    "Implement Drosophila and first-instar German cockroach as Wave 1 on a new implementation branch.",
+    "Extract/validate direct adult bed-bug footfall timing before enabling articulated bed-bug release profile.",
+    "Obtain direct adult red-flour-beetle gait evidence before enabling the fourth species; never substitute larval gait.",
+    "Repeat native input safety, 1:1 physical-size review, representative 1000+ mixed-species performance, and full two-hour endurance before release."
+  ],
+  "next_action": "Start Wave 1 from the verified application lineage and use research commit a081960d plus the delivered research artifact as evidence input. Implement Drosophila first, then first-instar German cockroach, keeping ant behavior byte/regression clean.",
+  "files_changed": [
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19/README.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19/EVIDENCE_BASELINES.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19/SECONDARY_INSECTS_IMPLEMENTATION_PLAN.md"
+  ],
+  "verification": [
+    "Local research pack JSON/CSV parse: pass.",
+    "Local SHA256SUMS: 21/21 pass.",
+    "Research ZIP integrity: no errors.",
+    "Research ZIP SHA-256: 0ea7f8d9a56702fde43128a6defa7d2620f46b23a8ae7c3560452c4b1d1a01b5.",
+    "GitHub research commit: a081960d570d092ee6c1576d5e503e1f42e60e96."
+  ],
+  "risks": [
+    "Large remote raw datasets are indexed, not mirrored; future ingestion must record exact bytes and SHA-256.",
+    "Bed-bug whole-body movement is strong but adult leg-phase evidence remains a release gate.",
+    "Red-flour-beetle adult gait remains a hard gate; detailed larval gait is not transferable.",
+    "Lab host/heat/tactile cues cannot be mapped to screen content or cursor interaction without explicit evidence/engineering labeling."
+  ],
+  "created_at": "2026-09-19T05:12:00+00:00"
+}

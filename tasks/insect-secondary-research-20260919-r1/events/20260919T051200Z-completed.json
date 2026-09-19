@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "secondary-research-complete-20260919T051200Z",
+  "task_id": "insect-secondary-research-20260919-r1",
+  "agent_id": "sol-insect-secondary-r1",
+  "type": "task_completed",
+  "message": "Completed evidence-first secondary-insect research and implementation planning without modifying runtime code.",
+  "data": {
+    "research_branch": "feat/insect-secondary-research-20260919",
+    "research_commit": "a081960d570d092ee6c1576d5e503e1f42e60e96",
+    "implementation_base": "515c6c37c20ed25a6e009ba831b91cb30c9521ae",
+    "artifact_sha256": "0ea7f8d9a56702fde43128a6defa7d2620f46b23a8ae7c3560452c4b1d1a01b5",
+    "sources_indexed": 38,
+    "datasets_indexed": 16,
+    "parameter_rows": 92,
+    "selected": [
+      "Drosophila melanogaster adult",
+      "Blattella germanica first instar",
+      "Cimex lectularius adult",
+      "Tribolium castaneum adult"
+    ],
+    "runtime_changes": false
+  },
+  "created_at": "2026-09-19T05:12:00+00:00"
+}
