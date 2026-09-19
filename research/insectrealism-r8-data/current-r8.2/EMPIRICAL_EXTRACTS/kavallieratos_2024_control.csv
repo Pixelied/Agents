@@ -1,0 +1,2 @@
+condition,duration_s,n,walking_s_mean,walking_s_se,stops_count_mean,stops_count_se,stopping_s_mean,stopping_s_se,climbing_count_mean,climbing_count_se,climbing_s_mean,climbing_s_se,upturned_count_mean,upturned_count_se,upturned_s_mean,upturned_s_se,source_id
+untreated control,900,30,532.3,38.9,6.5,1.2,145.7,29.7,10.8,8.6,209.4,29.4,0.9,0.29,0.1,0.1,R8-ORY-002
