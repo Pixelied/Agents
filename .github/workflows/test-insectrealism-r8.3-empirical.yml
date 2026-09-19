@@ -1,5 +1,7 @@
 name: Test InsectRealism R8.3 Empirical Acquisition
 
+# Second commit intentionally triggers the already-present acquisition audit.
+
 on:
   push:
     branches:
