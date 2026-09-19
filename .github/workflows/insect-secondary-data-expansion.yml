@@ -14,86 +14,164 @@ permissions:
 jobs:
   mirror-open-data:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      - name: Mirror selected open empirical datasets
+      - name: Mirror selected public Zenodo empirical datasets
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p empirical-data/drosophila/pratt-2024
           mkdir -p empirical-data/drosophila/york-2022
-          mkdir -p empirical-data/drosophila/ravbar-2021
+          mkdir -p empirical-data/drosophila/siliciano-2026
           mkdir -p empirical-data/manifests
 
-          ua='Mozilla/5.0 insect-realism-research-mirror/1.0'
-          fetch() {
-            url="$1"
-            out="$2"
-            echo "Downloading $out"
-            curl --fail --location --retry 6 --retry-all-errors --connect-timeout 30 \
-              --user-agent "$ua" --referer 'https://datadryad.org/' \
-              --output "$out.part" "$url"
-            mv "$out.part" "$out"
-          }
-
-          fetch 'https://datadryad.org/downloads/file_stream/3361801' \
-            'empirical-data/drosophila/pratt-2024/wt_berlin_freely_walking_dataset.csv'
-          fetch 'https://datadryad.org/downloads/file_stream/3361798' \
-            'empirical-data/drosophila/pratt-2024/figure_S1_data.zip'
-          fetch 'https://datadryad.org/downloads/file_stream/3361889' \
-            'empirical-data/drosophila/pratt-2024/README.md'
-
-          fetch 'https://datadryad.org/downloads/file_stream/1914462' \
-            'empirical-data/drosophila/york-2022/all_trials_umap_layout_annotated_30hz_size10_with_louvain_clusters_and_position.RDS'
-          fetch 'https://datadryad.org/downloads/file_stream/1914563' \
-            'empirical-data/drosophila/york-2022/README.md'
-
-          fetch 'https://datadryad.org/downloads/file_stream/1216807' \
-            'empirical-data/drosophila/ravbar-2021/BehaviorConfDusted.csv'
-          fetch 'https://datadryad.org/downloads/file_stream/1216808' \
-            'empirical-data/drosophila/ravbar-2021/ethograms_dusted_flies.csv'
-          fetch 'https://datadryad.org/downloads/file_stream/1216815' \
-            'empirical-data/drosophila/ravbar-2021/README.txt'
-
           python3 - <<'PY'
-          from pathlib import Path
-          minimums = {
-              "empirical-data/drosophila/pratt-2024/wt_berlin_freely_walking_dataset.csv": 30_000_000,
-              "empirical-data/drosophila/pratt-2024/figure_S1_data.zip": 150_000,
-              "empirical-data/drosophila/york-2022/all_trials_umap_layout_annotated_30hz_size10_with_louvain_clusters_and_position.RDS": 240_000_000,
-              "empirical-data/drosophila/ravbar-2021/BehaviorConfDusted.csv": 40_000_000,
-              "empirical-data/drosophila/ravbar-2021/ethograms_dusted_flies.csv": 12_000_000,
-          }
-          for name, minimum in minimums.items():
-              p = Path(name)
-              size = p.stat().st_size
-              print(f"{name}: {size:,} bytes")
-              if size < minimum:
-                  raise SystemExit(f"{name} unexpectedly small: {size} < {minimum}")
-          total = sum(p.stat().st_size for p in Path("empirical-data").rglob("*") if p.is_file())
+          import hashlib
+          import json
+          import pathlib
+          import urllib.request
+
+          OUT = pathlib.Path("empirical-data")
+          UA = "insect-realism-research-mirror/2.0"
+
+          selections = [
+              {
+                  "record": 7306160,
+                  "doi": "10.5281/zenodo.7306160",
+                  "key": "all_trials_umap_layout_annotated_30hz_size10_with_louvain_clusters_and_position.RDS",
+                  "out": OUT / "drosophila/york-2022/all_trials_umap_layout_annotated_30hz_size10_with_louvain_clusters_and_position.RDS",
+                  "min": 250_000_000,
+                  "md5": "0d92e970cbd6fc875de85ca757c2aae4",
+                  "use": "cross-strain/species walking-behavior state-space; not a direct leg-gait calibration",
+              },
+              {
+                  "record": 20751812,
+                  "doi": "10.5281/zenodo.20751812",
+                  "key": "constant_logs.zip",
+                  "out": OUT / "drosophila/siliciano-2026/constant_logs.zip",
+                  "min": 150_000_000,
+                  "md5": "0cdc0cfa3570ad0e9cb4c2c88f742a52",
+                  "use": "cue-conditioned walking/navigation trajectories under constant odor; never baseline locomotion",
+              },
+              {
+                  "record": 20751812,
+                  "doi": "10.5281/zenodo.20751812",
+                  "key": "gradient_logs.zip",
+                  "out": OUT / "drosophila/siliciano-2026/gradient_logs.zip",
+                  "min": 35_000_000,
+                  "md5": "2cceace8372003342f08fc70b5e812d2",
+                  "use": "cue-conditioned walking/navigation trajectories in odor gradient; not screen-content sensing",
+              },
+              {
+                  "record": 20751812,
+                  "doi": "10.5281/zenodo.20751812",
+                  "key": "45_logs.zip",
+                  "out": OUT / "drosophila/siliciano-2026/45_logs.zip",
+                  "min": 23_000_000,
+                  "md5": "24745e9831f425a34ece540d7278b0cc",
+                  "use": "directional walking/navigation trajectories; conditional behavior only",
+              },
+              {
+                  "record": 20751812,
+                  "doi": "10.5281/zenodo.20751812",
+                  "key": "90_logs.zip",
+                  "out": OUT / "drosophila/siliciano-2026/90_logs.zip",
+                  "min": 21_000_000,
+                  "md5": "b224e7ad8fb91fb38a00ec686d15c134",
+                  "use": "directional walking/navigation trajectories; conditional behavior only",
+              },
+          ]
+
+          record_cache = {}
+          manifest = []
+
+          def get_json(url):
+              req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+              with urllib.request.urlopen(req, timeout=90) as response:
+                  return json.load(response)
+
+          def download(url, path):
+              path.parent.mkdir(parents=True, exist_ok=True)
+              req = urllib.request.Request(url, headers={"User-Agent": UA})
+              h_md5 = hashlib.md5()
+              h_sha = hashlib.sha256()
+              size = 0
+              with urllib.request.urlopen(req, timeout=180) as response, path.open("wb") as out:
+                  while True:
+                      chunk = response.read(4 * 1024 * 1024)
+                      if not chunk:
+                          break
+                      out.write(chunk)
+                      h_md5.update(chunk)
+                      h_sha.update(chunk)
+                      size += len(chunk)
+                      if size and size % (128 * 1024 * 1024) < len(chunk):
+                          print(f"  {path.name}: {size:,} bytes")
+              return size, h_md5.hexdigest(), h_sha.hexdigest()
+
+          for item in selections:
+              rid = item["record"]
+              if rid not in record_cache:
+                  print(f"Reading Zenodo record {rid}")
+                  record_cache[rid] = get_json(f"https://zenodo.org/api/records/{rid}")
+              rec = record_cache[rid]
+              matches = [f for f in rec.get("files", []) if f.get("key") == item["key"]]
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected exactly one {item['key']} in record {rid}, got {len(matches)}")
+              f = matches[0]
+              link = f.get("links", {}).get("content") or f.get("links", {}).get("self")
+              if not link:
+                  raise SystemExit(f"No public content link for {item['key']}")
+              print(f"Downloading {item['key']} from Zenodo record {rid}")
+              size, md5, sha256 = download(link, item["out"])
+              if size < item["min"]:
+                  raise SystemExit(f"{item['key']} unexpectedly small: {size:,} < {item['min']:,}")
+              if md5.lower() != item["md5"].lower():
+                  raise SystemExit(f"{item['key']} MD5 mismatch: {md5} != {item['md5']}")
+              manifest.append({
+                  "record": rid,
+                  "doi": item["doi"],
+                  "key": item["key"],
+                  "bytes": size,
+                  "md5": md5,
+                  "sha256": sha256,
+                  "source": link,
+                  "use_boundary": item["use"],
+                  "zenodo_access_status": rec.get("access", {}).get("record"),
+                  "zenodo_license": rec.get("metadata", {}).get("rights") or rec.get("metadata", {}).get("license"),
+              })
+
+          total = sum(row["bytes"] for row in manifest)
           print(f"TOTAL empirical mirror: {total:,} bytes")
           if total < 300_000_000:
-              raise SystemExit(f"empirical mirror below 300 MB target: {total}")
-          PY
+              raise SystemExit(f"empirical mirror below 300 MB target: {total:,}")
 
-          find empirical-data -type f -print0 | sort -z | xargs -0 sha256sum > empirical-data/manifests/SHA256SUMS.txt
-          find empirical-data -type f -printf '%s,%p\n' | sort -n > empirical-data/manifests/FILE_SIZES.csv
-          {
-            echo "Dryad datasets mirrored for reproducible research."
-            echo "Pratt 2024 DOI: 10.5061/dryad.mpg4f4r73"
-            echo "York 2022 DOI: 10.5061/dryad.z8w9ghxfc"
-            echo "Ravbar 2021 DOI: 10.25349/D9QW4J"
-            echo "These bytes are research inputs, not shipping assets."
-          } > empirical-data/manifests/PROVENANCE.txt
+          mdir = OUT / "manifests"
+          mdir.mkdir(parents=True, exist_ok=True)
+          (mdir / "ZENODO_FILES.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          (mdir / "TOTAL_BYTES.txt").write_text(str(total) + "\n")
+          with (mdir / "SHA256SUMS.txt").open("w") as fh:
+              for row in manifest:
+                  rel = next(i["out"].relative_to(OUT) for i in selections if i["key"] == row["key"])
+                  fh.write(f"{row['sha256']}  {rel.as_posix()}\n")
+          with (mdir / "PROVENANCE.txt").open("w") as fh:
+              fh.write("Open Zenodo research inputs for Insect Realism secondary-insect research.\n")
+              fh.write("These files are empirical research inputs, not shipping visual assets.\n")
+              fh.write("Conditional olfactory-navigation data is never treated as baseline locomotion or screen-content sensing.\n")
+              fh.write("York 2022 original study data DOI: 10.5061/dryad.z8w9ghxfc; Zenodo mirror record 7306160.\n")
+              fh.write("Siliciano et al. 2026 data: Zenodo record 20751812.\n")
+          PY
 
       - name: Inspect mirror
         shell: bash
         run: |
           set -euo pipefail
           du -ah empirical-data | sort -h | tail -30
-          sha256sum -c empirical-data/manifests/SHA256SUMS.txt
+          (
+            cd empirical-data
+            sha256sum -c manifests/SHA256SUMS.txt
+          )
 
       - name: Upload empirical data artifact
         uses: actions/upload-artifact@v4
