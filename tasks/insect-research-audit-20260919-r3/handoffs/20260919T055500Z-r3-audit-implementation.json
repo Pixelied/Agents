@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "handoff_id": "insect-r3-audit-implementation-handoff-20260919",
+  "task_id": "insect-research-audit-20260919-r3",
+  "from_agent": "sol-insect-audit-r3",
+  "to_agent": "future-secondary-insects-implementation",
+  "summary": "Use R3 audited research, not R2 labels, as the evidence authority. R3 preserves the strong raw empirical corpus while correcting source identities, life-stage provenance, assay scoping, brood sex/caste labeling, and artifact-manifest semantics. Unsupported values remain gated rather than guessed.",
+  "completed": [
+    "Reverified R3 docs ZIP and 509,976,983-byte raw companion ZIP integrity and SHA-256.",
+    "Reverified all R3 internal checksums and structured JSON/CSV parsing.",
+    "Resolved every cited source ID and assigned canonical IDs to duplicate aliases.",
+    "Corrected Drosophila boundary-source provenance and flight-statistic interpretation.",
+    "Corrected four German-cockroach source identities/uses and blocked cross-stage misuse.",
+    "Downgraded C. lectularius nymph values from the C. hemipterus Ghana paper to secondary historical evidence pending primary-source verification.",
+    "Corrected Linepithema humile brood by separating worker and male larval series from the primary immature-stage paper.",
+    "Scoped bed-bug adult size values as treatment means rather than generic population ranges.",
+    "Removed unsupported Tribolium body-length range and split motion-metric provenance.",
+    "Removed pseudo-precise candidate readiness scores.",
+    "Fixed split-artifact checksum semantics so the R3 docs manifest covers only files actually inside the docs artifact.",
+    "Published durable R3 audit summary/correction ledger at a617488c1a310e197515d44dcec577853e7265ab."
+  ],
+  "remaining": [
+    "Acquire and verify the primary Usinger 1966 C. lectularius immature-stage source before using those historical nymph dimensions for release calibration.",
+    "Acquire direct adult Cimex leg-phase/footfall timing before articulated adult gait is release-qualified.",
+    "Acquire direct adult Tribolium leg-phase gait before the adult beetle renderer is release-qualified.",
+    "Acquire direct first-instar Blattella fine leg-phase kinematics if high-detail articulated gait is required; adult data is context-only for that stage.",
+    "Preserve conditional odor/heat/wind/pharmacology/treatment values as context evidence unless the runtime reproduces the same condition.",
+    "Do not claim scientific-literature-level absolute certainty; only verified/gated evidence may reach Realistic calibration."
+  ],
+  "next_action": "Start implementation only from the verified application lineage, using feat/insect-research-audit-r3-20260919@a617488c as the research authority and the existing raw empirical companion SHA e01abb275e... Keep any source/value marked secondary, conditional, cross-stage, review-reference, or blocked out of Realistic baseline calibration.",
+  "files_changed": [
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-audited-r3/AUDIT_REPORT.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-audited-r3/AUDIT_CORRECTIONS.csv",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-audited-r3/CALIBRATION_SOURCE_AUDIT.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-audited-r3/ANT_BROOD_CORRECTION.md",
+    "projects/insect-realism-desktop-app/research/secondary-insects/2026-09-19-audited-r3/VALIDATION_SUMMARY.json"
+  ],
+  "verification": [
+    "R3 docs ZIP SHA-256 57463eb2fd574ac8f0564f4f05ceb7353d35c27e99d9e219ff74273299d36d19.",
+    "Raw empirical companion SHA-256 e01abb275ea8888316f33b685a8d486d860409cc76090dcb1dc06b9787bcfef3.",
+    "Both ZIP integrity tests passed.",
+    "R3 internal SHA256SUMS verification passed.",
+    "R3 validation summary PASS: 68 sources, 26 datasets, 95 parameter rows, 69 population-morphology rows, source-reference resolution PASS, known-bug assertions PASS.",
+    "Published R3 GitHub commit a617488c1a310e197515d44dcec577853e7265ab."
+  ],
+  "risks": [
+    "No scientific research corpus can honestly be guaranteed mathematically 100% error-free; R3 addresses this by gating anything not directly verified.",
+    "Some R2 context references remain in the bibliography as compatibility/history records but are explicitly non-calibrating.",
+    "Drosophila dominates raw byte volume; data quantity is not treated as evidence quality for other species.",
+    "Implementation must preserve species/life-stage/context qualifiers or it can reintroduce errors even with a correct research pack."
+  ],
+  "created_at": "2026-09-19T05:55:00+00:00"
+}

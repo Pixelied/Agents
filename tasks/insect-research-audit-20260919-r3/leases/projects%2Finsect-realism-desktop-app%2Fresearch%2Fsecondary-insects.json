@@ -4,10 +4,12 @@
   "task_id": "insect-research-audit-20260919-r3",
   "scope": "projects/insect-realism-desktop-app/research/secondary-insects",
   "owner": "sol-insect-audit-r3",
-  "state": "active",
+  "state": "released",
   "intent": "Research/provenance correction only; preserve R2 as immutable history and do not touch verified runtime code.",
   "claimed_at": "2026-09-19T05:42:00+00:00",
   "heartbeat_at": "2026-09-19T05:42:00+00:00",
   "expires_at": "2026-09-19T09:42:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-09-19T05:55:00+00:00",
+  "release_reason": "R3 audit completed; corrected source identities, life-stage provenance, artifact integrity and release-calibration gates published."
 }

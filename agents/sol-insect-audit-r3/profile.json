@@ -13,7 +13,8 @@
   "provider": "openai",
   "registered_at": "2026-09-19T05:42:00+00:00",
   "schema_version": 1,
-  "state": "available",
-  "state_reason": "registered for R3 research audit",
-  "state_updated_at": "2026-09-19T05:42:00+00:00"
+  "state": "retired",
+  "state_reason": "R3 research/provenance audit completed; corrected evidence and gates handed off.",
+  "state_updated_at": "2026-09-19T05:55:00+00:00",
+  "retired_at": "2026-09-19T05:55:00+00:00"
 }

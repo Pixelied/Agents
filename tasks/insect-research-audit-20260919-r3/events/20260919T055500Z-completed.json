@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "audit-r3-complete-20260919T055500Z",
+  "task_id": "insect-research-audit-20260919-r3",
+  "agent_id": "sol-insect-audit-r3",
+  "type": "task_completed",
+  "message": "Completed independent R3 audit and correction of secondary-insect research/data provenance without modifying verified runtime code.",
+  "data": {
+    "r3_branch": "feat/insect-research-audit-r3-20260919",
+    "r3_commit": "a617488c1a310e197515d44dcec577853e7265ab",
+    "r3_docs_zip_sha256": "57463eb2fd574ac8f0564f4f05ceb7353d35c27e99d9e219ff74273299d36d19",
+    "raw_companion_zip_sha256": "e01abb275ea8888316f33b685a8d486d860409cc76090dcb1dc06b9787bcfef3",
+    "raw_selected_empirical_bytes": 509971606,
+    "source_records": 68,
+    "scientific_source_records": 66,
+    "canonical_scientific_sources": 58,
+    "dataset_records": 26,
+    "parameter_rows": 95,
+    "population_morphology_rows": 69,
+    "corrections_recorded": 11,
+    "validation_status": "PASS",
+    "runtime_changes": false
+  },
+  "created_at": "2026-09-19T05:55:00+00:00"
+}
