@@ -1,5 +1,7 @@
 name: Publish InsectRealism R8.2 Complete Bundle
 
+# R8.2 audited one-asset publisher; this commit intentionally triggers the already-present workflow.
+
 on:
   push:
     branches:
