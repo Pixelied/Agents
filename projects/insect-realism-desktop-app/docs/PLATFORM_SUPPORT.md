@@ -4,8 +4,8 @@
 |---|---|
 | Deterministic physics/config/calibration math | Automated tests; see current command results |
 | Procedural rendering | Actual offscreen backend tests, not compositor acceptance |
-| macOS adapter | Native source plus target-check capability; requires native launch/input qualification |
-| Windows adapter | Native source plus target-check capability; requires native launch/input qualification |
+| macOS adapter | Native compilation/unit/package checks; interactive launch/input still unqualified |
+| Windows adapter | Native compilation/unit/package checks; interactive launch/input still unqualified |
 | Physical 2/3/4 mm size | Mathematical conversion tests; ruler/card inspection on each real display remains required |
 | Continuous monitor migration | Model/controller tests; real mixed-DPI hot-plug remains required |
 | Headless stress timings | Valid only for recorded backend/host; not a native FPS certification |

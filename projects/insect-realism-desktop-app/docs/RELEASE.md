@@ -33,10 +33,15 @@ Windows SDK, Rust, Python 3.11+, and a .NET SDK capable of running the pinned Wi
 selects output; the default is under `dist/`.
 
 The script restores `app/packaging/windows/.config/dotnet-tools.json`, builds the GUI
-PE32+ executable, stages real assets and audited licenses, generates deterministic
+PE32+ executable with `-C target-feature=+crt-static` applied to all target
+dependencies, stages real assets and audited licenses, generates deterministic
 WiX components and creates a per-user MSI plus portable ZIP. Original ICO artwork is
 included in Resources and referenced by the installer/Start Menu. This does not claim
-an embedded custom PE executable icon. The MSI cleanup helper removes only its owned
+an embedded custom PE executable icon. The package inspector reads normal and
+delay-load PE imports and rejects external Visual C++ runtime DLLs. The packaging script scopes and restores RUSTFLAGS and
+rejects CARGO_ENCODED_RUSTFLAGS rather than silently ignoring its higher precedence.
+This is an import-table policy, not proof of every possible dynamically loaded DLL.
+The MSI cleanup helper removes only its owned
 startup value. User-added files and unrelated registry entries are not deleted.
 
 `WINDOWS_CERT_SHA1`, when supplied, identifies an existing signing certificate.

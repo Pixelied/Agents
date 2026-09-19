@@ -16,7 +16,7 @@ Continuation 02 ZIP is historical evidence, not the execution base.
 
 ## Task 3 / Tasks 19-20 - portable profile compilation
 
-Status: in progress.
+Status: portable compiler correction complete at `7074a927bfb6cfb19d27688157e0599d0baa1f74`.
 
 The latest native run passed formatting, strict Clippy, Python tooling tests,
 input-probe unit tests, core release tests, controller release tests, and profile
@@ -53,7 +53,45 @@ turn differs; all original coordinate observations and provenance remain intact.
 
 ## Remaining release qualification
 
-Native packages and full release verification must be rerun on the corrected
-source. Native interactive input, physical-size calibration, and representative
-hardware performance remain separate acceptance gates. Previous two-hour soak
-paths are absent in this runtime; their completion is not assumed.
+Both native jobs in run `35418053674` passed on the portable correction.
+The original Windows artifact was subsequently superseded: import inspection
+found an external VCRUNTIME140.dll dependency. The packaging fix is
+`f3415f05d3bffcfb74be696938f59b112431f8c8`; its run is `35419485077`.
+Current package outcomes and final artifact hashes are recorded in
+`docs/CONTINUATION_STATUS.md`, not inferred from the earlier green build. Native interactive input, physical-size calibration, and representative
+hardware performance remain separate acceptance gates. A fresh 600.006-second
+offscreen lifecycle soak on the final application code passed its independent audit;
+the required two-hour wall-clock endurance run remains open and is not inferred.
+
+
+## Task 19 - native runtime packaging correction
+
+Commit: `f3415f05d3bffcfb74be696938f59b112431f8c8`.
+Seven regressions failed before the fix and pass after it. The old actual Windows
+executable is also rejected, demonstrating the check is not merely a fixture test.
+The package inspector reads normal and delayed PE import tables, validates RVA
+mapping and termination, and rejects external Visual C++ runtime dependencies.
+The MSVC build applies static CRT selection to all target dependencies and restores
+its environment. This is not proof of all possible dynamically loaded libraries.
+Application Rust source and the .2 profile are unchanged by this packaging fix.
+
+## Task coverage and final boundary
+
+| Tasks | Current implementation/evidence | Remaining boundary |
+|---|---|---|
+| 1-2 | Existing coordinated project and source history preserved; workspace tests/validator pass | No new independent project or reset |
+| 3 | Exact cross-host profile .2 reproduction; raw-pack compiler tests and provenance | Donor transfer remains explicitly qualified |
+| 4-5 | Settings, presets, migration, physical-unit/topology tests | Real-monitor calibration and usability |
+| 6-8 | Fixed-step biology, traits, trails, spatial/encounter/locomotion regressions | Biological donor-model limits documented |
+| 9-11 | Real offscreen GPU tests and deterministic visual readbacks | Calibrated 1:1/high-refresh human review |
+| 12-16 | Native adapters, controller, recovery, input-probe tests | Real input, focus, hot-plug, sleep/wake and native compositor |
+| 17 | Five candidates independently accounted for; ants-only gate | No weak secondary species shipped |
+| 18 | Four audited workloads, zero warmed simulation allocations | Representative native 60 FPS and full endurance |
+| 19 | Native packaging, dependency audit, read-only branch CI, draft-only tag workflow | Native install/uninstall and distribution trust as applicable |
+| 20 | Docs/spec mapping, final test evidence, source/package checksums | Manual release gates remain open |
+
+Design sections 1-16 are mapped individually in `docs/ACCEPTANCE_MATRIX.md`.
+Exact command logs, counts, source revisions, benchmark/soak limits and native
+artifact results are indexed in `docs/CONTINUATION_STATUS.md` and the delivered
+evidence bundle. No independent subagent was available; review was an executed
+self-review, not represented as independent approval.

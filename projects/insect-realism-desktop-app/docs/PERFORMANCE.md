@@ -76,6 +76,13 @@ The extreme scenario is a stability workload, not a 60-FPS qualification.
 A separate lifecycle smoke completed 60.003783149 real seconds: 12 GPU device
 recreations, 24 synthetic topology changes, 97 config roundtrips and zero hidden
 submissions or hidden-state changes. File-descriptor count remained four. RSS
-rose from 116,408,320 to 164,032,512 bytes; this short run cannot establish a
-memory plateau or absence of leaks. The required two-hour qualification remains
-open; 144.7 simulated seconds are not substituted for elapsed wall time.
+rose from 116,408,320 to 164,032,512 bytes.
+
+The final-code continuation then completed a fresh 600.006058677-second offscreen
+lifecycle soak on source `f3415f05d3bffcfb74be696938f59b112431f8c8`: 46 GPU
+recreations, 93 topology changes, 372 config roundtrips, 47 panic hides, zero
+hidden draws/state changes, and a serialized-frame p99 of 7.862720 ms. Linux file
+descriptors remained four. RSS increased from 116,666,368 to 179,290,112 bytes,
+so neither a memory plateau nor leak-free operation is claimed. The required
+two-hour qualification remains open; simulated time is never substituted for
+elapsed wall time.

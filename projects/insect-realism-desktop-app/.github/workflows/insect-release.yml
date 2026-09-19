@@ -62,6 +62,8 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Preserve source line endings
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

@@ -2,13 +2,13 @@
 
 ## Before installing
 
-This is a development candidate. Only install a package built from the exact reviewed source and inspect its accompanying verification and checksum reports. No native installer or successful native launch was produced in the Linux release-audit environment. Do not treat a source ZIP, a synthetic packaging test fixture, or a cross-target `cargo check` as an installable app.
+This is a development candidate. Only install a package built from the exact reviewed source and inspect its accompanying verification and checksum reports. Native development packages are produced and inspected on macOS and Windows CI. That is not a successful interactive launch, install/uninstall, input-safety or physical-calibration claim. See `CONTINUATION_STATUS.md` for the exact tested revision and package checksums. A source ZIP or a cross-target `cargo check` is not an installer.
 
 Normal operation requests no screen-recording or Accessibility permission, installs no service or driver, and does not need administrative access. The app never injects into another process. A graphical driver or OS incompatibility must leave overlays hidden rather than work around OS protection.
 
 ## macOS
 
-Build on macOS using the release instructions. Open the generated DMG, drag **Insect Realism.app** to `/Applications` or a stable user Applications directory, then launch that `.app`. The application is a menu-bar accessory, not a normal Dock window. If the OS blocks an unsigned development build, review the source/signature first and use the normal macOS user-approval flow; do not disable Gatekeeper globally.
+Use the Apple Silicon DMG supplied with the matching verification report, or build on macOS using the release instructions. Open the DMG, drag **Insect Realism.app** to `/Applications` or a stable user Applications directory, then launch that `.app`. The application is a menu-bar accessory, not a normal Dock window. If the OS blocks an unsigned development build, review the source/signature first and use the normal macOS user-approval flow; do not disable Gatekeeper globally.
 
 The default local package is ad-hoc signed, not Developer-ID signed or notarized. A configured signing identity and notarization profile are optional build inputs, never included in a checkpoint. Enable Launch at Login only after installation in a stable location. Translocated or unbundled paths are rejected by the native adapter.
 
@@ -16,7 +16,7 @@ To uninstall, disable Launch at Login in the app, quit, and remove its `.app`. T
 
 ## Windows x64
 
-Build the GUI-subsystem executable and per-user MSI on a Windows machine with the required SDK. The MSI installs under the current user's Local AppData `Pixelied\Insect Realism` directory and creates a Start Menu shortcut. A portable ZIP is also generated. Extract portable builds to a stable location before enabling startup; moving the executable changes its startup path.
+Use the Windows x64 MSI or portable ZIP supplied with the matching verification report, or build on Windows with the required SDK. The packaged executable statically links its Visual C++ runtime; its normal and delay-load import tables are checked for external Visual C++ runtime DLLs. Windows system libraries and a compatible graphics driver remain required. The MSI installs under the current user's Local AppData `Pixelied\Insect Realism` directory and creates a Start Menu shortcut. A portable ZIP is also generated. Extract portable builds to a stable location before enabling startup; moving the executable changes its startup path.
 
 Uninstall through Installed Apps. The MSI helper removes only the current user's `InsectRealism` value under `Software\Microsoft\Windows\CurrentVersion\Run`. It does not delete the shared Run key. Installed files and empty application/shortcut directories are removed; user-added files and settings are preserved. No native installation/uninstallation run has yet been verified for this snapshot.
 
