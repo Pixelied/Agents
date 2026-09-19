@@ -1,0 +1,8 @@
+metric,mean,sd,range,unit,context,source_id
+body length,3.09,0.47,2.13–3.84,mm,adult morphology,R8-CHE-001
+pedipalp length,3.88,0.72,2.98–5.45,mm,adult morphology,R8-CHE-001
+1 h mean velocity across individuals,3.88,,2.16–5.45,mm/s,10 individuals; 1 h trajectories,R8-CHE-001
+1 h mean max velocity,44.59,,,mm/s,10 individuals; 1 h trajectories,R8-CHE-001
+mobile fraction,60.67,,,%,10 individuals; 1 h trajectories,R8-CHE-001
+high-speed trial velocity,17.73,,11.71–26.05,mm/s,17 runs; high-speed footfall trials,R8-CHE-001
+microstop fraction,16.35,,,%,high-speed locomotion,R8-CHE-001
