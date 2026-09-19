@@ -222,7 +222,34 @@ def curate_images(root: Path):
                 if strata[k] and len(selected)<target:
                     selected.append(strata[k].pop(0)); progress=True
             if not progress: break
-        selected_sha={r["sha256"] for r in selected}
+        # Keep the corpus visually strong without letting a handful of enormous
+        # files preserve most of R8.2's image byte weight. Maintain the selected
+        # file count while swapping oversized references for the best smaller
+        # unselected alternatives until retained visual bytes are <=65%.
+        original_bytes=sum(int(r.get("bytes") or 0) for r in rows)
+        selected_ids={r["sha256"] for r in selected}
+        selected_bytes=sum(int(r.get("bytes") or 0) for r in selected)
+        if original_bytes and selected_bytes/original_bytes > 0.65:
+            remaining=[r for r in rows if r["sha256"] not in selected_ids]
+            remaining.sort(key=lambda r:(-quality(r), int(r.get("bytes") or 0)))
+            # Largest selected items are candidates for replacement first.
+            for oldr in sorted(list(selected), key=lambda r:int(r.get("bytes") or 0), reverse=True):
+                if selected_bytes/original_bytes <= 0.65: break
+                oldb=int(oldr.get("bytes") or 0)
+                # Prefer a high-quality replacement at least 35% smaller.
+                candidates=[
+                    r for r in remaining
+                    if int(r.get("bytes") or 0) < oldb*0.65 and quality(r) >= quality(oldr)-3.0
+                ]
+                if not candidates:
+                    candidates=[r for r in remaining if int(r.get("bytes") or 0) < oldb*0.5]
+                if not candidates: continue
+                newr=max(candidates, key=lambda r:(quality(r), -int(r.get("bytes") or 0)))
+                selected.remove(oldr); selected.append(newr)
+                remaining.remove(newr); remaining.append(oldr)
+                selected_bytes += int(newr.get("bytes") or 0)-oldb
+            selected_ids={r["sha256"] for r in selected}
+        selected_sha=selected_ids
         outdir=dst/slug
         imgout=outdir/"images"
         imgout.mkdir(parents=True,exist_ok=True)
@@ -243,8 +270,11 @@ def curate_images(root: Path):
             if p.exists():
                 if p.is_dir(): shutil.copytree(p,outdir/rel,dirs_exist_ok=True)
                 else: shutil.copy2(p,outdir/p.name)
+        kept_bytes=sum(int(r.get("bytes") or 0) for r in selected)
+        original_bytes=sum(int(r.get("bytes") or 0) for r in rows)
         summary.append({"species":species,"original_files":len(rows),"kept_files":len(selected),"dropped_files":len(rows)-len(selected),
-                        "keep_fraction":len(selected)/len(rows)})
+                        "keep_fraction":len(selected)/len(rows),"original_bytes":original_bytes,
+                        "kept_bytes":kept_bytes,"byte_keep_fraction":(kept_bytes/original_bytes if original_bytes else 0.0)})
     shutil.rmtree(src)
     fields=sorted(set().union(*(r.keys() for r in kept_all+dropped_all)))
     for name,data in [("KEPT_REFERENCE_MEDIA.csv",kept_all),("DROPPED_REFERENCE_MEDIA.csv",dropped_all)]:
