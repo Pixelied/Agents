@@ -130,3 +130,26 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
+  offline-data-reader:
+    name: Fetch original data-reader version (not research regeneration)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download wheel dependencies for the disconnected continuation host
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir data-reader
+          python -m pip download --only-binary=:all: --dest data-reader pyreadr==0.5.6 pandas==2.2.3 numpy==2.2.6
+          sha256sum data-reader/*.whl > data-reader/SHA256SUMS.txt
+          printf '%s\n' 'Public parser wheels only. Scientific source bytes must be authenticated separately, and reconstructed profile bytes must match the existing checkpoint before they can be used.' > data-reader/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-data-reader-m5r2
+          path: data-reader/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
