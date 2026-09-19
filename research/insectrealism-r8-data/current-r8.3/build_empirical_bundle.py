@@ -35,6 +35,8 @@ DRYAD = [
      "olfactory-learning behavioral data"),
     ("Blattella germanica", "10.5061/dryad.t76hdr81k", "raw_repository_data",
      "courtship event data plus life-history parameters including first-instar cohorts"),
+    ("Blattella germanica", "10.5061/dryad.r2280gbg1", "raw_repository_data",
+     "male courtship success, diet treatment and tergal-gland behavioral/chemical data"),
 ]
 
 ZENODO = [
