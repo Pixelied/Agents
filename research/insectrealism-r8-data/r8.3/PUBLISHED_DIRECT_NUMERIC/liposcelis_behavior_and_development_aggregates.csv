@@ -1,0 +1,17 @@
+study,condition,metric,value,uncertainty,unit,n_or_context,evidence_class,source,notes
+Guedes_2008,concrete_mobility_assay,velocity,0.36,0.02,cm/s,"10-min assay; species effect reported",published_direct_aggregate,10.1002/ps.1634,"assay-conditioned; treatments pooled for reported species effect; not universal natural-speed distribution"
+Guedes_2008,half_sprayed_pyrethrin,time_unsprayed_half,57.48,4.55,percent,"L. bostrychophila",published_direct_aggregate,10.1002/ps.1634,
+Guedes_2008,half_sprayed_pyrethrin,time_sprayed_half,41.58,4.325,percent,"L. bostrychophila",published_direct_aggregate,10.1002/ps.1634,
+Wang_2000,20C,egg_to_adult_development,41.9,,days,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,32C,egg_to_adult_development,18.1,,days,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,27.5C,egg_to_adult_survival,82.9,,percent,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,20C,egg_to_adult_survival,37.4,,percent,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,35C,egg_to_adult_survival,50.7,,percent,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,20C,preoviposition_period,17.9,,days,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,27.5C,preoviposition_period,3.3,,days,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,27.5C,eggs_per_female,74.7,,eggs,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,20C,eggs_per_female,51.9,,eggs,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,30C,intrinsic_rate_of_increase,0.0946,,per_day,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,30C,net_reproductive_rate,59.59,,offspring_per_female,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,30C,population_doubling_time,7.3,,days,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
+Wang_2000,30C,mean_generation_time,43.2,,days,"temperature experiment",published_direct_aggregate,"10.1603/0013-8746(2000)093[0261:DAROTP]2.0.CO;2",
