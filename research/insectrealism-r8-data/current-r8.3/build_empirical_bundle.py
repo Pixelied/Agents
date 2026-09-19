@@ -348,11 +348,21 @@ def dryad_download(species, doi, data_class, use, outroot, rows, failures):
             if not url: continue
             if url.startswith("/"):
                 url="https://datadryad.org"+url
+            # Dryad API download URLs can require authorization even for public
+            # datasets. The public stash/file_stream route is the stable anonymous
+            # download path exposed by Dryad article/data citations.
+            m=re.search(r"/api/v2/files/(\d+)/download",url)
+            public_url=(f"https://datadryad.org/stash/downloads/file_stream/{m.group(1)}" if m else url)
             p=ddir/safe_name(Path(name).name)
-            download(url,p)
+            try:
+                download(public_url,p)
+                used_url=public_url
+            except Exception:
+                download(url,p)
+                used_url=url
             manifest_row(rows,species,"study-specific",f"Dryad dataset {doi}",doi,"Dryad",data_class,
                          "direct target species; stage/form as documented inside dataset",str(lic),p,
-                         url,use,use)
+                         used_url,use,use)
     except Exception as e:
         failures.append({"source":"Dryad","species":species,"id":doi,"error":str(e)})
 
@@ -373,35 +383,68 @@ def zenodo_download(species, record, data_class, use, outroot, rows, failures):
         failures.append({"source":"Zenodo","species":species,"id":record,"error":str(e)})
 
 def pmc_download(species, pmcid, patterns, data_class, use, outroot, rows, failures):
+    """Download individual PMC Article Dataset supplements from the 2026 AWS layout."""
     try:
-        xml=get(f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}").text
-        root=ET.fromstring(xml)
-        record=root.find(".//record")
-        if record is None: raise RuntimeError("PMC OA record not found")
-        license_=record.attrib.get("license","PMC Open Access; inspect article license")
-        href=None
-        for link in record.findall(".//link"):
-            if link.attrib.get("format") in ("tgz","tar.gz"):
-                href=link.attrib.get("href"); break
-        if not href: raise RuntimeError("OA package tgz link missing")
-        if href.startswith("ftp://"): href="https://"+href[len("ftp://"):]
-        with tempfile.TemporaryDirectory() as td:
-            tgz=Path(td)/"pkg.tgz"; download(href,tgz)
-            extract=Path(td)/"x"; extract.mkdir()
-            with tarfile.open(tgz,"r:gz") as tf: tf.extractall(extract)
-            matches=[]
-            for p in extract.rglob("*"):
-                if p.is_file() and any(re.search(pat,p.name,re.I) for pat in patterns):
-                    matches.append(p)
-            if not matches: raise RuntimeError(f"no files matched {patterns}")
-            ddir=outroot/safe_name(species)/"publisher_supplement"/pmcid
-            for src in matches:
-                dst=ddir/safe_name(src.name); dst.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(src,dst)
-                manifest_row(rows,species,"study-specific",f"PMC Open Access article {pmcid}",pmcid,"PubMed Central",data_class,
-                             "direct target species; exact stage/form varies by file",license_,dst,
-                             href,use,use)
+        bucket="https://pmc-oa-opendata.s3.amazonaws.com"
+        prefix=pmcid+"."
+        keys=[]
+        token=None
+        while True:
+            params={"list-type":"2","prefix":prefix,"max-keys":"1000"}
+            if token: params["continuation-token"]=token
+            r=S.get(bucket+"/",params=params,timeout=(10,30))
+            r.raise_for_status()
+            rootxml=ET.fromstring(r.text)
+            ns={"s3":"http://s3.amazonaws.com/doc/2006-03-01/"}
+            page=[x.text for x in rootxml.findall(".//s3:Contents/s3:Key",ns) if x.text]
+            if not page:
+                # Some S3 XML responses omit the namespace in proxied contexts.
+                page=[x.text for x in rootxml.findall(".//Contents/Key") if x.text]
+            keys.extend(page)
+            truncated=(rootxml.findtext("s3:IsTruncated",default="false",namespaces=ns)
+                       or rootxml.findtext("IsTruncated","false")).lower()=="true"
+            if not truncated: break
+            token=(rootxml.findtext("s3:NextContinuationToken",default=None,namespaces=ns)
+                   or rootxml.findtext("NextContinuationToken"))
+            if not token: break
+        if not keys:
+            raise RuntimeError(f"PMC AWS prefix not found: {prefix}")
+
+        # Group article versions. Prefer a non-manuscript version with the most
+        # supplement/media files matching our implementation-relevant patterns.
+        groups=defaultdict(list)
+        for key in keys:
+            top=key.split("/",1)[0]
+            groups[top].append(key)
+        ranked=[]
+        for top,gkeys in groups.items():
+            matches=[k for k in gkeys if any(re.search(pat,Path(k).name,re.I) for pat in patterns)]
+            meta_key=next((k for k in gkeys if k.endswith(".json") and Path(k).name.startswith(top)),None)
+            meta={}
+            if meta_key:
+                try:
+                    meta=get(bucket+"/"+quote(meta_key,safe="/")).json()
+                except Exception:
+                    meta={}
+            is_manuscript=str(meta.get("is_manuscript","no")).lower() in {"yes","true","1"}
+            ranked.append((len(matches),0 if is_manuscript else 1,top,gkeys,matches,meta))
+        ranked.sort(reverse=True,key=lambda x:(x[0],x[1]))
+        count,_,top,gkeys,matches,meta=ranked[0]
+        if not matches:
+            raise RuntimeError(f"no PMC AWS files matched {patterns}; available files: {[Path(k).name for k in gkeys][:80]}")
+
+        license_=str(meta.get("license") or meta.get("license_type") or meta.get("copyright") or
+                     "PMC Article Dataset; inspect article-level license")
+        ddir=outroot/safe_name(species)/"publisher_supplement"/pmcid
+        for key in matches:
+            url=bucket+"/"+quote(key,safe="/")
+            dst=ddir/safe_name(Path(key).name)
+            download(url,dst)
+            manifest_row(rows,species,"study-specific",f"PMC Article Dataset {pmcid}",pmcid,
+                         "PubMed Central AWS Open Data",data_class,
+                         "direct target species; exact stage/form varies by file",license_,dst,url,use,use)
     except Exception as e:
-        failures.append({"source":"PMC","species":species,"id":pmcid,"error":str(e)})
+        failures.append({"source":"PMC AWS","species":species,"id":pmcid,"error":str(e)})
 
 def edmond_download(species, doi, data_class, use, outroot, rows, failures):
     try:
