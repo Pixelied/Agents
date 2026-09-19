@@ -15,7 +15,10 @@ jobs:
   source:
     name: Preserve exact revision and require complete application source
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      actions: read
     outputs:
       root: ${{ steps.ready.outputs.root }}
     steps:
@@ -23,6 +26,56 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Check whether exact profile assets are already published
+        id: profiles
+        shell: bash
+        run: |
+          if test -f projects/insect-realism-desktop-app/app/assets/creature-profiles/build-input.json; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.profiles.outputs.present == 'false'
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        if: steps.profiles.outputs.present == 'false'
+        with:
+          name: insect-pinned-source-a6d2
+          run-id: 35402190083
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/insect-original-data
+      - name: Reconstruct only exact checkpoint profile bytes
+        if: steps.profiles.outputs.present == 'false'
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/insect-profile-target
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pandas==2.2.3
+          rustup toolchain install 1.98.1 --profile minimal
+          cargo +1.98.1 build --release --locked --manifest-path projects/insect-realism-desktop-app/app/Cargo.toml -p profile-compiler
+          python -m unittest discover -s projects/insect-realism-desktop-app/scripts/recovery/tests -v
+          python projects/insect-realism-desktop-app/scripts/recovery/restore_profiles.py --coordinates "$RUNNER_TEMP/insect-original-data/temnothorax-source-coordinates.csv" --compiler "$CARGO_TARGET_DIR/release/profile-compiler" --output projects/insect-realism-desktop-app/app/assets/creature-profiles
+      - name: Publish generated actual assets without overwriting a moving branch
+        if: steps.profiles.outputs.present == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git fetch origin main
+          git show FETCH_HEAD:tasks/insect-continuation-03-q7b4/leases/projects%2Finsect-realism-desktop-app.json > "$RUNNER_TEMP/insect-source-lease.json"
+          python -c 'import json,os; from pathlib import Path; from datetime import datetime,timezone; x=json.loads((Path(os.environ["RUNNER_TEMP"])/"insect-source-lease.json").read_text()); valid=x["owner"]=="astra-insect-resume-m5r2" and x["state"]=="active" and datetime.fromisoformat(x["expires_at"])>datetime.now(timezone.utc); exit(0 if valid else "Source publication lease is not active")'
+          git fetch origin "$GITHUB_REF_NAME"
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA" || { echo 'Branch advanced; preserve newer work and reconcile before publishing'; exit 1; }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- projects/insect-realism-desktop-app/app/assets/creature-profiles/build-input.json projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.bin projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.report.json
+          git commit -m 'build: publish byte-exact original runtime profiles and provenance'
+          git push origin "HEAD:$GITHUB_REF_NAME"
       - name: Export resumable history without changing source
         shell: bash
         run: |
