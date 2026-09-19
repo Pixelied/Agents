@@ -143,13 +143,13 @@ def safe_name(name: str) -> str:
 
 def get(url, **kw):
     last=None
-    for i in range(5):
+    for i in range(3):
         try:
-            r=S.get(url,timeout=kw.pop("timeout",(20,120)),allow_redirects=True,**kw)
+            r=S.get(url,timeout=kw.pop("timeout",(15,60)),allow_redirects=True,**kw)
             r.raise_for_status()
             return r
         except Exception as e:
-            last=e; time.sleep(2**i)
+            last=e; time.sleep(1.5**i)
     raise RuntimeError(f"GET failed {url}: {last}")
 
 def get_json(url):
