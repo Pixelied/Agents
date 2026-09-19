@@ -1,0 +1,276 @@
+{
+  "version": "R8.3",
+  "policy": {
+    "visual_keep_ratio": 0.5,
+    "note": "Retain ~50% of the best R8.2 reference images; prioritize target stage, resolution/sharpness, metadata completeness, and source diversity. Replace freed volume with actual study data where legally redistributable.",
+    "evidence_tiers": [
+      "raw_open_study_data",
+      "experimental_recordings",
+      "published_direct_numeric_data",
+      "contextual_biology_data",
+      "visual_reference_media",
+      "remote_only_high_value"
+    ]
+  },
+  "dryad": [
+    {
+      "species": "Oryzaephilus surinamensis",
+      "doi": "10.5061/dryad.80dk1",
+      "source_id": "R83-ORY-DRYAD-001",
+      "role": "cuticle thickness/melanization, CHCs, mortality, population growth, water loss, qPCR",
+      "evidence_class": "raw_open_study_data",
+      "license": "CC0"
+    },
+    {
+      "species": "Blattella germanica",
+      "doi": "10.5061/dryad.f82ns",
+      "source_id": "R83-BLA-DRYAD-001",
+      "role": "sexual maturation and nutrient consumption",
+      "evidence_class": "raw_open_study_data",
+      "license": "CC0"
+    },
+    {
+      "species": "Blattella germanica",
+      "doi": "10.5061/dryad.r2280gbg1",
+      "source_id": "R83-BLA-DRYAD-002",
+      "role": "courtship success/tergal gland diet data",
+      "evidence_class": "raw_open_study_data",
+      "license": "CC0"
+    },
+    {
+      "species": "Blattella germanica",
+      "doi": "10.5061/dryad.063h8",
+      "source_id": "R83-BLA-DRYAD-003",
+      "role": "nutritional regulation/glucose-aversion data",
+      "evidence_class": "raw_open_study_data",
+      "license": "CC0"
+    }
+  ],
+  "pmc": [
+    {
+      "species": "Chelifer cancroides",
+      "pmcid": "PMC8778599",
+      "source_id": "R83-CHE-PMC-001",
+      "role": "venom peptide aphid raw data and cytotoxicity raw data",
+      "extensions": [
+        ".zip",
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "raw_open_study_data"
+    },
+    {
+      "species": "Blattella germanica",
+      "pmcid": "PMC10471590",
+      "source_id": "R83-BLA-PMC-001",
+      "role": "actual experimental videos and microscopy of pesticide spread/body surface",
+      "extensions": [
+        ".m4v",
+        ".mp4",
+        ".mov",
+        ".tif",
+        ".tiff",
+        ".xlsx",
+        ".xls",
+        ".csv",
+        ".docx"
+      ],
+      "evidence_class": "experimental_recordings"
+    },
+    {
+      "species": "Blattella germanica",
+      "pmcid": "PMC6393502",
+      "source_id": "R83-BLA-PMC-002",
+      "role": "courtship/grooming behavioral dataset and experimental video",
+      "extensions": [
+        ".mp4",
+        ".m4v",
+        ".mov",
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "experimental_recordings"
+    },
+    {
+      "species": "Liposcelis bostrychophila",
+      "pmcid": "PMC3835895",
+      "source_id": "R83-LIP-PMC-001",
+      "role": "direct exact-species transcriptome/expression supplementary tables",
+      "extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv",
+        ".zip"
+      ],
+      "evidence_class": "contextual_biology_data"
+    },
+    {
+      "species": "Liposcelis bostrychophila",
+      "pmcid": "PMC12028104",
+      "source_id": "R83-LIP-PMC-002",
+      "role": "Rickettsia abundance and fitness supplementary data",
+      "extensions": [
+        ".zip",
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "contextual_biology_data"
+    },
+    {
+      "species": "Liposcelis bostrychophila",
+      "pmcid": "PMC11737068",
+      "source_id": "R83-LIP-PMC-003",
+      "role": "olfactory gene/developmental-stage supplementary tables",
+      "extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "contextual_biology_data"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "pmcid": "PMC8113238",
+      "source_id": "R83-ORY-PMC-001",
+      "role": "cuticle/symbiont supplementary source data",
+      "extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "raw_open_study_data"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "pmcid": "PMC13043703",
+      "source_id": "R83-ORY-PMC-002",
+      "role": "2026 source data workbook for experimental symbiont infection/population effects",
+      "extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "raw_open_study_data"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "pmcid": "PMC4641671",
+      "source_id": "R83-ORY-PMC-003",
+      "role": "raw knockdown/lethality datasets",
+      "extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "raw_open_study_data"
+    }
+  ],
+  "direct": [
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-GEO-001",
+      "title": "GSE99785 processed developmental-stage gene count table",
+      "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE99nnn/GSE99785/suppl/GSE99785_gene_Counts_table_anot_v3.csv.gz",
+      "license": "NCBI public data",
+      "evidence_class": "contextual_biology_data",
+      "role": "stage-resolved N1/N3/N5/N6/adult developmental expression context"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "source_id": "R83-ORY-USDA-001",
+      "title": "USDA insecticide surface study - Metal.xlsx",
+      "url": "https://ndownloader.figshare.com/files/57974548",
+      "license": "CC0-1.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "adult live/affected/dead observations on metal"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "source_id": "R83-ORY-USDA-002",
+      "title": "USDA insecticide surface study - Concrete.xlsx",
+      "url": "https://ndownloader.figshare.com/files/57974551",
+      "license": "CC0-1.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "adult live/affected/dead observations on concrete"
+    }
+  ],
+  "zenodo": [
+    {
+      "species": "Liposcelis bostrychophila",
+      "source_id": "R83-LIP-ZENODO-001",
+      "record_id": "15725636",
+      "role": "original exact-species toxicity/repellency study data",
+      "evidence_class": "raw_open_study_data",
+      "allowed_extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ]
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "source_id": "R83-ORY-ZENODO-001",
+      "record_id": "4939311",
+      "role": "Dryad mirror/fallback for ancient symbiosis raw data",
+      "evidence_class": "raw_open_study_data",
+      "allowed_extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ]
+    }
+  ],
+  "remote_only": [
+    {
+      "species": "Chelifer cancroides",
+      "source_id": "R83-CHE-REMOTE-001",
+      "title": "Tross et al. 2022 JEB high-speed locomotion Movie 2",
+      "url": "https://movie.biologists.com/video/10.1242/jeb.243930/video-2",
+      "role": "direct 500-fps forward/backward/upside-down gait recording",
+      "reason": "Publisher copyright; index/download instructions only, do not redistribute publicly"
+    },
+    {
+      "species": "Chelifer cancroides",
+      "source_id": "R83-CHE-REMOTE-002",
+      "title": "Tross et al. 2022 locomotion paper",
+      "url": "https://doi.org/10.1242/jeb.243930",
+      "role": "direct adult morphology, 1-h activity, microstops, gait relationships and kinematic regressions",
+      "reason": "Publisher copyright; factual numeric extraction is bundled, paper/video are link-only"
+    },
+    {
+      "species": "Chelifer cancroides",
+      "source_id": "R83-CHE-REMOTE-003",
+      "title": "2026 predation study",
+      "url": "https://doi.org/10.1080/00218839.2025.2582286",
+      "role": "direct predator study with Varroa destructor and Liposcelis entomophila",
+      "reason": "Reuse rights not established for bundling publisher files"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-REMOTE-001",
+      "title": "Jeanson et al. 2003 exact ~24 h first-instar bounded-space locomotion",
+      "url": "https://doi.org/10.1016/S0022-5193(03)00277-7",
+      "role": "primary exact-stage locomotion/calibration paper",
+      "reason": "Publisher copyright; audited factual parameter table is bundled instead"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-REMOTE-002",
+      "title": "2025 114 MB supplementary repellent movement video",
+      "url": "https://doi.org/10.1016/j.aspen.2025.102362",
+      "role": "direct species disturbance/movement recording",
+      "reason": "Publisher supplement rights unclear; link-only until reuse permission is verified"
+    },
+    {
+      "species": "Liposcelis bostrychophila",
+      "source_id": "R83-LIP-REMOTE-001",
+      "title": "Wang et al. 2000 development and reproduction vs temperature",
+      "url": "https://doi.org/10.1603/0013-8746(2000)093%5B0261:DAROTP%5D2.0.CO;2",
+      "role": "direct species development/survival/reproduction data",
+      "reason": "Publisher copyright; published factual aggregate table is bundled"
+    }
+  ]
+}
