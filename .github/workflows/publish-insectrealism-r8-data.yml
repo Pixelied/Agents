@@ -1,0 +1,97 @@
+name: Publish InsectRealism R8.1 Data Release
+
+on:
+  push:
+    branches:
+      - insectrealism-r8-data
+    paths:
+      - '.github/workflows/publish-insectrealism-r8-data.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: insectrealism-r8.1-data-20260919
+    steps:
+      - name: Download validated species artifacts
+        run: |
+          set -euxo pipefail
+          mkdir -p release
+          fetch() {
+            local id="$1"
+            local out="$2"
+            curl --fail --location --retry 4 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/Pixelied/Agents/actions/artifacts/$id/zip" \
+              --output "release/$out"
+          }
+          fetch 10589861013 InsectRealism-R8.1-Blattella-germanica.zip
+          fetch 10589093600 InsectRealism-R8.1-Liposcelis-bostrychophila.zip
+          fetch 10588838929 InsectRealism-R8.1-Chelifer-cancroides.zip
+          fetch 10588664396 InsectRealism-R8.1-Oryzaephilus-surinamensis.zip
+
+      - name: Add Astra handoff and audit summary
+        run: |
+          set -euxo pipefail
+          curl --fail --location \
+            "https://raw.githubusercontent.com/Pixelied/Agents/feat/insect-r8-data-pack-20260919/research/insectrealism-r8-data/ASTRA_DIRECTION_CHANGE_ONLY_PROMPT.md" \
+            --output release/ASTRA_DIRECTION_CHANGE_ONLY_PROMPT.md
+          curl --fail --location \
+            "https://raw.githubusercontent.com/Pixelied/Agents/feat/insect-r8-data-pack-20260919/research/insectrealism-r8-data/chelifer_cancroides_optional_predator.json" \
+            --output release/chelifer_cancroides_optional_predator.json
+          cat > release/DATA_TOTALS.md <<'EOF'
+          # InsectRealism R8.1 data totals
+
+          This release is ONLY the new non-ant arthropod research layer.
+          The existing Linepithema humile ant system remains fully in scope:
+          worker size variation, callows, queens, males, eggs, larvae, pupae/brood,
+          colony behavior, recruitment and pheromone/trail work are NOT replaced.
+
+          | Species | Validated files | Raw bytes | Role |
+          |---|---:|---:|---|
+          | Blattella germanica | 383 | 441,436,941 | ~24 h first-instar target; mixed-stage imagery is contextual |
+          | Liposcelis bostrychophila | 322 | 87,095,985 | adult booklouse |
+          | Oryzaephilus surinamensis | 333 | 263,465,786 | adult sawtoothed grain beetle |
+          | Chelifer cancroides | 340 | 255,196,459 | optional rare pseudoscorpion predator |
+
+          **Total validated raw reference bytes: 1,047,195,171 bytes**
+          = 1.047 GB decimal = 998.7 MiB = 0.975 GiB.
+
+          Total validated media files: 1,378.
+
+          Every species artifact contains its own acquisition summary, per-file
+          provenance/license/hash manifest, link-only source list, open-dataset index,
+          and SHA256SUMS.txt.
+          EOF
+          (cd release && sha256sum *.zip > RELEASE_SHA256SUMS.txt)
+
+      - name: Verify expected payload size
+        run: |
+          set -euxo pipefail
+          test "$(stat -c%s release/InsectRealism-R8.1-Blattella-germanica.zip)" -gt 400000000
+          test "$(stat -c%s release/InsectRealism-R8.1-Liposcelis-bostrychophila.zip)" -gt 80000000
+          test "$(stat -c%s release/InsectRealism-R8.1-Chelifer-cancroides.zip)" -gt 240000000
+          test "$(stat -c%s release/InsectRealism-R8.1-Oryzaephilus-surinamensis.zip)" -gt 250000000
+          ls -lh release
+
+      - name: Create or refresh persistent GitHub Release
+        run: |
+          set -euxo pipefail
+          if gh release view "$TAG" --repo Pixelied/Agents >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber --repo Pixelied/Agents
+          else
+            gh release create "$TAG" release/* \
+              --repo Pixelied/Agents \
+              --target 879ca01d599de4658c4424733f9b1ee168602ffd \
+              --title "InsectRealism R8.1 — ~1 GB Secondary Arthropod Research Data" \
+              --notes "Validated R8.1 data for the NEW non-ant arthropods only. The existing Argentine-ant worker-size/callow/queen/male/egg/larva/pupa/brood/recruitment system remains intact. Adds Chelifer cancroides as an optional rare pseudoscorpion predator. See DATA_TOTALS.md and the included Astra direction-change prompt."
+          fi
