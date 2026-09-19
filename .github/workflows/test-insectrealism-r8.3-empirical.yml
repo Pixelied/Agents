@@ -1,6 +1,6 @@
 name: Test InsectRealism R8.3 Empirical Acquisition
 
-# Final diagnostic run fetches the current fast-fail R8.3 empirical builder.
+# Diagnostic run fetches the Dryad/Zenodo-link-fixed R8.3 empirical builder.
 
 on:
   push:
