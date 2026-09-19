@@ -10,7 +10,8 @@
       "contextual_biology_data",
       "visual_reference_media",
       "remote_only_high_value"
-    ]
+    ],
+    "license_note": "Edmond dataset-specific license metadata controls when present. Under Edmond's current Terms of Use, a published dataset with no assigned license is released under CC0; the acquisition script records whether a dataset-specific license or this documented default was used."
   },
   "dryad": [
     {
@@ -271,6 +272,24 @@
       "url": "https://doi.org/10.1603/0013-8746(2000)093%5B0261:DAROTP%5D2.0.CO;2",
       "role": "direct species development/survival/reproduction data",
       "reason": "Publisher copyright; published factual aggregate table is bundled"
+    }
+  ],
+  "edmond": [
+    {
+      "species": "Oryzaephilus surinamensis",
+      "source_id": "R83-ORY-EDMOND-001",
+      "doi": "10.17617/3.5l",
+      "role": "raw quantitative cuticle measurements from the glyphosate/endosymbiont study",
+      "evidence_class": "raw_open_study_data",
+      "calibration_permission": "morphology/material/context only unless a measured field directly matches runtime use"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "source_id": "R83-ORY-EDMOND-002",
+      "doi": "10.17617/3.5s",
+      "role": "age-series cuticle, predation/fungal-defense and structural-defense study data",
+      "evidence_class": "raw_open_study_data",
+      "calibration_permission": "contextual biology/structural defense; not locomotion calibration"
     }
   ]
 }
