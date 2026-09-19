@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "review_context": "Supplied 2026-09-17 Mega Pack secondary candidate review; changed evidence requires a new human/agent review, not automatic reuse of these reasons.",
+  "reviewed_inputs": {
+    "00_MASTER_INDEX/LICENSE_MANIFEST.csv": "229ca1af53fc939b35e3b8efad5c3272b066933b4e9c986b6d18c3bcbed1ba1b",
+    "00_MASTER_INDEX/source_notes/secondary-booklice-liposcelis-2015.md": "0605594a0c71aec055cd2d9396b11515a95f0cc79ac003f0fd65bef80b174e01",
+    "00_MASTER_INDEX/source_notes/secondary-drosophila-treadmill-2024.md": "a69d494bc0a439ff49e20af6ca530bf8c77c090ece2c838c7d45b869ec6a4e04",
+    "00_MASTER_INDEX/source_notes/secondary-ptiliidae-farisenkov-2020.md": "a682294f53c16bef0ab560a5d60d3ede3b42c024f84d19b2ccafdc25ee806f80",
+    "00_MASTER_INDEX/source_notes/secondary-spiderling-kim-2015.md": "d3fe6917b1a27262a3df21c72bd113d7fdf354bb3ea90968f6e5c2d2dd0d5147",
+    "00_MASTER_INDEX/source_notes/secondary-springtail-brackenbury-1993.md": "ec4ab7cfbe013b58e0780655c829571ad8cf92e974102b0b3361fba5089ed720",
+    "03_OTHER_TINY_CREATURES/secondary_species.csv": "53445d3ddc42693b3bab52a1579abb77b016dc29f1c9f29672a1074953df8ca9"
+  }
+}

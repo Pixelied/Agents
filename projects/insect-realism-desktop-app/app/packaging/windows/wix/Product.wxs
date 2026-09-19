@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Insect Realism" Manufacturer="Pixelied" Version="$(var.AppVersion)"
+           UpgradeCode="A09D0F4C-6274-4B14-B051-198D4F756A37" Language="1033"
+           Scope="perUser" InstallerVersion="500">
+    <MajorUpgrade DowngradeErrorMessage="A newer Insect Realism version is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="InsectIcon.exe" SourceFile="$(var.AppIcon)" />
+    <Property Id="ARPPRODUCTICON" Value="InsectIcon.exe" />
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="PixeliedDirectory" Name="Pixelied">
+        <Directory Id="INSTALLFOLDER" Name="Insect Realism" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ShortcutDirectory" Name="Insect Realism">
+        <Component Id="StartMenuShortcut" Guid="6C576824-4507-46D2-9C2F-B4D09CA270AC">
+          <Shortcut Id="LaunchInsectRealism" Name="Insect Realism" Target="[INSTALLFOLDER]InsectRealism.exe" WorkingDirectory="INSTALLFOLDER" Icon="InsectIcon.exe" IconIndex="0" />
+          <RemoveFolder Id="RemoveShortcutDirectory" On="uninstall" />
+          <RemoveFolder Id="RemoveEmptyVendorDirectory" Directory="PixeliedDirectory" On="uninstall" />
+          <RegistryValue Root="HKCU" Key="Software\Pixelied\InsectRealism" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <!-- The helper removes ONLY our Run value. Never remove the shared Windows Run key. -->
+    <CustomAction Id="RemoveStartupEntry" FileRef="MainExecutable" ExeCommand="--uninstall-cleanup"
+                  Execute="deferred" Impersonate="yes" Return="check" />
+    <InstallExecuteSequence>
+      <Custom Action="RemoveStartupEntry" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+    <Feature Id="MainFeature" Title="Insect Realism" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.pixelied.insect-realism</string>
+<key>CFBundleName</key><string>Insect Realism</string>
+<key>CFBundleDisplayName</key><string>Insect Realism</string>
+<key>CFBundleExecutable</key><string>InsectRealism</string>
+<key>CFBundleIconFile</key><string>InsectRealism.icns</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>0.1.0</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>LSUIElement</key><true/>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSHumanReadableCopyright</key><string>Insect Realism contributors. See bundled licenses and biology provenance.</string>
+</dict></plist>
