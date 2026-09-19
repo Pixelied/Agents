@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "insect-research-audit-20260919-r3",
+  "scope": "projects/insect-realism-desktop-app/research/secondary-insects",
+  "owner": "sol-insect-audit-r3",
+  "state": "active",
+  "intent": "Research/provenance correction only; preserve R2 as immutable history and do not touch verified runtime code.",
+  "claimed_at": "2026-09-19T05:42:00+00:00",
+  "heartbeat_at": "2026-09-19T05:42:00+00:00",
+  "expires_at": "2026-09-19T09:42:00+00:00",
+  "generation": 1
+}

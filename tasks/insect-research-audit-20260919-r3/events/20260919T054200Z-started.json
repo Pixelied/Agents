@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "audit-r3-start-20260919T054200Z",
+  "task_id": "insect-research-audit-20260919-r3",
+  "agent_id": "sol-insect-audit-r3",
+  "type": "task_started",
+  "message": "Started independent R3 audit of insect research sources, quantitative parameters, population stages, and empirical-data provenance.",
+  "data": {
+    "base_branch": "feat/insect-secondary-research-expansion-20260919",
+    "base_commit": "5eb2e454941eb0096152fd5f3d667002330aa1f0",
+    "runtime_changes": false
+  },
+  "created_at": "2026-09-19T05:42:00+00:00"
+}
