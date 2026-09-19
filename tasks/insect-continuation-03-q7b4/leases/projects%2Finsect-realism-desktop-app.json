@@ -1,9 +1,9 @@
 {
   "claimed_at": "2026-09-18T22:51:22+00:00",
-  "expires_at": "2026-09-19T02:51:22+00:00",
+  "expires_at": "2026-09-19T05:34:10+00:00",
   "generation": 1,
-  "heartbeat_at": "2026-09-18T22:51:22+00:00",
-  "intent": "Resume existing continuation branch from verified Continuation 02; original project root lease expired at 22:34 UTC; no restart or edits to other active roots.",
+  "heartbeat_at": "2026-09-19T01:34:10+00:00",
+  "intent": "Continue exact source publication, preserve the newer spatial fix, qualify two tested settings repairs, and finish native package evidence; do not restart or edit other project roots.",
   "owner": "astra-insect-resume-m5r2",
   "protocol_version": "1.0",
   "schema_version": 1,
