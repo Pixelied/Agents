@@ -1,6 +1,6 @@
 name: Test InsectRealism R8.3 Empirical Acquisition
 
-# Latest diagnostic run fetches the current R8.3 builder with shortened repository retry latency.
+# Final diagnostic run fetches the current fast-fail R8.3 empirical builder.
 
 on:
   push:
