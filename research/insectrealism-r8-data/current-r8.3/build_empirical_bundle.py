@@ -112,6 +112,12 @@ REMOTE_ONLY = [
         "use":"direct 1-hour locomotion and high-speed microstop measurements"
     },
     {
+        "species":"Chelifer cancroides","stage":"adult + nymph cohorts","study":"Predation behaviour against Varroa destructor with Liposcelis entomophila alternative prey",
+        "doi":"10.1080/00218839.2025.2582286","url":"https://doi.org/10.1080/00218839.2025.2582286",
+        "kind":"predation_raw_observations","reason":"article is accessible for published results but no openly redistributable raw trial file was located",
+        "use":"prey choice, cohort-specific predation and repeat-attack context"
+    },
+    {
         "species":"Liposcelis bostrychophila","stage":"adult female","study":"Acute lethal and behavioral sublethal responses of two stored-product psocids to surface insecticides",
         "doi":"10.1002/ps.1634","url":"https://doi.org/10.1002/ps.1634",
         "kind":"movement_raw_tracks","reason":"study reports tracking metrics but raw trajectories were not located in an open repository",
@@ -426,6 +432,21 @@ microstop_duration,0.16,0.04 SD,s,high-speed forward walking
 backward_peak_speed,17,up to,body_lengths_per_s,escape
 upside_down_peak_speed,4,up to,body_lengths_per_s,upside-down walking
 high_speed_sampling,500,,frames_per_s,footfall analysis
+"""
+      ),
+      "chelifer_cancroides_vantoor2026_predation_published.csv":(
+        "Chelifer cancroides","adult + proto/deuto/tritonymph cohorts","10.1080/00218839.2025.2582286","Journal of Apicultural Research",
+        """metric,value,unit,context
+varroa_presented_per_cohort,15,individuals,cohort predation arenas
+varroa_killed_min,25,percent,across Chelifer cohorts within 4 h
+varroa_killed_max,80,percent,across Chelifer cohorts within 4 h
+observation_window,4,hours,cohort predation assay
+adult_female_choice,varroa_and_psocid_equal,qualitative,published result
+adult_male_choice,psocid_preferred,qualitative,published result
+protonymph_choice,psocid_preferred,qualitative,published result
+deutonymph_choice,psocid_preferred,qualitative,published result
+tritonymph_choice,psocid_preferred,qualitative,published result
+alternative_psocid_species,Liposcelis_entomophila,taxon,not L. bostrychophila
 """
       ),
       "oryzaephilus_surinamensis_mowery2004_movement.csv":(
