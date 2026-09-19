@@ -299,8 +299,12 @@ def dryad_download(species, doi, data_class, use, outroot, rows, failures):
             dsurl="https://datadryad.org/api/v2/datasets/"+quote(doi,safe="")
             ds=get_json(dsurl)
             version_href=((ds.get("_links") or {}).get("stash:version") or {}).get("href")
+        if version_href.startswith("/"):
+            version_href="https://datadryad.org"+version_href
         v=get_json(version_href)
         files_href=((v.get("_links") or {}).get("stash:files") or {}).get("href")
+        if files_href and files_href.startswith("/"):
+            files_href="https://datadryad.org"+files_href
         fl=get_json(files_href)
         filelist=fl.get("_embedded",{}).get("stash:files") or fl.get("data") or []
         lic=ds.get("license") or v.get("license") or "Dryad repository dataset; verify metadata"
@@ -310,6 +314,8 @@ def dryad_download(species, doi, data_class, use, outroot, rows, failures):
             url=(links.get("stash:download") or {}).get("href") or item.get("download")
             name=item.get("path") or item.get("fileName") or item.get("name") or f"dryad_{item.get('id','file')}"
             if not url: continue
+            if url.startswith("/"):
+                url="https://datadryad.org"+url
             p=ddir/safe_name(Path(name).name)
             download(url,p)
             manifest_row(rows,species,"study-specific",f"Dryad dataset {doi}",doi,"Dryad",data_class,
@@ -325,7 +331,7 @@ def zenodo_download(species, record, data_class, use, outroot, rows, failures):
         doi=(rec.get("metadata") or {}).get("doi") or str(record)
         ddir=outroot/safe_name(species)/"raw_repository"/f"zenodo_{record}"
         for item in rec.get("files") or []:
-            url=(item.get("links") or {}).get("self") or (item.get("links") or {}).get("content")
+            url=(item.get("links") or {}).get("content") or (item.get("links") or {}).get("self")
             if not url: continue
             p=ddir/safe_name(item.get("key") or item.get("name") or "file")
             download(url,p)
