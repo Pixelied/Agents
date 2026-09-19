@@ -320,6 +320,80 @@ class Builder:
                         texts.append(v)
         return " | ".join(x for x in texts if x)
 
+    def acquire_edmond(self, spec: dict):
+        """Acquire published Max Planck Edmond research data with explicit license audit."""
+        sid = spec["source_id"]
+        try:
+            persistent = quote("doi:" + spec["doi"], safe="")
+            meta = get_json(
+                "https://edmond.mpg.de/api/datasets/:persistentId/?persistentId=" + persistent
+            )
+            data = meta.get("data") or {}
+            ver = data.get("latestVersion") or {}
+            files = ver.get("files") or []
+            if not files:
+                raise RuntimeError("Edmond dataset returned no published files")
+
+            raw_lic = ver.get("license") or data.get("license")
+            if isinstance(raw_lic, dict):
+                lic = (
+                    raw_lic.get("name") or raw_lic.get("title")
+                    or raw_lic.get("identifier") or raw_lic.get("uri") or ""
+                )
+            else:
+                lic = str(raw_lic or "")
+            terms = str(ver.get("termsOfUse") or data.get("termsOfUse") or "")
+
+            # Current Edmond Terms of Use state that a dataset published without
+            # an assigned license is released under CC0. A dataset-specific
+            # license/terms always overrides that repository default.
+            if not lic.strip():
+                if terms.strip() and not license_allowed(terms):
+                    self.record_error(sid, "license_blocked",
+                                      "Edmond custom terms present and not recognized as redistributable: " + terms[:500])
+                    return
+                lic = "CC0 1.0 (Edmond documented default when no dataset-specific license is assigned)"
+            elif not license_allowed(lic):
+                combined = (lic + " " + terms).strip()
+                if not license_allowed(combined):
+                    self.record_error(sid, "license_blocked",
+                                      "Edmond license/terms not redistribution-compatible: " + combined[:500])
+                    return
+                lic = combined
+
+            for ent in files:
+                df = ent.get("dataFile") or {}
+                fid = df.get("id")
+                name = df.get("filename") or ("edmond_" + str(fid) + ".bin")
+                if not fid:
+                    continue
+                url = f"https://edmond.mpg.de/api/access/datafile/{fid}"
+                tmp = Path(tempfile.mkstemp(suffix=Path(name).suffix)[1])
+                try:
+                    copy_stream(url, tmp)
+                    self.add_file(
+                        species=spec["species"], source_id=sid,
+                        title=ver.get("datasetVersion") or data.get("identifier") or
+                              f"Edmond dataset {spec['doi']}",
+                        source_type="repository_raw_file", repository="Edmond / Max Planck Society",
+                        doi_or_id=spec["doi"], license_text=lic,
+                        evidence_class=spec["evidence_class"],
+                        intended_use=spec["role"], original_url=url, src_path=tmp,
+                        baseline_permission=spec.get(
+                            "calibration_permission", "contextual_or_gated"
+                        ),
+                        source_reported_digest=(
+                            (str(df.get("checksum", {}).get("type", "")) + ":" +
+                             str(df.get("checksum", {}).get("value", ""))).strip(":")
+                            if isinstance(df.get("checksum"), dict) else ""
+                        ),
+                        notes=f"Edmond file: {name}; published dataset DOI {spec['doi']}"
+                    )
+                finally:
+                    tmp.unlink(missing_ok=True)
+        except Exception as e:
+            self.record_error(sid, "edmond_failed", str(e))
+
     def acquire_pmc(self, spec: dict):
         sid = spec["source_id"]
         pmcid = spec["pmcid"]
@@ -453,6 +527,8 @@ def main():
 
     for spec in cfg.get("dryad", []):
         b.acquire_dryad(spec)
+    for spec in cfg.get("edmond", []):
+        b.acquire_edmond(spec)
     for spec in cfg.get("pmc", []):
         b.acquire_pmc(spec)
     for spec in cfg.get("direct", []):
