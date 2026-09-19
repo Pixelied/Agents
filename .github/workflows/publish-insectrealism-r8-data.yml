@@ -1,5 +1,7 @@
 name: Publish InsectRealism R8.3 Empirical Bundle
 
+# Empirical rebalance rerun: Edmond + corrected PMC supplement acquisition + non-UTF8-safe validation.
+
 on:
   push:
     branches:
