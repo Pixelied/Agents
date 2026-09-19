@@ -1,0 +1,83 @@
+{
+  "schema": "InsectRealism R8.3 current species profile",
+  "species": "Chelifer cancroides",
+  "common_name": "house pseudoscorpion / book scorpion",
+  "taxonomy": {
+    "class": "Arachnida",
+    "order": "Pseudoscorpiones",
+    "family": "Cheliferidae",
+    "is_insect": false
+  },
+  "target_stage": "adult",
+  "implementation_role": "optional rare predator / advanced ecology",
+  "qualification": {
+    "body_scale": "qualified direct adult",
+    "articulated_gait": "qualified direct adult",
+    "whole_body_roaming_distribution": "partial",
+    "predation": "qualified by prey-evidence class; target-specific rates gated"
+  },
+  "morphology": {
+    "source": "10.1242/jeb.243930",
+    "n": 10,
+    "sexes": "3 male, 7 female",
+    "body_length_mm": {"mean": 3.09, "sd": 0.47, "min": 2.13, "max": 3.84},
+    "prosoma_length_mm": {"mean": 0.97, "sd": 0.16, "min": 0.71, "max": 1.21},
+    "leg_length_mm": {
+      "L1": {"mean": 1.37, "sd": 0.13, "min": 1.24, "max": 1.64},
+      "L2": {"mean": 1.47, "sd": 0.2, "min": 1.19, "max": 1.72},
+      "L3": {"mean": 1.77, "sd": 0.16, "min": 1.46, "max": 1.96},
+      "L4": {"mean": 2.1, "sd": 0.19, "min": 1.75, "max": 2.41}
+    },
+    "pedipalp_length_mm": {"mean": 3.88, "sd": 0.72, "min": 2.98, "max": 5.45},
+    "body_mass_mg": {"mean": 2.48, "sd": 0.51, "min": 1.64, "max": 3.45},
+    "extended_visual_span_mm": {
+      "min": 7,
+      "max": 9,
+      "source": "https://extension.psu.edu/pseudoscorpions",
+      "classification": "direct species contextual; total span, not body length"
+    }
+  },
+  "locomotion": {
+    "source": "10.1242/jeb.243930",
+    "high_speed_fps": 500,
+    "forward": "alternating tetrapod; frequent 100-200 ms microstops",
+    "backward": "inverted/modified alternating tetrapod escape; up to ~17 body lengths/s in study",
+    "upside_down": "slower, variable coordination; up to ~4 body lengths/s; more legs in stance",
+    "leg_pair_2": "important stability role",
+    "permission_note": "direct gait relationships; do not invent complete natural roaming-speed distribution from maxima/examples"
+  },
+  "predation": {
+    "direct_prey": ["Varroa destructor", "Liposcelis entomophila"],
+    "same_genus_transfer_to_rendered_prey": "Liposcelis entomophila -> Liposcelis bostrychophila",
+    "broader_extension_prey_categories": ["ants", "booklice", "beetle larvae", "small flies/caterpillars"],
+    "linepithema_humile_specific_calibration": null,
+    "rules": [
+      "no nearest-prey global homing",
+      "no screen-derived odor/heat/prey sensing",
+      "quantitative Argentine-ant interaction constants are engineering until directly measured"
+    ]
+  },
+  "life_history": {
+    "source": "https://extension.psu.edu/pseudoscorpions",
+    "eggs_per_female_context": [20, 40],
+    "nymphal_stages": ["protonymph", "deutonymph", "tritonymph"],
+    "development_to_adult_months": [10, 24],
+    "adult_lifespan_years_context": [3, 4],
+    "population_rule": "rare arrivals; no compressed reproduction"
+  },
+  "default_population": "normally 0; occasional 1; rarely >1 unless user explicitly enables stronger ecology",
+  "hard_gaps": [
+    "supplemental free-roaming trajectory tables not yet bundled",
+    "display/glass traction",
+    "rendered-prey attack/handling kinematics",
+    "Linepithema humile-specific predation parameters",
+    "nymphal stage morphology/gait",
+    "cursor-like disturbance analog"
+  ],
+  "key_sources": [
+    "https://pubmed.ncbi.nlm.nih.gov/35438154/",
+    "https://movie.biologists.com/video/10.1242/jeb.243930/video-2",
+    "https://extension.psu.edu/pseudoscorpions",
+    "https://doi.org/10.1080/00218839.2025.2582286"
+  ]
+}
