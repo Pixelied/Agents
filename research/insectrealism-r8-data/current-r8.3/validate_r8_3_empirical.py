@@ -75,6 +75,8 @@ def main(root:Path):
         require(int(row["original_files"])==orig,f"{species} original visual count changed")
         frac=float(row["keep_fraction"])
         require(0.50 <= frac <= 0.60,f"{species} keep fraction {frac:.3f} outside 50-60%")
+        byte_frac=float(row.get("byte_keep_fraction",1.0))
+        require(byte_frac <= 0.65,f"{species} retained visual bytes {byte_frac:.3f} exceeds 65% cap")
         total_orig += int(row["original_files"]); total_kept += int(row["kept_files"])
     require(total_orig==1378,f"unexpected original visual total {total_orig}")
     require(0.50 <= total_kept/total_orig <= 0.60,"overall visual keep fraction outside 50-60%")
