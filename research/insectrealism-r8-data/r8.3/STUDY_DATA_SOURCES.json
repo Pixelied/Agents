@@ -167,6 +167,18 @@
         ".csv"
       ],
       "evidence_class": "raw_open_study_data"
+    },
+    {
+      "species": "Blattella germanica",
+      "pmcid": "PMC9385682",
+      "source_id": "R83-BLA-PMC-003",
+      "role": "nymph/adult thigmotaxis and shelter-preference statistical tables; developmental context",
+      "extensions": [
+        ".xlsx",
+        ".xls",
+        ".csv"
+      ],
+      "evidence_class": "raw_open_study_data"
     }
   ],
   "direct": [
