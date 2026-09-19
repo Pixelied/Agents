@@ -270,12 +270,14 @@ def curate_images(root: Path):
                 rr=dict(r); rr["curation_status"]="dropped_from_bundle"
                 rr["removal_reason"]="R8.3 quality/diversity curation; recoverable from source_url/download_url and original SHA-256"
                 dropped_all.append(rr)
-        # Preserve source/provenance documents.
-        for rel in ["02_SOURCES","ACQUISITION_SUMMARY.json","README.md"]:
-            p=base/rel
-            if p.exists():
-                if p.is_dir(): shutil.copytree(p,outdir/rel,dirs_exist_ok=True)
-                else: shutil.copy2(p,outdir/p.name)
+        # Preserve R8.2 source/provenance documents, but label old count/readme
+        # files as historical so they cannot be mistaken for the current curated corpus.
+        p=base/"02_SOURCES"
+        if p.exists(): shutil.copytree(p,outdir/"02_SOURCES",dirs_exist_ok=True)
+        p=base/"ACQUISITION_SUMMARY.json"
+        if p.exists(): shutil.copy2(p,outdir/"ORIGINAL_R8_2_ACQUISITION_SUMMARY.json")
+        p=base/"README.md"
+        if p.exists(): shutil.copy2(p,outdir/"ORIGINAL_R8_2_ACQUISITION_README.md")
         kept_bytes=sum(int(r.get("bytes") or 0) for r in selected)
         original_bytes=sum(int(r.get("bytes") or 0) for r in rows)
         summary.append({"species":species,"original_files":len(rows),"kept_files":len(selected),"dropped_files":len(rows)-len(selected),
