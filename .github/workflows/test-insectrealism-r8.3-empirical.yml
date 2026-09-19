@@ -1,6 +1,6 @@
 name: Test InsectRealism R8.3 Empirical Acquisition
 
-# Diagnostic run fetches the manifest-path-fixed current R8.3 empirical builder.
+# This audit is pinned to an exact R8.3 research commit; never fetches a mutable branch URL.
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      SOURCE_BRANCH: feat/insect-r8.3-empirical-20260919
+      SOURCE_SHA: c8039b492e69c9d4752c2360e1470fe09b0766c5
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +41,7 @@ jobs:
       - name: Fetch R8.3 empirical builder from research branch
         run: |
           set -euo pipefail
-          BASE="https://raw.githubusercontent.com/Pixelied/Agents/$SOURCE_BRANCH/research/insectrealism-r8-data/current-r8.3"
+          BASE="https://raw.githubusercontent.com/Pixelied/Agents/$SOURCE_SHA/research/insectrealism-r8-data/current-r8.3"
           curl --fail --location "$BASE/build_empirical_bundle.py" -o "$RUNNER_TEMP/build_empirical_bundle.py"
           python -m py_compile "$RUNNER_TEMP/build_empirical_bundle.py"
 
