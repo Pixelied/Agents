@@ -1,0 +1,119 @@
+name: Continue native build from the original lockfile
+"on":
+  push:
+    branches: ['feat/insect-continuation-03-q7b4']
+    paths: ['.github/workflows/insect-native-source-repair-m5r2.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: insect-lock-recovery-m5r2-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  restore-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Verify current ownership before changing source
+        run: |
+          git fetch origin main
+          python - <<'PY'
+          import datetime,json,subprocess
+          path='tasks/insect-continuation-03-q7b4/leases/projects%2Finsect-realism-desktop-app.json'
+          value=json.loads(subprocess.check_output(['git','show','origin/main:'+path],text=True))
+          if value.get('owner')!='astra-insect-resume-m5r2' or value.get('state')!='active' or datetime.datetime.fromisoformat(value['expires_at'])<=datetime.datetime.now(datetime.timezone.utc):
+              raise SystemExit('Source lease is not active; no source changes permitted')
+          PY
+      - name: Hydrate checksums and restore only the original cc record
+        working-directory: projects/insect-realism-desktop-app/app
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          python - <<'PY'
+          from pathlib import Path
+          import gzip,hashlib,re,subprocess
+          expected='10750e0b7a0f5d99ad175c96e5beaf5b3c89881c89b77b47341e3f6e82a90a9b61'
+          lock=Path('Cargo.lock')
+          if lock.exists():
+              if hashlib.sha256(lock.read_bytes()).hexdigest()!=expected:
+                  raise SystemExit('A different lockfile is present; refusing overwrite')
+          else:
+              data=Path('../scripts/recovery/Cargo.lock.template.gz').read_bytes()
+              if hashlib.sha256(data).hexdigest()!='7f2733c87f98f84f969d43e51b62a7c83d9c5363374349377142c94310e4c59e':
+                  raise SystemExit('Lock template checksum mismatch')
+              lock.write_bytes(gzip.decompress(data))
+              subprocess.run(['cargo','metadata','--format-version=1','--filter-platform','x86_64-unknown-linux-gnu'],check=True,stdout=subprocess.DEVNULL)
+              raw=lock.read_bytes()
+              if hashlib.sha256(raw).hexdigest()!=expected:
+                  entries=list(re.finditer(rb'(?m)^\[\[package\]\]\nname = "cc"\n.*?(?=^\[\[package\]\]|\Z)',raw,re.DOTALL))
+                  if len(entries)!=1: raise SystemExit('Ambiguous cc record')
+                  original='''[[package]]
+          name = "cc"
+          version = "1.4.6"
+          source = "registry+https://github.com/rust-lang/crates.io-index"
+          checksum = "a3eb0f42d6c360dc3f8a821f6bf2fdea7f72bfd36b3076eb0e6d1e9e0752fff4"
+          dependencies = [
+           "find-msvc-tools",
+           "jobserver",
+           "libc",
+           "shlex",
+          ]
+
+          '''.encode()
+                  entry=entries[0]; repaired=raw[:entry.start()]+original+raw[entry.end():]
+                  if hashlib.sha256(repaired).hexdigest()!=expected:
+                      raise SystemExit('Unexpected graph changes; refusing dependency update')
+                  lock.write_bytes(repaired)
+          if hashlib.sha256(lock.read_bytes()).hexdigest()!=expected: raise SystemExit('Lockfile differs from the checkpoint')
+          subprocess.run(['cargo','metadata','--locked','--format-version=1','--filter-platform','x86_64-unknown-linux-gnu'],check=True,stdout=subprocess.DEVNULL)
+          if hashlib.sha256(lock.read_bytes()).hexdigest()!=expected: raise SystemExit('Cargo changed the authenticated lockfile')
+          print('Original Cargo.lock restored byte-for-byte. No dependency upgrade.')
+          PY
+      - name: Preserve the source checkpoint without resetting the branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f -- projects/insect-realism-desktop-app/app/Cargo.lock
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: publish the original authenticated Cargo lockfile for native continuation'
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          if hashlib.sha256(Path('projects/insect-realism-desktop-app/app/Cargo.lock').read_bytes()).hexdigest()!='10750e0b7a0f5d99ad175c96e5beaf5b3c89881c89b77b47341e3f6e82a90a9b61':
+              raise SystemExit('Rebased lockfile differs; refusing publication')
+          PY
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+      - name: Continue the existing failed native pipeline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/Pixelied/Agents/actions/runs/35422560044 > "$RUNNER_TEMP/native-run.json"
+          python - <<'PY'
+          import json,os,subprocess
+          from pathlib import Path
+          run=json.loads((Path(os.environ['RUNNER_TEMP'])/'native-run.json').read_text())
+          if run['status']=='completed' and run.get('conclusion')!='success':
+              subprocess.run(['gh','api','--method','POST','repos/Pixelied/Agents/actions/runs/35422560044/rerun-failed-jobs'],check=True)
+              print('Requested continuation of the existing failed native pipeline.')
+          elif run['status']!='completed':
+              print('Native pipeline is already running; no duplicate restart requested.')
+          else:
+              print('Native pipeline already succeeded; preserve its results.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: insect-original-lock-repair-${{ github.run_id }}
+          path: projects/insect-realism-desktop-app/app/Cargo.lock
+          if-no-files-found: error
+          retention-days: 7
