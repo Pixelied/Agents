@@ -405,6 +405,22 @@ Cello,76,300,104.4,3.9,0.349,0.013
 120_AB-X,76,300,81.9,3.4,0.274,0.011
 """
       ),
+      "oryzaephilus_surinamensis_kavallieratos2024_mobility_table3.csv":(
+        "Oryzaephilus surinamensis","adult","10.1002/ps.8262","Pest Management Science",
+        """treatment,n,duration_s,walking_s_mean,walking_s_se,stops_n_mean,stops_n_se,stops_s_mean,stops_s_se,climbing_n_mean,climbing_n_se,climbing_s_mean,climbing_s_se,upturned_n_mean,upturned_n_se,upturned_s_mean,upturned_s_se
+Control,30,900,532.3,38.9,6.5,1.2,145.7,29.7,10.8,8.6,209.4,29.4,0.9,0.29,0.1,0.1
+Etofenprox_LC10,30,900,238.5,31.9,8.5,1.2,375.3,56.5,12.4,1.3,277.5,32.7,1.3,0.4,7.4,6.8
+Etofenprox_LC30,30,900,217.1,31.3,8.0,1.5,414.4,51.0,7.6,1.2,212.0,28.4,1.1,0.3,55.3,28.0
+Lambda_cyhalothrin_LC10,30,900,135.1,38.8,24.1,16.8,374.2,65.0,6.9,2.2,120.6,33.1,1.2,0.4,250.2,65.8
+Lambda_cyhalothrin_LC30,30,900,90.3,26.7,3.9,1.1,613.1,63.1,2.8,0.8,67.4,26.4,1.1,0.3,139.2,48.1
+Deltamethrin_LC10,30,900,148.9,32.0,3.3,0.6,541.1,66.64,4.5,1.1,150.0,36.2,0.7,0.2,49.7,31.8
+Deltamethrin_LC30,30,900,84.3,19.6,33.9,29.9,529.0,64.0,3.3,1.0,93.2,29.4,0.5,0.1,163.4,56.6
+Alpha_cypermethrin_LC10,30,900,242.3,28.6,3.5,0.4,355.4,40.7,8.9,1.2,257.9,31.9,0.2,0.1,7.4,7.1
+Alpha_cypermethrin_LC30,30,900,175.7,29.0,3.1,0.4,360.0,53.1,7.1,0.7,357.2,47.4,0.4,0.2,0.9,0.4
+PAD_LC10,30,900,269.4,42.4,2.9,0.5,327.9,57.9,5.8,0.8,245.6,43.0,0.6,0.2,38.9,30.5
+PAD_LC30,30,900,306.8,36.6,2.9,0.4,353.6,52.7,8.4,1.3,224.9,28.1,0.3,0.1,1.5,1.3
+"""
+      ),
       "liposcelis_bostrychophila_guedes2008_movement.csv":(
         "Liposcelis bostrychophila","adult female","10.1002/ps.1634","Pest Management Science",
         """metric,mean,se,unit,context
