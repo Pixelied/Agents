@@ -1,0 +1,105 @@
+name: Insect secondary empirical data expansion
+
+on:
+  push:
+    branches:
+      - feat/insect-secondary-research-expansion-20260919
+    paths:
+      - ".github/workflows/insect-secondary-data-expansion.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror-open-data:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mirror selected open empirical datasets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p empirical-data/drosophila/pratt-2024
+          mkdir -p empirical-data/drosophila/york-2022
+          mkdir -p empirical-data/drosophila/ravbar-2021
+          mkdir -p empirical-data/manifests
+
+          ua='Mozilla/5.0 insect-realism-research-mirror/1.0'
+          fetch() {
+            url="$1"
+            out="$2"
+            echo "Downloading $out"
+            curl --fail --location --retry 6 --retry-all-errors --connect-timeout 30 \
+              --user-agent "$ua" --referer 'https://datadryad.org/' \
+              --output "$out.part" "$url"
+            mv "$out.part" "$out"
+          }
+
+          fetch 'https://datadryad.org/downloads/file_stream/3361801' \
+            'empirical-data/drosophila/pratt-2024/wt_berlin_freely_walking_dataset.csv'
+          fetch 'https://datadryad.org/downloads/file_stream/3361798' \
+            'empirical-data/drosophila/pratt-2024/figure_S1_data.zip'
+          fetch 'https://datadryad.org/downloads/file_stream/3361889' \
+            'empirical-data/drosophila/pratt-2024/README.md'
+
+          fetch 'https://datadryad.org/downloads/file_stream/1914462' \
+            'empirical-data/drosophila/york-2022/all_trials_umap_layout_annotated_30hz_size10_with_louvain_clusters_and_position.RDS'
+          fetch 'https://datadryad.org/downloads/file_stream/1914563' \
+            'empirical-data/drosophila/york-2022/README.md'
+
+          fetch 'https://datadryad.org/downloads/file_stream/1216807' \
+            'empirical-data/drosophila/ravbar-2021/BehaviorConfDusted.csv'
+          fetch 'https://datadryad.org/downloads/file_stream/1216808' \
+            'empirical-data/drosophila/ravbar-2021/ethograms_dusted_flies.csv'
+          fetch 'https://datadryad.org/downloads/file_stream/1216815' \
+            'empirical-data/drosophila/ravbar-2021/README.txt'
+
+          python3 - <<'PY'
+          from pathlib import Path
+          minimums = {
+              "empirical-data/drosophila/pratt-2024/wt_berlin_freely_walking_dataset.csv": 30_000_000,
+              "empirical-data/drosophila/pratt-2024/figure_S1_data.zip": 150_000,
+              "empirical-data/drosophila/york-2022/all_trials_umap_layout_annotated_30hz_size10_with_louvain_clusters_and_position.RDS": 240_000_000,
+              "empirical-data/drosophila/ravbar-2021/BehaviorConfDusted.csv": 40_000_000,
+              "empirical-data/drosophila/ravbar-2021/ethograms_dusted_flies.csv": 12_000_000,
+          }
+          for name, minimum in minimums.items():
+              p = Path(name)
+              size = p.stat().st_size
+              print(f"{name}: {size:,} bytes")
+              if size < minimum:
+                  raise SystemExit(f"{name} unexpectedly small: {size} < {minimum}")
+          total = sum(p.stat().st_size for p in Path("empirical-data").rglob("*") if p.is_file())
+          print(f"TOTAL empirical mirror: {total:,} bytes")
+          if total < 300_000_000:
+              raise SystemExit(f"empirical mirror below 300 MB target: {total}")
+          PY
+
+          find empirical-data -type f -print0 | sort -z | xargs -0 sha256sum > empirical-data/manifests/SHA256SUMS.txt
+          find empirical-data -type f -printf '%s,%p\n' | sort -n > empirical-data/manifests/FILE_SIZES.csv
+          {
+            echo "Dryad datasets mirrored for reproducible research."
+            echo "Pratt 2024 DOI: 10.5061/dryad.mpg4f4r73"
+            echo "York 2022 DOI: 10.5061/dryad.z8w9ghxfc"
+            echo "Ravbar 2021 DOI: 10.25349/D9QW4J"
+            echo "These bytes are research inputs, not shipping assets."
+          } > empirical-data/manifests/PROVENANCE.txt
+
+      - name: Inspect mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          du -ah empirical-data | sort -h | tail -30
+          sha256sum -c empirical-data/manifests/SHA256SUMS.txt
+
+      - name: Upload empirical data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: insect-secondary-empirical-data-r2
+          path: empirical-data
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
