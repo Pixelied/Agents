@@ -1,0 +1,99 @@
+name: Insect full application packages
+"on":
+  push:
+    branches: ['feat/insect-continuation-03-q7b4']
+    paths:
+      - '.github/workflows/insect-packages-m5r2.yml'
+      - 'projects/insect-realism-desktop-app/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: insect-full-packages-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  source:
+    name: Preserve exact revision and require complete application source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      root: ${{ steps.ready.outputs.root }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export resumable history without changing source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/insect-checkpoint"
+          git bundle create "$RUNNER_TEMP/insect-checkpoint/history.bundle" --all
+          git rev-parse HEAD > "$RUNNER_TEMP/insect-checkpoint/commit.txt"
+          git ls-tree -r HEAD > "$RUNNER_TEMP/insect-checkpoint/tree.txt"
+          sha256sum "$RUNNER_TEMP/insect-checkpoint/history.bundle" > "$RUNNER_TEMP/insect-checkpoint/SHA256SUMS.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insect-continuation-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/insect-checkpoint/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Require full application, not only platform foundations
+        id: ready
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path('projects/insect-realism-desktop-app')
+          required = ['app/Cargo.lock', 'app/crates/settings/Cargo.toml', 'app/crates/simulation/Cargo.toml', 'app/crates/rendering/Cargo.toml', 'app/crates/desktop-app/Cargo.toml', 'app/assets/creature-profiles/build-input.json', 'app/assets/creature-profiles/runtime-profiles.bin', 'scripts/verify_release.py', 'scripts/verify_package.py', 'app/packaging/macos/build-dmg.sh', 'app/packaging/windows/build-msi.ps1']
+          missing = [name for name in required if not (root / name).is_file()]
+          if missing:
+              raise SystemExit('Application source publication remains incomplete: ' + ', '.join(missing))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('root=' + root.as_posix() + '\n')
+          PY
+  native:
+    name: Full application and package (${{ matrix.os }})
+    needs: source
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Preserve source line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install the checkpoint compiler
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Test complete source and construct native package
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/insect-target
+          CARGO_BUILD_JOBS: '3'
+        run: |
+          set -euo pipefail
+          python projects/insect-realism-desktop-app/scripts/verify_release.py --root projects/insect-realism-desktop-app --output "$RUNNER_TEMP/insect-native-evidence" --package
+      - name: Save native verification and package outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: insect-native-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/insect-native-evidence/
+            projects/insect-realism-desktop-app/dist/
+          if-no-files-found: error
+          retention-days: 30
+      - name: State interactive qualification boundary
+        if: always()
+        run: |
+          printf '%s\n' 'These jobs compile, test and inspect packages. They do not certify physical monitor calibration, input pass-through, native presentation performance, signing or notarization.' >> "$GITHUB_STEP_SUMMARY"
