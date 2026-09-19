@@ -1,0 +1,33 @@
+{
+  "base_commit": "a8938d4245ab43a0f48019c5a6d179693353c5ba",
+  "files": {
+    "projects/insect-realism-desktop-app/APP_EXECUTION.md": {
+      "before": null,
+      "after": "46e90b3ecb56a03e14ce69e35ca33d1b23eeb3bda51ae5354b917c955798b176"
+    },
+    "projects/insect-realism-desktop-app/app/Cargo.lock": {
+      "before": "d8ab5fba9f4b3f1cbba35485e748792f68ca9a34d2c45c393e2c062fa1cdd883",
+      "after": "121e8748ffef174c39e8b75419cc60f5f068fd892f7707b49ed09da2c2cde9ee"
+    },
+    "projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.bin": {
+      "before": "d58754a7064a10bc87cf415462dfe1ee5a48b528962fae3852ee0d3dd1dba07e",
+      "after": "ce558669b3b17d5e85282c1bc94ea8c0e34b6d86311ded3a2acc2d31552c502b"
+    },
+    "projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.report.json": {
+      "before": "45569198db7df759b8bb036f6f3e4798ef0b61b0046286b11a824a29e2306ebf",
+      "after": "b1f9b1128c9fd19dba40ba403a0d975e972f8107a818a75f57f4584f613b680f"
+    },
+    "projects/insect-realism-desktop-app/app/tools/profile-compiler/Cargo.toml": {
+      "before": "31655c8abdc840887abfcbc783d9cbceda2b6f556a002630c3784e83f748997b",
+      "after": "33b2f12952414ebc5355684dd47c52678997b3a579a9200380f077910ca5fbf0"
+    },
+    "projects/insect-realism-desktop-app/app/tools/profile-compiler/src/lib.rs": {
+      "before": "5ef8120de3a1e0c0efaee9708aa77f90ba214b3315a33cd7d1980c129f7ba2bb",
+      "after": "0891c0fff96e421eda5216066b6df4a29e5e3fb5f729778c22eba1142d2794c9"
+    },
+    "projects/insect-realism-desktop-app/app/tools/profile-compiler/tests/portable_math.rs": {
+      "before": null,
+      "after": "2edd76fb3382724083803cbd049a69a9a80fbdde505a1fb5c8ccaf076c479ed9"
+    }
+  }
+}

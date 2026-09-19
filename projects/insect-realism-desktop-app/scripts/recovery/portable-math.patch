@@ -1,0 +1,222 @@
+diff --git a/projects/insect-realism-desktop-app/APP_EXECUTION.md b/projects/insect-realism-desktop-app/APP_EXECUTION.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2f7eb503faedc5a2c88cc8f44de05a9513a77678
+--- /dev/null
++++ b/projects/insect-realism-desktop-app/APP_EXECUTION.md
+@@ -0,0 +1,59 @@
++# Insect desktop application - continued execution
++
++Approved plan: `docs/APPROVED_PLAN.md`
++Approved specification: `docs/APPROVED_DESIGN.md`
++Project: `projects/insect-realism-desktop-app`
++Branch: `feat/insect-continuation-03-q7b4`
++Continuation base: `a8938d4245ab43a0f48019c5a6d179693353c5ba`
++Worker/task: `astra-insect-resume-m5r2` / `insect-continuation-03-q7b4`
++
++## Inherited state - not restarted
++
++The authenticated GitHub Actions source bundle for run `35416400017` restored
++the existing branch and its history. Existing simulation, renderer, native
++adapters, settings, packaging, and earlier fixes are preserved. The supplied
++Continuation 02 ZIP is historical evidence, not the execution base.
++
++## Task 3 / Tasks 19-20 - portable profile compilation
++
++Status: in progress.
++
++The latest native run passed formatting, strict Clippy, Python tooling tests,
++input-probe unit tests, core release tests, controller release tests, and profile
++compilation/validation on both platforms. Exact profile reproduction failed.
++Decoded native outputs differ from the former Linux bundle in 25 near-zero
++acceleration samples per platform, at most 1.33094e-15 mm/s^2.
++
++Ruling: replace only build-time host transcendental functions with pinned
++`libm 0.2.16` software math, and version the compiled output as donor-transfer.2.
++The input snapshot, measurements, sources, units, and provenance are unchanged.
++No tolerance-based acceptance replaces the exact-byte release gate. Cost if
++wrong: a numerically different profile; bit-exact regression vectors and native
++recompilation are required before accepting it.
++
++RED: three portability regressions fail on the inherited compiler (exit 101).
++Two expose actual sample-bit differences; the third pins the complete new bundle.
++
++GREEN: all three numerical portability regressions and all 12 profile-compiler
++integration tests pass in release mode. The complete new bundle SHA-256 is
++`ce558669b3b17d5e85282c1bc94ea8c0e34b6d86311ded3a2acc2d31552c502b`.
++
++The local old/new comparison found 30 changed derived values: 17 acceleration
++and 13 turn samples. All but one differ only at near-zero floating precision.
++At `H36T001R013:leader`, original frame 8510, the turn changes from
++-9.415352821350098 to +9.415352821350098 rad/s: the two values encode opposite
++sign conventions for an approximately 180-degree sampled reversal. The input
++coordinates cannot identify the direction traversed between those observations.
++This is explicitly retained as a versioned numerical interpretation, not described
++as a byte-identical or perfectly behavior-identical reproduction of version .1.
++
++Ruling: use the pinned software kernel's half-turn sign rather than retain a
++host-dependent tie. Cost if wrong: the direction of this one interpolated donor
++turn differs; all original coordinate observations and provenance remain intact.
++
++## Remaining release qualification
++
++Native packages and full release verification must be rerun on the corrected
++source. Native interactive input, physical-size calibration, and representative
++hardware performance remain separate acceptance gates. Previous two-hour soak
++paths are absent in this runtime; their completion is not assumed.
+diff --git a/projects/insect-realism-desktop-app/app/Cargo.lock b/projects/insect-realism-desktop-app/app/Cargo.lock
+index e3974ba21ad04c1915788da02631b0c5ff933406..88f4a766601d5b4edda238620b4fa2249ed900bc 100644
+--- a/projects/insect-realism-desktop-app/app/Cargo.lock
++++ b/projects/insect-realism-desktop-app/app/Cargo.lock
+@@ -2444,6 +2444,7 @@ dependencies = [
+  "clap",
+  "creature-profile",
+  "csv",
++ "libm",
+  "serde",
+  "serde_json",
+  "sha2",
+diff --git a/projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.bin b/projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.bin
+index 3fd699397b63db67b728faa18e962105da959b9e..6fe4572bdbbf40c94ec3bd54126609b7c315e5de 100644
+GIT binary patch
+delta 373
+zcmV-*0gC>bkv^J{J}^N}R6<ElFfnR~4*&oF001I;r$eG#3@=4qIdwc?kx^gBhNHDR
+zEn+^J1<gUr_}q~&904-1O+LE=V$iv>j=OE40*$eU{agXJ{agZoI0D$rw||ua2wVbj
+zvA2ow0vZ7VxPXVH@&dP|@&i5h0%jhE<mm*5<mm;s<mm=4RRU(lw-rAJK5YW%N4Hh1
+z2O4Ao&w00T5D3^H13OPXw@fhzg%kq<_n)`aMF?UO0#+=yI9Uk$9|M+)%(pgq2u+s)
+zD<6l25DB-15DJbS0`D)k6)y_T69Zz<Ik)CQ3cFqdeZTv+q@fCk9|8uiw=Tg7`3M6J
+z1?IOZ$_g_L0xKW4U)Ktq0|PGn1GoR$3N?lTq}GQvVGFl5VGI>k15DSRw@$YVham%K
+zLG-uS*bEzc0~s8QxAs#FfgS^MSQ@u_at)<<0+T$qA?yvnA_7<ux8n{Dp&$W4hlMW=
+Tw}mec6)gj#m>IX7To3&#<Jphj
+
+delta 373
+zcmV-*0gC>bkv^J{J}^N}R6<ElFfnR~4*&oF005J;wDjk{>G%hQe|EWk7h!f@cp3I(
+ziT60$ys-~gw|J2-904)0O+LE=C(*XEj=OE40-Aw`{agXJ{agZoI0Dztw||ua2wVbW
+z;kSwL0vZ7VzG#P~@&dP|@&i5h0#1I1<mm*5<mm;s<mm=4RRUn%w-rAJK5YW*JGWJ=
+z2O4Ao!>PA%5D3^H1D?-3w@fhzg%ktnR-m`kMF?UO0!m!BI9Uk$9|QOc%eOXp2u+s)
+z5`Tw<5DB-15DJbS0_;1t6)y_T69dIiIJf3P3cFqdxW4|kq@fCk9|9jww=Tg7`3M6W
+z)#bM;$_g_L0uq0>U)Ktq0|P7q1h@a%3N?lTs=kLdVGFl5VGI>k1L;<vw@$YVham$u
+z0rj`o*bEzc14>+rxAs#FfgS_Z*ci8Zat)<<0(+ddA?yvnA_6DTx8n{Dp&$XlhlMW=
+Tw}mec6)gkR*ci8+To3&#10R@4
+
+diff --git a/projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.report.json b/projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.report.json
+index 393b4285c04cfa41e36a323602a175eac57b8864..9d16cf6149523342893c50da52f8867a0542c7ef 100644
+--- a/projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.report.json
++++ b/projects/insect-realism-desktop-app/app/assets/creature-profiles/runtime-profiles.report.json
+@@ -26,7 +26,7 @@
+   "interval_count": 53940,
+   "operational_run_count": 11138,
+   "pack_manifest_sha256": "da036b860ff32d12a2c8d659b7c456dd79ac5089492a16f236bc2e1ca6a6caaf",
+-  "profile_version": "2026.09.17-donor-transfer.1",
++  "profile_version": "2026.09.17-donor-transfer.2",
+   "provenance": {
+     "abdomen_length_fraction": {
+       "evidence": [
+@@ -824,7 +824,7 @@
+   "runtime_p95_winsorized_intervals": 2694,
+   "schema_version": 1,
+   "selected_condition": "Temnothorax rugatulus tandem-leader, first 900 seconds, every tenth original frame",
+-  "sha256": "d58754a7064a10bc87cf415462dfe1ee5a48b528962fae3852ee0d3dd1dba07e",
++  "sha256": "ce558669b3b17d5e85282c1bc94ea8c0e34b6d86311ded3a2acc2d31552c502b",
+   "source_ids": [
+     "dataset-antweb-specimen-images",
+     "dataset-valentini-2020-tandem",
+diff --git a/projects/insect-realism-desktop-app/app/tools/profile-compiler/Cargo.toml b/projects/insect-realism-desktop-app/app/tools/profile-compiler/Cargo.toml
+index ebc681b3caf4e4d47bb37fbccd7760bcf1f2a815..19109392b0cd07632b012403a86df473c42ec41c 100644
+--- a/projects/insect-realism-desktop-app/app/tools/profile-compiler/Cargo.toml
++++ b/projects/insect-realism-desktop-app/app/tools/profile-compiler/Cargo.toml
+@@ -11,5 +11,7 @@ clap.workspace = true
+ csv.workspace = true
+ sha2.workspace = true
+ thiserror.workspace = true
++# Portable build-time transcendental arithmetic; already present in Cargo.lock.
++libm = { version = "=0.2.16", default-features = false, features = ["force-soft-floats"] }
+ [dev-dependencies]
+ tempfile.workspace = true
+diff --git a/projects/insect-realism-desktop-app/app/tools/profile-compiler/src/lib.rs b/projects/insect-realism-desktop-app/app/tools/profile-compiler/src/lib.rs
+index 5270633b3c5ef28c13a337e7c893bb373546ce17..b1be8c971405de26cab795953771251ab8714054 100644
+--- a/projects/insect-realism-desktop-app/app/tools/profile-compiler/src/lib.rs
++++ b/projects/insect-realism-desktop-app/app/tools/profile-compiler/src/lib.rs
+@@ -482,12 +482,19 @@ pub fn compile(input: &InputSnapshot) -> Result<Compiled, CompileError> {
+             }
+             let dx = x - x0;
+             let dy = y - y0;
+-            let v = dx.hypot(dy) / dt;
+-            let heading = if v > 0.0 { Some(dy.atan2(dx)) } else { None };
++            // std transcendental functions use platform libm. Tiny differences
++            // survive cancellation in acceleration, breaking exact profile bytes.
++            // Pin the software implementation; do not round or discard measurements.
++            let v = libm::hypot(dx, dy) / dt;
++            let heading = if v > 0.0 {
++                Some(libm::atan2(dy, dx))
++            } else {
++                None
++            };
+             let omega = match (heading, prev_heading) {
+                 (Some(h), Some(p)) => {
+                     let d: f64 = h - p;
+-                    d.sin().atan2(d.cos()) / dt
++                    libm::atan2(libm::sin(d), libm::cos(d)) / dt
+                 }
+                 _ => {
+                     excluded_undefined_turns += 1;
+@@ -706,7 +713,7 @@ pub fn compile(input: &InputSnapshot) -> Result<Compiled, CompileError> {
+  ];
+     let bundle = RuntimeProfileBundle {
+         schema_version: 1,
+-        profile_version: "2026.09.17-donor-transfer.1".into(),
++        profile_version: "2026.09.17-donor-transfer.2".into(),
+         pack_sha256: input.pack_manifest_sha256.clone(),
+         creatures: vec![CreatureProfile {
+             id: CreatureKind("ant".into()),
+diff --git a/projects/insect-realism-desktop-app/app/tools/profile-compiler/tests/portable_math.rs b/projects/insect-realism-desktop-app/app/tools/profile-compiler/tests/portable_math.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a8209e63319b6124c4daead78a13e4407bdc0abc
+--- /dev/null
++++ b/projects/insect-realism-desktop-app/app/tools/profile-compiler/tests/portable_math.rs
+@@ -0,0 +1,46 @@
++//! Numerical portability regression vectors from the unchanged audited input.
++//! These bit patterns specify the pinned software-math compiler, not new biology.
++use profile_compiler::{compile, digest, load_input};
++use std::path::PathBuf;
++
++fn compiled() -> profile_compiler::Compiled {
++    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
++        .join("../../assets/creature-profiles/build-input.json");
++    compile(&load_input(&source).unwrap()).unwrap()
++}
++
++#[test]
++fn near_constant_speed_acceleration_is_independent_of_system_libm() {
++    let c = compiled();
++    let track = c.bundle.creatures[0]
++        .motion_tracks
++        .iter()
++        .find(|t| t.track_id == "H14T001R005:leader")
++        .unwrap();
++    let sample = &track.samples[1115];
++    assert_eq!(sample.original_frame, 11160);
++    assert_eq!(sample.acceleration_mm_s2.to_bits(), 2851320205);
++}
++
++#[test]
++fn near_straight_turn_is_independent_of_system_libm() {
++    let c = compiled();
++    let track = c.bundle.creatures[0]
++        .motion_tracks
++        .iter()
++        .find(|t| t.track_id == "H14T001R002:leader")
++        .unwrap();
++    let sample = &track.samples[1581];
++    assert_eq!(sample.original_frame, 15820);
++    assert_eq!(sample.angular_velocity_rad_s.to_bits(), 2847527010);
++}
++
++#[test]
++fn audited_snapshot_has_one_byte_identity_on_every_supported_host() {
++    let c = compiled();
++    assert_eq!(
++        digest(&c.bytes),
++        "ce558669b3b17d5e85282c1bc94ea8c0e34b6d86311ded3a2acc2d31552c502b"
++    );
++    assert_eq!(c.bundle.profile_version, "2026.09.17-donor-transfer.2");
++}
