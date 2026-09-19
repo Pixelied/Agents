@@ -1,0 +1,105 @@
+name: InsectRealism R8.1 Data Pack
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'research/insectrealism-r8-data/**'
+      - '.github/workflows/insectrealism-r8-data-pack.yml'
+  push:
+    branches:
+      - 'feat/insect-r8-data-pack-20260919'
+    paths:
+      - 'research/insectrealism-r8-data/**'
+      - '.github/workflows/insectrealism-r8-data-pack.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: research/insectrealism-r8-data/requirements.txt
+
+      - name: Install acquisition dependencies
+        run: pip install -r research/insectrealism-r8-data/requirements.txt
+
+      - name: Acquire and audit exact-species data
+        run: |
+          python research/insectrealism-r8-data/acquire_data.py \
+            --output "$RUNNER_TEMP/InsectRealism_R8_1_Data"
+
+      - name: Copy R8.1 handoff documents into package
+        run: |
+          mkdir -p "$RUNNER_TEMP/InsectRealism_R8_1_Data/00_HANDOFF"
+          cp research/insectrealism-r8-data/ASTRA_DIRECTION_CHANGE_ONLY_PROMPT.md \
+             "$RUNNER_TEMP/InsectRealism_R8_1_Data/00_HANDOFF/"
+          cp research/insectrealism-r8-data/chelifer_cancroides_optional_predator.json \
+             "$RUNNER_TEMP/InsectRealism_R8_1_Data/00_HANDOFF/"
+
+      - name: Show corpus size
+        run: |
+          du -sh "$RUNNER_TEMP/InsectRealism_R8_1_Data"
+          cat "$RUNNER_TEMP/InsectRealism_R8_1_Data/README.md"
+
+      - name: Upload booklouse corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: InsectRealism-R8.1-Liposcelis-bostrychophila
+          path: |
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/liposcelis_bostrychophila
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/MANIFEST.csv
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload German cockroach corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: InsectRealism-R8.1-Blattella-germanica
+          path: |
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/blattella_germanica
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/MANIFEST.csv
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload sawtoothed grain beetle corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: InsectRealism-R8.1-Oryzaephilus-surinamensis
+          path: |
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/oryzaephilus_surinamensis
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/MANIFEST.csv
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload optional pseudoscorpion predator corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: InsectRealism-R8.1-Chelifer-cancroides
+          path: |
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/chelifer_cancroides
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/MANIFEST.csv
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload manifests and Astra handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: InsectRealism-R8.1-Manifests-and-Astra-Handoff
+          path: |
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/README.md
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/ACQUISITION_SUMMARY.json
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/SHA256SUMS.txt
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/02_SOURCES
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/05_REFERENCE_MEDIA/MANIFEST.csv
+            ${{ runner.temp }}/InsectRealism_R8_1_Data/00_HANDOFF
+          compression-level: 6
+          retention-days: 30
