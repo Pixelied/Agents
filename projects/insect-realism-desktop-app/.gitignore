@@ -1,0 +1,11 @@
+app/target/
+app/.cargo/
+.git/
+verification/
+dist/
+*.zip
+*.bundle
+__pycache__/
+
+# The shared coordination workspace ignores runtime locks, not app dependencies.
+!app/Cargo.lock

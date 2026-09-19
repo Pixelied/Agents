@@ -5,6 +5,7 @@ name: Insect continuation - exact Cargo lock publication
     paths:
       - '.github/workflows/insect-continuation-native.yml'
       - 'projects/insect-realism-desktop-app/scripts/recovery/Cargo.lock.patch'
+      - 'projects/insect-realism-desktop-app/.gitignore'
   workflow_dispatch:
 permissions:
   contents: read
