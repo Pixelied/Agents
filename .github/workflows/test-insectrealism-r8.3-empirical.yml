@@ -1,0 +1,123 @@
+name: Test InsectRealism R8.3 Empirical Acquisition
+
+on:
+  push:
+    branches:
+      - insectrealism-r8-data
+    paths:
+      - '.github/workflows/test-insectrealism-r8.3-empirical.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  acquire-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SOURCE_BRANCH: feat/insect-r8.3-empirical-20260919
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation dependencies
+        run: pip install requests openpyxl
+
+      - name: Download and unpack validated R8.2 package
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4             "https://github.com/Pixelied/Agents/releases/download/insectrealism-r8.2-complete-20260919/InsectRealism_R8_2_COMPLETE.zip"             -o "$RUNNER_TEMP/r8.2.zip"
+          echo "a3ab0f268b201d8bc9c76465f386f3fa666dfad6bf8ccc3da1d9911353707457  $RUNNER_TEMP/r8.2.zip"             | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/r8.2.zip" -d "$RUNNER_TEMP"
+          test -d "$RUNNER_TEMP/InsectRealism_R8_2_COMPLETE/02_REFERENCE_DATA"
+
+      - name: Fetch R8.3 empirical builder from research branch
+        run: |
+          set -euo pipefail
+          BASE="https://raw.githubusercontent.com/Pixelied/Agents/$SOURCE_BRANCH/research/insectrealism-r8-data/current-r8.3"
+          curl --fail --location "$BASE/build_empirical_bundle.py" -o "$RUNNER_TEMP/build_empirical_bundle.py"
+          python -m py_compile "$RUNNER_TEMP/build_empirical_bundle.py"
+
+      - name: Build empirical-first package tree
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/InsectRealism_R8_2_COMPLETE"
+          python "$RUNNER_TEMP/build_empirical_bundle.py" "$ROOT"             | tee "$RUNNER_TEMP/r8.3-build-output.json"
+
+      - name: Audit acquired spreadsheets and data classes
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/InsectRealism_R8_2_COMPLETE"
+          python - <<'PY'
+          import csv, json, os, sys
+          from collections import Counter, defaultdict
+          from pathlib import Path
+          from openpyxl import load_workbook
+
+          root=Path(os.environ["RUNNER_TEMP"])/"InsectRealism_R8_2_COMPLETE"
+          empirical=root/"02_EMPIRICAL_DATA"
+          manifest=empirical/"EMPIRICAL_DATA_MANIFEST.csv"
+          rows=list(csv.DictReader(manifest.open(encoding="utf-8-sig",newline="")))
+          print(f"EMPIRICAL_ROWS={len(rows)}")
+          print(f"EMPIRICAL_BYTES={sum(int(r['bytes']) for r in rows)}")
+          print("CLASSES="+json.dumps(Counter(r["data_class"] for r in rows),sort_keys=True))
+          print("SPECIES="+json.dumps(Counter(r["species"] for r in rows),sort_keys=True))
+
+          # Validate workbook containers without altering original bytes.
+          workbook_rows=[]
+          errors=[]
+          for r in rows:
+              p=root/r["local_path"]
+              ext=p.suffix.lower()
+              if ext==".xlsx":
+                  try:
+                      wb=load_workbook(p,read_only=True,data_only=False)
+                      sheets=[{"name":ws.title,"rows":ws.max_row,"cols":ws.max_column} for ws in wb.worksheets]
+                      workbook_rows.append({"path":str(p.relative_to(root)),"sheets":sheets})
+                      wb.close()
+                  except Exception as e:
+                      errors.append({"path":str(p),"error":str(e)})
+              elif ext in {".csv",".tsv"}:
+                  try:
+                      with p.open("r",encoding="utf-8-sig",errors="strict") as f:
+                          next(f,None)
+                  except Exception as e:
+                      errors.append({"path":str(p),"error":str(e)})
+          (empirical/"WORKBOOK_INVENTORY.json").write_text(json.dumps(workbook_rows,indent=2)+"\n")
+          if errors:
+              print(json.dumps(errors,indent=2))
+              raise SystemExit("spreadsheet/data validation errors")
+
+          summary=json.loads((empirical/"EMPIRICAL_ACQUISITION_SUMMARY.json").read_text())
+          print("FAILURES="+json.dumps(summary.get("acquisition_failures",[]),indent=2))
+          print("VISUAL_CURATION="+json.dumps(summary.get("visual_curation",[]),indent=2))
+          PY
+
+      - name: Prepare small audit artifact
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/InsectRealism_R8_2_COMPLETE"
+          OUT="$RUNNER_TEMP/R8_3_EMPIRICAL_AUDIT"
+          mkdir -p "$OUT"
+          cp "$ROOT/02_EMPIRICAL_DATA/EMPIRICAL_DATA_MANIFEST.csv" "$OUT/"
+          cp "$ROOT/02_EMPIRICAL_DATA/EMPIRICAL_ACQUISITION_SUMMARY.json" "$OUT/"
+          cp "$ROOT/02_EMPIRICAL_DATA/ACQUISITION_FAILURES.json" "$OUT/"
+          cp "$ROOT/02_EMPIRICAL_DATA/REMOTE_ONLY_RESTRICTED.csv" "$OUT/"
+          cp "$ROOT/02_EMPIRICAL_DATA/WORKBOOK_INVENTORY.json" "$OUT/"
+          cp "$ROOT/03_REFERENCE_MEDIA/CURATION_SUMMARY.json" "$OUT/"
+          cp "$ROOT/03_REFERENCE_MEDIA/KEPT_REFERENCE_MEDIA.csv" "$OUT/"
+          cp "$ROOT/03_REFERENCE_MEDIA/DROPPED_REFERENCE_MEDIA.csv" "$OUT/"
+          cp "$RUNNER_TEMP/r8.3-build-output.json" "$OUT/"
+          du -sh "$ROOT/02_EMPIRICAL_DATA" "$ROOT/03_REFERENCE_MEDIA" | tee "$OUT/DIRECTORY_SIZES.txt"
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: InsectRealism-R8.3-Empirical-Audit
+          path: ${{ runner.temp }}/R8_3_EMPIRICAL_AUDIT
+          retention-days: 7
