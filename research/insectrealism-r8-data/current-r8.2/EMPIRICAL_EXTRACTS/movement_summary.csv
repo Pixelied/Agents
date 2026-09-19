@@ -1,0 +1,3 @@
+species,life_stage,assay,n_per_treatment,duration_s,metric,value,unit,uncertainty,source_id,evidence_class,runtime_rule
+Liposcelis bostrychophila,adult female,"10 min concrete arena, 30 C, 70% RH; insecticide-response experiment context",20,600,reported species assay mean movement speed,0.36,cm/s,±0.02 SE,R8-LIP-002,direct target species + target stage; assay-conditioned,contextual calibration only; not a universal baseline distribution
+Liposcelis entomophila,adult female,same experiment; comparator species,20,600,reported species assay mean movement speed,0.49,cm/s,±0.03 SE,R8-LIP-002,cross-species comparator,never transfer to L. bostrychophila

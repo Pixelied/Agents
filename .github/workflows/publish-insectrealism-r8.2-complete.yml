@@ -1,0 +1,278 @@
+name: Publish InsectRealism R8.2 Complete Bundle
+
+# R8.2 audited one-asset publisher; this commit intentionally triggers the already-present workflow.
+
+on:
+  push:
+    branches:
+      - feat/insect-r8-data-pack-20260919
+    paths:
+      - '.github/workflows/publish-insectrealism-r8.2-complete.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: insectrealism-r8.2-complete-20260919
+      PACKAGE_NAME: InsectRealism_R8_2_COMPLETE
+    steps:
+      - name: Check out audited R8.2 handoff branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/insect-r8-data-pack-20260919
+
+      - name: Prepare package layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/$PACKAGE_NAME"
+          COMP="$RUNNER_TEMP/components"
+          mkdir -p             "$ROOT/00_START_HERE"             "$ROOT/01_CURRENT_EVIDENCE/EMPIRICAL_EXTRACTS"             "$ROOT/02_REFERENCE_DATA"             "$ROOT/03_ACQUISITION_TOOLING"             "$ROOT/04_RELEASE_AUDIT"             "$ROOT/99_SUPERSEDED_R8_1"             "$COMP"
+
+          CUR="research/insectrealism-r8-data/current-r8.2"
+          cp "$CUR/START_HERE.md" "$ROOT/00_START_HERE/"
+          cp "$CUR/ASTRA_READ_THIS_FIRST.md" "$ROOT/00_START_HERE/"
+          cp "$CUR/CURRENT_IMPLEMENTATION_PLAN_R8_2.md" "$ROOT/00_START_HERE/"
+          cp "$CUR/QUAD_AUDIT_REPORT_R8_2.md" "$ROOT/00_START_HERE/"
+          cp "$CUR/CURRENT_SPECIES_DECISION_R8_2.md" "$ROOT/00_START_HERE/"
+
+          cp "$CUR/CURRENT_REALISTIC_MODE_GATE_R8_2.md" "$ROOT/01_CURRENT_EVIDENCE/"
+          cp "$CUR/CURRENT_UNRESOLVED_GAPS_R8_2.md" "$ROOT/01_CURRENT_EVIDENCE/"
+          cp "$CUR/CURRENT_QUALIFICATION_MATRIX_R8_2.csv" "$ROOT/01_CURRENT_EVIDENCE/"
+          cp "$CUR/SOURCE_ID_MAP_R8_2.csv" "$ROOT/01_CURRENT_EVIDENCE/"
+          cp "$CUR/chelifer_cancroides_adult_optional_predator_r8_2.json" "$ROOT/01_CURRENT_EVIDENCE/"
+          cp "$CUR/EMPIRICAL_EXTRACTS/"* "$ROOT/01_CURRENT_EVIDENCE/EMPIRICAL_EXTRACTS/"
+
+          cp research/insectrealism-r8-data/README.md "$ROOT/03_ACQUISITION_TOOLING/"
+          cp research/insectrealism-r8-data/requirements.txt "$ROOT/03_ACQUISITION_TOOLING/"
+          cp research/insectrealism-r8-data/acquire_data.py "$ROOT/03_ACQUISITION_TOOLING/"
+          cp research/insectrealism-r8-data/acquire_one.py "$ROOT/03_ACQUISITION_TOOLING/"
+          cp "$CUR/validate_complete_package.py" "$ROOT/03_ACQUISITION_TOOLING/"
+
+          cat > "$ROOT/README.md" <<'EOF'
+          # InsectRealism R8.2 COMPLETE handoff
+
+          **Start at `00_START_HERE/START_HERE.md`.**
+
+          The old implementation plan is superseded. Astra/Codex should follow
+          `00_START_HERE/CURRENT_IMPLEMENTATION_PLAN_R8_2.md` as the single current
+          implementation authority while preserving newer verified app/debugging work
+          already present in the existing workspace/chat.
+
+          The existing Argentine-ant system remains fully in scope: worker variation,
+          callows, queens, males, eggs, larvae, pupae/brood, trails/recruitment and
+          colony logic.
+
+          Added non-ant arthropods:
+          - Liposcelis bostrychophila adult;
+          - ~24 h first-instar Blattella germanica;
+          - Oryzaephilus surinamensis adult;
+          - optional rare adult Chelifer cancroides pseudoscorpion predator.
+
+          The ~1 GB corpus is primarily license-filtered exact-species visual/reference
+          media. Numerical biology is controlled by audited measurements/papers and the
+          empirical extracts, not by averaging photographs.
+          EOF
+
+      - name: Download the four validated R8.1 component artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/Pixelied/Agents/releases/download/insectrealism-r8.1-data-20260919"
+          COMP="$RUNNER_TEMP/components"
+          curl --fail --location --retry 4 "$BASE/InsectRealism-R8.1-Blattella-germanica.zip" -o "$COMP/blattella.zip"
+          curl --fail --location --retry 4 "$BASE/InsectRealism-R8.1-Liposcelis-bostrychophila.zip" -o "$COMP/liposcelis.zip"
+          curl --fail --location --retry 4 "$BASE/InsectRealism-R8.1-Oryzaephilus-surinamensis.zip" -o "$COMP/oryzaephilus.zip"
+          curl --fail --location --retry 4 "$BASE/InsectRealism-R8.1-Chelifer-cancroides.zip" -o "$COMP/chelifer.zip"
+
+          cat > "$COMP/EXPECTED_SHA256SUMS.txt" <<'EOF'
+          b18b20e205a08dddc878a3f714e51aa4621b5de6f2419e1eeaedceb24b1eca2a  blattella.zip
+          bcccd341769e02c53a2ef8d7ad9f37ae8a5e87cdb01acaad20e493242eda18c6  liposcelis.zip
+          8f18a417377e1b659d6438e17e8cb438d0b47eb49aac865ed29e170244667375  oryzaephilus.zip
+          43c268d6a9e308a19907ce9d48fe435a22e95904a5c8d3b5cf260ca9c6e34012  chelifer.zip
+          EOF
+          (cd "$COMP" && sha256sum -c EXPECTED_SHA256SUMS.txt)
+          cp "$COMP/EXPECTED_SHA256SUMS.txt" "$RUNNER_TEMP/$PACKAGE_NAME/04_RELEASE_AUDIT/COMPONENT_ARTIFACT_SHA256S.txt"
+
+      - name: Expand component ZIPs without nesting duplicate ZIPs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/$PACKAGE_NAME"
+          COMP="$RUNNER_TEMP/components"
+
+          unpack() {
+            local zip="$1"
+            local slug="$2"
+            local dest="$ROOT/02_REFERENCE_DATA/$slug"
+            mkdir -p "$dest"
+            unzip -q "$COMP/$zip" -d "$dest"
+            if [ -d "$dest/InsectRealism_R8_1_Data" ]; then
+              shopt -s dotglob nullglob
+              mv "$dest/InsectRealism_R8_1_Data/"* "$dest/"
+              rmdir "$dest/InsectRealism_R8_1_Data"
+              shopt -u dotglob nullglob
+            fi
+            rm -rf "$dest/00_HANDOFF"
+            test -f "$dest/ACQUISITION_SUMMARY.json"
+            test -f "$dest/SHA256SUMS.txt"
+            test -f "$dest/05_REFERENCE_MEDIA/MANIFEST.csv"
+            (cd "$dest" && sha256sum -c SHA256SUMS.txt > "$RUNNER_TEMP/$slug-sha-check.log")
+            tail -n 3 "$RUNNER_TEMP/$slug-sha-check.log"
+          }
+
+          unpack blattella.zip blattella_germanica
+          unpack liposcelis.zip liposcelis_bostrychophila
+          unpack oryzaephilus.zip oryzaephilus_surinamensis
+          unpack chelifer.zip chelifer_cancroides
+
+      - name: Preserve R8.1 release metadata as superseded history
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/Pixelied/Agents/releases/download/insectrealism-r8.1-data-20260919"
+          HIST="$RUNNER_TEMP/$PACKAGE_NAME/99_SUPERSEDED_R8_1"
+          curl --fail --location --retry 4 "$BASE/ASTRA_DIRECTION_CHANGE_ONLY_PROMPT.md" -o "$HIST/ASTRA_DIRECTION_CHANGE_ONLY_PROMPT_R8_1_SUPERSEDED.md"
+          curl --fail --location --retry 4 "$BASE/chelifer_cancroides_optional_predator.json" -o "$HIST/chelifer_cancroides_optional_predator_R8_1_SUPERSEDED.json"
+          curl --fail --location --retry 4 "$BASE/DATA_TOTALS.md" -o "$HIST/DATA_TOTALS_R8_1.md"
+          curl --fail --location --retry 4 "$BASE/RELEASE_SHA256SUMS.txt" -o "$HIST/RELEASE_SHA256SUMS_R8_1.txt"
+          cat > "$HIST/README.md" <<'EOF'
+          # Superseded R8.1 handoff material
+
+          These files are retained only because the complete package preserves the
+          previous release provenance. **Do not use the R8.1 direction-change prompt
+          as implementation authority.** The current R8.2 plan in 00_START_HERE
+          incorporates that change directly and supersedes the older plan/prompt pair.
+          EOF
+
+      - name: Compile-check and run final fail-closed quad validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/$PACKAGE_NAME"
+          python -m py_compile "$ROOT/03_ACQUISITION_TOOLING/validate_complete_package.py"
+          python "$ROOT/03_ACQUISITION_TOOLING/validate_complete_package.py" "$ROOT"             | tee "$ROOT/04_RELEASE_AUDIT/VALIDATOR_OUTPUT.json"
+
+      - name: Record package tree and final internal checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/$PACKAGE_NAME"
+          cat > "$ROOT/04_RELEASE_AUDIT/PACKAGING_NOTE.md" <<'EOF'
+          # Packaging note
+
+          The earlier R8.1 GitHub Release stored the four species corpora as separate
+          ZIP assets. This final R8.2 package expands those ZIPs into
+          `02_REFERENCE_DATA/` rather than nesting the original ZIPs inside another
+          ZIP, which would roughly double the download size for no scientific value.
+
+          Exact SHA-256 values of the four source ZIP assets are preserved in
+          `COMPONENT_ARTIFACT_SHA256S.txt`. Their internal `SHA256SUMS.txt` files
+          were verified again before the final package was built.
+
+          The old R8.1 small handoff files are retained under `99_SUPERSEDED_R8_1/`
+          for provenance only. The R8.2 implementation plan is the sole current
+          implementation authority.
+          EOF
+
+          find "$ROOT" -type f             ! -name FILE_INDEX.tsv             ! -name CONSOLIDATED_SHA256SUMS.txt             -printf '%P\t%s bytes\n' | sort             > "$ROOT/04_RELEASE_AUDIT/FILE_INDEX.tsv"
+
+          find "$ROOT" -type f             ! -path "$ROOT/04_RELEASE_AUDIT/CONSOLIDATED_SHA256SUMS.txt"             -print0 | sort -z | xargs -0 sha256sum             | sed "s#  $ROOT/#  #"             > "$ROOT/04_RELEASE_AUDIT/CONSOLIDATED_SHA256SUMS.txt"
+
+          du -sh "$ROOT"
+          wc -l "$ROOT/04_RELEASE_AUDIT/FILE_INDEX.tsv"
+
+      - name: Build one consolidated ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          ZIP="$RUNNER_TEMP/$PACKAGE_NAME.zip"
+          rm -f "$ZIP"
+          zip -0 -q -r "$ZIP" "$PACKAGE_NAME"
+          BYTES="$(stat -c%s "$ZIP")"
+          test "$BYTES" -gt 1000000000
+          test "$BYTES" -lt 1900000000
+          SHA="$(sha256sum "$ZIP" | awk '{print $1}')"
+          printf '%s  %s.zip\n' "$SHA" "$PACKAGE_NAME" > "$RUNNER_TEMP/MEGA_ZIP_SHA256.txt"
+          echo "ZIP_BYTES=$BYTES" >> "$GITHUB_ENV"
+          echo "ZIP_SHA256=$SHA" >> "$GITHUB_ENV"
+          ls -lh "$ZIP"
+          cat "$RUNNER_TEMP/MEGA_ZIP_SHA256.txt"
+
+      - name: Publish one-asset R8.2 GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/$PACKAGE_NAME.zip"
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          cat > "$NOTES" <<EOF
+          # InsectRealism R8.2 — COMPLETE research/data/implementation handoff
+
+          **One download. One current implementation plan.**
+
+          The older implementation plan + R8.1 direction-change-note workflow is
+          superseded. Astra/Codex should open `00_START_HERE/START_HERE.md` and use
+          `00_START_HERE/CURRENT_IMPLEMENTATION_PLAN_R8_2.md` as the single current
+          implementation authority.
+
+          The existing **Linepithema humile** system remains fully in scope, including
+          worker size/morphology variation, callows, queens, males, eggs, larvae,
+          pupae/brood, trail/pheromone behavior, recruitment and colony logic.
+
+          New non-ant set:
+          - adult Liposcelis bostrychophila;
+          - ~24 h first-instar Blattella germanica;
+          - adult Oryzaephilus surinamensis;
+          - optional rare adult Chelifer cancroides pseudoscorpion predator.
+
+          Validated exact-species visual/reference corpus:
+          **1,378 media files / 1,047,195,171 raw bytes**.
+
+          The large corpus is primarily visual/reference evidence, not a 1 GB
+          trajectory dataset. Numerical calibration remains controlled by the audited
+          papers and empirical extracts.
+
+          Final ZIP size: **$ZIP_BYTES bytes**
+          Final ZIP SHA-256: `$ZIP_SHA256`
+
+          Build validation: **PASS** (scientific/evidence gates, plan authority,
+          component SHA-256, per-file component checksums, manifests, licenses,
+          total bytes/counts, CSV/JSON parse, cross-corpus duplicate-hash check).
+          EOF
+
+          if gh release view "$TAG" --repo Pixelied/Agents >/dev/null 2>&1; then
+            gh api "repos/Pixelied/Agents/releases/tags/$TAG" --jq '.assets[].id'               | while read -r id; do
+                  [ -n "$id" ] && gh api -X DELETE "repos/Pixelied/Agents/releases/assets/$id"
+                done
+            gh release upload "$TAG" "$ZIP" --repo Pixelied/Agents
+            gh release edit "$TAG" --repo Pixelied/Agents               --title "InsectRealism R8.2 — COMPLETE ~1 GB Research + Current Plan"               --notes-file "$NOTES"
+          else
+            gh release create "$TAG" "$ZIP"               --repo Pixelied/Agents               --target "$GITHUB_SHA"               --title "InsectRealism R8.2 — COMPLETE ~1 GB Research + Current Plan"               --notes-file "$NOTES"
+          fi
+
+      - name: Verify published release has exactly one complete asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          JSON="$(gh api "repos/Pixelied/Agents/releases/tags/$TAG")"
+          COUNT="$(jq '.assets | length' <<<"$JSON")"
+          NAME="$(jq -r '.assets[0].name' <<<"$JSON")"
+          SIZE="$(jq -r '.assets[0].size' <<<"$JSON")"
+          DIGEST="$(jq -r '.assets[0].digest' <<<"$JSON")"
+          URL="$(jq -r '.html_url' <<<"$JSON")"
+          test "$COUNT" -eq 1
+          test "$NAME" = "$PACKAGE_NAME.zip"
+          test "$SIZE" -eq "$ZIP_BYTES"
+          test "$DIGEST" = "sha256:$ZIP_SHA256"
+          echo "Release: $URL"
+          echo "Asset: $NAME"
+          echo "Bytes: $SIZE"
+          echo "Digest: $DIGEST"

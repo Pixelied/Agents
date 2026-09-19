@@ -1,0 +1,57 @@
+{
+  "species": "Blattella germanica",
+  "life_stage": "first instar, ~24 h old",
+  "qualification": "wave1_research_ready",
+  "physical": {
+    "body_length_mm": 3.0,
+    "body_width_mm": 2.0,
+    "antenna_length_mm": 3.0,
+    "source": "BLA-001",
+    "basis": "Measurement"
+  },
+  "movement": {
+    "central_speed_mm_s": 11.0,
+    "peripheral_speed_mm_s": 10.6,
+    "central_stop_hazard_s_inv": 0.03,
+    "peripheral_stop_hazard_s_inv": 0.08,
+    "peripheral_exit_hazard_s_inv": 0.12,
+    "transport_mean_free_path_mm": 23.2,
+    "peripheral_departure_angle_lognormal": {
+      "geometric_mean_deg": 36.6,
+      "geometric_sd": 2.14
+    },
+    "stop_mixture": {
+      "short_state_probability": 0.93,
+      "short_mean_s": 5.87,
+      "long_mean_s": 700.0
+    },
+    "wall_follow_threshold_mm": 5.0,
+    "stop_definition": {
+      "max_displacement_mm_between_samples": 0.1,
+      "min_duration_s": 1.36
+    },
+    "observed_sampling_s": 0.68,
+    "paper_model_dt_s": 0.2,
+    "source": "BLA-001"
+  },
+  "spatial_behavior": {
+    "moving_time_peripheral_fraction_approx": 0.5,
+    "stopping_time_peripheral_fraction_approx": 0.8,
+    "ipsilateral_antenna_wall_contact": true,
+    "source": "BLA-001"
+  },
+  "turning": {
+    "adult_species_reference": "Outside legs larger arcs; inside legs compensate by greater flexion/extension. Use only as qualitative species-level renderer prior until nymph gait is extracted.",
+    "source": "BLA-003",
+    "basis": "DifferentLifeStageReference"
+  },
+  "hard_gaps": [
+    "First-instar high-speed leg-phase/stance dataset not located.",
+    "Neighbor-density aggregation response needs exact curve extraction before social arrest is enabled in Realistic mode."
+  ],
+  "audit": {
+    "version": "R3",
+    "status": "verified_core_model",
+    "note": "BLA-001 is exact ~24 h first-instar evidence; BLA-003 is adult-male qualitative turning reference only."
+  }
+}

@@ -1,0 +1,22 @@
+measurement,mm,basis,px_at_96ppi,px_at_110ppi,px_at_144ppi,px_at_220ppi
+Liposcelis bostrychophila body min,0.96,direct species diagnostic,3.63,4.16,5.44,8.31
+Liposcelis bostrychophila body max,1.15,direct species diagnostic,4.35,4.98,6.52,9.96
+Blattella germanica first-instar body,3.0,direct exact stage,11.34,12.99,17.01,25.98
+Blattella germanica first-instar fore-aft envelope,6.0,"derived: body + one forward 3 mm antenna; posture dependent, not measured span",22.68,25.98,34.02,51.97
+Oryzaephilus surinamensis body low,2.0,context lower bound,7.56,8.66,11.34,17.32
+Oryzaephilus surinamensis Purdue adult,2.5,direct extension value,9.45,10.83,14.17,21.65
+Oryzaephilus surinamensis body high,3.0,common contextual upper body value,11.34,12.99,17.01,25.98
+Oryzaephilus exemplar fore-aft,3.35,derived from 2.70 mm body + 0.65 mm antenna exemplar; context only,12.66,14.51,18.99,29.02
+Chelifer cancroides body min,2.13,direct adult observed minimum,8.05,9.22,12.08,18.45
+Chelifer cancroides body mean,3.09,direct adult mean n=10,11.68,13.38,17.52,26.76
+Chelifer cancroides body max,3.84,direct adult observed maximum,14.51,16.63,21.77,33.26
+Chelifer cancroides total span low,7.0,independent extended-pedipalp contextual span,26.46,30.31,39.69,60.63
+Chelifer cancroides total span high,9.0,independent extended-pedipalp contextual span,34.02,38.98,51.02,77.95
+Willowsia nigromaculata body low,1.51,direct examined material,5.71,6.54,8.56,13.08
+Willowsia nigromaculata body high,1.85,direct examined material,6.99,8.01,10.49,16.02
+Gibbium psylloides body low,1.7,direct/context,6.43,7.36,9.64,14.72
+Gibbium psylloides body high,3.2,direct/context,12.09,13.86,18.14,27.72
+Bryobia praetiosa body low,0.75,context,2.83,3.25,4.25,6.5
+Bryobia praetiosa body high,0.85,context,3.21,3.68,4.82,7.36
+Lepisma saccharinum body low,7.0,context,26.46,30.31,39.69,60.63
+Scutigera coleoptrata body low,25.0,context,94.49,108.27,141.73,216.54

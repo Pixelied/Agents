@@ -1,0 +1,76 @@
+name: InsectRealism R8.1 Data Pack
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'research/insectrealism-r8-data/**'
+      - '.github/workflows/insectrealism-r8-data-pack.yml'
+  push:
+    branches:
+      - 'feat/insect-r8-data-pack-20260919'
+    paths:
+      - 'research/insectrealism-r8-data/**'
+      - '.github/workflows/insectrealism-r8-data-pack.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  acquire:
+    name: Acquire ${{ matrix.species }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - species: Liposcelis bostrychophila
+            artifact: InsectRealism-R8.1-Liposcelis-bostrychophila
+          - species: Blattella germanica
+            artifact: InsectRealism-R8.1-Blattella-germanica
+          - species: Oryzaephilus surinamensis
+            artifact: InsectRealism-R8.1-Oryzaephilus-surinamensis
+          - species: Chelifer cancroides
+            artifact: InsectRealism-R8.1-Chelifer-cancroides
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: research/insectrealism-r8-data/requirements.txt
+
+      - name: Install acquisition dependencies
+        run: pip install -r research/insectrealism-r8-data/requirements.txt
+
+      - name: Acquire and audit exact-species data
+        run: |
+          python research/insectrealism-r8-data/acquire_one.py \
+            --species "${{ matrix.species }}" \
+            --output "$RUNNER_TEMP/InsectRealism_R8_1_Data"
+
+      - name: Add R8.1 handoff documents
+        run: |
+          mkdir -p "$RUNNER_TEMP/InsectRealism_R8_1_Data/00_HANDOFF"
+          cp research/insectrealism-r8-data/ASTRA_DIRECTION_CHANGE_ONLY_PROMPT.md \
+             "$RUNNER_TEMP/InsectRealism_R8_1_Data/00_HANDOFF/"
+          cp research/insectrealism-r8-data/chelifer_cancroides_optional_predator.json \
+             "$RUNNER_TEMP/InsectRealism_R8_1_Data/00_HANDOFF/"
+
+      - name: Report actual corpus size
+        run: |
+          du -sh "$RUNNER_TEMP/InsectRealism_R8_1_Data"
+          cat "$RUNNER_TEMP/InsectRealism_R8_1_Data/README.md"
+
+      - name: Upload species corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/InsectRealism_R8_1_Data
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
