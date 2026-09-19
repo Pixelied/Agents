@@ -72,8 +72,18 @@ def get(url: str, **kwargs):
     for attempt in range(5):
         try:
             r = S.get(url, timeout=(20, 180), allow_redirects=True, **kwargs)
+            # Hard client errors are not transient. Record them once instead of
+            # wasting repeated minutes on a blocked/dead repository endpoint.
+            if 400 <= r.status_code < 500 and r.status_code != 429:
+                r.raise_for_status()
             r.raise_for_status()
             return r
+        except requests.HTTPError as e:
+            last = e
+            status = getattr(e.response, "status_code", None)
+            if status is not None and 400 <= status < 500 and status != 429:
+                break
+            time.sleep(min(16, 2 ** attempt))
         except Exception as e:
             last = e
             time.sleep(min(16, 2 ** attempt))
