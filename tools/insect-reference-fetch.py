@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import subprocess
+import time
 from pathlib import Path
 from urllib.parse import quote, urljoin
 
@@ -72,13 +73,28 @@ def commons(filename: str, out: str, species: str, stage: str, view: str,
             author: str, license_name: str, license_url: str,
             intended_use: str, authority: str) -> None:
     source = "https://commons.wikimedia.org/wiki/File:" + quote(filename.replace(" ", "_"))
-    direct = "https://commons.wikimedia.org/wiki/Special:Redirect/file/" + quote(filename)
     path = ROOT / out
     try:
+        api = "https://commons.wikimedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "format": "json",
+            "prop": "imageinfo",
+            "iiprop": "url",
+            "iiurlwidth": "1400",
+            "titles": "File:" + filename,
+        }
+        response = session.get(api, params=params, timeout=60)
+        response.raise_for_status()
+        data = response.json()
+        page = next(iter(data["query"]["pages"].values()))
+        info = page["imageinfo"][0]
+        direct = info.get("thumburl") or info["url"]
         download(direct, path)
         add(path, species, stage, view, source, author, license_name, license_url,
             intended_use, authority,
             "R3 audited measurements remain authoritative for physical scale.")
+        time.sleep(1.0)
     except Exception as e:
         warnings.append(f"Commons {filename}: {e}")
 
@@ -157,20 +173,35 @@ def cdc_phil(pid: int, out: str, species: str, stage: str, view: str,
     page = f"https://wwwn.cdc.gov/phil/Details.aspx?pid={pid}"
     path = ROOT / out
     try:
-        html = session.get(page, timeout=60).text
-        soup = BeautifulSoup(html, "html.parser")
-        link = None
-        for a in soup.find_all("a", href=True):
-            text = " ".join(a.stripped_strings).lower()
-            if "hi-resolution" in text or "high resolution" in text:
-                link = urljoin(page, a["href"])
-                break
-        if not link:
-            raise RuntimeError("high-resolution link not found")
-        download(link, path)
+        response = session.get(page, timeout=60)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        candidates = []
+        for tag in soup.find_all(["img", "source"]):
+            raw = tag.get("src") or tag.get("data-src") or tag.get("srcset")
+            if not raw:
+                continue
+            raw = raw.split(",")[0].strip().split(" ")[0]
+            url = urljoin(page, raw)
+            low = url.lower()
+            if any(x in low for x in ["logo", "icon", "spinner", "sprite", "blank"]):
+                continue
+            try:
+                img = session.get(url, timeout=60)
+                ctype = img.headers.get("content-type", "")
+                if img.ok and ctype.startswith("image/") and len(img.content) > 20000:
+                    candidates.append((len(img.content), url, img.content))
+            except Exception:
+                pass
+        if not candidates:
+            raise RuntimeError("no usable displayed image found")
+        candidates.sort(reverse=True)
+        _, chosen, content = candidates[0]
+        path.write_bytes(content)
         add(path, species, stage, view, page, "CDC", "Public domain",
             "https://creativecommons.org/publicdomain/mark/1.0/",
-            use, authority, "PHIL page states Copyright Restrictions: None.")
+            use, authority,
+            "PHIL detail page states Copyright Restrictions: None; local copy is the largest displayed source image.")
     except Exception as e:
         warnings.append(f"CDC PHIL {pid}: {e}")
 
@@ -194,6 +225,50 @@ CDC = [
 ]
 for args in CDC:
     cdc_phil(*args)
+
+def antweb_specimen(specimen: str, form: str, out_dir: str) -> None:
+    page = f"https://www.antweb.org/specimen.do?code={specimen.lower()}"
+    directory = ROOT / out_dir
+    try:
+        response = session.get(page, timeout=60)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        candidates = []
+        seen = set()
+        for tag in soup.find_all("img"):
+            raw = tag.get("src") or tag.get("data-src")
+            if not raw:
+                continue
+            url = urljoin(page, raw)
+            if url in seen:
+                continue
+            seen.add(url)
+            low = url.lower()
+            if any(x in low for x in ["logo", "icon", "banner", "loading", "map"]):
+                continue
+            try:
+                img = session.get(url, timeout=60)
+                ctype = img.headers.get("content-type", "")
+                if img.ok and ctype.startswith("image/") and len(img.content) > 30000:
+                    candidates.append((len(img.content), url, img.content))
+            except Exception:
+                pass
+        candidates.sort(reverse=True)
+        for i, (_, url, content) in enumerate(candidates[:3], 1):
+            path = directory / f"{form}_{specimen}_{i}.jpg"
+            path.write_bytes(content)
+            add(path, "Linepithema humile", form, "AntWeb specimen image", page,
+                "AntWeb photographer / specimen record", "CC BY 4.0",
+                "https://creativecommons.org/licenses/by/4.0/",
+                f"{form} geometry reference", "HIGH",
+                "Exact target species/form; measured R3 dimensions remain physical-scale authority.")
+        if not candidates:
+            warnings.append(f"AntWeb {form} {specimen}: no downloadable specimen image discovered")
+    except Exception as e:
+        warnings.append(f"AntWeb {form} {specimen}: {e}")
+
+antweb_specimen("CASENT0246288", "queen", "ants/linepithema_humile/queen")
+antweb_specimen("CASENT0724858", "male", "ants/linepithema_humile/male")
 
 paper_url = "https://www.scielo.cl/pdf/bres/v43n1/art04.pdf"
 pdf = ROOT / "source-pdfs/solis_2010_linepithema_immatures.pdf"
