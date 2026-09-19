@@ -177,9 +177,18 @@ def download(url: str, dest: Path):
     return ct
 
 def manifest_row(rows, species, stage, study, doi, repo, data_class, directness, license_, path, source_url, contents, intended):
+    path=Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"empirical manifest target does not exist: {path}")
+    parts=path.parts
+    if "02_EMPIRICAL_DATA" in parts:
+        i=parts.index("02_EMPIRICAL_DATA")
+        local_path=str(Path(*parts[i:]))
+    else:
+        local_path=str(path)
     rows.append({
         "species":species,"life_stage_or_form":stage,"study":study,"doi":doi,"repository_or_publisher":repo,
-        "data_class":data_class,"directness":directness,"license_or_reuse":license_,"local_path":str(path),
+        "data_class":data_class,"directness":directness,"license_or_reuse":license_,"local_path":local_path,
         "bytes":path.stat().st_size,"sha256":sha256(path),"source_url":source_url,
         "variables_or_contents":contents,"intended_implementation_use":intended
     })
@@ -321,7 +330,7 @@ def dryad_download(species, doi, data_class, use, outroot, rows, failures):
             p=ddir/safe_name(Path(name).name)
             download(url,p)
             manifest_row(rows,species,"study-specific",f"Dryad dataset {doi}",doi,"Dryad",data_class,
-                         "direct target species; stage/form as documented inside dataset",str(lic),p.relative_to(outroot.parent),
+                         "direct target species; stage/form as documented inside dataset",str(lic),p,
                          url,use,use)
     except Exception as e:
         failures.append({"source":"Dryad","species":species,"id":doi,"error":str(e)})
@@ -338,7 +347,7 @@ def zenodo_download(species, record, data_class, use, outroot, rows, failures):
             p=ddir/safe_name(item.get("key") or item.get("name") or "file")
             download(url,p)
             manifest_row(rows,species,"mixed exact-species stages",f"Zenodo record {record}",doi,"Zenodo",data_class,
-                         "direct target species; stage/form documented per sheet",lic,p.relative_to(outroot.parent),url,use,use)
+                         "direct target species; stage/form documented per sheet",lic,p,url,use,use)
     except Exception as e:
         failures.append({"source":"Zenodo","species":species,"id":record,"error":str(e)})
 
@@ -368,7 +377,7 @@ def pmc_download(species, pmcid, patterns, data_class, use, outroot, rows, failu
             for src in matches:
                 dst=ddir/safe_name(src.name); dst.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(src,dst)
                 manifest_row(rows,species,"study-specific",f"PMC Open Access article {pmcid}",pmcid,"PubMed Central",data_class,
-                             "direct target species; exact stage/form varies by file",license_,dst.relative_to(outroot.parent),
+                             "direct target species; exact stage/form varies by file",license_,dst,
                              href,use,use)
     except Exception as e:
         failures.append({"source":"PMC","species":species,"id":pmcid,"error":str(e)})
@@ -390,7 +399,7 @@ def edmond_download(species, doi, data_class, use, outroot, rows, failures):
             p=ddir/safe_name(name); download(url,p)
             manifest_row(rows,species,"study-specific",f"Edmond dataset {doi}",doi,"Edmond / Max Planck Society",
                          data_class,"direct target species; stage/form documented per file",str(lic),
-                         p.relative_to(outroot.parent),url,use,use)
+                         p,url,use,use)
     except Exception as e:
         failures.append({"source":"Edmond","species":species,"id":doi,"error":str(e)})
 
@@ -421,7 +430,7 @@ def mendeley_download(species, dsid, version, data_class, use, outroot, rows, fa
             p=ddir/safe_name(name); download(url,p)
             manifest_row(rows,species,"study-specific",f"Mendeley Data {dsid} v{version}",f"10.17632/{dsid}.{version}",
                          "Mendeley Data",data_class,"direct target species","CC BY 4.0",
-                         p.relative_to(outroot.parent),url,use,use)
+                         p,url,use,use)
     except Exception as e:
         failures.append({"source":"Mendeley","species":species,"id":dsid,"error":str(e)})
 
@@ -528,7 +537,7 @@ paper_model_dt,0.2,s
         p=agg/fname; p.write_text(text,encoding="utf-8")
         manifest_row(rows,species,stage,f"Published aggregate extract {doi}",doi,publisher,
                      "published_aggregate_extract","direct target species/stage as stated; aggregate not raw observations",
-                     "factual numerical extract; source publication terms apply",p.relative_to(outroot.parent),
+                     "factual numerical extract; source publication terms apply",p,
                      "https://doi.org/"+doi,"published numerical values transcribed into machine-readable CSV",
                      "calibration/gating where raw observations were not publicly released")
 
