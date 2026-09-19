@@ -1,0 +1,13 @@
+locomotion,dependent_variable,equation,r_squared,evidence_class,source
+forward,swing_phase_duration_s,"y=0.07*x^-0.27",0.31,published_direct_regression,10.1242/jeb.243930
+backward,swing_phase_duration_s,"y=0.04*x^-0.04",0.01,published_direct_regression,10.1242/jeb.243930
+upside_down,swing_phase_duration_s,"y=0.05*x^-0.23",0.67,published_direct_regression,10.1242/jeb.243930
+forward,stance_phase_duration_s,"y=0.16*x^-0.62",0.71,published_direct_regression,10.1242/jeb.243930
+backward,stance_phase_duration_s,"y=0.11*x^-0.49",0.60,published_direct_regression,10.1242/jeb.243930
+upside_down,stance_phase_duration_s,"y=0.42*x^-0.83",0.87,published_direct_regression,10.1242/jeb.243930
+forward,relative_stride_length,"y=0.04*x+1.91",0.12,published_direct_regression,10.1242/jeb.243930
+backward,relative_stride_length,"y=0.05*x+2.08",0.23,published_direct_regression,10.1242/jeb.243930
+upside_down,relative_stride_length,"y=0.17*x+1.14",0.71,published_direct_regression,10.1242/jeb.243930
+forward,stride_frequency_hz,"y=4.14*x^0.49",0.61,published_direct_regression,10.1242/jeb.243930
+backward,stride_frequency_hz,"y=5.81*x^0.34",0.41,published_direct_regression,10.1242/jeb.243930
+upside_down,stride_frequency_hz,"y=2.21*x^0.75",0.96,published_direct_regression,10.1242/jeb.243930
