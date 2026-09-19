@@ -1,0 +1,18 @@
+parameter,value,unit,evidence_class,life_stage,source,notes
+body_length,3.0,mm,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,"excluding antennae"
+body_width,2.0,mm,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+antenna_length,3.0,mm,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+central_speed,11.0,mm/s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+peripheral_speed,10.6,mm/s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+central_stop_hazard,0.03,1/s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+peripheral_stop_hazard,0.08,1/s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+peripheral_exit_hazard,0.12,1/s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+transport_mean_free_path,23.2,mm,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+departure_angle_lognormal_geometric_mean,36.6,deg,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+departure_angle_lognormal_geometric_sd,2.14,ratio,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+short_stop_state_probability,0.93,probability,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+short_stop_mean,5.87,s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+long_stop_mean,700,s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+peripheral_wall_threshold,5,mm,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+observed_sampling_interval,0.68,s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
+paper_model_dt,0.2,s,published_direct_model_parameter,"~24 h first instar",10.1016/S0022-5193(03)00277-7,
