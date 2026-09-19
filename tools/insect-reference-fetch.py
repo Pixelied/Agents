@@ -44,11 +44,21 @@ def digest(path: Path) -> str:
     return h.hexdigest()
 
 def download(url: str, path: Path, min_bytes: int = 1000) -> None:
-    r = session.get(url, timeout=120, allow_redirects=True)
-    r.raise_for_status()
-    path.write_bytes(r.content)
-    if path.stat().st_size < min_bytes:
-        raise RuntimeError(f"{path} too small: {path.stat().st_size} bytes")
+    last = None
+    for attempt in range(6):
+        r = session.get(url, timeout=120, allow_redirects=True)
+        last = r
+        if r.status_code == 429:
+            time.sleep(4 + attempt * 4)
+            continue
+        r.raise_for_status()
+        path.write_bytes(r.content)
+        if path.stat().st_size < min_bytes:
+            raise RuntimeError(f"{path} too small: {path.stat().st_size} bytes")
+        return
+    if last is not None:
+        last.raise_for_status()
+    raise RuntimeError("download retry budget exhausted")
 
 def add(path: Path, species: str, stage: str, view: str, source_page: str,
         author: str, license_name: str, license_url: str,
@@ -81,10 +91,19 @@ def commons(filename: str, out: str, species: str, stage: str, view: str,
             "format": "json",
             "prop": "imageinfo",
             "iiprop": "url",
-            "iiurlwidth": "1400",
+            "iiurlwidth": "500",
             "titles": "File:" + filename,
         }
-        response = session.get(api, params=params, timeout=60)
+        response = None
+        for attempt in range(6):
+            response = session.get(api, params=params, timeout=60)
+            if response.status_code == 429:
+                time.sleep(4 + attempt * 4)
+                continue
+            response.raise_for_status()
+            break
+        if response is None:
+            raise RuntimeError("Commons API returned no response")
         response.raise_for_status()
         data = response.json()
         page = next(iter(data["query"]["pages"].values()))
