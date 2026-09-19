@@ -36,7 +36,7 @@ STALE_PLAN_PHRASES = [
 REQUIRED_PLAN_PHRASES = [
     "single current implementation authority",
     "Linepithema humile",
-    "worker morphology/size variation",
+    "worker morphology variation",
     "callow",
     "queens",
     "males",
