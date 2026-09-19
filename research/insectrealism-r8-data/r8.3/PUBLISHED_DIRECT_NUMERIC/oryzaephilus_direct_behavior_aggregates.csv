@@ -1,0 +1,12 @@
+study,condition,metric,value,se,unit,n,duration_s,evidence_class,source
+Mowery_2004,Cello,distance,104.4,3.9,cm,76,300,published_direct_aggregate,10.1603/0046-225X-33.1.75
+Mowery_2004,Cello,velocity,3.49,0.13,mm/s,76,300,published_direct_aggregate,10.1603/0046-225X-33.1.75
+Mowery_2004,120_AB-X,distance,81.9,3.4,cm,76,300,published_direct_aggregate,10.1603/0046-225X-33.1.75
+Mowery_2004,120_AB-X,velocity,2.74,0.11,mm/s,76,300,published_direct_aggregate,10.1603/0046-225X-33.1.75
+Kavallieratos_2024,untreated_control,walking_time,532.3,38.9,s,30,900,published_direct_aggregate,10.1002/ps.8262
+Kavallieratos_2024,untreated_control,stops_count,6.5,1.2,count,30,900,published_direct_aggregate,10.1002/ps.8262
+Kavallieratos_2024,untreated_control,total_stopping_time,145.7,29.7,s,30,900,published_direct_aggregate,10.1002/ps.8262
+Kavallieratos_2024,untreated_control,climbing_count,10.8,8.6,count,30,900,published_direct_aggregate,10.1002/ps.8262
+Kavallieratos_2024,untreated_control,climbing_time,209.4,29.4,s,30,900,published_direct_aggregate,10.1002/ps.8262
+Kavallieratos_2024,untreated_control,upturned_count,0.9,0.29,count,30,900,published_direct_aggregate,10.1002/ps.8262
+Kavallieratos_2024,untreated_control,upturned_time,0.1,0.1,s,30,900,published_direct_aggregate,10.1002/ps.8262
