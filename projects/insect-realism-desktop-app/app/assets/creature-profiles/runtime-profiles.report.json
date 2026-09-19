@@ -1,0 +1,868 @@
+{
+  "creature_ids": [
+    "ant"
+  ],
+  "donor_speed_median_recomputed": 2.5430388278593483,
+  "input_files": {
+    "00_MASTER_INDEX/DATASET_MANIFEST.json": "60bd283fe44d458850c8157fc76137a6d2440554d874330503c56f68b41e13ac",
+    "00_MASTER_INDEX/LICENSE_MANIFEST.csv": "229ca1af53fc939b35e3b8efad5c3272b066933b4e9c986b6d18c3bcbed1ba1b",
+    "00_MASTER_INDEX/REVIEW_LEDGER.json": "f894f7a6ea3ced5e4b0d65c5e40bc4749d48eaa52cddfde144b7889642a46b79",
+    "00_MASTER_INDEX/SOURCE_CATALOG.csv": "e6a797d082c56c91eb136c44160839e99b0440ecfe2b036656f029d95c965914",
+    "00_MASTER_INDEX/SOURCE_REVIEW_STATUS.csv": "0b5ca416552d2cd8113be61c4d029a3d3ce3faa2b149e5425a774bc616af2322",
+    "02_RAW_ANT_DATASETS/tracked_trajectories/valentini-2020/primary_normalized_tracks.csv": "383c51640960ed52b880470fbd4436da0354400430ea2ce78839810ae51fbe97",
+    "03_OTHER_TINY_CREATURES/secondary_species.csv": "53445d3ddc42693b3bab52a1579abb77b016dc29f1c9f29672a1074953df8ca9",
+    "08_DERIVED_BIOLOGY_DATABASE/acceleration.csv": "14a652b1ae14e8334c85f231b6fb83ed967749f58b33af2a7842b785fd5f90a8",
+    "08_DERIVED_BIOLOGY_DATABASE/antenna_motion.csv": "3df4c8a1d5d2e5f8c0708a33958529d72cac357dd5b3161e056e09740b4c5363",
+    "08_DERIVED_BIOLOGY_DATABASE/behavior_states.csv": "6dd185b722e1af0c90565d1ceb65ea78a1e9a0b8891b8acd4c7889177672f384",
+    "08_DERIVED_BIOLOGY_DATABASE/body_dimensions.csv": "04aaf488960f41858f7e0468cd79828eae4737f49ef3280eb42841a79623fd22",
+    "08_DERIVED_BIOLOGY_DATABASE/climbing_parameters.csv": "afcdf5e6d2341bdfcb32263e7939354427a17f0a440a405a84089c8f379dd3e0",
+    "08_DERIVED_BIOLOGY_DATABASE/gait_parameters.csv": "2bbec2cc102c322102ed16347d2d1f19d096515d4bb7fd7a746e33a20e888c1b",
+    "08_DERIVED_BIOLOGY_DATABASE/interaction_distances.csv": "adcc0948ff8108de9f8594e1b03cab23a3725a6e85a4aa364d4842acffa33d38",
+    "08_DERIVED_BIOLOGY_DATABASE/stop_durations.csv": "9b2d86bc83ae723c77d17229e9dfc187afa580b7a7a5647126b4961d9cc027e5",
+    "08_DERIVED_BIOLOGY_DATABASE/stride_parameters.csv": "313038797969868dcd73cc362a939f302e68567109ad49a3496c3df0cce8d432",
+    "08_DERIVED_BIOLOGY_DATABASE/turn_parameters.csv": "ec591503a71effb5d1b2c054b9ef25fcf02c07f4b67eef506d31c677aa4ec20d",
+    "08_DERIVED_BIOLOGY_DATABASE/walking_speed.csv": "c94d9c3e56f1dfbdfc4a26310b071d5e6090a851f2a553e7b78025548cea8c08"
+  },
+  "interval_count": 53940,
+  "operational_run_count": 11138,
+  "pack_manifest_sha256": "da036b860ff32d12a2c8d659b7c456dd79ac5089492a16f236bc2e1ca6a6caaf",
+  "profile_version": "2026.09.17-donor-transfer.1",
+  "provenance": {
+    "abdomen_length_fraction": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Procedural gaster silhouette allocation; not a measured anatomical fraction.",
+          "review_state": "engineering choice",
+          "source_field": "abdomen_length_fraction",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:abdomen_length_fraction",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.3799999952316284,
+        "min": 0.3799999952316284
+      },
+      "unit": "Scalar"
+    },
+    "acceleration_mm_s2": {
+      "evidence": [
+        {
+          "basis": "DonorTransfer",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Signed central donor acceleration interval; use median speed scaling when transferred. Negative deceleration is valid, not malformed data.",
+          "review_state": "reviewed",
+          "source_field": "p05;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/acceleration.csv",
+          "source_id": "dataset-valentini-2020-tandem",
+          "source_sha256": "14a652b1ae14e8334c85f231b6fb83ed967749f58b33af2a7842b785fd5f90a8"
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Signed central donor acceleration interval; use median speed scaling when transferred. Negative deceleration is valid, not malformed data.",
+          "review_state": "reviewed",
+          "source_field": "p05;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/acceleration.csv",
+          "source_id": "paper-valentini-2020-information",
+          "source_sha256": "14a652b1ae14e8334c85f231b6fb83ed967749f58b33af2a7842b785fd5f90a8"
+        }
+      ],
+      "range": {
+        "max": 13.467878341674805,
+        "min": -12.04451847076416
+      },
+      "unit": "MillimetersPerSecondSquared"
+    },
+    "angular_velocity_rad_s": {
+      "evidence": [
+        {
+          "basis": "DonorTransfer",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Absolute donor p95 mirrored into a signed steering bound. Original signs are preserved in each motion clip; no new turn distribution is fabricated.",
+          "review_state": "reviewed",
+          "source_field": "p95;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/turn_parameters.csv",
+          "source_id": "dataset-valentini-2020-tandem",
+          "source_sha256": "ec591503a71effb5d1b2c054b9ef25fcf02c07f4b67eef506d31c677aa4ec20d"
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Absolute donor p95 mirrored into a signed steering bound. Original signs are preserved in each motion clip; no new turn distribution is fabricated.",
+          "review_state": "reviewed",
+          "source_field": "p95;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/turn_parameters.csv",
+          "source_id": "paper-valentini-2020-information",
+          "source_sha256": "ec591503a71effb5d1b2c054b9ef25fcf02c07f4b67eef506d31c677aa4ec20d"
+        }
+      ],
+      "range": {
+        "max": 7.472390174865723,
+        "min": -7.472390174865723
+      },
+      "unit": "RadiansPerSecond"
+    },
+    "antenna_filter_s": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Smooth asymmetric target interpolation, not an experimentally measured time constant.",
+          "review_state": "engineering choice",
+          "source_field": "antenna_filter_s",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:antenna_filter_s",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.10000000149011612,
+        "min": 0.10000000149011612
+      },
+      "unit": "Seconds"
+    },
+    "antenna_sweep_rad": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Bounded articulated antenna geometry for probing. Qualitative donor mode only; amplitude is an engineering rendering assumption.",
+          "review_state": "engineering choice",
+          "source_field": "antenna_sweep_rad",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:antenna_sweep_rad",
+          "source_sha256": ""
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REFERENCE_ONLY",
+          "note": "Camponotus donor qualitative asymmetric/anti-correlated sampling modes; numerical angle/cadence remain engineering assumptions.",
+          "review_state": "conflicting: status=provisional; ledger=reviewed",
+          "source_field": "state;head_coupling_observation;source_ids",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/antenna_motion.csv",
+          "source_id": "paper-draft-2018-antennae",
+          "source_sha256": "3df4c8a1d5d2e5f8c0708a33958529d72cac357dd5b3161e056e09740b4c5363"
+        }
+      ],
+      "range": {
+        "max": 1.1200000047683716,
+        "min": 0.18000000715255737
+      },
+      "unit": "Radians"
+    },
+    "antenna_target_interval_s": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Correlated target cadence chosen for visual temporal continuity. Pack supplies no numeric sweep frequency; not measured.",
+          "review_state": "engineering choice",
+          "source_field": "antenna_target_interval_s",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:antenna_target_interval_s",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.41999998688697815,
+        "min": 0.18000000715255737
+      },
+      "unit": "Seconds"
+    },
+    "body_length_mm": {
+      "evidence": [
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_RESEARCH_ONLY",
+          "note": "AntWeb taxon-aggregate range, not a measured colony distribution. Uniform sampling within this range is an engineering prior; segment covariance unavailable. No AntWeb imagery is redistributed.",
+          "review_state": "reviewed",
+          "source_field": "min_mm;max_mm",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/body_dimensions.csv",
+          "source_id": "dataset-antweb-specimen-images",
+          "source_sha256": "04aaf488960f41858f7e0468cd79828eae4737f49ef3280eb42841a79623fd22"
+        }
+      ],
+      "range": {
+        "max": 2.5999999046325684,
+        "min": 2.200000047683716
+      },
+      "unit": "Millimeters"
+    },
+    "body_width_ratio_to_head": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Missing whole-body width: use head-width silhouette envelope as a rendering proxy, not a measured whole-body dimension.",
+          "review_state": "engineering choice",
+          "source_field": "body_width_ratio_to_head",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:body_width_ratio_to_head",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 1.0,
+        "min": 1.0
+      },
+      "unit": "Scalar"
+    },
+    "climb_down_speed_mm_s": {
+      "evidence": [
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REFERENCE_ONLY",
+          "note": "Reported condition-specific mean; smooth tested substrate, not every monitor coating. Interpolating with heading is an engineering model. Thesis bytes are not included.",
+          "review_state": "reviewed",
+          "source_field": "speed_mean_mm_s;speed_mean_mm_s",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/climbing_parameters.csv",
+          "source_id": "thesis-cao-2023-gravity-climbing",
+          "source_sha256": "afcdf5e6d2341bdfcb32263e7939354427a17f0a440a405a84089c8f379dd3e0"
+        }
+      ],
+      "range": {
+        "max": 18.959999084472656,
+        "min": 18.959999084472656
+      },
+      "unit": "MillimetersPerSecond"
+    },
+    "climb_up_speed_mm_s": {
+      "evidence": [
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REFERENCE_ONLY",
+          "note": "Reported condition-specific mean; smooth tested substrate, not every monitor coating. Interpolating with heading is an engineering model. Thesis bytes are not included.",
+          "review_state": "reviewed",
+          "source_field": "speed_mean_mm_s;speed_mean_mm_s",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/climbing_parameters.csv",
+          "source_id": "thesis-cao-2023-gravity-climbing",
+          "source_sha256": "afcdf5e6d2341bdfcb32263e7939354427a17f0a440a405a84089c8f379dd3e0"
+        },
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REFERENCE_ONLY",
+          "note": "Reported condition-specific mean; smooth tested substrate, not every monitor coating. Interpolating with heading is an engineering model. Thesis bytes are not included.",
+          "review_state": "conflicting: status=provisional; ledger=reviewed",
+          "source_field": "speed_mean_mm_s;speed_mean_mm_s",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/climbing_parameters.csv",
+          "source_id": "paper-federle-2001-arolium",
+          "source_sha256": "afcdf5e6d2341bdfcb32263e7939354427a17f0a440a405a84089c8f379dd3e0"
+        }
+      ],
+      "range": {
+        "max": 22.399999618530273,
+        "min": 22.399999618530273
+      },
+      "unit": "MillimetersPerSecond"
+    },
+    "cursor_radius_mm": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Optional artificial disturbance envelope; not ant response to a real physical cursor. OFF by default.",
+          "review_state": "engineering choice",
+          "source_field": "cursor_radius_mm",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:cursor_radius_mm",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 12.0,
+        "min": 12.0
+      },
+      "unit": "Millimeters"
+    },
+    "direction_persistence_s": {
+      "evidence": [
+        {
+          "basis": "DerivedMeasurement",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Operational run definition uses the donor median turn-rate threshold, not observed behavioral labels. Context-only transfer; trajectories retain empirical temporal correlation.",
+          "review_state": "reviewed",
+          "source_field": "contiguous abs(turn_rate)<donor median and speed>donor p10; p05/p95 duration",
+          "source_file": "02_RAW_ANT_DATASETS/tracked_trajectories/valentini-2020/primary_normalized_tracks.csv",
+          "source_id": "dataset-valentini-2020-tandem",
+          "source_sha256": "383c51640960ed52b880470fbd4436da0354400430ea2ce78839810ae51fbe97"
+        }
+      ],
+      "range": {
+        "max": 2.002002000808716,
+        "min": 0.33366701006889343
+      },
+      "unit": "Seconds"
+    },
+    "donor_low_motion_threshold_mm_s": {
+      "evidence": [
+        {
+          "basis": "DerivedMeasurement",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Operational donor low-motion threshold (10th percentile); not proof of biological rest.",
+          "review_state": "reviewed",
+          "source_field": "threshold_mm_s;threshold_mm_s",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/stop_durations.csv",
+          "source_id": "dataset-valentini-2020-tandem",
+          "source_sha256": "9b2d86bc83ae723c77d17229e9dfc187afa580b7a7a5647126b4961d9cc027e5"
+        },
+        {
+          "basis": "DerivedMeasurement",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Operational donor low-motion threshold (10th percentile); not proof of biological rest.",
+          "review_state": "reviewed",
+          "source_field": "threshold_mm_s;threshold_mm_s",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/stop_durations.csv",
+          "source_id": "paper-valentini-2020-information",
+          "source_sha256": "9b2d86bc83ae723c77d17229e9dfc187afa580b7a7a5647126b4961d9cc027e5"
+        }
+      ],
+      "range": {
+        "max": 0.2763097584247589,
+        "min": 0.2763097584247589
+      },
+      "unit": "MillimetersPerSecond"
+    },
+    "donor_median_speed_mm_s": {
+      "evidence": [
+        {
+          "basis": "DerivedMeasurement",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Empirical donor centroid-displacement distribution. P95 truncation and median rescaling are explicit engineering transfer, not Argentine-ant measurements.",
+          "review_state": "reviewed",
+          "source_field": "median;median",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/walking_speed.csv",
+          "source_id": "dataset-valentini-2020-tandem",
+          "source_sha256": "c94d9c3e56f1dfbdfc4a26310b071d5e6090a851f2a553e7b78025548cea8c08"
+        },
+        {
+          "basis": "DerivedMeasurement",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Empirical donor centroid-displacement distribution. P95 truncation and median rescaling are explicit engineering transfer, not Argentine-ant measurements.",
+          "review_state": "reviewed",
+          "source_field": "median;median",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/walking_speed.csv",
+          "source_id": "paper-valentini-2020-information",
+          "source_sha256": "c94d9c3e56f1dfbdfc4a26310b071d5e6090a851f2a553e7b78025548cea8c08"
+        }
+      ],
+      "range": {
+        "max": 2.543038845062256,
+        "min": 2.543038845062256
+      },
+      "unit": "MillimetersPerSecond"
+    },
+    "donor_p95_speed_mm_s": {
+      "evidence": [
+        {
+          "basis": "DerivedMeasurement",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Empirical donor centroid-displacement distribution. P95 truncation and median rescaling are explicit engineering transfer, not Argentine-ant measurements.",
+          "review_state": "reviewed",
+          "source_field": "p95;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/walking_speed.csv",
+          "source_id": "dataset-valentini-2020-tandem",
+          "source_sha256": "c94d9c3e56f1dfbdfc4a26310b071d5e6090a851f2a553e7b78025548cea8c08"
+        },
+        {
+          "basis": "DerivedMeasurement",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Empirical donor centroid-displacement distribution. P95 truncation and median rescaling are explicit engineering transfer, not Argentine-ant measurements.",
+          "review_state": "reviewed",
+          "source_field": "p95;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/walking_speed.csv",
+          "source_id": "paper-valentini-2020-information",
+          "source_sha256": "c94d9c3e56f1dfbdfc4a26310b071d5e6090a851f2a553e7b78025548cea8c08"
+        }
+      ],
+      "range": {
+        "max": 6.259713649749756,
+        "min": 6.259713649749756
+      },
+      "unit": "MillimetersPerSecond"
+    },
+    "edge_exit_probability": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Population-management policy at exterior boundaries, not a measured emigration hazard.",
+          "review_state": "engineering choice",
+          "source_field": "edge_exit_probability",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:edge_exit_probability",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.07999999821186066,
+        "min": 0.07999999821186066
+      },
+      "unit": "Scalar"
+    },
+    "edge_zone_body_lengths": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Look-ahead proportional to body length prevents clipping while preserving edge-probing motion; not measured edge preference.",
+          "review_state": "engineering choice",
+          "source_field": "edge_zone_body_lengths",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:edge_zone_body_lengths",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 2.0,
+        "min": 2.0
+      },
+      "unit": "Scalar"
+    },
+    "encounter_radius_body_lengths": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Morphometric contact/proximity envelope only. Pack has no calibrated social-interaction distance.",
+          "review_state": "engineering choice",
+          "source_field": "encounter_radius_body_lengths",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:encounter_radius_body_lengths",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 1.2000000476837158,
+        "min": 1.2000000476837158
+      },
+      "unit": "Scalar"
+    },
+    "encounter_response_probability": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Sparse context response to avoid every neighbor causing a stop; unmeasured engineering state policy.",
+          "review_state": "engineering choice",
+          "source_field": "encounter_response_probability",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:encounter_response_probability",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.23999999463558197,
+        "min": 0.23999999463558197
+      },
+      "unit": "Scalar"
+    },
+    "gait_stance_fraction": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Alternating-tripod phase construction. Source does not supply a numeric duty factor; symmetric stance is an animation assumption.",
+          "review_state": "engineering choice",
+          "source_field": "gait_stance_fraction",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:gait_stance_fraction",
+          "source_sha256": ""
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Alternating tripod topology is research-backed; numeric stance fraction and geometry are not.",
+          "review_state": "conflicting: status=provisional; ledger=reviewed",
+          "source_field": "phase_group_a;phase_group_b",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/gait_parameters.csv",
+          "source_id": "paper-clifton-2020-uneven",
+          "source_sha256": "2bbec2cc102c322102ed16347d2d1f19d096515d4bb7fd7a746e33a20e888c1b"
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REFERENCE_ONLY",
+          "note": "Alternating tripod topology is research-backed; numeric stance fraction and geometry are not.",
+          "review_state": "reviewed",
+          "source_field": "phase_group_a;phase_group_b",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/gait_parameters.csv",
+          "source_id": "paper-reinhardt-2009-locomotion",
+          "source_sha256": "2bbec2cc102c322102ed16347d2d1f19d096515d4bb7fd7a746e33a20e888c1b"
+        }
+      ],
+      "range": {
+        "max": 0.5,
+        "min": 0.5
+      },
+      "unit": "Scalar"
+    },
+    "head_length_mm": {
+      "evidence": [
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_RESEARCH_ONLY",
+          "note": "AntWeb taxon-aggregate range, not a measured colony distribution. Uniform sampling within this range is an engineering prior; segment covariance unavailable. No AntWeb imagery is redistributed.",
+          "review_state": "reviewed",
+          "source_field": "min_mm;max_mm",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/body_dimensions.csv",
+          "source_id": "dataset-antweb-specimen-images",
+          "source_sha256": "04aaf488960f41858f7e0468cd79828eae4737f49ef3280eb42841a79623fd22"
+        }
+      ],
+      "range": {
+        "max": 0.9300000071525574,
+        "min": 0.5600000023841858
+      },
+      "unit": "Millimeters"
+    },
+    "head_width_mm": {
+      "evidence": [
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_RESEARCH_ONLY",
+          "note": "AntWeb taxon-aggregate range, not a measured colony distribution. Uniform sampling within this range is an engineering prior; segment covariance unavailable. No AntWeb imagery is redistributed.",
+          "review_state": "reviewed",
+          "source_field": "min_mm;max_mm",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/body_dimensions.csv",
+          "source_id": "dataset-antweb-specimen-images",
+          "source_sha256": "04aaf488960f41858f7e0468cd79828eae4737f49ef3280eb42841a79623fd22"
+        }
+      ],
+      "range": {
+        "max": 0.7099999785423279,
+        "min": 0.5299999713897705
+      },
+      "unit": "Millimeters"
+    },
+    "leg_reach_body_fraction": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Procedural appendage envelope; no calibrated segment lengths in the Pack. Renderer assumption requiring 1:1 review.",
+          "review_state": "engineering choice",
+          "source_field": "leg_reach_body_fraction",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:leg_reach_body_fraction",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.44999998807907104,
+        "min": 0.44999998807907104
+      },
+      "unit": "Scalar"
+    },
+    "leg_thickness_mm": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Coverage-filtered appendage width for tiny on-glass appearance; calibrated width measurements absent.",
+          "review_state": "engineering choice",
+          "source_field": "leg_thickness_mm",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:leg_thickness_mm",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.03999999910593033,
+        "min": 0.02500000037252903
+      },
+      "unit": "Millimeters"
+    },
+    "pause_duration_s": {
+      "evidence": [
+        {
+          "basis": "DonorTransfer",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Central 90% uncensored operational low-motion bout durations. Transfer only, not species-matched pause or antennation measurements.",
+          "review_state": "reviewed",
+          "source_field": "p05;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/stop_durations.csv",
+          "source_id": "dataset-valentini-2020-tandem",
+          "source_sha256": "9b2d86bc83ae723c77d17229e9dfc187afa580b7a7a5647126b4961d9cc027e5"
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Temnothorax rugatulus; tandem-leader; first 900 s; every 10 frames; 29.97 FPS; 20 pairs / 6 reported colonies. Correlated observations.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Central 90% uncensored operational low-motion bout durations. Transfer only, not species-matched pause or antennation measurements.",
+          "review_state": "reviewed",
+          "source_field": "p05;p95",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/stop_durations.csv",
+          "source_id": "paper-valentini-2020-information",
+          "source_sha256": "9b2d86bc83ae723c77d17229e9dfc187afa580b7a7a5647126b4961d9cc027e5"
+        }
+      ],
+      "range": {
+        "max": 1.6683349609375,
+        "min": 0.33366701006889343
+      },
+      "unit": "Seconds"
+    },
+    "preferred_speed_mm_s": {
+      "evidence": [
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "15.1 is the reported preferred/median flat speed, not a universal speed bin, mean, or measured speed distribution.",
+          "review_state": "conflicting: status=provisional; ledger=reviewed",
+          "source_field": "speed_bin_mm_s;speed_bin_mm_s",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/stride_parameters.csv",
+          "source_id": "paper-clifton-2020-uneven",
+          "source_sha256": "313038797969868dcd73cc362a939f302e68567109ad49a3496c3df0cce8d432"
+        }
+      ],
+      "range": {
+        "max": 15.100000381469727,
+        "min": 15.100000381469727
+      },
+      "unit": "MillimetersPerSecond"
+    },
+    "speed_variation_fraction": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Small stable individual offset around the reported preferred speed; no species-matched variance was supplied. Engineering variability, not measured SD.",
+          "review_state": "engineering choice",
+          "source_field": "speed_variation_fraction",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:speed_variation_fraction",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.11999999731779099,
+        "min": 0.11999999731779099
+      },
+      "unit": "Scalar"
+    },
+    "stride_length_mm": {
+      "evidence": [
+        {
+          "basis": "Measurement",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Flat-ground primarily reported stride range. Distribution and duty factor not supplied; uniform persistent trait is an engineering prior.",
+          "review_state": "conflicting: status=provisional; ledger=reviewed",
+          "source_field": "stride_length_min_mm;stride_length_max_mm",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/stride_parameters.csv",
+          "source_id": "paper-clifton-2020-uneven",
+          "source_sha256": "313038797969868dcd73cc362a939f302e68567109ad49a3496c3df0cce8d432"
+        }
+      ],
+      "range": {
+        "max": 2.5999999046325684,
+        "min": 1.7999999523162842
+      },
+      "unit": "Millimeters"
+    },
+    "thorax_length_fraction": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Procedural segmented silhouette allocation; not a measured mesosoma fraction.",
+          "review_state": "engineering choice",
+          "source_field": "thorax_length_fraction",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:thorax_length_fraction",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.25,
+        "min": 0.25
+      },
+      "unit": "Scalar"
+    },
+    "trail_cell_mm": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Coarse numerical field resolution, not a biological interaction length.",
+          "review_state": "engineering choice",
+          "source_field": "trail_cell_mm",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:trail_cell_mm",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 4.0,
+        "min": 4.0
+      },
+      "unit": "Millimeters"
+    },
+    "trail_decay_s": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Coarse visual route-memory time; not a measured chemical decay constant. No pheromone concentration units are claimed.",
+          "review_state": "engineering choice",
+          "source_field": "trail_decay_s",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:trail_decay_s",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 30.0,
+        "min": 30.0
+      },
+      "unit": "Seconds"
+    },
+    "trail_turn_weight": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Limited steering influence for a phenomenological field. Quantitative species-matched response unavailable.",
+          "review_state": "engineering choice",
+          "source_field": "trail_turn_weight",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:trail_turn_weight",
+          "source_sha256": ""
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Qualitative trail-following mechanism only; visual field values are dimensionless engineering controls.",
+          "review_state": "reviewed",
+          "source_field": "state;source_ids",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/behavior_states.csv",
+          "source_id": "paper-perna-2012-trail-pattern",
+          "source_sha256": "6dd185b722e1af0c90565d1ceb65ea78a1e9a0b8891b8acd4c7889177672f384"
+        },
+        {
+          "basis": "DonorTransfer",
+          "context": "Source-specific Argentine-ant measurements or explicitly identified donor mechanism; see parameter note.",
+          "license_class": "REDISTRIBUTABLE_AND_SHIPPABLE",
+          "note": "Qualitative trail-following mechanism only; visual field values are dimensionless engineering controls.",
+          "review_state": "reviewed",
+          "source_field": "state;source_ids",
+          "source_file": "08_DERIVED_BIOLOGY_DATABASE/behavior_states.csv",
+          "source_id": "paper-choe-2012-trail-pheromone",
+          "source_sha256": "6dd185b722e1af0c90565d1ceb65ea78a1e9a0b8891b8acd4c7889177672f384"
+        }
+      ],
+      "range": {
+        "max": 0.3499999940395355,
+        "min": 0.3499999940395355
+      },
+      "unit": "Scalar"
+    },
+    "velocity_filter_s": {
+      "evidence": [
+        {
+          "basis": "EngineeringAssumption",
+          "context": "Numerical/rendering design assumption, NOT a measured biological constant",
+          "license_class": "ORIGINAL_IMPLEMENTATION",
+          "note": "Short interpolation/filter time to avoid discontinuous velocity at sampled clip boundaries. Numerical choice, not a biological response time.",
+          "review_state": "engineering choice",
+          "source_field": "velocity_filter_s",
+          "source_file": "profile-compiler/src/lib.rs",
+          "source_id": "engineering:velocity_filter_s",
+          "source_sha256": ""
+        }
+      ],
+      "range": {
+        "max": 0.09000000357627869,
+        "min": 0.09000000357627869
+      },
+      "unit": "Seconds"
+    }
+  },
+  "runtime_p95_winsorized_intervals": 2694,
+  "schema_version": 1,
+  "selected_condition": "Temnothorax rugatulus tandem-leader, first 900 seconds, every tenth original frame",
+  "sha256": "d58754a7064a10bc87cf415462dfe1ee5a48b528962fae3852ee0d3dd1dba07e",
+  "source_ids": [
+    "dataset-antweb-specimen-images",
+    "dataset-valentini-2020-tandem",
+    "engineering:abdomen_length_fraction",
+    "engineering:antenna_filter_s",
+    "engineering:antenna_sweep_rad",
+    "engineering:antenna_target_interval_s",
+    "engineering:body_width_ratio_to_head",
+    "engineering:cursor_radius_mm",
+    "engineering:edge_exit_probability",
+    "engineering:edge_zone_body_lengths",
+    "engineering:encounter_radius_body_lengths",
+    "engineering:encounter_response_probability",
+    "engineering:gait_stance_fraction",
+    "engineering:leg_reach_body_fraction",
+    "engineering:leg_thickness_mm",
+    "engineering:speed_variation_fraction",
+    "engineering:thorax_length_fraction",
+    "engineering:trail_cell_mm",
+    "engineering:trail_decay_s",
+    "engineering:trail_turn_weight",
+    "engineering:velocity_filter_s",
+    "paper-choe-2012-trail-pheromone",
+    "paper-clifton-2020-uneven",
+    "paper-draft-2018-antennae",
+    "paper-federle-2001-arolium",
+    "paper-perna-2012-trail-pattern",
+    "paper-reinhardt-2009-locomotion",
+    "paper-valentini-2020-information",
+    "thesis-cao-2023-gravity-climbing"
+  ],
+  "track_count": 20,
+  "undefined_heading_intervals_zeroed": 133,
+  "warnings": [
+    "Morphology: AntWeb 2.2-2.6 mm workers vs ~3 mm in Clifton experimental context are not averaged; default uses AntWeb range, validation includes intentional 2/3/4 mm scenes.",
+    "Trajectory donor is Temnothorax rugatulus tandem leader, not Argentine-ant exploratory or vertical trajectories. Transfer model remains biologically unvalidated.",
+    "SOURCE_REVIEW_STATUS.csv and REVIEW_LEDGER.json disagree for some sources. Both states remain visible in provenance; no confidence upgrade inferred.",
+    "Antenna amplitudes, detailed appendage anatomy, interaction probabilities and pheromone decay are engineering assumptions because numeric evidence is absent.",
+    "Snapshot contains original derived facts and CC BY 4.0 selected coordinates only, no restricted imagery, thesis/article/video bytes or reference-only code."
+  ]
+}
