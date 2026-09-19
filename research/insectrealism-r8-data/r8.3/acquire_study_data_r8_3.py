@@ -398,7 +398,7 @@ class Builder:
         sid = spec["source_id"]
         pmcid = spec["pmcid"]
         try:
-            xml = get(f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}").text
+            xml = get(f"https://pmc.ncbi.nlm.nih.gov/utils/oa/oa.fcgi?id={pmcid}").text
             root = ET.fromstring(xml)
             link = None
             for node in root.findall(".//link"):
