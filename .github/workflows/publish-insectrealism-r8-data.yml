@@ -1,6 +1,6 @@
 name: Publish InsectRealism R8.3 Empirical Bundle
 
-# Empirical rebalance rerun: Edmond + corrected PMC supplement acquisition + non-UTF8-safe validation.
+# FINAL LOCKED R8.3 source build: Edmond + PMC behavior supplements + CC license fixes + non-UTF8-safe validation.
 
 on:
   push:
