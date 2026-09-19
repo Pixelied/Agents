@@ -1,0 +1,20 @@
+{
+  "agent_id": "sol-insect-secondary-expand-r2",
+  "capabilities": [
+    "github",
+    "research",
+    "biology",
+    "data-acquisition",
+    "data-provenance",
+    "planning"
+  ],
+  "description": "Expansion worker for secondary-insect empirical datasets and evidence-backed ant worker polymorphism.",
+  "model": "gpt-5.6-sol",
+  "protocol_version": "1.0",
+  "provider": "openai",
+  "registered_at": "2026-09-19T05:15:00+00:00",
+  "schema_version": 1,
+  "state": "available",
+  "state_reason": "registered for secondary insect research expansion",
+  "state_updated_at": "2026-09-19T05:15:00+00:00"
+}
