@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "audit": "R3",
+  "status": "PASS",
+  "source_records": 68,
+  "scientific_source_records": 66,
+  "canonical_scientific_sources": 58,
+  "dataset_records": 26,
+  "parameter_rows": 95,
+  "population_morphology_rows": 69,
+  "source_reference_resolution": "PASS",
+  "known_bug_assertions": "PASS",
+  "json_parse": "PASS",
+  "csv_parse": "PASS",
+  "raw_zip_integrity": "PASS",
+  "raw_zip_sha256": "e01abb275ea8888316f33b685a8d486d860409cc76090dcb1dc06b9787bcfef3",
+  "raw_selected_empirical_bytes": 509971606,
+  "docs_zip_sha256": "57463eb2fd574ac8f0564f4f05ceb7353d35c27e99d9e219ff74273299d36d19",
+  "absolute_accuracy_claim": "NOT CLAIMED; unsupported/unverified evidence is gated instead"
+}

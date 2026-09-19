@@ -1,0 +1,12 @@
+severity,area,r2_issue,r3_correction
+CRITICAL,Linepithema brood,"R2 labeled the no-dorsal-protuberance male larval measurements as worker-biased brood.","R3 separates worker larvae (0.57/0.78/1.23 mm mean lengths) from male larvae (0.62/1.18/1.59 mm) and preserves direct sample sizes/ranges."
+HIGH,Bed bug nymph morphology,"R2 called values from DEV-CIM-002 direct C. lectularius measurements.","The 2022 paper directly studies C. hemipterus and reproduces historical C. lectularius values from Usinger 1966; R3 marks them secondary historical and blocks release calibration pending primary-source verification."
+HIGH,Cockroach source identity,"BLA-004 and BLA-005 titles/PMIDs were swapped; BLA-006/BLA-007 descriptions were attached to the wrong papers.","R3 corrects titles, DOIs, stages, and implementation-use boundaries."
+MEDIUM,Drosophila boundary source,"DRO-010 pointed to the Mendes gait paper and used centrophobism wording.","R3 replaces it with Soibam et al. 2012 DOI 10.1002/brb3.36 and records boundary exploration without anxiety/centrophobism semantics."
+MEDIUM,Drosophila flight speed statistic,"R2 named 0.71 +/- 0.33 m/s a mean-speed parameter.","The paper prose says mean while Table 1 labels velocity mode. R3 uses a neutral control speed reference and blocks population-distribution interpretation."
+MEDIUM,Bed bug adult size,"R2 presented 4.36-4.63 / 4.63-4.98 mm as generic ranges.","R3 records these as ranges across hematocrit-treatment means, with sex-specific thorax treatment-mean ranges."
+MEDIUM,Tribolium scale,"R2 stored a 3-4 mm typical body-length range from a general toolkit review.","R3 removes the unsupported population range and retains 3.5 mm only as a working renderer reference, not a distribution."
+MEDIUM,Tribolium metric provenance,"R2 used one source-list row implying all listed sources supported all motion metrics.","R3 separates path/sinuosity, edge affinity, obstacle speed/stops/reentry, and turn-angle assay provenance."
+LOW,Duplicate source records,"R2 had aliases for the same DOI/dataset.","R3 keeps compatibility IDs but assigns canonical_source_id and marks aliases as duplicates."
+LOW,Split artifact checksum manifest,"R2 docs checksums listed the separate raw ZIP as though it lived inside the docs directory.","R3 checksums cover only files present in the docs artifact; the raw ZIP is a separately checksummed companion."
+LOW,Candidate scores,"R2 used pseudo-precise readiness scores.","R3 removes numeric scoring and uses factual evidence classes plus engineering-only implementation waves."
