@@ -1,10 +1,12 @@
-name: Insect continuation - native foundation verification
+name: Insect continuation - native foundation and spatial verification
 "on":
   push:
     branches: ['feat/insect-continuation-03-q7b4']
     paths:
       - '.github/workflows/insect-continuation-native.yml'
       - 'projects/insect-realism-desktop-app/RESTORED_SOURCE.json'
+      - 'projects/insect-realism-desktop-app/CONTINUED_SOURCE.json'
+      - 'projects/insect-realism-desktop-app/app/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   native-foundations:
-    name: Platform foundation (${{ matrix.os }}) - not full app
+    name: Platform and spatial checks (${{ matrix.os }}) - not full app
     strategy:
       fail-fast: false
       matrix:
@@ -32,24 +34,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Verify restored files against the supplied checkpoint
+      - name: Verify original foundations and continued simulation source
         run: |
           python - <<'PY'
           import hashlib, json
           from pathlib import Path
           root = Path('projects/insect-realism-desktop-app').resolve()
-          manifest = json.loads((root / 'RESTORED_SOURCE.json').read_text())
-          if manifest['publication_complete'] or len(manifest['source_files']) != 43:
-              raise SystemExit('This workflow qualifies exactly 43 restored foundation files, not the full app')
-          for name, expected in manifest['source_files'].items():
-              path = (root / name).resolve()
-              if not path.is_relative_to(root) or not path.is_file():
-                  raise SystemExit(f'Invalid or missing restored source: {name}')
-              if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-                  raise SystemExit(f'Checkpoint source mismatch: {name}')
-          Path('native-evidence').mkdir()
-          Path('native-evidence/source.json').write_text(json.dumps(manifest, indent=2) + '\n')
-          print('43 exact checkpoint files verified. Full application publication is still incomplete.')
+          evidence = Path('native-evidence'); evidence.mkdir()
+          for filename, count in [('RESTORED_SOURCE.json', 43), ('CONTINUED_SOURCE.json', 17)]:
+              manifest = json.loads((root / filename).read_text())
+              if manifest['publication_complete'] or len(manifest['source_files']) != count:
+                  raise SystemExit('This workflow checks a partial source publication, not the full app')
+              for name, expected in manifest['source_files'].items():
+                  path = (root / name).resolve()
+                  if not path.is_relative_to(root) or not path.is_file():
+                      raise SystemExit(f'Invalid or missing source: {name}')
+                  if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                      raise SystemExit(f'Source mismatch: {name}')
+              (evidence / filename).write_text(json.dumps(manifest, indent=2) + '\n')
+          print('43 original foundation files and 17 continued simulation files verified.')
+          print('Full application source publication and release qualification remain incomplete.')
           PY
       - name: Install the checkpoint Rust toolchain
         run: |
@@ -66,11 +70,17 @@ jobs:
         run: |
           set -o pipefail
           cargo clippy -p creature-profile -p display-model -p platform-api -p platform-macos -p platform-windows --all-targets -- -D warnings 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/clippy.log"
+          cargo clippy -p simulation --lib -- -D warnings 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/simulation-clippy.log"
       - name: Release-mode platform and domain tests
         working-directory: projects/insect-realism-desktop-app/app
         run: |
           set -o pipefail
           cargo test --release -p creature-profile -p display-model -p platform-api -p platform-macos -p platform-windows 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/tests.log"
+      - name: Release-mode spatial regression and property tests
+        working-directory: projects/insect-realism-desktop-app/app
+        run: |
+          set -o pipefail
+          cargo test --release -p simulation --test fields --test spatial_rebuild 2>&1 | tee "$GITHUB_WORKSPACE/native-evidence/spatial-tests.log"
       - name: Record exact verification boundary
         if: always()
         env:
@@ -81,48 +91,42 @@ jobs:
           import json, os
           from pathlib import Path
           root = Path('native-evidence'); root.mkdir(exist_ok=True)
-          result = {'commit': os.environ['GITHUB_SHA'], 'runner_os': os.environ['RUNNER_OS_NAME'], 'job_status': os.environ['JOB_STATUS'], 'scope': 'platform foundation compilation and unit tests only', 'full_app_build': False, 'native_input_acceptance': False, 'installer_qualified': False}
+          result = {'commit': os.environ['GITHUB_SHA'], 'runner_os': os.environ['RUNNER_OS_NAME'], 'job_status': os.environ['JOB_STATUS'], 'scope': 'platform foundation and selected spatial tests only', 'full_app_build': False, 'native_input_acceptance': False, 'installer_qualified': False}
           (root / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-              out.write('## Platform foundation only\nNative compilation and unit-test evidence is separate from a full application build, interactive input safety, or an installer. Those release gates remain open.\n')
+              out.write('## Platform and spatial checks only\nNative compilation and these unit tests do not establish full application builds, interactive input safety, physical display calibration, or installer qualification. Those release gates remain open.\n')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: insect-foundation-m5r2-${{ matrix.os }}
+          name: insect-foundation-spatial-m5r2-${{ matrix.os }}
           path: native-evidence/
           if-no-files-found: error
           retention-days: 30
-  offline-locked-dependencies:
-    name: Fetch two missing exact locked crates (not an app build)
+  software-vulkan-runtime:
+    name: Fetch matching Debian software Vulkan runtime (not a GPU test)
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Download and authenticate the original lockfile dependencies
+      - name: Fetch public packages through authenticated Debian package metadata
         shell: bash
         run: |
-          python - <<'PYCODE'
-          from pathlib import Path
-          from urllib.request import urlopen
-          import hashlib, json
-          crates = [
-              ('cc', '1.4.6', 'a3eb0f42d6c360dc3f8a821f6bf2fdea7f72bfd36b3076eb0e6d1e9e0752fff4'),
-              ('find-msvc-tools', '0.1.12', '3e0f1c7c3a72c66fd80abe965175f7523475c0489a87d3ff9d6e8c87d87a9d2d'),
-          ]
-          root = Path('locked-crates'); root.mkdir()
-          for name, version, expected in crates:
-              filename = f'{name}-{version}.crate'
-              with urlopen(f'https://static.crates.io/crates/{name}/{filename}', timeout=60) as response:
-                  data = response.read(10_000_001)
-              if len(data) > 10_000_000 or hashlib.sha256(data).hexdigest() != expected:
-                  raise SystemExit(f'Lockfile checksum mismatch: {filename}')
-              (root / filename).write_bytes(data)
-          (root / 'SHA256SUMS.txt').write_text(''.join(f'{digest}  {name}-{version}.crate\n' for name, version, digest in crates))
-          print('Both original locked crates authenticated; no application build is claimed.')
-          PYCODE
+          set -euo pipefail
+          mkdir software-vulkan
+          docker pull debian:13-slim
+          docker image inspect debian:13-slim --format '{{json .RepoDigests}}' > software-vulkan/image-digest.json
+          docker run --rm -v "$PWD/software-vulkan:/out" debian:13-slim sh -ec '
+            apt-get update
+            cd /out
+            apt-cache show mesa-vulkan-drivers libvulkan1 > package-metadata.txt
+            apt-get download mesa-vulkan-drivers libvulkan1
+            sha256sum ./*.deb > SHA256SUMS.txt
+          '
+          printf '%s\n' 'Public software Vulkan packages for the Debian 13 continuation host. Package preparation is not rendering, native runtime acceptance, or representative GPU performance evidence.' > software-vulkan/README.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: insect-locked-crates-m5r2
-          path: locked-crates/
+          name: insect-software-vulkan-m5r2
+          path: software-vulkan/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 7

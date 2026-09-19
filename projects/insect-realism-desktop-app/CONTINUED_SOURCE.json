@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "checkpoint_archive_sha256": "89a53500dfc0b991a14dd30d1c9a537d1fbf5713d43bb115c8b86bc9c9aef683",
+  "publication_complete": false,
+  "scope": "simulation source and regression tests; not full app",
+  "source_files": {
+    "app/crates/simulation/Cargo.toml": "94a7b7b80b4ebb96a44ee3745ad5c240573bdf06b7ed06e77a7ea21b27aa3b99",
+    "app/crates/simulation/benches/spatial.rs": "b468dbb11505f109d67d7bd6db514188b070d5ec37c0232497555733473cfa9e",
+    "app/crates/simulation/src/behavior.rs": "6fb0019e8f80e070bf663a7e8df1d276c2236f3a6d357149bc4af9e8530e935a",
+    "app/crates/simulation/src/clock.rs": "43cb3d8308136619a51ba4c2817d02582c9adab35d955a953e81bb0cc23f2cf1",
+    "app/crates/simulation/src/lib.rs": "87c7fe2e5469cb1d44b4880a5dabe6b2f8777485c3748b5fa3987cae2a0d2ed1",
+    "app/crates/simulation/src/locomotion.rs": "74fd05f054914f563f45ee9d12b3ea7bff753643a9d30d2b77f1ad9772b5b1f6",
+    "app/crates/simulation/src/snapshot.rs": "ad6409f1f33bb0b2ed6cb39131d916eee8c9b8261a42f68e6e9558a5c4b067dc",
+    "app/crates/simulation/src/spatial.rs": "267833d5d701fa4389f1bdbc2f2cf9b61d85b87c7f57c0ab75dc8d7b53456867",
+    "app/crates/simulation/src/spawn.rs": "93c351075b16a9f3c01987d20e77dcb872e2c20050dd8b46f60189ca15f920bb",
+    "app/crates/simulation/src/state.rs": "7570b275eed3280f90e3ab29a48886dbee8369362fb0283d22173df21631691e",
+    "app/crates/simulation/src/trails.rs": "368d57cf83860e96ceabaf20a97aacadf3ec1d9c5a36b74aeafa56c678fbd853",
+    "app/crates/simulation/tests/allocations.rs": "defe0c91cf2488ab06ae3114c577ecc6f47246caf93347f793d49b67af80e552",
+    "app/crates/simulation/tests/behavior.rs": "c7fea0a196e1b099b3199b194b924b7cfd1bef580f4c03d7bd1d767c786c142b",
+    "app/crates/simulation/tests/fields.proptest-regressions": "fee7f4cb89ee1e66960b2521bd2053b30ad48781060c1bc64a14dc98b9d542a5",
+    "app/crates/simulation/tests/fields.rs": "fbff091c48bce83b05974772130af569e4a6dbfb55b4f343b0ab132f96e77412",
+    "app/crates/simulation/tests/foundations.rs": "261f58e906d7d299264dbfcddff329379182397d38b3b7abed5c98f852b87aa5",
+    "app/crates/simulation/tests/spatial_rebuild.rs": "eb62357833f2f36575b24ca76b8bd11fbffa613b6cfe22482a6c442615eb9710"
+  },
+  "intentional_changes": [
+    "app/crates/simulation/src/spatial.rs",
+    "app/crates/simulation/tests/spatial_rebuild.rs"
+  ]
+}

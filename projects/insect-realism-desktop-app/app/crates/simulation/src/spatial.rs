@@ -11,6 +11,7 @@ pub struct SpatialHash {
     displays: Vec<DisplayId>,
     cells: Vec<(i32, i32)>,
     occupied: Vec<usize>,
+    inserted: Vec<bool>,
 }
 impl SpatialHash {
     pub fn new(capacity: usize, cell: f32) -> Self {
@@ -23,6 +24,7 @@ impl SpatialHash {
             displays: vec![DisplayId(0); capacity],
             cells: vec![(0, 0); capacity],
             occupied: Vec::with_capacity(capacity),
+            inserted: vec![false; capacity],
         }
     }
     pub fn cell_size_mm(&self) -> f32 {
@@ -43,12 +45,18 @@ impl SpatialHash {
     }
     pub fn rebuild(&mut self, positions: &[Vec2], displays: &[DisplayId], active: &[usize]) {
         self.heads.fill(NONE);
+        // Reset only previously occupied slots, preserving bounded, allocation-free
+        // rebuilds. Repeated active indices must never create a bucket cycle.
+        for &i in &self.occupied {
+            self.inserted[i] = false;
+        }
         self.occupied.clear();
         for &i in active {
             if i >= self.next.len()
                 || i >= positions.len()
                 || i >= displays.len()
                 || !positions[i].is_finite()
+                || self.inserted[i]
             {
                 continue;
             }
@@ -62,6 +70,7 @@ impl SpatialHash {
             self.next[i] = self.heads[h];
             self.heads[h] = i;
             self.occupied.push(i);
+            self.inserted[i] = true;
         }
     }
     /// Returns visited candidates. Production callers use a finite candidate
