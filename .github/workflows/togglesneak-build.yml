@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          JAR="build/libs/togglesneak-1.0.0.jar"
+          JAR="build/libs/togglesneak-1.0.1.jar"
           test -f "$JAR"
 
           jar tf "$JAR" | tee build/jar-contents.txt
@@ -112,7 +112,7 @@ jobs:
           grep -F '~26.2' build/fabric.mod.final.json
 
           cat > build/VERIFICATION.md <<'EOF'
-          # ToggleSneak 1.0.0 verification
+          # ToggleSneak 1.0.1 verification
 
           This report is generated only after the clean CI build succeeds.
 
@@ -140,6 +140,9 @@ jobs:
           - moving Smart Latch timing
           - stationary Smart Latch timing
           - movement changes mid-hold without progress reset
+          - mining/attacking suppresses Smart Latch for the current Sneak press
+          - placement/use/interact cancels and suppresses Smart Latch until Sneak release
+          - interaction cancels an already release-ready latch
           - release-to-lock
           - GUI cancellation during Smart Latch
           - GUI suspension with logical toggle preservation/resume
@@ -155,28 +158,28 @@ jobs:
           set -euo pipefail
 
           ROOT="$PWD"
-          JAR="$ROOT/build/libs/togglesneak-1.0.0.jar"
+          JAR="$ROOT/build/libs/togglesneak-1.0.1.jar"
           OUT="$ROOT/build/deliverables"
           mkdir -p "$OUT"
 
-          cp "$JAR" "$OUT/ToggleSneak-1.0.0+mc26.2.jar"
+          cp "$JAR" "$OUT/ToggleSneak-1.0.1+mc26.2.jar"
           cp README.md CHANGELOG.md build/VERIFICATION.md "$OUT/"
 
-          zip -q -r "$OUT/ToggleSneak-1.0.0-source.zip"             src build.gradle settings.gradle gradle.properties README.md CHANGELOG.md
+          zip -q -r "$OUT/ToggleSneak-1.0.1-source.zip"             src build.gradle settings.gradle gradle.properties README.md CHANGELOG.md
 
-          BUNDLE="$ROOT/build/project-bundle/ToggleSneak-1.0.0"
+          BUNDLE="$ROOT/build/project-bundle/ToggleSneak-1.0.1"
           mkdir -p "$BUNDLE"
           rsync -a             --exclude '.gradle'             --exclude 'build'             ./ "$BUNDLE/"
           mkdir -p "$BUNDLE/dist"
-          cp "$JAR" "$BUNDLE/dist/ToggleSneak-1.0.0+mc26.2.jar"
+          cp "$JAR" "$BUNDLE/dist/ToggleSneak-1.0.1+mc26.2.jar"
           cp build/VERIFICATION.md "$BUNDLE/VERIFICATION.md"
 
           (
             cd "$ROOT/build/project-bundle"
-            zip -q -r "$OUT/ToggleSneak-1.0.0-project.zip" ToggleSneak-1.0.0
+            zip -q -r "$OUT/ToggleSneak-1.0.1-project.zip" ToggleSneak-1.0.1
           )
 
-          sha256sum             "$OUT/ToggleSneak-1.0.0+mc26.2.jar"             "$OUT/ToggleSneak-1.0.0-source.zip"             "$OUT/ToggleSneak-1.0.0-project.zip"             > "$OUT/SHA256SUMS.txt"
+          sha256sum             "$OUT/ToggleSneak-1.0.1+mc26.2.jar"             "$OUT/ToggleSneak-1.0.1-source.zip"             "$OUT/ToggleSneak-1.0.1-project.zip"             > "$OUT/SHA256SUMS.txt"
 
           ls -lh "$OUT"
           cat "$OUT/SHA256SUMS.txt"
@@ -184,7 +187,7 @@ jobs:
       - name: Upload deliverables
         uses: actions/upload-artifact@v4
         with:
-          name: ToggleSneak-1.0.0-deliverables
+          name: ToggleSneak-1.0.1-deliverables
           path: projects/togglesneak-26.2/build/deliverables/*
           if-no-files-found: error
           retention-days: 30
