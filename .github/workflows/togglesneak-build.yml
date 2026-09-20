@@ -38,7 +38,7 @@ jobs:
           gradle-version: "9.5.1"
 
       - name: Generate Gradle wrapper
-        run: gradle wrapper --gradle-version 9.5.1
+        run: gradle wrapper --gradle-version 9.5.1 --no-validate-url
 
       - name: Build and run simulations
         run: ./gradlew clean check build --stacktrace
