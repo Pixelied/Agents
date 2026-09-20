@@ -57,3 +57,8 @@ tasks.register("stateSimulation", JavaExec) {
 check {
     dependsOn tasks.named("stateSimulation")
 }
+
+// Simulations are executed by stateSimulation; this project intentionally has no JUnit engine.
+tasks.named("test") {
+    enabled = false
+}
