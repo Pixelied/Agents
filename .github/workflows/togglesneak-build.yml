@@ -43,6 +43,32 @@ jobs:
       - name: Build and run simulations
         run: ./gradlew clean check build --stacktrace
 
+      - name: Smoke-launch Fabric client
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p build
+          set +e
+          timeout 90s xvfb-run -a ./gradlew runClient --no-daemon > build/client-smoke.log 2>&1
+          STATUS=$?
+          set -e
+
+          if [ "$STATUS" -ne 124 ]; then
+            echo "ERROR: client exited before the smoke-test timeout (status $STATUS)"
+            tail -n 250 build/client-smoke.log || true
+            exit 1
+          fi
+
+          test -f run/logs/latest.log
+
+          if grep -E -i 'NoSuch(Method|Field)Error|ClassCastException|Mixin.*(failed|error)|Exception in thread|Crash report' run/logs/latest.log; then
+            echo "ERROR: runtime linkage/mixin/crash signature found during client smoke launch"
+            tail -n 250 run/logs/latest.log
+            exit 1
+          fi
+
+          echo "Fabric client remained alive through the smoke window with no linkage/mixin/crash signature."
+
       - name: Verify final JAR and bytecode
         shell: bash
         run: |
@@ -95,6 +121,7 @@ jobs:
           - Fabric API baseline: 0.160.0+26.2.
           - Fabric Loader baseline: 0.19.5.
           - `clean check build` passed.
+          - A real Fabric development client was launched under Xvfb and remained alive through the smoke-test window with no runtime linkage, mixin-application, or crash signature.
           - State/HUD simulation suite passed.
           - Final remapped JAR exists and its contents were enumerated.
           - No test/development simulation classes are packaged in the final JAR.
