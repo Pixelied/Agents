@@ -104,7 +104,7 @@ public final class ToggleSneakClient implements ClientModInitializer {
     }
 
     private static boolean isPhysicalSneakDown(Minecraft minecraft) {
-        final InputConstants.Key boundKey = minecraft.options.keyShift.getKey();
+        final InputConstants.Key boundKey = KeyMappingHelper.getBoundKeyOf(minecraft.options.keyShift);
 
         // keyShift can be a ToggleKeyMapping when vanilla Toggle Crouch is
         // enabled. For Smart Latch we need the literal press/release state,
