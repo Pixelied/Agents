@@ -1,0 +1,71 @@
+name: Fix InsectRealism R8.3 Release Notes
+
+on:
+  push:
+    branches:
+      - insectrealism-r8-data
+    paths:
+      - '.github/workflows/fix-insectrealism-r8.3-release-notes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-release-notes:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: insectrealism-r8.3-empirical-20260919
+      ZIP_SHA256: d49bccbf483c8f1e5f0f67f648f0035a1095f92ec363ba5958235841177ccf61
+      ZIP_BYTES: "1043927274"
+    steps:
+      - name: Rewrite and verify R8.3 release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          cat > "$NOTES" <<'EOF'
+          # InsectRealism R8.3 — EMPIRICAL research/data handoff
+
+          **One download. One current implementation plan. Much less image-heavy.**
+
+          R8.3 directly revises the implementation plan and research package.
+          Astra/Codex should use `00_START_HERE/CURRENT_IMPLEMENTATION_PLAN_R8_3.md`
+          as the single implementation authority.
+
+          The existing **Linepithema humile** ant system remains fully in scope:
+          worker morphology/size variation, callows, queens, males, eggs, larvae,
+          pupae/brood, trail/pheromone behavior, recruitment and colony logic.
+
+          ## R8.3 data rebalance
+
+          - Visual/reference media: **1,378 -> 689 files (exactly 50% retained by count)**
+          - Retained visual/reference bytes: **650,963,625**
+          - Reusable study/source files acquired: **26 files / 389,342,795 bytes**
+          - Raw/open study data: **24 files / 369,355,926 bytes**
+          - Experimental recordings: **1 file / 19,314,127 bytes**
+          - Contextual biology data: **1 file / 672,742 bytes**
+          - Direct published numerical layer: **75 audited rows**
+          - Final ZIP: **1,043,927,274 bytes**
+          - Final SHA-256: **d49bccbf483c8f1e5f0f67f648f0035a1095f92ec363ba5958235841177ccf61**
+
+          The large empirical portion is **not claimed to be 389 MB of movement
+          trajectories**. It contains real raw/open study outputs spanning morphology/
+          cuticle measurements, survival/population/physiology experiments and other
+          source data, plus a real experimental cockroach recording. Exact locomotion
+          evidence is separately preserved as direct published parameter/model tables,
+          experimental recordings where reusable, and remote-only links where copyright
+          prevents redistribution.
+
+          **Build validation: PASS.**
+          EOF
+
+          gh release edit "$TAG" --repo Pixelied/Agents             --title "InsectRealism R8.3 — Empirical Data + Curated References"             --notes-file "$NOTES"
+
+          JSON="$(gh api "repos/Pixelied/Agents/releases/tags/$TAG")"
+          test "$(jq '.assets | length' <<<"$JSON")" -eq 1
+          test "$(jq -r '.assets[0].name' <<<"$JSON")" = "InsectRealism_R8_3_EMPIRICAL_COMPLETE.zip"
+          test "$(jq -r '.assets[0].size' <<<"$JSON")" -eq "$ZIP_BYTES"
+          test "$(jq -r '.assets[0].digest' <<<"$JSON")" = "sha256:$ZIP_SHA256"
+          echo "R8.3 release notes and single asset verified."
