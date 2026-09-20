@@ -208,6 +208,105 @@
       "license": "CC0-1.0",
       "evidence_class": "raw_open_study_data",
       "role": "adult live/affected/dead observations on concrete"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-SREP-VIDEO-001",
+      "title": "Scientific Reports 2019 courtship experimental video (male wing-raising display)",
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41598-019-39868-x/MediaObjects/41598_2019_39868_MOESM1_ESM.mp4",
+      "license": "CC BY 4.0",
+      "evidence_class": "experimental_recordings",
+      "role": "direct exact-species adult-male courtship/grooming/postural recording; different-stage contextual gait/posture reference only"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-SREP-DATA-001",
+      "title": "Scientific Reports 2019 Dataset 1 courtship/grooming data",
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41598-019-39868-x/MediaObjects/41598_2019_39868_MOESM3_ESM.xlsx",
+      "license": "CC BY 4.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "direct exact-species adult courtship/grooming observations; different-stage contextual behavior, not first-instar locomotion calibration"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "source_id": "R83-ORY-NATURE2026-SOURCE-001",
+      "title": "Nature Communications 2026 Source Data",
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41467-026-71143-2/MediaObjects/41467_2026_71143_MOESM4_ESM.xlsx",
+      "license": "CC BY 4.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "direct exact-species survival, reproduction, cuticle melanization/thickness, bacteriome and symbiont experimental source data"
+    },
+    {
+      "species": "Oryzaephilus surinamensis",
+      "source_id": "R83-ORY-NATURE2021-SUPP-001",
+      "title": "Communications Biology 2021 Supplementary Data 1",
+      "url": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs42003-021-02057-6/MediaObjects/42003_2021_2057_MOESM3_ESM.xlsx",
+      "license": "CC BY 4.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "direct exact-species cuticle/symbiont quantitative supplementary data; morphology/material/context, not locomotion"
+    },
+    {
+      "species": "Liposcelis bostrychophila",
+      "source_id": "R83-LIP-PLOS2013-S1",
+      "title": "PLoS ONE 2013 exact-species supplementary table S1",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/instance/3835895/bin/pone.0079878.s001.xls",
+      "license": "CC BY 4.0",
+      "evidence_class": "contextual_biology_data",
+      "role": "direct exact-species transcriptome annotation table; contextual molecular/stage evidence only, not locomotion calibration"
+    },
+    {
+      "species": "Liposcelis bostrychophila",
+      "source_id": "R83-LIP-PLOS2013-S2",
+      "title": "PLoS ONE 2013 exact-species supplementary table S2",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/instance/3835895/bin/pone.0079878.s002.xls",
+      "license": "CC BY 4.0",
+      "evidence_class": "contextual_biology_data",
+      "role": "direct exact-species expression/annotation supplementary table; contextual molecular/stage evidence only, not locomotion calibration"
+    },
+    {
+      "species": "Liposcelis bostrychophila",
+      "source_id": "R83-LIP-PLOS2013-S3",
+      "title": "PLoS ONE 2013 exact-species supplementary table S3",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/instance/3835895/bin/pone.0079878.s003.xls",
+      "license": "CC BY 4.0",
+      "evidence_class": "contextual_biology_data",
+      "role": "direct exact-species validation supplementary table; contextual molecular/stage evidence only, not locomotion calibration"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-THIGMO-MMC2",
+      "title": "iScience 2022 thigmotaxis supplementary table mmc2.xlsx",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/instance/9385682/bin/mmc2.xlsx",
+      "license": "CC BY 4.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "direct exact-species shelter/thigmotaxis preference data; different-stage/context behavior evidence"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-THIGMO-MMC3",
+      "title": "iScience 2022 thigmotaxis supplementary table mmc3.xlsx",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/instance/9385682/bin/mmc3.xlsx",
+      "license": "CC BY 4.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "direct exact-species shelter/thigmotaxis preference data; different-stage/context behavior evidence"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-THIGMO-MMC4",
+      "title": "iScience 2022 thigmotaxis supplementary table mmc4.xlsx",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/instance/9385682/bin/mmc4.xlsx",
+      "license": "CC BY 4.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "direct exact-species nymph 15-min shelter/thigmotaxis preference data; stage is nymph but not guaranteed ~24 h first instar"
+    },
+    {
+      "species": "Blattella germanica",
+      "source_id": "R83-BLA-THIGMO-MMC5",
+      "title": "iScience 2022 thigmotaxis supplementary table mmc5.xlsx",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/instance/9385682/bin/mmc5.xlsx",
+      "license": "CC BY 4.0",
+      "evidence_class": "raw_open_study_data",
+      "role": "direct exact-species shelter/thigmotaxis preference data; different-stage/context behavior evidence"
     }
   ],
   "zenodo": [
@@ -227,12 +326,10 @@
       "species": "Oryzaephilus surinamensis",
       "source_id": "R83-ORY-ZENODO-001",
       "record_id": "4939311",
-      "role": "Dryad mirror/fallback for ancient symbiosis raw data",
+      "role": "full exact-species empirical record: cuticle thickness/melanization, hydrocarbons, water loss, mortality, population growth, qPCR and associated source files",
       "evidence_class": "raw_open_study_data",
       "allowed_extensions": [
-        ".xlsx",
-        ".xls",
-        ".csv"
+        "*"
       ]
     }
   ],
