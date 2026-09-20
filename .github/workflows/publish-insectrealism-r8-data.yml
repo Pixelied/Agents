@@ -1,6 +1,6 @@
 name: Publish InsectRealism R8.3 Empirical Bundle
 
-# Final empirical acquisition trigger: full Zenodo record + direct CC-BY study outputs.
+# Final empirical acquisition trigger v3: file-level Edmond license audit.
 
 # FINAL LOCKED R8.3 source build v2: Edmond + PMC behavior supplements + Zenodo CC-ID fixes + non-UTF8-safe validation.
 
