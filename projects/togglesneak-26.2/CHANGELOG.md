@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 - 2026-09-20
+
+- Smart Latch now ignores Sneak holds used for mining/attacking.
+- Smart Latch now ignores Sneak holds used for block placement, interaction, or held item use.
+- Attack/Use invalidates the current physical Sneak press for latching until Sneak is released, preventing delayed accidental locks after finishing an interaction.
+- Added simulation coverage for interaction suppression, mid-hold cancellation, release-ready cancellation, and fresh-hold recovery.
+
 ## 1.0.0 - 2026-09-20
 
 Initial Minecraft 26.2 release.
