@@ -77,7 +77,7 @@ public final class ToggleSneakClient implements ClientModInitializer {
 
         STATE.tick(
                 toggleKey != null && toggleKey.isDown(),
-                minecraft.options.keyShift.isDown(),
+                isPhysicalSneakDown(minecraft),
                 moving,
                 screenOpen,
                 !player.isPassenger()
@@ -101,6 +101,21 @@ public final class ToggleSneakClient implements ClientModInitializer {
 
     static ToggleSneakState state() {
         return STATE;
+    }
+
+    private static boolean isPhysicalSneakDown(Minecraft minecraft) {
+        final InputConstants.Key boundKey = minecraft.options.keyShift.getKey();
+
+        // keyShift can be a ToggleKeyMapping when vanilla Toggle Crouch is
+        // enabled. For Smart Latch we need the literal press/release state,
+        // not that sticky logical state. Keyboard bindings can be read
+        // directly from the current 26.2 Window; non-keyboard bindings fall
+        // back to vanilla's own mapping state.
+        if (boundKey.getType() == InputConstants.Type.KEYSYM) {
+            return InputConstants.isKeyDown(minecraft.getWindow(), boundKey.getValue());
+        }
+
+        return minecraft.options.keyShift.isDown();
     }
 
     private static void resetSession() {
