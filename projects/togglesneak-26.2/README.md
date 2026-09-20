@@ -36,6 +36,8 @@ The latch accumulates confidence rather than using one fixed timer:
 - Actively moving: about 3.5 seconds.
 - Standing still: about 8 seconds.
 - If movement changes during the hold, the accumulation rate blends smoothly. Existing progress is not discarded.
+- Mining/attacking or holding Use/place/interact marks that physical Sneak press as busy, so Smart Latch cannot trigger from it.
+- Once Attack/Use occurs during a Sneak hold, Smart Latch stays blocked until Sneak is released. This prevents a long crouch-mining/building hold from unexpectedly latching immediately after the interaction stops.
 
 Short taps show no latch HUD. Once the hold is clearly intentional, a small message appears above the hotbar, for example:
 
