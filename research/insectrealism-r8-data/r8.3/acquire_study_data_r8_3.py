@@ -334,8 +334,35 @@ class Builder:
         return " | ".join(x for x in texts if x)
 
     def acquire_edmond(self, spec: dict):
-        """Acquire published Max Planck Edmond research data with explicit license audit."""
+        """Acquire published Edmond data with file-level license audit when needed."""
         sid = spec["source_id"]
+
+        def flatten_license_candidates(obj):
+            out = []
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    kl = str(k).lower()
+                    if any(word in kl for word in ("license", "licence", "rights")):
+                        if isinstance(v, (str, int, float)):
+                            out.append(str(v))
+                        elif isinstance(v, dict):
+                            for vv in v.values():
+                                if isinstance(vv, (str, int, float)):
+                                    out.append(str(vv))
+                        elif isinstance(v, list):
+                            for vv in v:
+                                if isinstance(vv, (str, int, float)):
+                                    out.append(str(vv))
+                                elif isinstance(vv, dict):
+                                    out.extend(str(x) for x in vv.values()
+                                               if isinstance(x, (str, int, float)))
+                    if isinstance(v, (dict, list)):
+                        out.extend(flatten_license_candidates(v))
+            elif isinstance(obj, list):
+                for v in obj:
+                    out.extend(flatten_license_candidates(v))
+            return out
+
         try:
             persistent = quote("doi:" + spec["doi"], safe="")
             meta = get_json(
@@ -347,63 +374,121 @@ class Builder:
             if not files:
                 raise RuntimeError("Edmond dataset returned no published files")
 
-            raw_lic = ver.get("license") or data.get("license")
-            if isinstance(raw_lic, dict):
-                lic = (
-                    raw_lic.get("name") or raw_lic.get("title")
-                    or raw_lic.get("identifier") or raw_lic.get("uri") or ""
-                )
-            else:
-                lic = str(raw_lic or "")
-            terms = str(ver.get("termsOfUse") or data.get("termsOfUse") or "")
+            dataset_candidates = flatten_license_candidates({
+                "license": ver.get("license") or data.get("license"),
+                "termsOfUse": ver.get("termsOfUse") or data.get("termsOfUse"),
+            })
+            dataset_license = " | ".join(x for x in dataset_candidates if x).strip()
+            individual_license_mode = (
+                "individual licence" in dataset_license.lower()
+                or "individual license" in dataset_license.lower()
+            )
 
-            # Current Edmond Terms of Use state that a dataset published without
-            # an assigned license is released under CC0. A dataset-specific
-            # license/terms always overrides that repository default.
-            if not lic.strip():
-                if terms.strip() and not license_allowed(terms):
-                    self.record_error(sid, "license_blocked",
-                                      "Edmond custom terms present and not recognized as redistributable: " + terms[:500])
+            if not individual_license_mode:
+                if not dataset_license:
+                    # Edmond's current Terms of Use: published datasets with no
+                    # assigned license are released under CC0.
+                    dataset_license = (
+                        "CC0 1.0 (Edmond documented default when no license is assigned)"
+                    )
+                elif not license_allowed(dataset_license):
+                    self.record_error(
+                        sid, "license_blocked",
+                        "Edmond dataset license/terms not redistribution-compatible: "
+                        + dataset_license[:800]
+                    )
                     return
-                lic = "CC0 1.0 (Edmond documented default when no dataset-specific license is assigned)"
-            elif not license_allowed(lic):
-                combined = (lic + " " + terms).strip()
-                if not license_allowed(combined):
-                    self.record_error(sid, "license_blocked",
-                                      "Edmond license/terms not redistribution-compatible: " + combined[:500])
-                    return
-                lic = combined
 
+            accepted = 0
+            skipped = 0
             for ent in files:
                 df = ent.get("dataFile") or {}
                 fid = df.get("id")
                 name = df.get("filename") or ("edmond_" + str(fid) + ".bin")
                 if not fid:
                     continue
+
+                file_license = dataset_license
+                if individual_license_mode:
+                    candidates = flatten_license_candidates(ent)
+
+                    # Newer Dataverse/Edmond versions may expose the file's own
+                    # license only through the file representation or metadata endpoint.
+                    for endpoint in (
+                        f"https://edmond.mpg.de/api/files/{fid}",
+                        f"https://edmond.mpg.de/api/files/{fid}/metadata",
+                    ):
+                        try:
+                            fm = get_json(endpoint)
+                            candidates.extend(flatten_license_candidates(fm))
+                        except Exception:
+                            pass
+
+                    # Deduplicate while retaining readable provenance.
+                    seen = set()
+                    candidates = [
+                        x.strip() for x in candidates
+                        if x and x.strip() and not (x.strip() in seen or seen.add(x.strip()))
+                    ]
+                    allowed = [x for x in candidates if license_allowed(x)]
+                    blocked = [
+                        x for x in candidates
+                        if any(re.search(p, x, re.I) for p in BLOCKED_LICENSE_PATTERNS)
+                    ]
+                    if blocked or not allowed:
+                        skipped += 1
+                        self.record_error(
+                            sid, "edmond_file_license_blocked",
+                            f"file_id={fid}; filename={name}; license metadata="
+                            + (" | ".join(candidates)[:1000] if candidates else "<none>")
+                        )
+                        continue
+                    file_license = " | ".join(allowed)
+
                 url = f"https://edmond.mpg.de/api/access/datafile/{fid}"
                 tmp = Path(tempfile.mkstemp(suffix=Path(name).suffix)[1])
                 try:
                     copy_stream(url, tmp)
+                    checksum = df.get("checksum")
+                    reported = ""
+                    if isinstance(checksum, dict):
+                        reported = (
+                            str(checksum.get("type", "")) + ":"
+                            + str(checksum.get("value", ""))
+                        ).strip(":")
                     self.add_file(
                         species=spec["species"], source_id=sid,
-                        title=ver.get("datasetVersion") or data.get("identifier") or
-                              f"Edmond dataset {spec['doi']}",
-                        source_type="repository_raw_file", repository="Edmond / Max Planck Society",
-                        doi_or_id=spec["doi"], license_text=lic,
+                        title=(
+                            ver.get("datasetVersion")
+                            or data.get("identifier")
+                            or f"Edmond dataset {spec['doi']}"
+                        ),
+                        source_type="repository_raw_file",
+                        repository="Edmond / Max Planck Society",
+                        doi_or_id=spec["doi"],
+                        license_text=file_license,
                         evidence_class=spec["evidence_class"],
-                        intended_use=spec["role"], original_url=url, src_path=tmp,
+                        intended_use=spec["role"],
+                        original_url=url,
+                        src_path=tmp,
                         baseline_permission=spec.get(
                             "calibration_permission", "contextual_or_gated"
                         ),
-                        source_reported_digest=(
-                            (str(df.get("checksum", {}).get("type", "")) + ":" +
-                             str(df.get("checksum", {}).get("value", ""))).strip(":")
-                            if isinstance(df.get("checksum"), dict) else ""
+                        source_reported_digest=reported,
+                        notes=(
+                            f"Edmond file id={fid}; filename={name}; "
+                            f"file-level-license-mode={individual_license_mode}"
                         ),
-                        notes=f"Edmond file: {name}; published dataset DOI {spec['doi']}"
                     )
+                    accepted += 1
                 finally:
                     tmp.unlink(missing_ok=True)
+
+            if not accepted:
+                raise RuntimeError(
+                    f"No Edmond files passed license audit; skipped={skipped}; "
+                    f"dataset_terms={dataset_license[:500]}"
+                )
         except Exception as e:
             self.record_error(sid, "edmond_failed", str(e))
 
