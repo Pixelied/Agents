@@ -35,6 +35,17 @@ public final class ToggleSneakState {
             boolean screenOpen,
             boolean latchContextAllowed
     ) {
+        tick(toggleKeyDown, physicalSneakDown, moving, screenOpen, false, latchContextAllowed);
+    }
+
+    public void tick(
+            boolean toggleKeyDown,
+            boolean physicalSneakDown,
+            boolean moving,
+            boolean screenOpen,
+            boolean interactionBusy,
+            boolean latchContextAllowed
+    ) {
         if (offMessageTicks > 0) {
             offMessageTicks--;
         }
@@ -74,8 +85,23 @@ public final class ToggleSneakState {
             latchBlockedUntilSneakRelease = true;
         }
 
+        // Attack/Use means this physical Sneak hold is serving another
+        // gameplay intent (mining/combat/placing/interacting/using an item).
+        // Invalidate Smart Latch for the rest of this same Sneak press rather
+        // than merely pausing it; otherwise a long mining/building crouch
+        // could unexpectedly lock as soon as the interaction stops.
+        if (interactionBusy && physicalSneakDown) {
+            cancelLatch();
+            latchBlockedUntilSneakRelease = true;
+            finishTick(toggleKeyDown, physicalSneakDown);
+            return;
+        }
+
         if (sneakReleased) {
-            if (releaseToLock && !latchBlockedUntilSneakRelease && latchContextAllowed) {
+            if (releaseToLock
+                    && !interactionBusy
+                    && !latchBlockedUntilSneakRelease
+                    && latchContextAllowed) {
                 setToggleOn(true);
             }
 
