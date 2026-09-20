@@ -55,10 +55,11 @@ If Toggle Sneak was already ON and that physical Sneak press turned it OFF, the 
 
 Minecraft 26.2 routes active screens through its GUI object. ToggleSneak checks the actual 26.2 screen state and follows vanilla-like GUI behavior:
 
-- Opening inventory, chat, containers, pause/options, crafting, or another screen suspends the mod's forced sneak input.
-- The logical Toggle Sneak state is preserved.
-- Closing the screen resumes forced sneak if the logical toggle is still ON.
-- An in-progress Smart Latch is cancelled when a GUI opens.
+- Opening the normal player inventory, Creative inventory, or chat keeps an already-active Toggle Sneak physically applied.
+- Other screens such as containers, crafting, pause/options, and miscellaneous GUIs suspend the mod's forced sneak input.
+- The logical Toggle Sneak state is preserved across every screen.
+- Closing a screen that suspends forced sneak resumes it if the logical toggle is still ON.
+- Smart Latch itself is still cancelled when any GUI opens, including inventory and chat.
 - Holding Sneak through the GUI cannot silently resume the same Smart Latch attempt after the GUI closes.
 
 Forced sneak is also suspended while riding so the mod does not turn crouch into repeated dismount input.

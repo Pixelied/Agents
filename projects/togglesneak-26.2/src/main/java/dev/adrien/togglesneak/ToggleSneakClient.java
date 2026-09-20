@@ -10,6 +10,10 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.KeyboardInput;
 import net.minecraft.client.player.LocalPlayer;
@@ -96,7 +100,7 @@ public final class ToggleSneakClient implements ClientModInitializer {
         }
 
         return STATE.shouldForceSneak(
-                minecraft.gui.screen() != null,
+                screenSuspendsForcedSneak(minecraft.gui.screen()),
                 player.isPassenger(),
                 player.isAlive()
         );
@@ -104,6 +108,20 @@ public final class ToggleSneakClient implements ClientModInitializer {
 
     static ToggleSneakState state() {
         return STATE;
+    }
+
+    private static boolean screenSuspendsForcedSneak(Screen screen) {
+        if (screen == null) {
+            return false;
+        }
+
+        // Keep an already-active Toggle Sneak physically applied in the two
+        // screens where players commonly need to remain crouched while typing
+        // or managing their own inventory. Other GUIs still suspend forced
+        // sneak, while Smart Latch itself remains cancelled by any open screen.
+        return !(screen instanceof ChatScreen)
+                && !(screen instanceof InventoryScreen)
+                && !(screen instanceof CreativeModeInventoryScreen);
     }
 
     private static boolean isPhysicalSneakDown(Minecraft minecraft) {

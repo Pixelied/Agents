@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2 - 2026-09-20
+
+- Active Toggle Sneak now remains physically applied while the normal player inventory is open.
+- Active Toggle Sneak now remains physically applied in Creative inventory.
+- Active Toggle Sneak now remains physically applied while chat is open.
+- Other GUIs still suspend forced sneak, while preserving the logical toggle state.
+- Smart Latch continues to cancel on any open GUI so typing/inventory input cannot accidentally progress a latch.
+
 ## 1.0.1 - 2026-09-20
 
 - Smart Latch now ignores Sneak holds used for mining/attacking.
