@@ -74,12 +74,15 @@ public final class ToggleSneakClient implements ClientModInitializer {
                 || minecraft.options.keyDown.isDown()
                 || minecraft.options.keyLeft.isDown()
                 || minecraft.options.keyRight.isDown();
+        final boolean interactionBusy = minecraft.options.keyAttack.isDown()
+                || minecraft.options.keyUse.isDown();
 
         STATE.tick(
                 toggleKey != null && toggleKey.isDown(),
                 isPhysicalSneakDown(minecraft),
                 moving,
                 screenOpen,
+                interactionBusy,
                 !player.isPassenger()
         );
     }
