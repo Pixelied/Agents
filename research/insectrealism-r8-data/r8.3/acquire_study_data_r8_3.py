@@ -240,9 +240,10 @@ class Builder:
                 self.record_error(sid, "license_blocked", f"Zenodo license={lic!r}")
                 return
             allowed = {x.lower() for x in spec["allowed_extensions"]}
+            allow_all = "*" in allowed
             for f in meta.get("files", []):
                 name = f.get("key") or f.get("filename") or "zenodo_data.bin"
-                if Path(name).suffix.lower() not in allowed:
+                if not allow_all and Path(name).suffix.lower() not in allowed:
                     continue
                 url = ((f.get("links") or {}).get("content")
                        or (f.get("links") or {}).get("self"))
