@@ -9,6 +9,9 @@ public final class StateSimulation {
         testMovingSmartLatch();
         testStationarySmartLatch();
         testMovementChangeKeepsProgress();
+        testMiningOrAttackingInvalidatesCurrentLatchPress();
+        testUseOrPlacementCancelsLatchMidHold();
+        testInteractionCancelsReleaseReadyState();
         testReleaseToLock();
         testGuiCancelsLatchAndBlocksHeldSneak();
         testGuiSuspendsForcedSneakButPreservesLogicalState();
@@ -95,6 +98,73 @@ public final class StateSimulation {
 
         check(state.isReleaseToLock(), "mixed movement hold eventually becomes ready");
         check(40 + extra < 160, "moving mid-hold finishes before stationary-only timing");
+    }
+
+
+    private static void testMiningOrAttackingInvalidatesCurrentLatchPress() {
+        ToggleSneakState state = new ToggleSneakState();
+
+        for (int i = 0; i < 100; i++) {
+            state.tick(false, true, true, false, true, true);
+        }
+
+        check(state.latchProgress() == 0.0, "mining/attacking never accumulates latch confidence");
+        check(state.isLatchBlockedUntilSneakRelease(), "mining/attacking blocks Smart Latch for the current Sneak press");
+        check(!state.isReleaseToLock(), "mining/attacking cannot reach release-to-lock");
+
+        for (int i = 0; i < 120; i++) {
+            state.tick(false, true, true, false, false, true);
+        }
+
+        check(!state.isReleaseToLock(), "stopping attack while still holding Sneak does not resurrect the same latch attempt");
+
+        state.tick(false, false, false, false, false, true);
+        check(!state.isLatchBlockedUntilSneakRelease(), "releasing Sneak clears interaction latch block");
+
+        int ticks = ticksUntilReady(state, true, 100);
+        check(ticks >= 65 && ticks <= 75, "fresh Sneak press after mining can latch normally");
+
+        ToggleSneakState toggled = toggledOnState();
+        toggled.tick(false, false, false, false, true, true);
+        check(toggled.isToggleOn(), "attack/use does not disable an already active logical toggle by itself");
+    }
+
+    private static void testUseOrPlacementCancelsLatchMidHold() {
+        ToggleSneakState state = new ToggleSneakState();
+
+        for (int i = 0; i < 30; i++) {
+            state.tick(false, true, true, false, false, true);
+        }
+
+        check(state.latchProgress() > 0.0, "latch has progress before placement/use begins");
+
+        state.tick(false, true, true, false, true, true);
+        check(state.latchProgress() == 0.0, "placement/use cancels accumulated latch confidence");
+        check(state.isLatchBlockedUntilSneakRelease(), "placement/use invalidates the rest of the current Sneak press");
+
+        for (int i = 0; i < 100; i++) {
+            state.tick(false, true, true, false, false, true);
+        }
+
+        check(!state.isReleaseToLock(), "ending placement/use while still crouched cannot restart Smart Latch");
+
+        state.tick(false, false, false, false, false, true);
+        int ticks = ticksUntilReady(state, true, 100);
+        check(ticks >= 65 && ticks <= 75, "fresh Sneak press after placement/use can latch normally");
+    }
+
+    private static void testInteractionCancelsReleaseReadyState() {
+        ToggleSneakState state = new ToggleSneakState();
+        ticksUntilReady(state, true, 100);
+
+        check(state.isReleaseToLock(), "setup reached release-ready before interaction");
+        state.tick(false, true, true, false, true, true);
+
+        check(!state.isReleaseToLock(), "interaction cancels an already ready latch");
+        check(state.isLatchBlockedUntilSneakRelease(), "ready latch becomes blocked for the rest of that Sneak press");
+
+        state.tick(false, false, false, false, false, true);
+        check(!state.isToggleOn(), "releasing after interaction does not lock Toggle Sneak");
     }
 
     private static void testReleaseToLock() {
