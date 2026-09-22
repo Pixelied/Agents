@@ -95,66 +95,74 @@ jobs:
         run: |
           set -euo pipefail
           core="$RUNNER_TEMP/vape421-core"
-          second="$RUNNER_TEMP/vape421-second-recovery"
           git clone --depth 1 https://github.com/RSSeeker/Vape-v4.git "$core"
-          git clone --depth 1 https://github.com/minecrafttzh/OpenVape4.21.git "$second"
 
-          CORE="$core" SECOND="$second" python3 - <<'PY'
+          base64 -d vape421-fabric-26.2/core-fixture/original-java-paths.bloom.b64 \
+            > "$RUNNER_TEMP/original-java-paths.bloom"
+
+          CORE="$core" BLOOM="$RUNNER_TEMP/original-java-paths.bloom" python3 - <<'PY'
           from pathlib import Path
           import hashlib
           import os
 
           core = Path(os.environ["CORE"])
-          second = Path(os.environ["SECOND"])
+          bloom = Path(os.environ["BLOOM"]).read_bytes()
+          bit_count = len(bloom) * 8
+          hash_count = 10
 
-          core_paths = {
-              p.relative_to(core).as_posix()
-              for p in (core / "src/main/java").rglob("*.java")
-          }
-          second_paths = {
-              p.relative_to(second).as_posix()
-              for p in (second / "src/main/java").rglob("*.java")
-          }
-          common = sorted(core_paths & second_paths)
+          def maybe_original(rel: str) -> bool:
+              digest = hashlib.sha256(rel.encode()).digest()
+              h1 = int.from_bytes(digest[:8], "little")
+              h2 = int.from_bytes(digest[8:16], "little") | 1
+              for i in range(hash_count):
+                  index = (h1 + i * h2) % bit_count
+                  if not (bloom[index >> 3] & (1 << (index & 7))):
+                      return False
+              return True
 
-          manifest_parts = []
-          mismatched_between_mirrors = []
-          for rel in common:
-              a = (core / rel).read_bytes()
-              b = (second / rel).read_bytes()
-              if a != b:
-                  mismatched_between_mirrors.append(rel)
-              manifest_parts.append(
-                  f"{hashlib.sha256(a).hexdigest()}  {rel}\n"
+          all_files = sorted(
+              (core / "src/main/java").rglob("*.java"),
+              key=lambda p: p.as_posix()
+          )
+          kept = []
+          removed = []
+          for path in all_files:
+              rel = path.relative_to(core).as_posix()
+              if maybe_original(rel):
+                  kept.append(path)
+              else:
+                  removed.append(path)
+
+          print(f"mirror java files={len(all_files)}")
+          print(f"path-filter kept={len(kept)} removed={len(removed)}")
+          if removed:
+              print("mirror-only paths removed:")
+              for path in removed:
+                  print(path.relative_to(core).as_posix())
+
+          if len(kept) != 2948:
+              raise SystemExit(
+                  f"Path filter retained {len(kept)} files; expected exactly 2948. "
+                  "Refusing to weaken the source-integrity check."
               )
 
-          digest = hashlib.sha256("".join(manifest_parts).encode()).hexdigest()
+          manifest = "".join(
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+              f"{path.relative_to(core).as_posix()}\n"
+              for path in kept
+          ).encode()
+          digest = hashlib.sha256(manifest).hexdigest()
           expected = "18727af501c62c6278416ef85ffe9c3cd0dcb10bc3c141b5fdaafdbf1dd6bc11"
 
-          print(f"primary java files={len(core_paths)}")
-          print(f"second java files={len(second_paths)}")
-          print(f"common java files={len(common)}")
-          print(f"common manifest sha256={digest}")
-          print(f"common files differing between mirrors={len(mismatched_between_mirrors)}")
-          if mismatched_between_mirrors:
-              print("first differing common paths:")
-              for rel in mismatched_between_mirrors[:50]:
-                  print(rel)
-
-          if len(common) != 2948 or digest != expected:
+          print(f"normalized baseline manifest sha256={digest}")
+          if digest != expected:
               raise SystemExit(
-                  "The intersection of independent recovery mirrors does not exactly "
-                  "match the supplied original source; refusing to compile it."
+                  "Filtered mirror still does not exactly match the supplied "
+                  "original source; refusing to run the core compile probe."
               )
 
-          # The verified common tree is the user's untouched baseline. Remove
-          # mirror-only recovery additions before applying our migration patch.
-          for rel in sorted(core_paths - set(common)):
-              (core / rel).unlink()
-
-          remaining = list((core / "src/main/java").rglob("*.java"))
-          if len(remaining) != 2948:
-              raise SystemExit(f"normalized recovery count is {len(remaining)}, expected 2948")
+          for path in removed:
+              path.unlink()
           PY
 
       - name: Apply exact migration overlay
