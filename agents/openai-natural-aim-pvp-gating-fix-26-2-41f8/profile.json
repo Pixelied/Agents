@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-natural-aim-pvp-gating-fix-26-2-41f8",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Fixes Natural Aim Assist PvP-specific gating and target retention under real combat input.",
+  "capabilities": [
+    "java",
+    "minecraft-fabric",
+    "testing",
+    "github-actions",
+    "combat-controller-analysis"
+  ],
+  "registered_at": "2026-09-22T22:44:30+00:00",
+  "state": "available"
+}
