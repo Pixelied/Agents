@@ -26,6 +26,7 @@ public final class RecoveredCoreLauncher {
             Method start = bootstrapClass.getMethod("start");
             start.invoke(null);
             RecoveredInputAdapter.install(logger);
+            RecoveredLifecycleAdapter.install(logger);
             logger.info("Recovered Vape core started through Fabric lifecycle.");
         } catch (ClassNotFoundException missingDuringMigration) {
             logger.info("Recovered Vape core is not included in this migration build yet; Fabric shell remains active.");
