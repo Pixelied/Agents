@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "7720d0596ef847f1a49d18859631f4da",
+  "task_id": "natural-aim-assist-fix-26-2-20260922",
+  "agent_id": "openai-natural-aim-fix-26-2-9c2a",
+  "type": "verification",
+  "message": "Natural Aim Assist 1.1.0 fixes passed Java 25/Fabric 26.2 build, controller and mob-target simulations, real client smoke launch, JAR metadata inspection, and artifact upload.",
+  "data": {
+    "project_branch": "project/natural-aim-assist-26-2",
+    "head_sha": "94172ac415deccc15dc6395bc0cb8cec95a00cdb",
+    "workflow_run_id": 35789115763,
+    "workflow_artifact_id": 10721611804,
+    "artifact_archive_sha256": "9a90c49373e7d40f1a7b7e092d85464d4a142d734239c1ca00f3e7b4b85edce6",
+    "jar_sha256": "f839b3c3d150c44e541cfe2988205cfb887d627cf9ff2853756a612a4f1b8d80",
+    "checks": [
+      "Java 25 / Gradle 9.5.1 clean check build",
+      "aim controller simulations",
+      "hostile/passive MobCategory regression simulation",
+      "90-second Fabric 26.2 client smoke launch",
+      "runtime linkage, mixin, and crash-signature scan",
+      "remapped JAR metadata and artifact verification"
+    ]
+  },
+  "created_at": "2026-09-22T21:55:00+00:00"
+}
