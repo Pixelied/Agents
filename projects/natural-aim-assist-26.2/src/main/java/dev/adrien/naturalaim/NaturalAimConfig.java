@@ -95,10 +95,10 @@ public final class NaturalAimConfig {
             config.weaponsOnly = bool(properties, "weaponsOnly", config.weaponsOnly);
             config.targetPlayers = bool(properties, "targetPlayers", config.targetPlayers);
             boolean legacyTargetMobs = bool(properties, "targetMobs", false);
-            config.targetHostileMobs = bool(properties, "targetHostileMobs",
-                    properties.containsKey("targetMobs") ? legacyTargetMobs : config.targetHostileMobs);
-            config.targetPassiveMobs = bool(properties, "targetPassiveMobs",
-                    properties.containsKey("targetMobs") ? legacyTargetMobs : config.targetPassiveMobs);
+            // v1.0.0 shipped with the generic targetMobs option disabled by default.
+            // Do not let that old default silently disable the new hostile-mob category.
+            config.targetHostileMobs = bool(properties, "targetHostileMobs", true);
+            config.targetPassiveMobs = bool(properties, "targetPassiveMobs", legacyTargetMobs);
             config.visibleOnly = bool(properties, "visibleOnly", config.visibleOnly);
             config.ignoreInvisible = bool(properties, "ignoreInvisible", config.ignoreInvisible);
             config.pauseActions = bool(properties, "pauseActions", config.pauseActions);
