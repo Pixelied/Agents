@@ -15,7 +15,8 @@
     "MinecraftMixin",
     "LivingEntityMixin",
     "EntityMixin",
-    "ScoreboardMixin"
+    "ScoreboardMixin",
+    "PlayerTabOverlayMixin"
   ],
   "injectors": {
     "defaultRequire": 1
