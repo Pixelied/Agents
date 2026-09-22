@@ -17,7 +17,8 @@
     "EntityMixin",
     "ScoreboardMixin",
     "PlayerTabOverlayMixin",
-    "ChatComponentMixin"
+    "ChatComponentMixin",
+    "ItemStackMixin"
   ],
   "injectors": {
     "defaultRequire": 1
