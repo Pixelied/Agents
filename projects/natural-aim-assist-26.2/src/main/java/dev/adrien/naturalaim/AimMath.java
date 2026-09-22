@@ -101,6 +101,16 @@ public final class AimMath {
         );
     }
 
+    public static boolean combatIntentActive(long nowNanos, long lastAttackInputNanos, long holdWindowNanos) {
+        if (lastAttackInputNanos <= 0L || holdWindowNanos < 0L) return false;
+        long elapsed = nowNanos - lastAttackInputNanos;
+        return elapsed >= 0L && elapsed <= holdWindowNanos;
+    }
+
+    public static double lerp(double start, double end, double t) {
+        return start + (end - start) * clamp(t, 0.0, 1.0);
+    }
+
     public static double clampToRegion(double value, double min, double max) {
         if (min > max) {
             double midpoint = (min + max) * 0.5;
