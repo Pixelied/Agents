@@ -29,6 +29,7 @@ public final class NaturalAimEngine {
     private static final long REACQUIRE_COOLDOWN_NS = 120_000_000L;
     private static final long MOUSE_FALLBACK_DELAY_NS = 35_000_000L;
     private static final long COMBAT_INTENT_HOLD_NS = 900_000_000L;
+    private static final long INCIDENTAL_PVP_BLOCK_HIT_GRACE_NS = 280_000_000L;
     private static final double ACQUISITION_RAMP_SECONDS = 0.060;
     private static final double PULL_AWAY_ALIGNMENT = -0.34;
     private static final double PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES = 0.80;
@@ -53,6 +54,8 @@ public final class NaturalAimEngine {
     private long lastTargetScanNanos;
     private long suppressedUntilNanos;
     private long lastAttackInputNanos;
+    private long attackHeldSinceNanos;
+    private boolean attackWasDown;
 
     private double correctionYawVelocity;
     private double correctionPitchVelocity;
@@ -99,23 +102,19 @@ public final class NaturalAimEngine {
         double rawYaw = AimMath.wrapDegrees(vanillaYaw - lastOutputYaw);
         double rawPitch = vanillaPitch - lastOutputPitch;
 
-        if (minecraft.options.keyAttack.isDown()) {
+        boolean attackDown = minecraft.options.keyAttack.isDown();
+        if (attackDown) {
             lastAttackInputNanos = now;
+            if (!attackWasDown) {
+                attackHeldSinceNanos = now;
+            }
+        } else {
+            attackHeldSinceNanos = 0L;
         }
+        attackWasDown = attackDown;
 
         if (!hardContextAllowsAssistance(minecraft, player)) {
             clearTransientState();
-            syncBaseline(vanillaYaw, vanillaPitch, now);
-            return;
-        }
-
-        if (temporarilyPausedByAction(minecraft)) {
-            decayController(dt, config.preset().deceleration());
-            pullAwayEvidenceDegrees = AimMath.approach(
-                    pullAwayEvidenceDegrees,
-                    0.0,
-                    PULL_AWAY_EVIDENCE_DECAY_PER_SECOND * dt
-            );
             syncBaseline(vanillaYaw, vanillaPitch, now);
             return;
         }
@@ -126,7 +125,23 @@ public final class NaturalAimEngine {
             return;
         }
 
+        // Resolve/retain the combat target before evaluating mining pause. In real
+        // PvP, a click that misses the opponent by a few pixels can briefly make
+        // vanilla report block destruction. The old ordering paused assistance
+        // before it knew a valid player target was right there.
         LivingEntity activeTarget = resolveTarget(level, player, now);
+
+        if (temporarilyPausedByAction(minecraft, activeTarget != null, now)) {
+            decayController(dt, config.preset().deceleration());
+            pullAwayEvidenceDegrees = AimMath.approach(
+                    pullAwayEvidenceDegrees,
+                    0.0,
+                    PULL_AWAY_EVIDENCE_DECAY_PER_SECOND * dt
+            );
+            syncBaseline(vanillaYaw, vanillaPitch, now);
+            return;
+        }
+
         if (activeTarget == null) {
             decayController(dt, config.preset().deceleration());
             syncBaseline(vanillaYaw, vanillaPitch, now);
@@ -248,15 +263,21 @@ public final class NaturalAimEngine {
         return !config.weaponsOnly() || isCombatWeapon(player.getMainHandItem());
     }
 
-    private boolean temporarilyPausedByAction(Minecraft minecraft) {
-        if (!config.pauseActions()) return false;
-        if (minecraft.options.keyUse.isDown()) return true;
+    private boolean temporarilyPausedByAction(Minecraft minecraft, boolean combatTargetAvailable, long now) {
+        boolean destroyingBlock = minecraft.gameMode != null && minecraft.gameMode.isDestroying();
+        long attackHeldNanos = attackHeldSinceNanos > 0L && now >= attackHeldSinceNanos
+                ? now - attackHeldSinceNanos
+                : Long.MAX_VALUE;
 
-        // If Require Attack is enabled, vanilla may report block destruction
-        // from the same attack input. Do not treat that as a separate pause.
-        return !config.requireAttack()
-                && minecraft.gameMode != null
-                && minecraft.gameMode.isDestroying();
+        return AimMath.shouldPauseForAction(
+                config.pauseActions(),
+                minecraft.options.keyUse.isDown(),
+                destroyingBlock,
+                combatTargetAvailable,
+                minecraft.options.keyAttack.isDown(),
+                attackHeldNanos,
+                INCIDENTAL_PVP_BLOCK_HIT_GRACE_NS
+        );
     }
 
     private boolean combatIntentActive(Minecraft minecraft, long now) {
@@ -520,6 +541,8 @@ public final class NaturalAimEngine {
         lastTargetScanNanos = 0L;
         suppressedUntilNanos = 0L;
         lastAttackInputNanos = 0L;
+        attackHeldSinceNanos = 0L;
+        attackWasDown = false;
         correctionYawVelocity = 0.0;
         correctionPitchVelocity = 0.0;
         pullAwayEvidenceDegrees = 0.0;
