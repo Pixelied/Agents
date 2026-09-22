@@ -1,20 +1,32 @@
 package gg.vape.fabric;
 
 import gg.vape.fabric.platform.FabricPlatformServices;
+import gg.vape.fabric.render.FabricRenderBridge;
 import gg.vape.runtime.PlatformServices;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class VapeFabricClient implements ClientModInitializer {
-    private static final Logger LOGGER = LoggerFactory.getLogger("vape421");
+    private static final String MOD_ID = "vape421";
+    private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     @Override
     public void onInitializeClient() {
         var loader = FabricLoader.getInstance();
-        var configDir = loader.getConfigDir().resolve("vape421").toAbsolutePath().normalize();
+        var configDir = loader.getConfigDir().resolve(MOD_ID).toAbsolutePath().normalize();
         PlatformServices.install(new FabricPlatformServices(configDir, LOGGER));
+
+        HudElementRegistry.addLast(
+                Identifier.fromNamespaceAndPath(MOD_ID, "hud"),
+                FabricRenderBridge::extractHud);
+        LevelExtractionEvents.END_EXTRACTION.register(FabricRenderBridge::extractLevel);
+        LevelRenderEvents.END_MAIN.register(FabricRenderBridge::renderLevel);
 
         var mcVersion = loader.getModContainer("minecraft")
                 .map(c -> c.getMetadata().getVersion().getFriendlyString())
