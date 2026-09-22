@@ -11,7 +11,10 @@ public final class RenderServices {
     public interface Backend {
         default boolean isFrameActive() { return false; }
         default void fillRect(float x, float y, float width, float height, int argb) { }
-        default void fillGradient(float x, float y, float width, float height, int topArgb, int bottomArgb) { }
+        default void fillRoundedRect(float x, float y, float width, float height,
+                                     float radius, int cornerMask, int argb) { }
+        default void fillGradient(float x, float y, float width, float height,
+                                  int topArgb, int bottomArgb) { }
         default void enableScissor(int x, int y, int width, int height) { }
         default void disableScissor() { }
     }
@@ -33,7 +36,13 @@ public final class RenderServices {
         BACKEND.get().fillRect(x, y, width, height, argb);
     }
 
-    public static void fillGradient(float x, float y, float width, float height, int topArgb, int bottomArgb) {
+    public static void fillRoundedRect(float x, float y, float width, float height,
+                                       float radius, int cornerMask, int argb) {
+        BACKEND.get().fillRoundedRect(x, y, width, height, radius, cornerMask, argb);
+    }
+
+    public static void fillGradient(float x, float y, float width, float height,
+                                    int topArgb, int bottomArgb) {
         BACKEND.get().fillGradient(x, y, width, height, topArgb, bottomArgb);
     }
 
