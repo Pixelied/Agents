@@ -23,7 +23,7 @@ The controller also has a client-tick fallback so assistance continues to update
 
 With Mod Menu installed, open **Mods -> Natural Aim Assist -> Configure**.
 
-Numeric options now use a slider **and** an editable value box:
+Numeric options now use a slider **and** an editable value box. Hostile and passive mobs are separate target filters:
 
 - Strength: 0-100%
 - Assist FOV: 1-360 degrees
@@ -40,7 +40,8 @@ Defaults:
 - Require Attack on
 - Weapons Only on
 - Target Players on
-- Target Mobs off
+- Hostile Mobs on
+- Passive Mobs off
 - Visible Only on
 - Ignore Invisible on
 - Pause Mining / Use on
