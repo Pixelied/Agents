@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "9224b3e6f2f54cb69248b24a5d8e86ae",
+  "task_id": "natural-aim-pvp-authority-26-2-20260922",
+  "agent_id": "openai-natural-aim-pvp-authority-26-2-7a3d",
+  "type": "verification",
+  "message": "Natural Aim Assist 1.1.3 committed PvP authority passed deterministic simulations, Java 25/Fabric 26.2 build, real client smoke launch, runtime/mixin scan, JAR metadata verification, and artifact upload.",
+  "data": {
+    "project_branch": "project/natural-aim-assist-26-2",
+    "head_sha": "1886b8cbd7a18ee4ceec656f56f22c6545c09182",
+    "workflow_run_id": 35795878923,
+    "workflow_artifact_id": 10723724652,
+    "artifact_archive_sha256": "f6a5f22468641332df926349ccede087d9bfec82e4afd7724884665be699c069",
+    "jar_sha256": "fdf603caa5398c353ba83856e0c3d6fc78176ccb833f38a230cd199bfed9785a",
+    "checks": [
+      "player-specific 1.25-2.20 degree pull-away threshold",
+      "55 ms PvP reacquisition cooldown",
+      "95 percent committed extreme-speed tracking retention",
+      "committed edge-of-FOV retention",
+      "1.18-1.40 PvP proximity strength scaling",
+      "1.25-1.55 PvP turn-speed scaling",
+      "torso-center bias regression bounds",
+      "sub-tick player motion-lead regression bounds",
+      "Java 25 / Gradle 9.5.1 clean check build",
+      "90-second Fabric 26.2 client smoke launch",
+      "runtime linkage, mixin, crash-signature, and remapped JAR metadata verification"
+    ]
+  },
+  "created_at": "2026-09-22T23:11:30+00:00"
+}
