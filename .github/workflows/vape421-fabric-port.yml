@@ -1,0 +1,21 @@
+name: Vape Fabric 26.2 scaffold CI
+on:
+  push:
+    paths: ['vape421-fabric-26.2/**']
+  pull_request:
+    paths: ['vape421-fabric-26.2/**']
+
+jobs:
+  verify-migration-metadata:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15, macos-15-intel, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Report architecture
+        shell: bash
+        run: |
+          uname -a || true
+          test -f vape421-fabric-26.2/MIGRATION.md
