@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "naturalaim",
+  "version": "${version}",
+  "name": "Natural Aim Assist",
+  "description": "Intent-aware, acceleration-limited aim assistance that layers corrections over real mouse input.",
+  "authors": ["Adrien"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.adrien.naturalaim.NaturalAimClient"],
+    "modmenu": ["dev.adrien.naturalaim.modmenu.NaturalAimModMenu"]
+  },
+  "mixins": [
+    {
+      "config": "naturalaim.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=25",
+    "fabric-api": ">=${fabric_version}"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
