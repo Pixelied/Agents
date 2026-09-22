@@ -15,11 +15,16 @@ public final class FabricRenderBridge {
 
     private static final CopyOnWriteArrayList<Listener> LISTENERS = new CopyOnWriteArrayList<>();
     private static volatile FabricRenderServices renderServices;
+    private static volatile FabricProjectionServices projectionServices;
 
     private FabricRenderBridge() { }
 
     public static void installRenderServices(FabricRenderServices services) {
         renderServices = services;
+    }
+
+    public static void installProjectionServices(FabricProjectionServices services) {
+        projectionServices = services;
     }
 
     public static void addListener(Listener listener) {
@@ -34,9 +39,6 @@ public final class FabricRenderBridge {
         FabricRenderServices services = renderServices;
         if (services == null) return;
 
-        // The recovered client schedules font-atlas uploads and other GPU-facing
-        // cleanup through RenderThreadTaskQueue. Its old drain callback belonged
-        // to the injection-era render hook, so Fabric owns the drain point now.
         RecoveredRenderTaskAdapter.drain();
 
         try (FabricRenderServices.Scope ignored = services.begin(graphics)) {
@@ -47,6 +49,11 @@ public final class FabricRenderBridge {
     }
 
     public static void extractLevel(LevelExtractionContext context) {
+        FabricProjectionServices projections = projectionServices;
+        if (projections != null) {
+            projections.capture(context);
+        }
+
         RecoveredRenderTaskAdapter.drain();
         for (Listener listener : LISTENERS) {
             listener.extractLevel(context);
