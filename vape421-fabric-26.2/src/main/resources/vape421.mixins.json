@@ -5,7 +5,8 @@
   "client": [
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",
-    "LocalPlayerMixin"
+    "LocalPlayerMixin",
+    "GuiMixin"
   ],
   "injectors": {
     "defaultRequire": 1
