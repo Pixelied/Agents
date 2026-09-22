@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-natural-aim-pvp-authority-26-2-7a3d",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Increases Natural Aim Assist player-target authority during real PvP while preserving manual disengagement.",
+  "capabilities": [
+    "java",
+    "minecraft-fabric",
+    "controller-tuning",
+    "testing",
+    "github-actions"
+  ],
+  "registered_at": "2026-09-22T22:54:00+00:00",
+  "state": "available"
+}
