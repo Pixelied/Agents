@@ -20,6 +20,8 @@ public final class AimMathSimulation {
         testAdaptiveFlickRetention();
         testTargetAwareActionPause();
         testPvpProximityScaling();
+        testPvpAuthorityScaling();
+        testPvpMotionLead();
         System.out.println("Natural Aim math simulations passed.");
     }
 
@@ -177,14 +179,55 @@ public final class AimMathSimulation {
         double closeTurn = AimMath.pvpTurnSpeedScale(1.2);
         double midTurn = AimMath.pvpTurnSpeedScale(3.3);
 
-        check(closeStrength > 1.0,
-                "close PvP should not retain the old close-range strength penalty");
-        near(1.0, midStrength, 1.0e-9,
-                "mid-range PvP strength should return to neutral scaling");
-        check(closeTurn > 1.0,
-                "close PvP should allow faster angular tracking");
-        near(1.0, midTurn, 1.0e-9,
-                "mid-range PvP turn speed should return to preset limits");
+        check(closeStrength >= 1.39,
+                "close PvP should receive a substantial authority boost");
+        check(midStrength >= 1.17,
+                "normal-reach PvP should retain a meaningful strength boost");
+        check(closeTurn >= 1.54,
+                "close PvP should allow substantially faster angular tracking");
+        check(midTurn >= 1.24,
+                "normal-reach PvP should retain extra turn-speed headroom");
+    }
+
+    private static void testPvpAuthorityScaling() {
+        near(1.25, AimMath.pvpPullAwayThreshold(0.0), 1.0e-9,
+                "zero-strength PvP release threshold still exceeds hand-noise threshold");
+        near(2.20, AimMath.pvpPullAwayThreshold(1.0), 1.0e-9,
+                "full-strength PvP requires meaningful deliberate pull-away");
+
+        near(1.0, AimMath.pvpCommitmentStrength(0.0), 1.0e-9,
+                "fresh PvP acquisition should not get committed boost immediately");
+        check(AimMath.pvpCommitmentStrength(0.25) >= 1.279,
+                "committed PvP should gain roughly 28 percent authority");
+
+        double freshBias = AimMath.pvpCenterBias(0.75, 0.0);
+        double committedBias = AimMath.pvpCenterBias(0.75, 0.25);
+        check(freshBias > 0.30 && freshBias < committedBias,
+                "player aim point should begin with moderate center bias");
+        check(committedBias > 0.48 && committedBias < 0.51,
+                "committed 75 percent strength should bias about half-way toward torso center");
+
+        double freshFast = AimMath.adaptivePvpFlickFactor(1600.0, 0.0, 500.0, 1400.0);
+        double committedFast = AimMath.adaptivePvpFlickFactor(1600.0, 0.25, 500.0, 1400.0);
+        near(0.70, freshFast, 1.0e-9,
+                "fresh fast PvP acquisition should retain 70 percent authority");
+        near(0.95, committedFast, 1.0e-9,
+                "committed PvP should retain 95 percent authority at extreme camera speed");
+    }
+
+    private static void testPvpMotionLead() {
+        double still = AimMath.pvpLeadTicks(0.0, 2.5);
+        double strafe = AimMath.pvpLeadTicks(0.30, 2.5);
+        double farStrafe = AimMath.pvpLeadTicks(0.30, 6.0);
+
+        check(still >= 0.17 && still <= 0.19,
+                "stationary target should receive only minimal interpolation lead");
+        check(strafe > 0.70,
+                "fast close strafe should receive meaningful sub-tick motion lead");
+        check(farStrafe < strafe,
+                "motion lead should reduce at longer distance");
+        check(strafe < 0.81,
+                "motion lead must stay below one full client movement tick");
     }
 
     private static void testLerp() {
