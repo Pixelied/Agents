@@ -8,7 +8,8 @@
     "LocalPlayerMixin",
     "GuiMixin",
     "MultiPlayerGameModeMixin",
-    "ConnectionMixin"
+    "ConnectionMixin",
+    "MinecraftMixin"
   ],
   "injectors": {
     "defaultRequire": 1
