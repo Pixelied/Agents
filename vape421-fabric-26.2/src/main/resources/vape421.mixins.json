@@ -12,7 +12,9 @@
     "GuiMixin",
     "MultiPlayerGameModeMixin",
     "ConnectionMixin",
-    "MinecraftMixin"
+    "MinecraftMixin",
+    "LivingEntityMixin",
+    "EntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1
