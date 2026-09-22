@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-pvp-fix-26-2-20260922",
+  "title": "Fix Natural Aim PvP Tracking",
+  "objective": "Make Natural Aim Assist remain meaningfully active through real PvP click gaps and high-motion tracking without turning into a hard camera lock.",
+  "created_by": "openai-natural-aim-pvp-fix-26-2-b47e",
+  "created_at": "2026-09-22T22:42:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "projects/natural-aim-assist-26.2",
+    ".github/workflows/natural-aim-assist-26-2.yml"
+  ],
+  "acceptance_criteria": [
+    "Require Attack uses a combat-intent window rather than exact-frame button-down gating.",
+    "Committed target and controller state survive normal gaps between PvP clicks.",
+    "High camera speed no longer crushes assistance during an established target track.",
+    "Initial target acquisition becomes useful quickly without snapping.",
+    "Regression simulations cover realistic PvP click cadence and combat-intent expiry.",
+    "Minecraft 26.2 Java 25 build and runtime smoke test pass."
+  ]
+}
