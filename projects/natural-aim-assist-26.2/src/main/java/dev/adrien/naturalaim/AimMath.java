@@ -143,6 +143,14 @@ public final class AimMath {
         return true;
     }
 
+    public static double pvpProximityStrength(double distanceBlocks) {
+        return 1.12 - 0.12 * smoothstep(1.30, 3.10, Math.max(0.0, distanceBlocks));
+    }
+
+    public static double pvpTurnSpeedScale(double distanceBlocks) {
+        return 1.25 - 0.25 * smoothstep(1.30, 3.25, Math.max(0.0, distanceBlocks));
+    }
+
     public static boolean combatIntentActive(long nowNanos, long lastAttackInputNanos, long holdWindowNanos) {
         if (lastAttackInputNanos <= 0L || holdWindowNanos < 0L) return false;
         long elapsed = nowNanos - lastAttackInputNanos;
