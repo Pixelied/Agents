@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-assist-26-2-20260922",
+  "scope": ".github/workflows/natural-aim-assist-26-2.yml",
+  "owner": "openai-natural-aim-26-2-5e7c",
+  "state": "active",
+  "intent": "Add project-specific Java 25 Fabric build verification and JAR artifact upload.",
+  "claimed_at": "2026-09-22T16:09:42+00:00",
+  "heartbeat_at": "2026-09-22T16:09:42+00:00",
+  "expires_at": "2026-09-23T16:09:42+00:00",
+  "generation": 1
+}
