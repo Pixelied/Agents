@@ -45,10 +45,36 @@ public final class AimMath {
         return clamp((inputYaw * errorYaw + inputPitch * errorPitch) / (inputLength * errorLength), -1.0, 1.0);
     }
 
-    public static boolean isDeliberatePullAway(double inputYaw, double inputPitch, double errorYaw, double errorPitch,
-                                               double minimumInputDegrees, double alignmentThreshold) {
-        if (Math.hypot(inputYaw, inputPitch) < minimumInputDegrees) return false;
-        return intentAlignment(inputYaw, inputPitch, errorYaw, errorPitch) <= alignmentThreshold;
+    public static double updatePullAwayEvidence(
+            double currentEvidenceDegrees,
+            double inputYaw,
+            double inputPitch,
+            double errorYaw,
+            double errorPitch,
+            double alignmentThreshold,
+            double perSampleNoiseFloorDegrees,
+            double decayDegreesPerSecond,
+            double dtSeconds
+    ) {
+        double evidence = Math.max(0.0, currentEvidenceDegrees);
+        double inputLength = Math.hypot(inputYaw, inputPitch);
+        double errorLength = Math.hypot(errorYaw, errorPitch);
+
+        if (inputLength < 1.0e-6 || errorLength < 1.0e-6 || dtSeconds <= 0.0) {
+            return Math.max(0.0, evidence - decayDegreesPerSecond * Math.max(0.0, dtSeconds));
+        }
+
+        double alignment = intentAlignment(inputYaw, inputPitch, errorYaw, errorPitch);
+        if (alignment <= alignmentThreshold) {
+            // Integrate actual angular distance moved away from the target rather
+            // than cancelling on one mouse sample. This makes the result largely
+            // independent of polling rate while filtering tiny hand noise.
+            double awayDegrees = Math.max(0.0, -alignment * inputLength - perSampleNoiseFloorDegrees);
+            return evidence + awayDegrees;
+        }
+
+        double recoveryMultiplier = alignment >= 0.0 ? 1.8 : 1.0;
+        return Math.max(0.0, evidence - decayDegreesPerSecond * recoveryMultiplier * dtSeconds);
     }
 
     public static double clampToRegion(double value, double min, double max) {
