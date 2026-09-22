@@ -15,6 +15,11 @@ abstract class MouseHandlerMixin {
         if (FabricInputBridge.onMouseButton(info.button(), action, info.modifiers())) ci.cancel();
     }
 
+    @Inject(method = "onMove", at = @At("HEAD"))
+    private void vape421$onMove(long handle, double x, double y, CallbackInfo ci) {
+        FabricInputBridge.onMouseMove(x, y);
+    }
+
     @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
     private void vape421$onScroll(long handle, double xOffset, double yOffset, CallbackInfo ci) {
         if (FabricInputBridge.onScroll(xOffset, yOffset)) ci.cancel();
