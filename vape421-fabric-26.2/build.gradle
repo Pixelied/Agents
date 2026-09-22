@@ -27,10 +27,23 @@ sourceSets {
     }
 }
 
+configurations {
+    // Recovery-only compiler classpath. None of these dependencies are added
+    // to the normal Fabric runtime or packaged mod.
+    coreProbeCompile
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    coreProbeCompile 'org.javassist:javassist:3.29.2-GA'
+    coreProbeCompile 'org.ow2.asm:asm:9.7.1'
+    coreProbeCompile 'org.ow2.asm:asm-tree:9.7.1'
+    coreProbeCompile 'org.ow2.asm:asm-analysis:9.7.1'
+    coreProbeCompile 'org.ow2.asm:asm-util:9.7.1'
+    coreProbeCompile 'org.ow2.asm:asm-commons:9.7.1'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -47,4 +60,51 @@ java {
 processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand(version: project.version) }
+}
+
+/**
+ * Non-blocking migration diagnostic.
+ *
+ * CI reconstructs the exact recovered source tree into -PrecoveredCoreDir
+ * after SHA-256 verification. javac starts at the Fabric bootstrap roots and
+ * follows referenced source files through -sourcepath, exposing the next real
+ * semantic-port errors without making the already-green shell build depend on
+ * the whole decompiled tree.
+ */
+tasks.register('coreCompileProbe', JavaCompile) {
+    group = 'verification'
+    description = 'Compiles the recovered Vape bootstrap dependency graph against Minecraft 26.2.'
+    dependsOn tasks.named('compileClientJava')
+
+    def coreRoot = file(providers.gradleProperty('recoveredCoreDir')
+            .orElse('recovered-core').get())
+    def coreJava = new File(coreRoot, 'src/main/java')
+
+    source = files(
+            new File(coreJava, 'gg/vape/runtime/VapeBootstrap.java'),
+            new File(coreJava, 'gg/vape/runtime/FabricMigrationRuntime.java'),
+            new File(coreJava, 'gg/vape/runtime/NativeBridge.java'),
+            new File(coreJava, 'gg/vape/Vape.java'))
+
+    classpath = sourceSets.client.compileClasspath +
+            sourceSets.client.output +
+            configurations.coreProbeCompile
+    destinationDirectory = layout.buildDirectory.dir('core-probe-classes')
+
+    options.release = 25
+    options.encoding = 'UTF-8'
+    options.compilerArgs += [
+            '-sourcepath', coreJava.absolutePath,
+            '-Xmaxerrs', '500',
+            '-Xmaxwarns', '100',
+            '-Xdiags:verbose'
+    ]
+
+    doFirst {
+        if (!coreJava.isDirectory()) {
+            throw new GradleException(
+                    "Recovered core fixture is missing: ${coreJava}. " +
+                    "Pass -PrecoveredCoreDir=<verified recovery tree>.")
+        }
+    }
 }
