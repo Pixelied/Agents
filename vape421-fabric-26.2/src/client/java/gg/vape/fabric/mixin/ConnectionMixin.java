@@ -1,6 +1,6 @@
 package gg.vape.fabric.mixin;
 
-import com.llamalad7.mixinextras.injector.wrapmethod.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import gg.vape.fabric.network.RecoveredPacketAdapter;
 import io.netty.channel.ChannelHandlerContext;
