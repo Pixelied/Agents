@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-natural-aim-pvp-fix-26-2-b47e",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Fixes Natural Aim Assist behavior under real PvP click cadence and high-motion tracking.",
+  "capabilities": [
+    "java",
+    "minecraft-fabric",
+    "testing",
+    "github-actions",
+    "combat-controller-tuning"
+  ],
+  "registered_at": "2026-09-22T22:42:00+00:00",
+  "state": "available"
+}
