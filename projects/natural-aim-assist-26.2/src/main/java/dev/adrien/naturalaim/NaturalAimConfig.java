@@ -14,10 +14,17 @@ import java.util.Properties;
 public final class NaturalAimConfig {
     private static final String FILE_NAME = "naturalaim.properties";
 
+    public static final double MIN_STRENGTH = 0.0;
+    public static final double MAX_STRENGTH = 1.0;
+    public static final double MIN_FOV = 1.0;
+    public static final double MAX_FOV = 360.0;
+    public static final double MIN_RANGE = 1.0;
+    public static final double MAX_RANGE = 12.0;
+
     public enum Preset {
-        NATURAL("Natural", 55.0, 34.0, 260.0, 420.0, 7.0, 0.52),
-        BALANCED("Balanced", 90.0, 58.0, 420.0, 620.0, 9.0, 0.75),
-        STRONG("Strong", 140.0, 90.0, 700.0, 920.0, 12.0, 1.0);
+        NATURAL("Natural", 105.0, 75.0, 950.0, 1400.0, 18.0, 0.72),
+        BALANCED("Balanced", 160.0, 115.0, 1500.0, 2200.0, 28.0, 0.88),
+        STRONG("Strong", 240.0, 170.0, 2400.0, 3400.0, 42.0, 1.0);
 
         private final String displayName;
         private final double maxYawSpeed;
@@ -55,7 +62,7 @@ public final class NaturalAimConfig {
     private boolean enabled = true;
     private Preset preset = Preset.NATURAL;
     private double strength = 0.50;
-    private double assistFov = 10.0;
+    private double assistFov = 30.0;
     private double range = 4.5;
     private boolean verticalAssist = true;
     private boolean requireAttack = true;
@@ -79,9 +86,9 @@ public final class NaturalAimConfig {
             properties.load(input);
             config.enabled = bool(properties, "enabled", config.enabled);
             config.preset = preset(properties.getProperty("preset"), config.preset);
-            config.strength = number(properties, "strength", config.strength, 0.25, 1.0);
-            config.assistFov = number(properties, "assistFov", config.assistFov, 2.0, 30.0);
-            config.range = number(properties, "range", config.range, 2.0, 8.0);
+            config.strength = number(properties, "strength", config.strength, MIN_STRENGTH, MAX_STRENGTH);
+            config.assistFov = number(properties, "assistFov", config.assistFov, MIN_FOV, MAX_FOV);
+            config.range = number(properties, "range", config.range, MIN_RANGE, MAX_RANGE);
             config.verticalAssist = bool(properties, "verticalAssist", config.verticalAssist);
             config.requireAttack = bool(properties, "requireAttack", config.requireAttack);
             config.weaponsOnly = bool(properties, "weaponsOnly", config.weaponsOnly);
@@ -137,7 +144,7 @@ public final class NaturalAimConfig {
         enabled = true;
         preset = Preset.NATURAL;
         strength = 0.50;
-        assistFov = 10.0;
+        assistFov = 30.0;
         range = 4.5;
         verticalAssist = true;
         requireAttack = true;
@@ -166,9 +173,22 @@ public final class NaturalAimConfig {
 
     public void toggleEnabled() { enabled = !enabled; save(); }
     public void cyclePreset() { preset = preset.next(); save(); }
-    public void cycleStrength() { strength = next(strength, new double[]{0.25, 0.35, 0.50, 0.65, 0.80, 1.0}); save(); }
-    public void cycleAssistFov() { assistFov = next(assistFov, new double[]{4.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0}); save(); }
-    public void cycleRange() { range = next(range, new double[]{3.0, 3.5, 4.0, 4.5, 5.0, 6.0}); save(); }
+
+    public void setStrength(double value) {
+        strength = AimMath.clamp(value, MIN_STRENGTH, MAX_STRENGTH);
+        save();
+    }
+
+    public void setAssistFov(double value) {
+        assistFov = AimMath.clamp(value, MIN_FOV, MAX_FOV);
+        save();
+    }
+
+    public void setRange(double value) {
+        range = AimMath.clamp(value, MIN_RANGE, MAX_RANGE);
+        save();
+    }
+
     public void toggleVerticalAssist() { verticalAssist = !verticalAssist; save(); }
     public void toggleRequireAttack() { requireAttack = !requireAttack; save(); }
     public void toggleWeaponsOnly() { weaponsOnly = !weaponsOnly; save(); }
@@ -208,17 +228,5 @@ public final class NaturalAimConfig {
 
     private static String format(double value) {
         return String.format(Locale.ROOT, "%.3f", value);
-    }
-
-    private static double next(double current, double[] values) {
-        for (int index = 0; index < values.length; index++) {
-            if (Math.abs(values[index] - current) < 1.0e-6) {
-                return values[(index + 1) % values.length];
-            }
-            if (values[index] > current + 1.0e-6) {
-                return values[index];
-            }
-        }
-        return values[0];
     }
 }
