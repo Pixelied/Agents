@@ -15,6 +15,8 @@ public final class AimMathSimulation {
         testMicroResistanceMath();
         testRegionClamp();
         testMobTargetRules();
+        testCombatIntentWindow();
+        testLerp();
         System.out.println("Natural Aim math simulations passed.");
     }
 
@@ -94,6 +96,35 @@ public final class AimMathSimulation {
         near(2.0, AimMath.clampToRegion(1.0, 2.0, 4.0), 1.0e-9, "region low clamp");
         near(3.0, AimMath.clampToRegion(3.0, 2.0, 4.0), 1.0e-9, "region preserves interior aim");
         near(4.0, AimMath.clampToRegion(5.0, 2.0, 4.0), 1.0e-9, "region high clamp");
+    }
+
+    private static void testCombatIntentWindow() {
+        long click = 1_000_000_000L;
+        long hold = 900_000_000L;
+
+        check(AimMath.combatIntentActive(click, click, hold),
+                "attack intent should be active on the click");
+        check(AimMath.combatIntentActive(click + 100_000_000L, click, hold),
+                "attack intent should survive normal fast click gaps");
+        check(AimMath.combatIntentActive(click + 625_000_000L, click, hold),
+                "attack intent should survive a full sword-cooldown-sized gap");
+        check(AimMath.combatIntentActive(click + 900_000_000L, click, hold),
+                "attack intent should include the hold-window boundary");
+        check(!AimMath.combatIntentActive(click + 900_000_001L, click, hold),
+                "attack intent should expire immediately after the hold window");
+        check(!AimMath.combatIntentActive(click - 1L, click, hold),
+                "future timestamps must not count as active combat intent");
+        check(!AimMath.combatIntentActive(click, 0L, hold),
+                "no attack history must not activate combat intent");
+    }
+
+    private static void testLerp() {
+        near(0.42, AimMath.lerp(0.42, 0.20, -1.0), 1.0e-9,
+                "lerp should clamp low");
+        near(0.31, AimMath.lerp(0.42, 0.20, 0.5), 1.0e-9,
+                "lerp midpoint");
+        near(0.20, AimMath.lerp(0.42, 0.20, 2.0), 1.0e-9,
+                "lerp should clamp high");
     }
 
     private static void testMobTargetRules() {
