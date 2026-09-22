@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-natural-aim-fix-26-2-9c2a",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Fixes Natural Aim Assist 26.2 runtime behavior and redesigns numeric settings with sliders/text fields.",
+  "capabilities": [
+    "java",
+    "minecraft-fabric",
+    "github-actions",
+    "testing",
+    "ui-ux",
+    "documentation"
+  ],
+  "registered_at": "2026-09-22T21:41:00+00:00",
+  "state": "available"
+}
