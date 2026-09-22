@@ -151,11 +151,49 @@ public final class AimMath {
     }
 
     public static double pvpProximityStrength(double distanceBlocks) {
-        return 1.12 - 0.12 * smoothstep(1.30, 3.10, Math.max(0.0, distanceBlocks));
+        // Real melee strafing produces much higher angular target speed than
+        // stationary testing. Player targets therefore retain a meaningful
+        // authority boost throughout normal reach, with the strongest boost up close.
+        return 1.40 - 0.22 * smoothstep(1.20, 3.25, Math.max(0.0, distanceBlocks));
     }
 
     public static double pvpTurnSpeedScale(double distanceBlocks) {
-        return 1.25 - 0.25 * smoothstep(1.30, 3.25, Math.max(0.0, distanceBlocks));
+        return 1.55 - 0.30 * smoothstep(1.20, 3.35, Math.max(0.0, distanceBlocks));
+    }
+
+    public static double pvpPullAwayThreshold(double strength) {
+        return 1.25 + 0.95 * clamp(strength, 0.0, 1.0);
+    }
+
+    public static double pvpCommitmentStrength(double targetAgeSeconds) {
+        return 1.0 + 0.28 * smoothstep(0.045, 0.18, Math.max(0.0, targetAgeSeconds));
+    }
+
+    public static double pvpCenterBias(double strength, double targetAgeSeconds) {
+        double commitment = smoothstep(0.035, 0.16, Math.max(0.0, targetAgeSeconds));
+        double base = 0.24 + 0.34 * clamp(strength, 0.0, 1.0);
+        return clamp(base * (0.72 + 0.28 * commitment), 0.0, 0.62);
+    }
+
+    public static double pvpLeadTicks(double horizontalSpeedBlocksPerTick, double distanceBlocks) {
+        double speedFactor = smoothstep(0.035, 0.32, Math.max(0.0, horizontalSpeedBlocksPerTick));
+        double distanceFactor = 1.0 - 0.35 * smoothstep(3.0, 6.0, Math.max(0.0, distanceBlocks));
+        return (0.18 + 0.62 * speedFactor) * distanceFactor;
+    }
+
+    public static double adaptivePvpFlickFactor(
+            double inputSpeedDegreesPerSecond,
+            double targetAgeSeconds,
+            double flickStartDegreesPerSecond,
+            double flickEndDegreesPerSecond
+    ) {
+        double trackingCommitment = smoothstep(0.04, 0.16, Math.max(0.0, targetAgeSeconds));
+        double maxSuppression = lerp(0.30, 0.05, trackingCommitment);
+        return 1.0 - maxSuppression * smoothstep(
+                flickStartDegreesPerSecond,
+                flickEndDegreesPerSecond,
+                Math.max(0.0, inputSpeedDegreesPerSecond)
+        );
     }
 
     public static boolean combatIntentActive(long nowNanos, long lastAttackInputNanos, long holdWindowNanos) {
