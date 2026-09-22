@@ -185,7 +185,7 @@ public final class NaturalAimEngine {
                 PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES,
                 pullAwayEvidenceDegrees
         );
-        double resistanceStrength = config.strength()
+        double resistanceStrength = Math.sqrt(config.strength())
                 * (0.55 + 0.35 * preset.strengthScale())
                 * resistanceRelease;
         double resistanceDegrees = Math.min(0.45, opposingInput * resistanceStrength);
