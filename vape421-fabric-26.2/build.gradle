@@ -18,6 +18,15 @@ loom {
     }
 }
 
+sourceSets {
+    main {
+        // The recovered core loads bundled fonts/textures/sounds from the
+        // historical resources/... classpath. Keep those bytes in the Fabric
+        // jar alongside normal Fabric metadata.
+        resources.srcDirs = ['src/main/resources']
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
