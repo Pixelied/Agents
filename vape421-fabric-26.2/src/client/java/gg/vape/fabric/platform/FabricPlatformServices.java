@@ -19,15 +19,13 @@ public final class FabricPlatformServices extends FileBackedPlatformServices {
     }
 
     private long window() {
-        return Minecraft.getInstance().getWindow().getWindow();
+        return Minecraft.getInstance().getWindow().handle();
     }
 
     @Override
     public boolean isKeyDown(int legacyVirtualKey) {
         int mouse = LegacyVirtualKeyMap.mouseButton(legacyVirtualKey);
-        if (mouse >= 0) {
-            return GLFW.glfwGetMouseButton(window(), mouse) == GLFW.GLFW_PRESS;
-        }
+        if (mouse >= 0) return GLFW.glfwGetMouseButton(window(), mouse) == GLFW.GLFW_PRESS;
         int key = LegacyVirtualKeyMap.key(legacyVirtualKey);
         return key != GLFW.GLFW_KEY_UNKNOWN && GLFW.glfwGetKey(window(), key) == GLFW.GLFW_PRESS;
     }
@@ -41,7 +39,7 @@ public final class FabricPlatformServices extends FileBackedPlatformServices {
 
     @Override
     public void copyToClipboard(String text) {
-        GLFW.glfwSetClipboardString(window(), text == null ? "" : text);
+        Minecraft.getInstance().keyboardHandler.setClipboard(text == null ? "" : text);
     }
 
     @Override
