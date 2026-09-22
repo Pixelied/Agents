@@ -1,21 +1,33 @@
 name: Vape Fabric 26.2 scaffold CI
 on:
   push:
-    paths: ['vape421-fabric-26.2/**']
+    paths: ['vape421-fabric-26.2/**', '.github/workflows/vape421-fabric-port.yml']
   pull_request:
-    paths: ['vape421-fabric-26.2/**']
+    paths: ['vape421-fabric-26.2/**', '.github/workflows/vape421-fabric-port.yml']
 
 jobs:
-  verify-migration-metadata:
+  build:
     strategy:
       fail-fast: false
       matrix:
         os: [windows-2025, macos-15, macos-15-intel, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: vape421-fabric-26.2
     steps:
       - uses: actions/checkout@v6
-      - name: Report architecture
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+      - name: Build Fabric 26.2 scaffold
         shell: bash
-        run: |
-          uname -a || true
-          test -f vape421-fabric-26.2/MIGRATION.md
+        run: gradle build --stacktrace
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vape421-${{ matrix.os }}
+          path: vape421-fabric-26.2/build/libs/
