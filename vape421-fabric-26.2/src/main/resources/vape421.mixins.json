@@ -14,7 +14,8 @@
     "ConnectionMixin",
     "MinecraftMixin",
     "LivingEntityMixin",
-    "EntityMixin"
+    "EntityMixin",
+    "ScoreboardMixin"
   ],
   "injectors": {
     "defaultRequire": 1
