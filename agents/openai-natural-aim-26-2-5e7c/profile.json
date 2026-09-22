@@ -14,5 +14,7 @@
     "documentation"
   ],
   "registered_at": "2026-09-22T16:07:43+00:00",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-09-22T16:29:36+00:00",
+  "state_reason": "Natural Aim Assist 26.2 task completed and all scopes released."
 }
