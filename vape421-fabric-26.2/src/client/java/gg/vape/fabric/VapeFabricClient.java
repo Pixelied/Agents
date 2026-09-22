@@ -1,5 +1,7 @@
 package gg.vape.fabric;
 
+import gg.vape.fabric.platform.FabricPlatformServices;
+import gg.vape.runtime.PlatformServices;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
@@ -11,6 +13,9 @@ public final class VapeFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         var loader = FabricLoader.getInstance();
+        var configDir = loader.getConfigDir().resolve("vape421").toAbsolutePath().normalize();
+        PlatformServices.install(new FabricPlatformServices(configDir, LOGGER));
+
         var mcVersion = loader.getModContainer("minecraft")
                 .map(c -> c.getMetadata().getVersion().getFriendlyString())
                 .orElse("unknown");
