@@ -59,7 +59,7 @@ public final class NaturalAimConfigScreen extends Screen {
         addToggle(left, y, buttonWidth, "Pause Mining / Use", config::pauseActions, config::togglePauseActions);
         addCycle(right, y, buttonWidth, () -> "Reset Defaults", () -> {
             config.resetDefaults();
-            rebuildWidgets();
+            this.rebuildWidgets();
         });
 
         int doneY = Math.min(this.height - 28, y + row + 8);
@@ -102,10 +102,6 @@ public final class NaturalAimConfigScreen extends Screen {
         this.addRenderableWidget(button);
     }
 
-    private void rebuildWidgets() {
-        this.clearWidgets();
-        this.init();
-    }
 
     private static Component toggleLabel(String name, boolean enabled) {
         return Component.literal(name + ": " + (enabled ? "ON" : "OFF"));
