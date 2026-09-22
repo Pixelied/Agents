@@ -197,8 +197,21 @@ public final class NaturalAimEngine {
                 ? 0.0
                 : error.pitch() * preset.gain() * factor * 0.86;
 
-        desiredYawVelocity = AimMath.clamp(desiredYawVelocity, -preset.maxYawSpeed(), preset.maxYawSpeed());
-        desiredPitchVelocity = AimMath.clamp(desiredPitchVelocity, -preset.maxPitchSpeed(), preset.maxPitchSpeed());
+        double targetDistance = player.getEyePosition().distanceTo(selectionAimPoint(activeTarget));
+        double turnSpeedScale = activeTarget instanceof Player
+                ? AimMath.pvpTurnSpeedScale(targetDistance)
+                : 1.0;
+
+        desiredYawVelocity = AimMath.clamp(
+                desiredYawVelocity,
+                -preset.maxYawSpeed() * turnSpeedScale,
+                preset.maxYawSpeed() * turnSpeedScale
+        );
+        desiredPitchVelocity = AimMath.clamp(
+                desiredPitchVelocity,
+                -preset.maxPitchSpeed() * Math.sqrt(turnSpeedScale),
+                preset.maxPitchSpeed() * Math.sqrt(turnSpeedScale)
+        );
 
         correctionYawVelocity = approachVelocity(correctionYawVelocity, desiredYawVelocity, preset, dt);
         correctionPitchVelocity = approachVelocity(correctionPitchVelocity, desiredPitchVelocity, preset, dt);
@@ -432,9 +445,16 @@ public final class NaturalAimEngine {
         double acquisitionFactor = 0.48 + 0.52 * AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds);
 
         double distance = player.getEyePosition().distanceTo(selectionAimPoint(activeTarget));
-        double closeFactor = 0.62 + 0.38 * AimMath.smoothstep(1.15, 2.7, distance);
         double longFactor = 1.0 - 0.10 * AimMath.smoothstep(5.0, 8.0, distance);
-        double distanceFactor = closeFactor * longFactor;
+        double distanceFactor;
+        if (activeTarget instanceof Player) {
+            // Close melee targets move through far more screen-space per second
+            // than a stationary test target. Do not weaken assistance there.
+            distanceFactor = AimMath.pvpProximityStrength(distance) * longFactor;
+        } else {
+            double closeFactor = 0.62 + 0.38 * AimMath.smoothstep(1.15, 2.7, distance);
+            distanceFactor = closeFactor * longFactor;
+        }
 
         double attackFactor;
         if (config.requireAttack()) {
