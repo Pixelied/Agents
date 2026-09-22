@@ -373,12 +373,11 @@ public final class NaturalAimEngine {
 
         double inputSpeed = Math.hypot(rawYaw, rawPitch) / Math.max(dt, 1.0e-4);
         double targetAgeSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
-        double trackingCommitment = AimMath.smoothstep(0.05, 0.18, targetAgeSeconds);
-        double maxFlickSuppression = AimMath.lerp(0.42, 0.20, trackingCommitment);
-        double flickFactor = 1.0 - maxFlickSuppression * AimMath.smoothstep(
+        double flickFactor = AimMath.adaptiveFlickFactor(
+                inputSpeed,
+                targetAgeSeconds,
                 FLICK_START_DEGREES_PER_SECOND,
-                FLICK_END_DEGREES_PER_SECOND,
-                inputSpeed
+                FLICK_END_DEGREES_PER_SECOND
         );
 
         double inputMagnitude = Math.hypot(rawYaw, rawPitch);
