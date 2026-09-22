@@ -29,8 +29,10 @@ public final class NaturalAimEngine {
     private static final long REACQUIRE_COOLDOWN_NS = 120_000_000L;
     private static final long MOUSE_FALLBACK_DELAY_NS = 35_000_000L;
     private static final double ACQUISITION_RAMP_SECONDS = 0.08;
-    private static final double MIN_INTENT_DEGREES = 0.055;
     private static final double PULL_AWAY_ALIGNMENT = -0.34;
+    private static final double PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES = 0.80;
+    private static final double PULL_AWAY_NOISE_FLOOR_DEGREES = 0.008;
+    private static final double PULL_AWAY_EVIDENCE_DECAY_PER_SECOND = 3.25;
     private static final double FLICK_START_DEGREES_PER_SECOND = 350.0;
     private static final double FLICK_END_DEGREES_PER_SECOND = 1000.0;
     private static final double AXIS_DEADZONE_DEGREES = 0.04;
@@ -52,6 +54,7 @@ public final class NaturalAimEngine {
 
     private double correctionYawVelocity;
     private double correctionPitchVelocity;
+    private double pullAwayEvidenceDegrees;
 
     public NaturalAimEngine(NaturalAimConfig config) {
         this.config = config;
@@ -113,31 +116,39 @@ public final class NaturalAimEngine {
         double intentPitch = config.verticalAssist() ? rawPitch : 0.0;
         double errorPitch = config.verticalAssist() ? error.pitch() : 0.0;
 
-        if (AimMath.isDeliberatePullAway(
-                rawYaw,
-                intentPitch,
-                error.yaw(),
-                errorPitch,
-                MIN_INTENT_DEGREES,
-                PULL_AWAY_ALIGNMENT
-        )) {
-            target = null;
-            correctionYawVelocity = 0.0;
-            correctionPitchVelocity = 0.0;
-            suppressedUntilNanos = now + REACQUIRE_COOLDOWN_NS;
-            syncBaseline(vanillaYaw, vanillaPitch, now);
-            return;
-        }
-
         double angularError = Math.hypot(error.yaw(), errorPitch);
         if (angularError < AXIS_DEADZONE_DEGREES) {
+            pullAwayEvidenceDegrees = 0.0;
             decayController(dt, config.preset().deceleration());
             syncBaseline(vanillaYaw, vanillaPitch, now);
             return;
         }
 
+        pullAwayEvidenceDegrees = AimMath.updatePullAwayEvidence(
+                pullAwayEvidenceDegrees,
+                rawYaw,
+                intentPitch,
+                error.yaw(),
+                errorPitch,
+                PULL_AWAY_ALIGNMENT,
+                PULL_AWAY_NOISE_FLOOR_DEGREES,
+                PULL_AWAY_EVIDENCE_DECAY_PER_SECOND,
+                dt
+        );
+
+        if (pullAwayEvidenceDegrees >= PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES) {
+            target = null;
+            correctionYawVelocity = 0.0;
+            correctionPitchVelocity = 0.0;
+            pullAwayEvidenceDegrees = 0.0;
+            suppressedUntilNanos = now + REACQUIRE_COOLDOWN_NS;
+            syncBaseline(vanillaYaw, vanillaPitch, now);
+            return;
+        }
+
         double factor = correctionFactor(
-                minecraft, player, activeTarget, rawYaw, intentPitch, error, angularError, dt, now
+                minecraft, player, activeTarget, rawYaw, intentPitch, error, angularError, dt, now,
+                pullAwayEvidenceDegrees
         );
         NaturalAimConfig.Preset preset = config.preset();
 
@@ -236,6 +247,7 @@ public final class NaturalAimEngine {
         if (best != null) {
             target = best;
             targetAcquiredNanos = now;
+            pullAwayEvidenceDegrees = 0.0;
         }
         return target;
     }
@@ -288,7 +300,8 @@ public final class NaturalAimEngine {
             RotationError error,
             double angularError,
             double dt,
-            long now
+            long now,
+            double pullAwayEvidence
     ) {
         double fov = Math.max(1.0, config.assistFov());
 
@@ -312,14 +325,23 @@ public final class NaturalAimEngine {
                 config.verticalAssist() ? error.pitch() : 0.0
         );
 
+        // Do not punish the assist just because the mouse moved at all. The old
+        // implementation reacted to instantaneous direction, so one tiny delta
+        // opposite the target could slash the correction strength or cancel the
+        // target outright. Use the accumulated pull-away evidence instead.
+        double pullAwayProgress = AimMath.clamp(
+                pullAwayEvidence / PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES,
+                0.0,
+                1.0
+        );
+
         double intentFactor;
-        if (inputMagnitude < 0.015) {
-            intentFactor = 0.72;
+        if (inputMagnitude < 0.02) {
+            intentFactor = 0.94;
         } else if (alignment >= 0.0) {
-            intentFactor = 0.76 + 0.24 * alignment;
+            intentFactor = 0.90 + 0.10 * alignment;
         } else {
-            intentFactor = 0.46 + 0.20 * (alignment - PULL_AWAY_ALIGNMENT) / -PULL_AWAY_ALIGNMENT;
-            intentFactor = AimMath.clamp(intentFactor, 0.42, 0.66);
+            intentFactor = 0.94 - 0.34 * pullAwayProgress;
         }
 
         double acquisitionSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
@@ -412,6 +434,7 @@ public final class NaturalAimEngine {
         target = null;
         correctionYawVelocity = 0.0;
         correctionPitchVelocity = 0.0;
+        pullAwayEvidenceDegrees = 0.0;
     }
 
     private void resetSession(LocalPlayer player, ClientLevel level, long now) {
@@ -425,6 +448,7 @@ public final class NaturalAimEngine {
         suppressedUntilNanos = 0L;
         correctionYawVelocity = 0.0;
         correctionPitchVelocity = 0.0;
+        pullAwayEvidenceDegrees = 0.0;
 
         if (player != null) {
             syncBaseline(player.getYRot(), player.getXRot(), now);
