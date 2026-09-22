@@ -139,18 +139,36 @@ public final class AimMathSimulation {
     private static void testTargetAwareActionPause() {
         long grace = 280_000_000L;
 
-        check(!AimMath.shouldPauseForAction(false, false, true, false, true, 50_000_000L, grace),
+        long postGrace = 140_000_000L;
+
+        check(!AimMath.shouldPauseForAction(
+                        false, false, true, false, true,
+                        50_000_000L, 0L, grace, postGrace),
                 "disabled action pausing should never block assistance");
-        check(AimMath.shouldPauseForAction(true, true, false, true, false, Long.MAX_VALUE, grace),
+        check(AimMath.shouldPauseForAction(
+                        true, true, false, true, false,
+                        Long.MAX_VALUE, Long.MAX_VALUE, grace, postGrace),
                 "item use should still pause assistance");
-        check(AimMath.shouldPauseForAction(true, false, true, false, true, 50_000_000L, grace),
+        check(AimMath.shouldPauseForAction(
+                        true, false, true, false, true,
+                        50_000_000L, 0L, grace, postGrace),
                 "real mining without a combat target should pause assistance");
-        check(!AimMath.shouldPauseForAction(true, false, true, true, true, 80_000_000L, grace),
+        check(!AimMath.shouldPauseForAction(
+                        true, false, true, true, true,
+                        80_000_000L, 0L, grace, postGrace),
                 "brief PvP miss onto a block should not pause when a combat target is available");
-        check(AimMath.shouldPauseForAction(true, false, true, true, true, 500_000_000L, grace),
+        check(!AimMath.shouldPauseForAction(
+                        true, false, true, true, false,
+                        Long.MAX_VALUE, 80_000_000L, grace, postGrace),
+                "brief post-click block state should not pause PvP tracking");
+        check(AimMath.shouldPauseForAction(
+                        true, false, true, true, true,
+                        500_000_000L, 0L, grace, postGrace),
                 "sustained block breaking should become a deliberate mining pause");
-        check(AimMath.shouldPauseForAction(true, false, true, true, false, Long.MAX_VALUE, grace),
-                "stale destroying state without active attack should not bypass mining pause");
+        check(AimMath.shouldPauseForAction(
+                        true, false, true, true, false,
+                        Long.MAX_VALUE, 300_000_000L, grace, postGrace),
+                "old block-destroy state without a recent click should pause normally");
     }
 
     private static void testPvpProximityScaling() {
