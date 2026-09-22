@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-assist-26-2-20260922",
+  "title": "Natural Aim Assist Fabric 26.2",
+  "objective": "Design and implement a Java Fabric client mod for Minecraft 26.2 that provides configurable natural-feeling aim assistance driven by player mouse intent, target proximity, acceleration limits, target commitment, and Mod Menu configuration.",
+  "created_by": "openai-natural-aim-26-2-5e7c",
+  "created_at": "2026-09-22T16:07:43+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "projects/natural-aim-assist-26.2",
+    ".github/workflows/natural-aim-assist-26-2.yml"
+  ],
+  "acceptance_criteria": [
+    "Targets Minecraft 26.2, Java 25, Fabric Loader 0.19.5+, and Fabric API 0.160.0+26.2.",
+    "Builds as a client-side Fabric mod and exposes a Mod Menu configuration screen.",
+    "Aim assistance layers corrections on top of real player mouse movement instead of hard-locking rotations.",
+    "Includes configurable enable state, preset/strength, FOV, range, vertical assistance, attack requirement, weapons-only behavior, target filters, and visibility filtering.",
+    "Implements target commitment, correction acceleration/deceleration limits, dynamic aim-region behavior, distance scaling, and disengagement when the player deliberately pulls away.",
+    "Persists configuration and includes a concise implementation/design plan.",
+    "GitHub Actions verifies the Java 25 Fabric build and uploads the built JAR."
+  ]
+}
