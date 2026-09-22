@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "af295f143af34791ae73d0323786ef7c",
+  "task_id": "natural-aim-assist-fix-26-2-20260922",
+  "agent_id": "openai-natural-aim-fix-26-2-9c2a",
+  "type": "scope_released",
+  "message": "Released projects/natural-aim-assist-26.2: Natural Aim Assist 1.1.0 fixes implemented and fully verified.",
+  "data": {
+    "scope": "projects/natural-aim-assist-26.2"
+  },
+  "created_at": "2026-09-22T21:55:04+00:00"
+}
