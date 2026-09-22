@@ -101,6 +101,21 @@ public final class AimMath {
         );
     }
 
+    public static double adaptiveFlickFactor(
+            double inputSpeedDegreesPerSecond,
+            double targetAgeSeconds,
+            double flickStartDegreesPerSecond,
+            double flickEndDegreesPerSecond
+    ) {
+        double trackingCommitment = smoothstep(0.05, 0.18, Math.max(0.0, targetAgeSeconds));
+        double maxSuppression = lerp(0.42, 0.20, trackingCommitment);
+        return 1.0 - maxSuppression * smoothstep(
+                flickStartDegreesPerSecond,
+                flickEndDegreesPerSecond,
+                Math.max(0.0, inputSpeedDegreesPerSecond)
+        );
+    }
+
     public static boolean combatIntentActive(long nowNanos, long lastAttackInputNanos, long holdWindowNanos) {
         if (lastAttackInputNanos <= 0L || holdWindowNanos < 0L) return false;
         long elapsed = nowNanos - lastAttackInputNanos;
