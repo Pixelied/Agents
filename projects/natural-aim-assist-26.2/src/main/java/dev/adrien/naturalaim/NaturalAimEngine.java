@@ -30,6 +30,7 @@ public final class NaturalAimEngine {
     private static final long MOUSE_FALLBACK_DELAY_NS = 35_000_000L;
     private static final long COMBAT_INTENT_HOLD_NS = 900_000_000L;
     private static final long INCIDENTAL_PVP_BLOCK_HIT_GRACE_NS = 280_000_000L;
+    private static final long PVP_POST_CLICK_BLOCK_GRACE_NS = 140_000_000L;
     private static final double ACQUISITION_RAMP_SECONDS = 0.060;
     private static final double PULL_AWAY_ALIGNMENT = -0.34;
     private static final double PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES = 0.80;
@@ -281,6 +282,9 @@ public final class NaturalAimEngine {
         long attackHeldNanos = attackHeldSinceNanos > 0L && now >= attackHeldSinceNanos
                 ? now - attackHeldSinceNanos
                 : Long.MAX_VALUE;
+        long recentAttackAgeNanos = lastAttackInputNanos > 0L && now >= lastAttackInputNanos
+                ? now - lastAttackInputNanos
+                : Long.MAX_VALUE;
 
         return AimMath.shouldPauseForAction(
                 config.pauseActions(),
@@ -289,7 +293,9 @@ public final class NaturalAimEngine {
                 combatTargetAvailable,
                 minecraft.options.keyAttack.isDown(),
                 attackHeldNanos,
-                INCIDENTAL_PVP_BLOCK_HIT_GRACE_NS
+                recentAttackAgeNanos,
+                INCIDENTAL_PVP_BLOCK_HIT_GRACE_NS,
+                PVP_POST_CLICK_BLOCK_GRACE_NS
         );
     }
 
