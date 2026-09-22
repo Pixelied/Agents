@@ -1,0 +1,9 @@
+{
+  "required": true,
+  "package": "dev.adrien.naturalaim.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": ["MouseHandlerMixin"],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
