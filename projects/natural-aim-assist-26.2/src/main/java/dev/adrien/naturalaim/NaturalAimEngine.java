@@ -27,6 +27,7 @@ import java.util.List;
 public final class NaturalAimEngine {
     private static final long TARGET_SCAN_INTERVAL_NS = 40_000_000L;
     private static final long REACQUIRE_COOLDOWN_NS = 120_000_000L;
+    private static final long PVP_REACQUIRE_COOLDOWN_NS = 55_000_000L;
     private static final long MOUSE_FALLBACK_DELAY_NS = 35_000_000L;
     private static final long COMBAT_INTENT_HOLD_NS = 900_000_000L;
     private static final long INCIDENTAL_PVP_BLOCK_HIT_GRACE_NS = 280_000_000L;
@@ -149,7 +150,7 @@ public final class NaturalAimEngine {
             return;
         }
 
-        Vec3 aimPoint = dynamicAimPoint(player, activeTarget);
+        Vec3 aimPoint = dynamicAimPoint(player, activeTarget, now);
         RotationError error = rotationError(player.getEyePosition(), vanillaYaw, vanillaPitch, aimPoint);
 
         double intentPitch = config.verticalAssist() ? rawPitch : 0.0;
@@ -163,6 +164,10 @@ public final class NaturalAimEngine {
             return;
         }
 
+        double pullAwayThreshold = activeTarget instanceof Player
+                ? AimMath.pvpPullAwayThreshold(config.strength())
+                : PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES;
+
         pullAwayEvidenceDegrees = AimMath.updatePullAwayEvidence(
                 pullAwayEvidenceDegrees,
                 rawYaw,
@@ -175,12 +180,13 @@ public final class NaturalAimEngine {
                 dt
         );
 
-        if (pullAwayEvidenceDegrees >= PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES) {
+        if (pullAwayEvidenceDegrees >= pullAwayThreshold) {
+            boolean playerTarget = activeTarget instanceof Player;
             target = null;
             correctionYawVelocity = 0.0;
             correctionPitchVelocity = 0.0;
             pullAwayEvidenceDegrees = 0.0;
-            suppressedUntilNanos = now + REACQUIRE_COOLDOWN_NS;
+            suppressedUntilNanos = now + (playerTarget ? PVP_REACQUIRE_COOLDOWN_NS : REACQUIRE_COOLDOWN_NS);
             syncBaseline(vanillaYaw, vanillaPitch, now);
             return;
         }
@@ -233,8 +239,8 @@ public final class NaturalAimEngine {
                 errorPitch
         );
         double resistanceRelease = 1.0 - AimMath.smoothstep(
-                PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES * 0.18,
-                PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES,
+                pullAwayThreshold * 0.18,
+                pullAwayThreshold,
                 pullAwayEvidenceDegrees
         );
         double resistanceStrength = Math.sqrt(config.strength())
@@ -406,19 +412,32 @@ public final class NaturalAimEngine {
     ) {
         double fov = Math.max(1.0, config.assistFov());
 
-        // Still soften corrections near the configured edge, but never let the
-        // edge factor collapse to zero for a target that is already considered valid.
-        double edgeFalloff = AimMath.smoothstep(fov * 0.62, fov, angularError);
-        double edgeFactor = 1.0 - 0.65 * edgeFalloff;
-
         double inputSpeed = Math.hypot(rawYaw, rawPitch) / Math.max(dt, 1.0e-4);
         double targetAgeSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
-        double flickFactor = AimMath.adaptiveFlickFactor(
-                inputSpeed,
-                targetAgeSeconds,
-                FLICK_START_DEGREES_PER_SECOND,
-                FLICK_END_DEGREES_PER_SECOND
-        );
+        boolean playerTarget = activeTarget instanceof Player;
+
+        // Acquisition should still be softer near the configured edge, but once
+        // a real PvP target has been committed, do not throw most of the authority
+        // away just because the opponent strafed toward that edge.
+        double edgeFalloff = AimMath.smoothstep(fov * 0.62, fov, angularError);
+        double edgeSuppression = playerTarget
+                ? AimMath.lerp(0.42, 0.12, AimMath.smoothstep(0.045, 0.18, targetAgeSeconds))
+                : 0.65;
+        double edgeFactor = 1.0 - edgeSuppression * edgeFalloff;
+
+        double flickFactor = playerTarget
+                ? AimMath.adaptivePvpFlickFactor(
+                        inputSpeed,
+                        targetAgeSeconds,
+                        FLICK_START_DEGREES_PER_SECOND,
+                        FLICK_END_DEGREES_PER_SECOND
+                )
+                : AimMath.adaptiveFlickFactor(
+                        inputSpeed,
+                        targetAgeSeconds,
+                        FLICK_START_DEGREES_PER_SECOND,
+                        FLICK_END_DEGREES_PER_SECOND
+                );
 
         double inputMagnitude = Math.hypot(rawYaw, rawPitch);
         double alignment = AimMath.intentAlignment(
@@ -440,23 +459,31 @@ public final class NaturalAimEngine {
 
         double intentFactor;
         if (inputMagnitude < 0.02) {
-            intentFactor = 0.94;
+            intentFactor = playerTarget ? 0.99 : 0.94;
         } else if (alignment >= 0.0) {
-            intentFactor = 0.90 + 0.10 * alignment;
+            intentFactor = playerTarget
+                    ? 0.96 + 0.04 * alignment
+                    : 0.90 + 0.10 * alignment;
         } else {
-            intentFactor = 0.94 - 0.34 * pullAwayProgress;
+            intentFactor = playerTarget
+                    ? 0.97 - 0.18 * pullAwayProgress
+                    : 0.94 - 0.34 * pullAwayProgress;
         }
 
-        double acquisitionSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
-        double acquisitionFactor = 0.48 + 0.52 * AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds);
+        double acquisitionSeconds = targetAgeSeconds;
+        double acquisitionFactor = playerTarget
+                ? 0.68 + 0.32 * AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds)
+                : 0.48 + 0.52 * AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds);
 
         double distance = player.getEyePosition().distanceTo(selectionAimPoint(activeTarget));
         double longFactor = 1.0 - 0.10 * AimMath.smoothstep(5.0, 8.0, distance);
         double distanceFactor;
-        if (activeTarget instanceof Player) {
+        if (playerTarget) {
             // Close melee targets move through far more screen-space per second
             // than a stationary test target. Do not weaken assistance there.
-            distanceFactor = AimMath.pvpProximityStrength(distance) * longFactor;
+            distanceFactor = AimMath.pvpProximityStrength(distance)
+                    * AimMath.pvpCommitmentStrength(targetAgeSeconds)
+                    * longFactor;
         } else {
             double closeFactor = 0.62 + 0.38 * AimMath.smoothstep(1.15, 2.7, distance);
             distanceFactor = closeFactor * longFactor;
@@ -491,7 +518,7 @@ public final class NaturalAimEngine {
         correctionPitchVelocity = AimMath.approach(correctionPitchVelocity, 0.0, deceleration * dt);
     }
 
-    private Vec3 dynamicAimPoint(LocalPlayer player, LivingEntity activeTarget) {
+    private Vec3 dynamicAimPoint(LocalPlayer player, LivingEntity activeTarget, long now) {
         AABB box = activeTarget.getBoundingBox();
         double widthX = box.maxX - box.minX;
         double widthZ = box.maxZ - box.minZ;
@@ -517,13 +544,49 @@ public final class NaturalAimEngine {
                 box.minY + height * 0.58,
                 (box.minZ + box.maxZ) * 0.5
         );
+
+        if (playerTarget) {
+            Vec3 velocity = activeTarget.getDeltaMovement();
+            double horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+            double distance = eye.distanceTo(center);
+            double leadTicks = AimMath.pvpLeadTicks(horizontalSpeed, distance);
+
+            // Remote-player movement is already interpolated client-side, so this is
+            // intentionally a small lead rather than full prediction.
+            Vec3 lead = new Vec3(
+                    velocity.x * leadTicks,
+                    velocity.y * leadTicks * 0.40,
+                    velocity.z * leadTicks
+            );
+
+            minX += lead.x;
+            maxX += lead.x;
+            minY += lead.y;
+            maxY += lead.y;
+            minZ += lead.z;
+            maxZ += lead.z;
+            center = center.add(lead);
+        }
+
         double depth = Math.max(0.1, eye.distanceTo(center));
         Vec3 projected = eye.add(player.getLookAngle().scale(depth));
-
-        return new Vec3(
+        Vec3 clamped = new Vec3(
                 AimMath.clampToRegion(projected.x, minX, maxX),
                 AimMath.clampToRegion(projected.y, minY, maxY),
                 AimMath.clampToRegion(projected.z, minZ, maxZ)
+        );
+
+        if (!playerTarget) {
+            return clamped;
+        }
+
+        double targetAgeSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
+        double centerBias = AimMath.pvpCenterBias(config.strength(), targetAgeSeconds);
+
+        return new Vec3(
+                AimMath.lerp(clamped.x, center.x, centerBias),
+                AimMath.lerp(clamped.y, center.y, centerBias * 0.78),
+                AimMath.lerp(clamped.z, center.z, centerBias)
         );
     }
 
