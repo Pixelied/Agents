@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "bf6ea0f04afc4ca3963c38f45fb4fc94",
+  "task_id": "natural-aim-intent-fix-26-2-20260922",
+  "agent_id": "openai-natural-aim-intent-fix-26-2-63b1",
+  "type": "verification",
+  "message": "Natural Aim Assist 1.1.1 micro-input intent fix passed deterministic simulations, Java 25/Fabric 26.2 build, real client smoke launch, JAR inspection, and artifact upload.",
+  "data": {
+    "project_branch": "project/natural-aim-assist-26-2",
+    "head_sha": "8a09eb2e5d821d7e8cc3e67f1948e61b75759206",
+    "workflow_run_id": 35792422286,
+    "workflow_artifact_id": 10722018867,
+    "artifact_archive_sha256": "178b7ecbf3d6628db0de291ecfc3d74cf13187e49d5c74b2b69c3da42b1d376d",
+    "jar_sha256": "7e2637dee9b6dc2cde641788b7d9ee002ac4b18e0398315d2bc1239e07041a0b",
+    "checks": [
+      "micro mouse sample does not trigger manual override",
+      "sustained opposing input accumulates release evidence",
+      "toward-target input clears release evidence",
+      "micro-resistance projection and no-overshoot bounds",
+      "Java 25 / Gradle 9.5.1 clean check build",
+      "90-second Fabric 26.2 client smoke launch",
+      "remapped JAR metadata verification"
+    ]
+  },
+  "created_at": "2026-09-22T22:30:00+00:00"
+}
