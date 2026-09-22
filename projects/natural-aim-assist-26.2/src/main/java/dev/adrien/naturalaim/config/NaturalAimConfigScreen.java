@@ -33,10 +33,10 @@ public final class NaturalAimConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        int fullWidth = Math.min(390, Math.max(260, this.width - 36));
+        int fullWidth = Math.min(390, Math.max(220, this.width - 24));
         int fullLeft = this.width / 2 - fullWidth / 2;
         int sliderWidth = fullWidth - FIELD_WIDTH - GAP;
-        int y = 42;
+        int y = 38;
         int row = BUTTON_HEIGHT + ROW_GAP;
 
         addNumericRow(
@@ -219,9 +219,6 @@ public final class NaturalAimConfigScreen extends Screen {
         return Component.literal(name + ": " + (enabled ? "ON" : "OFF"));
     }
 
-    private static boolean isPotentialNumber(String value) {
-        return value.matches("\\d{0,4}(?:\\.\\d{0,2})?");
-    }
 
     private static double snap(double value, double min, double max, double step) {
         double clamped = AimMath.clamp(value, min, max);
