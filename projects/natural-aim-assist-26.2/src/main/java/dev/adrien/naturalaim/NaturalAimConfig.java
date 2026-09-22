@@ -68,7 +68,8 @@ public final class NaturalAimConfig {
     private boolean requireAttack = true;
     private boolean weaponsOnly = true;
     private boolean targetPlayers = true;
-    private boolean targetMobs = false;
+    private boolean targetHostileMobs = true;
+    private boolean targetPassiveMobs = false;
     private boolean visibleOnly = true;
     private boolean ignoreInvisible = true;
     private boolean pauseActions = true;
@@ -93,7 +94,11 @@ public final class NaturalAimConfig {
             config.requireAttack = bool(properties, "requireAttack", config.requireAttack);
             config.weaponsOnly = bool(properties, "weaponsOnly", config.weaponsOnly);
             config.targetPlayers = bool(properties, "targetPlayers", config.targetPlayers);
-            config.targetMobs = bool(properties, "targetMobs", config.targetMobs);
+            boolean legacyTargetMobs = bool(properties, "targetMobs", false);
+            config.targetHostileMobs = bool(properties, "targetHostileMobs",
+                    properties.containsKey("targetMobs") ? legacyTargetMobs : config.targetHostileMobs);
+            config.targetPassiveMobs = bool(properties, "targetPassiveMobs",
+                    properties.containsKey("targetMobs") ? legacyTargetMobs : config.targetPassiveMobs);
             config.visibleOnly = bool(properties, "visibleOnly", config.visibleOnly);
             config.ignoreInvisible = bool(properties, "ignoreInvisible", config.ignoreInvisible);
             config.pauseActions = bool(properties, "pauseActions", config.pauseActions);
@@ -114,7 +119,8 @@ public final class NaturalAimConfig {
         properties.setProperty("requireAttack", Boolean.toString(requireAttack));
         properties.setProperty("weaponsOnly", Boolean.toString(weaponsOnly));
         properties.setProperty("targetPlayers", Boolean.toString(targetPlayers));
-        properties.setProperty("targetMobs", Boolean.toString(targetMobs));
+        properties.setProperty("targetHostileMobs", Boolean.toString(targetHostileMobs));
+        properties.setProperty("targetPassiveMobs", Boolean.toString(targetPassiveMobs));
         properties.setProperty("visibleOnly", Boolean.toString(visibleOnly));
         properties.setProperty("ignoreInvisible", Boolean.toString(ignoreInvisible));
         properties.setProperty("pauseActions", Boolean.toString(pauseActions));
@@ -150,7 +156,8 @@ public final class NaturalAimConfig {
         requireAttack = true;
         weaponsOnly = true;
         targetPlayers = true;
-        targetMobs = false;
+        targetHostileMobs = true;
+        targetPassiveMobs = false;
         visibleOnly = true;
         ignoreInvisible = true;
         pauseActions = true;
@@ -166,7 +173,8 @@ public final class NaturalAimConfig {
     public boolean requireAttack() { return requireAttack; }
     public boolean weaponsOnly() { return weaponsOnly; }
     public boolean targetPlayers() { return targetPlayers; }
-    public boolean targetMobs() { return targetMobs; }
+    public boolean targetHostileMobs() { return targetHostileMobs; }
+    public boolean targetPassiveMobs() { return targetPassiveMobs; }
     public boolean visibleOnly() { return visibleOnly; }
     public boolean ignoreInvisible() { return ignoreInvisible; }
     public boolean pauseActions() { return pauseActions; }
@@ -190,7 +198,8 @@ public final class NaturalAimConfig {
     public void toggleRequireAttack() { requireAttack = !requireAttack; save(); }
     public void toggleWeaponsOnly() { weaponsOnly = !weaponsOnly; save(); }
     public void toggleTargetPlayers() { targetPlayers = !targetPlayers; save(); }
-    public void toggleTargetMobs() { targetMobs = !targetMobs; save(); }
+    public void toggleTargetHostileMobs() { targetHostileMobs = !targetHostileMobs; save(); }
+    public void toggleTargetPassiveMobs() { targetPassiveMobs = !targetPassiveMobs; save(); }
     public void toggleVisibleOnly() { visibleOnly = !visibleOnly; save(); }
     public void toggleIgnoreInvisible() { ignoreInvisible = !ignoreInvisible; save(); }
     public void togglePauseActions() { pauseActions = !pauseActions; save(); }
