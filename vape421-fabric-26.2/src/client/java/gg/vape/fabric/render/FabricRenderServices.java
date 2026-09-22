@@ -14,6 +14,10 @@ public final class FabricRenderServices implements RenderServices.Backend {
         return new Scope();
     }
 
+    public GuiGraphicsExtractor currentGraphicsOrNull() {
+        return currentGraphics.get();
+    }
+
     @Override
     public boolean isFrameActive() {
         return currentGraphics.get() != null;
