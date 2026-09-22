@@ -4,6 +4,7 @@ import gg.vape.fabric.platform.FabricPlatformServices;
 import gg.vape.fabric.render.FabricRenderBridge;
 import gg.vape.runtime.PlatformServices;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
@@ -27,6 +28,9 @@ public final class VapeFabricClient implements ClientModInitializer {
                 FabricRenderBridge::extractHud);
         LevelExtractionEvents.END_EXTRACTION.register(FabricRenderBridge::extractLevel);
         LevelRenderEvents.END_MAIN.register(FabricRenderBridge::renderLevel);
+
+        ClientLifecycleEvents.CLIENT_STARTED.register(
+                client -> RecoveredCoreLauncher.startIfPresent(client, LOGGER));
 
         var mcVersion = loader.getModContainer("minecraft")
                 .map(c -> c.getMetadata().getVersion().getFriendlyString())
