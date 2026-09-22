@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "7614bde18aa044f9814a8bf00f8a0594",
+  "task_id": "natural-aim-pvp-gating-fix-26-2-20260922",
+  "agent_id": "openai-natural-aim-pvp-gating-fix-26-2-41f8",
+  "type": "scope_released",
+  "message": "Released projects/natural-aim-assist-26.2: Natural Aim Assist 1.1.2 PvP fix implemented and fully verified.",
+  "data": {
+    "scope": "projects/natural-aim-assist-26.2"
+  },
+  "created_at": "2026-09-22T22:50:32+00:00"
+}
