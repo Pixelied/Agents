@@ -95,20 +95,30 @@ jobs:
         run: |
           set -euo pipefail
           core="$RUNNER_TEMP/vape421-core"
+          second="$RUNNER_TEMP/vape421-second-recovery"
           git clone --depth 1 https://github.com/RSSeeker/Vape-v4.git "$core"
+          git clone --depth 1 https://github.com/minecrafttzh/OpenVape4.21.git "$second"
 
           base64 -d vape421-fabric-26.2/core-fixture/original-java-paths.bloom.b64 \
             > "$RUNNER_TEMP/original-java-paths.bloom"
 
-          CORE="$core" BLOOM="$RUNNER_TEMP/original-java-paths.bloom" python3 - <<'PY'
+          CORE="$core" SECOND="$second" BLOOM="$RUNNER_TEMP/original-java-paths.bloom" \
+          HASHES="$GITHUB_WORKSPACE/vape421-fabric-26.2/core-fixture/divergent-original-sha256.txt" \
+          python3 - <<'PY'
           from pathlib import Path
           import hashlib
           import os
+          import shutil
 
           core = Path(os.environ["CORE"])
+          second = Path(os.environ["SECOND"])
           bloom = Path(os.environ["BLOOM"]).read_bytes()
+          hash_file = Path(os.environ["HASHES"])
           bit_count = len(bloom) * 8
           hash_count = 10
+
+          def sha(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
 
           def maybe_original(rel: str) -> bool:
               digest = hashlib.sha256(rel.encode()).digest()
@@ -119,6 +129,13 @@ jobs:
                   if not (bloom[index >> 3] & (1 << (index & 7))):
                       return False
               return True
+
+          expected_divergent = {}
+          for line in hash_file.read_text().splitlines():
+              if not line.strip():
+                  continue
+              digest, rel = line.split("  ", 1)
+              expected_divergent[rel] = digest
 
           all_files = sorted(
               (core / "src/main/java").rglob("*.java"),
@@ -133,36 +150,66 @@ jobs:
               else:
                   removed.append(path)
 
-          print(f"mirror java files={len(all_files)}")
+          print(f"primary mirror java files={len(all_files)}")
           print(f"path-filter kept={len(kept)} removed={len(removed)}")
-          if removed:
-              print("mirror-only paths removed:")
-              for path in removed:
-                  print(path.relative_to(core).as_posix())
-
           if len(kept) != 2948:
               raise SystemExit(
                   f"Path filter retained {len(kept)} files; expected exactly 2948. "
                   "Refusing to weaken the source-integrity check."
               )
 
-          manifest = "".join(
-              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
-              f"{path.relative_to(core).as_posix()}\n"
-              for path in kept
-          ).encode()
-          digest = hashlib.sha256(manifest).hexdigest()
-          expected = "18727af501c62c6278416ef85ffe9c3cd0dcb10bc3c141b5fdaafdbf1dd6bc11"
+          repaired = []
+          already_correct = []
+          unavailable = []
+          for rel, expected in expected_divergent.items():
+              primary = core / rel
+              secondary = second / rel
+              if primary.is_file() and sha(primary) == expected:
+                  already_correct.append(rel)
+                  continue
+              if secondary.is_file() and sha(secondary) == expected:
+                  primary.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(secondary, primary)
+                  repaired.append(rel)
+                  continue
+              unavailable.append(rel)
 
-          print(f"normalized baseline manifest sha256={digest}")
-          if digest != expected:
+          print(f"divergent originals already correct in primary={len(already_correct)}")
+          print(f"divergent originals repaired from second mirror={len(repaired)}")
+          if repaired:
+              print("repaired paths:")
+              for rel in repaired:
+                  print(rel)
+          if unavailable:
+              print("no verified mirror copy for:")
+              for rel in unavailable:
+                  print(rel)
               raise SystemExit(
-                  "Filtered mirror still does not exactly match the supplied "
-                  "original source; refusing to run the core compile probe."
+                  "Neither recovery mirror contains the supplied original bytes "
+                  "for every known divergent file."
               )
 
           for path in removed:
               path.unlink()
+
+          normalized = sorted(
+              (core / "src/main/java").rglob("*.java"),
+              key=lambda p: p.as_posix()
+          )
+          manifest = "".join(
+              f"{sha(path)}  {path.relative_to(core).as_posix()}\n"
+              for path in normalized
+          ).encode()
+          digest = hashlib.sha256(manifest).hexdigest()
+          expected = "18727af501c62c6278416ef85ffe9c3cd0dcb10bc3c141b5fdaafdbf1dd6bc11"
+
+          print(f"normalized java files={len(normalized)}")
+          print(f"normalized baseline manifest sha256={digest}")
+          if len(normalized) != 2948 or digest != expected:
+              raise SystemExit(
+                  "Normalized mirrors still do not exactly match the supplied "
+                  "original source; refusing to run the core compile probe."
+              )
           PY
 
       - name: Apply exact migration overlay
