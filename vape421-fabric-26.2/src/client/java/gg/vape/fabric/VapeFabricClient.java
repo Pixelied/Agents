@@ -2,10 +2,12 @@ package gg.vape.fabric;
 
 import gg.vape.fabric.platform.FabricPlatformServices;
 import gg.vape.fabric.render.FabricFontAtlasServices;
+import gg.vape.fabric.render.FabricProjectionServices;
 import gg.vape.fabric.render.FabricRenderBridge;
 import gg.vape.fabric.render.FabricRenderServices;
 import gg.vape.runtime.FontAtlasServices;
 import gg.vape.runtime.PlatformServices;
+import gg.vape.runtime.ProjectionServices;
 import gg.vape.runtime.RenderServices;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -31,6 +33,10 @@ public final class VapeFabricClient implements ClientModInitializer {
         RenderServices.install(renderServices);
         FontAtlasServices.install(new FabricFontAtlasServices(renderServices));
         FabricRenderBridge.installRenderServices(renderServices);
+
+        var projectionServices = new FabricProjectionServices();
+        ProjectionServices.install(projectionServices);
+        FabricRenderBridge.installProjectionServices(projectionServices);
 
         HudElementRegistry.addLast(
                 Identifier.fromNamespaceAndPath(MOD_ID, "hud"),
