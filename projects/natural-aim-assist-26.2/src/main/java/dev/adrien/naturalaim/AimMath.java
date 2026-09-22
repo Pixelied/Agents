@@ -123,7 +123,9 @@ public final class AimMath {
             boolean combatTargetAvailable,
             boolean attackDown,
             long attackHeldNanos,
-            long incidentalAttackGraceNanos
+            long recentAttackAgeNanos,
+            long incidentalAttackGraceNanos,
+            long postClickGraceNanos
     ) {
         if (!pauseActions) return false;
         if (useDown) return true;
@@ -133,11 +135,16 @@ public final class AimMath {
         // by a few pixels. If a combat target is already available, do not let that
         // transient block hit suppress the controller. A sustained held attack still
         // becomes a real mining pause after the grace window.
-        if (combatTargetAvailable
-                && attackDown
-                && attackHeldNanos >= 0L
-                && attackHeldNanos <= incidentalAttackGraceNanos) {
-            return false;
+        if (combatTargetAvailable) {
+            boolean shortActiveClick = attackDown
+                    && attackHeldNanos >= 0L
+                    && attackHeldNanos <= incidentalAttackGraceNanos;
+            boolean shortPostClickTail = !attackDown
+                    && recentAttackAgeNanos >= 0L
+                    && recentAttackAgeNanos <= postClickGraceNanos;
+            if (shortActiveClick || shortPostClickTail) {
+                return false;
+            }
         }
 
         return true;
