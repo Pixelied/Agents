@@ -18,6 +18,8 @@ public final class AimMathSimulation {
         testCombatIntentWindow();
         testLerp();
         testAdaptiveFlickRetention();
+        testTargetAwareActionPause();
+        testPvpProximityScaling();
         System.out.println("Natural Aim math simulations passed.");
     }
 
@@ -132,6 +134,39 @@ public final class AimMathSimulation {
                 "committed PvP tracking should retain 80 percent strength at extreme camera speed");
         check(committedFast > freshFast,
                 "target commitment should reduce flick suppression");
+    }
+
+    private static void testTargetAwareActionPause() {
+        long grace = 280_000_000L;
+
+        check(!AimMath.shouldPauseForAction(false, false, true, false, true, 50_000_000L, grace),
+                "disabled action pausing should never block assistance");
+        check(AimMath.shouldPauseForAction(true, true, false, true, false, Long.MAX_VALUE, grace),
+                "item use should still pause assistance");
+        check(AimMath.shouldPauseForAction(true, false, true, false, true, 50_000_000L, grace),
+                "real mining without a combat target should pause assistance");
+        check(!AimMath.shouldPauseForAction(true, false, true, true, true, 80_000_000L, grace),
+                "brief PvP miss onto a block should not pause when a combat target is available");
+        check(AimMath.shouldPauseForAction(true, false, true, true, true, 500_000_000L, grace),
+                "sustained block breaking should become a deliberate mining pause");
+        check(AimMath.shouldPauseForAction(true, false, true, true, false, Long.MAX_VALUE, grace),
+                "stale destroying state without active attack should not bypass mining pause");
+    }
+
+    private static void testPvpProximityScaling() {
+        double closeStrength = AimMath.pvpProximityStrength(1.2);
+        double midStrength = AimMath.pvpProximityStrength(3.2);
+        double closeTurn = AimMath.pvpTurnSpeedScale(1.2);
+        double midTurn = AimMath.pvpTurnSpeedScale(3.3);
+
+        check(closeStrength > 1.0,
+                "close PvP should not retain the old close-range strength penalty");
+        near(1.0, midStrength, 1.0e-9,
+                "mid-range PvP strength should return to neutral scaling");
+        check(closeTurn > 1.0,
+                "close PvP should allow faster angular tracking");
+        near(1.0, midTurn, 1.0e-9,
+                "mid-range PvP turn speed should return to preset limits");
     }
 
     private static void testLerp() {
