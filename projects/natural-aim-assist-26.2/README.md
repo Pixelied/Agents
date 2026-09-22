@@ -10,6 +10,17 @@ Natural Aim Assist is a lightweight client-side Fabric mod for Minecraft Java 26
 - Fabric API 0.160.0+26.2
 - Optional Mod Menu 20.0.2 integration
 
+## 1.1.1 micro-input fix
+
+Version 1.1.1 changes manual-override behavior so merely touching the mouse does not overpower the assist.
+
+- Pull-away is now based on **accumulated angular movement away from the target**, not a single mouse sample.
+- Tiny opposing deltas are treated as hand noise and no longer cancel target commitment.
+- Small opposing movement only weakens assistance gradually.
+- A micro-resistance term immediately counters part of very small movement away while intent is still ambiguous.
+- Continued deliberate movement away rapidly fades that resistance and releases the target.
+- Movement back toward the target actively clears pull-away evidence.
+
 ## 1.1.0 behavior fix
 
 Version 1.1.0 fixes two reasons the first release could feel inactive:
