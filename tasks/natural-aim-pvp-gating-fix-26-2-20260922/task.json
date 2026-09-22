@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-pvp-gating-fix-26-2-20260922",
+  "title": "Fix Natural Aim PvP Gating",
+  "objective": "Keep Natural Aim Assist active and useful during real PvP movement/clicking while preserving deliberate mining/use pauses outside combat.",
+  "created_by": "openai-natural-aim-pvp-gating-fix-26-2-41f8",
+  "created_at": "2026-09-22T22:44:30+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "projects/natural-aim-assist-26.2",
+    ".github/workflows/natural-aim-assist-26-2.yml"
+  ],
+  "acceptance_criteria": [
+    "Incidental block-breaking caused by PvP clicks does not pause assistance when a valid combat target is available.",
+    "Deliberate mining still pauses assistance when no valid combat target is in the assist envelope.",
+    "Target resolution occurs before mining-pause gating so combat context can be considered.",
+    "PvP target commitment is not unnecessarily cleared by transient action states.",
+    "Regression simulations and Minecraft 26.2 Java 25 build/smoke launch pass."
+  ]
+}
