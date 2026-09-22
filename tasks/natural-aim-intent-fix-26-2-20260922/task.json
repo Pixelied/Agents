@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-intent-fix-26-2-20260922",
+  "title": "Fix Natural Aim Micro Input",
+  "objective": "Prevent tiny mouse movements from overpowering Natural Aim Assist while preserving deliberate manual pull-away.",
+  "created_by": "openai-natural-aim-intent-fix-26-2-63b1",
+  "created_at": "2026-09-22T22:03:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "projects/natural-aim-assist-26.2",
+    ".github/workflows/natural-aim-assist-26-2.yml"
+  ],
+  "acceptance_criteria": [
+    "Single-frame micro mouse deltas do not cancel a committed target.",
+    "Small opposing input only weakens assistance rather than dropping the target.",
+    "Meaningful sustained opposing movement still disengages aim assistance promptly.",
+    "Regression simulations cover micro input, accumulated pull-away, recovery, and normal toward-target movement.",
+    "Minecraft 26.2 Java 25 build and runtime smoke test pass."
+  ]
+}
