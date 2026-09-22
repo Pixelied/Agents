@@ -4,10 +4,12 @@
   "task_id": "natural-aim-intent-fix-26-2-20260922",
   "scope": ".github/workflows/natural-aim-assist-26-2.yml",
   "owner": "openai-natural-aim-intent-fix-26-2-63b1",
-  "state": "active",
+  "state": "released",
   "intent": "Implement and verify micro-input intent handling.",
   "claimed_at": "2026-09-22T22:03:02+00:00",
   "heartbeat_at": "2026-09-22T22:03:02+00:00",
   "expires_at": "2026-09-23T22:03:02+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-09-22T22:30:03+00:00",
+  "release_reason": "Natural Aim Assist 1.1.1 micro-input fix implemented and fully verified."
 }
