@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-intent-fix-26-2-20260922",
+  "scope": "projects/natural-aim-assist-26.2",
+  "owner": "openai-natural-aim-intent-fix-26-2-63b1",
+  "state": "active",
+  "intent": "Implement and verify micro-input intent handling.",
+  "claimed_at": "2026-09-22T22:03:02+00:00",
+  "heartbeat_at": "2026-09-22T22:03:02+00:00",
+  "expires_at": "2026-09-23T22:03:02+00:00",
+  "generation": 1
+}
