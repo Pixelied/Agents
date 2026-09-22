@@ -7,6 +7,7 @@ public final class FabricInputBridge {
         default boolean onKey(int key, int scancode, int action, int modifiers) { return false; }
         default boolean onCharacter(int codepoint, int modifiers) { return false; }
         default boolean onMouseButton(int button, int action, int modifiers) { return false; }
+        default void onMouseMove(double x, double y) { }
         default boolean onScroll(double xOffset, double yOffset) { return false; }
         default void onFocusLost() { }
     }
@@ -37,6 +38,11 @@ public final class FabricInputBridge {
         boolean consumed = false;
         for (Listener listener : LISTENERS) consumed |= listener.onMouseButton(button, action, modifiers);
         return consumed;
+    }
+
+    public static void onMouseMove(double x, double y) {
+        STATE.onMouseMove(x, y);
+        for (Listener listener : LISTENERS) listener.onMouseMove(x, y);
     }
 
     public static boolean onScroll(double xOffset, double yOffset) {
