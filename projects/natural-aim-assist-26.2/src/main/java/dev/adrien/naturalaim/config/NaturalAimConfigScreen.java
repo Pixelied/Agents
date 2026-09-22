@@ -150,7 +150,6 @@ public final class NaturalAimConfigScreen extends Screen {
                 Component.literal(label + " value")
         );
         field.setMaxLength(8);
-        field.setFilter(NaturalAimConfigScreen::isPotentialNumber);
         field.setValue(fieldFormatter.apply(getter.getAsDouble()));
 
         NumericSlider slider = new NumericSlider(
