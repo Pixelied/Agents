@@ -452,7 +452,9 @@ public final class NaturalAimEngine {
         // opposite the target could slash the correction strength or cancel the
         // target outright. Use the accumulated pull-away evidence instead.
         double pullAwayProgress = AimMath.clamp(
-                pullAwayEvidence / PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES,
+                pullAwayEvidence / (playerTarget
+                        ? AimMath.pvpPullAwayThreshold(config.strength())
+                        : PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES),
                 0.0,
                 1.0
         );
