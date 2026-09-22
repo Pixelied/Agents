@@ -120,7 +120,7 @@ public final class NaturalAimEngine {
             return;
         }
 
-        if (config.requireAttack() && !combatIntentActive(now)) {
+        if (config.requireAttack() && !combatIntentActive(minecraft, now)) {
             clearTransientState();
             syncBaseline(vanillaYaw, vanillaPitch, now);
             return;
@@ -259,15 +259,10 @@ public final class NaturalAimEngine {
                 && minecraft.gameMode.isDestroying();
     }
 
-    private boolean combatIntentActive(long now) {
+    private boolean combatIntentActive(Minecraft minecraft, long now) {
         if (!config.requireAttack()) return true;
-        if (minecraftAttackHeld()) return true;
+        if (minecraft.options.keyAttack.isDown()) return true;
         return AimMath.combatIntentActive(now, lastAttackInputNanos, COMBAT_INTENT_HOLD_NS);
-    }
-
-    private boolean minecraftAttackHeld() {
-        Minecraft minecraft = Minecraft.getInstance();
-        return minecraft.options.keyAttack.isDown();
     }
 
     private boolean isCombatWeapon(ItemStack stack) {
@@ -423,7 +418,7 @@ public final class NaturalAimEngine {
 
         double attackFactor;
         if (config.requireAttack()) {
-            attackFactor = combatIntentActive(now) ? 1.06 : 1.0;
+            attackFactor = combatIntentActive(minecraft, now) ? 1.06 : 1.0;
         } else {
             attackFactor = minecraft.options.keyAttack.isDown() ? 1.06 : 1.0;
         }
