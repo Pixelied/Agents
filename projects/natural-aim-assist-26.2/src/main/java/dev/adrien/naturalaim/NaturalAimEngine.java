@@ -6,6 +6,8 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MaceItem;
@@ -248,7 +250,11 @@ public final class NaturalAimEngine {
 
         if (candidate instanceof Player otherPlayer) {
             if (!config.targetPlayers() || otherPlayer.isSpectator() || otherPlayer.isCreative()) return false;
-        } else if (!config.targetMobs()) {
+        } else if (candidate instanceof Mob mob) {
+            boolean hostile = mob.getType().getCategory() == MobCategory.MONSTER;
+            if (hostile && !config.targetHostileMobs()) return false;
+            if (!hostile && !config.targetPassiveMobs()) return false;
+        } else {
             return false;
         }
 
