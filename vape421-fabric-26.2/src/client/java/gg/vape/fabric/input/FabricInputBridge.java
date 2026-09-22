@@ -4,9 +4,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class FabricInputBridge {
     public interface Listener {
-        default void onKey(int key, int scancode, int action, int modifiers) { }
-        default void onMouseButton(int button, int action, int modifiers) { }
-        default void onScroll(double xOffset, double yOffset) { }
+        default boolean onKey(int key, int scancode, int action, int modifiers) { return false; }
+        default boolean onCharacter(int codepoint, int modifiers) { return false; }
+        default boolean onMouseButton(int button, int action, int modifiers) { return false; }
+        default boolean onScroll(double xOffset, double yOffset) { return false; }
         default void onFocusLost() { }
     }
 
@@ -18,19 +19,31 @@ public final class FabricInputBridge {
     public static void addListener(Listener listener) { if (listener != null) LISTENERS.addIfAbsent(listener); }
     public static void removeListener(Listener listener) { LISTENERS.remove(listener); }
 
-    public static void onKey(int key, int scancode, int action, int modifiers) {
+    public static boolean onKey(int key, int scancode, int action, int modifiers) {
         STATE.onKey(key, action, modifiers);
-        for (Listener listener : LISTENERS) listener.onKey(key, scancode, action, modifiers);
+        boolean consumed = false;
+        for (Listener listener : LISTENERS) consumed |= listener.onKey(key, scancode, action, modifiers);
+        return consumed;
     }
 
-    public static void onMouseButton(int button, int action, int modifiers) {
+    public static boolean onCharacter(int codepoint, int modifiers) {
+        boolean consumed = false;
+        for (Listener listener : LISTENERS) consumed |= listener.onCharacter(codepoint, modifiers);
+        return consumed;
+    }
+
+    public static boolean onMouseButton(int button, int action, int modifiers) {
         STATE.onMouseButton(button, action, modifiers);
-        for (Listener listener : LISTENERS) listener.onMouseButton(button, action, modifiers);
+        boolean consumed = false;
+        for (Listener listener : LISTENERS) consumed |= listener.onMouseButton(button, action, modifiers);
+        return consumed;
     }
 
-    public static void onScroll(double xOffset, double yOffset) {
+    public static boolean onScroll(double xOffset, double yOffset) {
         STATE.onScroll(xOffset, yOffset);
-        for (Listener listener : LISTENERS) listener.onScroll(xOffset, yOffset);
+        boolean consumed = false;
+        for (Listener listener : LISTENERS) consumed |= listener.onScroll(xOffset, yOffset);
+        return consumed;
     }
 
     public static void onFocusLost() {
