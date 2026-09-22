@@ -1,8 +1,10 @@
 package gg.vape.fabric;
 
 import gg.vape.fabric.platform.FabricPlatformServices;
+import gg.vape.fabric.render.FabricFontAtlasServices;
 import gg.vape.fabric.render.FabricRenderBridge;
 import gg.vape.fabric.render.FabricRenderServices;
+import gg.vape.runtime.FontAtlasServices;
 import gg.vape.runtime.PlatformServices;
 import gg.vape.runtime.RenderServices;
 import net.fabricmc.api.ClientModInitializer;
@@ -27,6 +29,7 @@ public final class VapeFabricClient implements ClientModInitializer {
 
         var renderServices = new FabricRenderServices();
         RenderServices.install(renderServices);
+        FontAtlasServices.install(new FabricFontAtlasServices(renderServices));
         FabricRenderBridge.installRenderServices(renderServices);
 
         HudElementRegistry.addLast(
