@@ -16,9 +16,9 @@ import java.util.function.DoubleFunction;
 import java.util.function.DoubleSupplier;
 
 public final class NaturalAimConfigScreen extends Screen {
-    private static final int BUTTON_HEIGHT = 20;
+    private static final int BUTTON_HEIGHT = 18;
     private static final int GAP = 6;
-    private static final int ROW_GAP = 3;
+    private static final int ROW_GAP = 2;
     private static final int FIELD_WIDTH = 62;
 
     private final Screen parent;
@@ -36,7 +36,7 @@ public final class NaturalAimConfigScreen extends Screen {
         int fullWidth = Math.min(390, Math.max(260, this.width - 36));
         int fullLeft = this.width / 2 - fullWidth / 2;
         int sliderWidth = fullWidth - FIELD_WIDTH - GAP;
-        int y = 50;
+        int y = 42;
         int row = BUTTON_HEIGHT + ROW_GAP;
 
         addNumericRow(
@@ -103,7 +103,7 @@ public final class NaturalAimConfigScreen extends Screen {
             this.rebuildWidgets();
         }).bounds(right, y, buttonWidth, BUTTON_HEIGHT).build());
 
-        int doneY = Math.min(this.height - 28, y + row + 7);
+        int doneY = Math.min(this.height - BUTTON_HEIGHT - 4, y + row + 4);
         this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
                 .bounds(this.width / 2 - 80, doneY, 160, BUTTON_HEIGHT)
                 .build());
@@ -113,11 +113,11 @@ public final class NaturalAimConfigScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         int titleX = (this.width - this.font.width(this.title)) / 2;
-        graphics.text(this.font, this.title, titleX, 14, 0xFFFFFFFF, true);
+        graphics.text(this.font, this.title, titleX, 10, 0xFFFFFFFF, true);
 
         String subtitle = "Drag a slider or type an exact value";
         int subtitleX = (this.width - this.font.width(subtitle)) / 2;
-        graphics.text(this.font, subtitle, subtitleX, 30, 0xFFAAAAAA, false);
+        graphics.text(this.font, subtitle, subtitleX, 25, 0xFFAAAAAA, false);
     }
 
     @Override
