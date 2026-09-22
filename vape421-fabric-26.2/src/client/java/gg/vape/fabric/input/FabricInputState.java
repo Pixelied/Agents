@@ -9,6 +9,8 @@ public final class FabricInputState {
     private final boolean[] mouseButtons = new boolean[MOUSE_CAPACITY];
     private volatile double scrollX;
     private volatile double scrollY;
+    private volatile double cursorX;
+    private volatile double cursorY;
     private volatile int modifiers;
 
     public void onKey(int glfwKey, int action, int modifierMask) {
@@ -22,9 +24,12 @@ public final class FabricInputState {
     }
 
     public void onScroll(double xOffset, double yOffset) { scrollX += xOffset; scrollY += yOffset; }
+    public void onMouseMove(double x, double y) { cursorX = x; cursorY = y; }
     public boolean isKeyDown(int glfwKey) { return glfwKey >= 0 && glfwKey < keys.length && keys[glfwKey]; }
     public boolean isMouseButtonDown(int glfwButton) { return glfwButton >= 0 && glfwButton < mouseButtons.length && mouseButtons[glfwButton]; }
     public int modifiers() { return modifiers; }
+    public double cursorX() { return cursorX; }
+    public double cursorY() { return cursorY; }
     public double consumeScrollX() { double value = scrollX; scrollX = 0.0; return value; }
     public double consumeScrollY() { double value = scrollY; scrollY = 0.0; return value; }
 
