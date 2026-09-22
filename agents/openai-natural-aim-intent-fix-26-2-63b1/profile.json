@@ -12,5 +12,7 @@
     "github-actions"
   ],
   "registered_at": "2026-09-22T22:03:00+00:00",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-09-22T22:30:04+00:00",
+  "state_reason": "Natural Aim Assist 1.1.1 intent fix completed and all scopes released."
 }
