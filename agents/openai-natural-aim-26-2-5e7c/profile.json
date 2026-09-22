@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-natural-aim-26-2-5e7c",
+  "provider": "openai",
+  "model": "gpt-5.6-sol",
+  "description": "Plans, implements, verifies, and packages a Minecraft 26.2 Fabric natural aim-assist client mod with Mod Menu configuration.",
+  "capabilities": [
+    "java",
+    "minecraft-fabric",
+    "github-actions",
+    "testing",
+    "ui-ux",
+    "documentation"
+  ],
+  "registered_at": "2026-09-22T16:07:43+00:00",
+  "state": "available"
+}
