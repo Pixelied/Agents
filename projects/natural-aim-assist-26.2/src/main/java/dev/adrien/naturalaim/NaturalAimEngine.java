@@ -28,13 +28,14 @@ public final class NaturalAimEngine {
     private static final long TARGET_SCAN_INTERVAL_NS = 40_000_000L;
     private static final long REACQUIRE_COOLDOWN_NS = 120_000_000L;
     private static final long MOUSE_FALLBACK_DELAY_NS = 35_000_000L;
-    private static final double ACQUISITION_RAMP_SECONDS = 0.08;
+    private static final long COMBAT_INTENT_HOLD_NS = 900_000_000L;
+    private static final double ACQUISITION_RAMP_SECONDS = 0.060;
     private static final double PULL_AWAY_ALIGNMENT = -0.34;
     private static final double PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES = 0.80;
     private static final double PULL_AWAY_NOISE_FLOOR_DEGREES = 0.008;
     private static final double PULL_AWAY_EVIDENCE_DECAY_PER_SECOND = 3.25;
-    private static final double FLICK_START_DEGREES_PER_SECOND = 350.0;
-    private static final double FLICK_END_DEGREES_PER_SECOND = 1000.0;
+    private static final double FLICK_START_DEGREES_PER_SECOND = 500.0;
+    private static final double FLICK_END_DEGREES_PER_SECOND = 1400.0;
     private static final double AXIS_DEADZONE_DEGREES = 0.04;
 
     private final NaturalAimConfig config;
@@ -51,6 +52,7 @@ public final class NaturalAimEngine {
     private long targetAcquiredNanos;
     private long lastTargetScanNanos;
     private long suppressedUntilNanos;
+    private long lastAttackInputNanos;
 
     private double correctionYawVelocity;
     private double correctionPitchVelocity;
@@ -97,7 +99,28 @@ public final class NaturalAimEngine {
         double rawYaw = AimMath.wrapDegrees(vanillaYaw - lastOutputYaw);
         double rawPitch = vanillaPitch - lastOutputPitch;
 
-        if (!contextAllowsAssistance(minecraft, player)) {
+        if (minecraft.options.keyAttack.isDown()) {
+            lastAttackInputNanos = now;
+        }
+
+        if (!hardContextAllowsAssistance(minecraft, player)) {
+            clearTransientState();
+            syncBaseline(vanillaYaw, vanillaPitch, now);
+            return;
+        }
+
+        if (temporarilyPausedByAction(minecraft)) {
+            decayController(dt, config.preset().deceleration());
+            pullAwayEvidenceDegrees = AimMath.approach(
+                    pullAwayEvidenceDegrees,
+                    0.0,
+                    PULL_AWAY_EVIDENCE_DECAY_PER_SECOND * dt
+            );
+            syncBaseline(vanillaYaw, vanillaPitch, now);
+            return;
+        }
+
+        if (config.requireAttack() && !combatIntentActive(now)) {
             clearTransientState();
             syncBaseline(vanillaYaw, vanillaPitch, now);
             return;
@@ -219,26 +242,32 @@ public final class NaturalAimEngine {
         resetSession(null, null, System.nanoTime());
     }
 
-    private boolean contextAllowsAssistance(Minecraft minecraft, LocalPlayer player) {
+    private boolean hardContextAllowsAssistance(Minecraft minecraft, LocalPlayer player) {
         if (!config.enabled() || !player.isAlive() || player.isSpectator()) return false;
         if (minecraft.gui.screen() != null) return false;
-        if (config.requireAttack() && !minecraft.options.keyAttack.isDown()) return false;
-        if (config.weaponsOnly() && !isCombatWeapon(player.getMainHandItem())) return false;
+        return !config.weaponsOnly() || isCombatWeapon(player.getMainHandItem());
+    }
 
-        if (config.pauseActions()) {
-            if (minecraft.options.keyUse.isDown()) return false;
+    private boolean temporarilyPausedByAction(Minecraft minecraft) {
+        if (!config.pauseActions()) return false;
+        if (minecraft.options.keyUse.isDown()) return true;
 
-            // When Require Attack is the activation condition, the same held
-            // attack can make vanilla report "destroying" while the crosshair
-            // is still on a block. Treating that as a hard pause made the old
-            // defaults self-cancel before aim assist could ever reach a target.
-            if (!config.requireAttack()
-                    && minecraft.gameMode != null
-                    && minecraft.gameMode.isDestroying()) {
-                return false;
-            }
-        }
-        return true;
+        // If Require Attack is enabled, vanilla may report block destruction
+        // from the same attack input. Do not treat that as a separate pause.
+        return !config.requireAttack()
+                && minecraft.gameMode != null
+                && minecraft.gameMode.isDestroying();
+    }
+
+    private boolean combatIntentActive(long now) {
+        if (!config.requireAttack()) return true;
+        if (minecraftAttackHeld()) return true;
+        return AimMath.combatIntentActive(now, lastAttackInputNanos, COMBAT_INTENT_HOLD_NS);
+    }
+
+    private boolean minecraftAttackHeld() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.options.keyAttack.isDown();
     }
 
     private boolean isCombatWeapon(ItemStack stack) {
@@ -348,7 +377,10 @@ public final class NaturalAimEngine {
         double edgeFactor = 1.0 - 0.65 * edgeFalloff;
 
         double inputSpeed = Math.hypot(rawYaw, rawPitch) / Math.max(dt, 1.0e-4);
-        double flickFactor = 1.0 - 0.62 * AimMath.smoothstep(
+        double targetAgeSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
+        double trackingCommitment = AimMath.smoothstep(0.05, 0.18, targetAgeSeconds);
+        double maxFlickSuppression = AimMath.lerp(0.42, 0.20, trackingCommitment);
+        double flickFactor = 1.0 - maxFlickSuppression * AimMath.smoothstep(
                 FLICK_START_DEGREES_PER_SECOND,
                 FLICK_END_DEGREES_PER_SECOND,
                 inputSpeed
@@ -382,14 +414,19 @@ public final class NaturalAimEngine {
         }
 
         double acquisitionSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
-        double acquisitionFactor = 0.24 + 0.76 * AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds);
+        double acquisitionFactor = 0.48 + 0.52 * AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds);
 
         double distance = player.getEyePosition().distanceTo(selectionAimPoint(activeTarget));
         double closeFactor = 0.62 + 0.38 * AimMath.smoothstep(1.15, 2.7, distance);
         double longFactor = 1.0 - 0.10 * AimMath.smoothstep(5.0, 8.0, distance);
         double distanceFactor = closeFactor * longFactor;
 
-        double attackFactor = minecraft.options.keyAttack.isDown() ? 1.10 : 0.95;
+        double attackFactor;
+        if (config.requireAttack()) {
+            attackFactor = combatIntentActive(now) ? 1.06 : 1.0;
+        } else {
+            attackFactor = minecraft.options.keyAttack.isDown() ? 1.06 : 1.0;
+        }
 
         return config.strength()
                 * config.preset().strengthScale()
@@ -483,6 +520,7 @@ public final class NaturalAimEngine {
         targetAcquiredNanos = 0L;
         lastTargetScanNanos = 0L;
         suppressedUntilNanos = 0L;
+        lastAttackInputNanos = 0L;
         correctionYawVelocity = 0.0;
         correctionPitchVelocity = 0.0;
         pullAwayEvidenceDegrees = 0.0;
