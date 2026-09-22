@@ -10,6 +10,20 @@ Natural Aim Assist is a lightweight client-side Fabric mod for Minecraft Java 26
 - Fabric API 0.160.0+26.2
 - Optional Mod Menu 20.0.2 integration
 
+## 1.1.3 committed PvP authority
+
+Version 1.1.3 makes assistance materially stronger after a real player target is acquired, while leaving mob/static behavior on the softer controller path.
+
+- Player pull-away release threshold scales from 1.25 to 2.20 degrees with Strength instead of using the generic 0.80-degree threshold.
+- Player reacquisition cooldown after a deliberate release is reduced to 55 ms.
+- Committed player tracking keeps up to 95% of correction authority even during extreme mouse/camera speed.
+- Edge-of-FOV damping becomes much weaker after target commitment.
+- Close player targets receive substantially more correction strength and angular turn-speed headroom.
+- Committed player targets gain an additional authority ramp rather than remaining at fresh-acquisition strength.
+- Dynamic player aim now blends toward torso center instead of merely clamping the current look ray inside a broad box.
+- Fast strafing players receive a small sub-tick motion lead based on their client-side movement vector.
+- Manual sustained pull-away still releases the target; these changes do not affect mob/static target behavior.
+
 ## 1.1.2 PvP tracking fix
 
 Version 1.1.2 focuses on the gap between controlled aim-assist testing and real moving PvP:
