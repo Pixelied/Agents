@@ -4,6 +4,7 @@ import gg.vape.fabric.chat.RecoveredChatAdapter;
 import gg.vape.fabric.input.RecoveredInputAdapter;
 import gg.vape.fabric.movement.RecoveredMovementAdapter;
 import gg.vape.fabric.network.RecoveredPacketAdapter;
+import gg.vape.fabric.render.RecoveredRenderTaskAdapter;
 import gg.vape.fabric.render.RecoveredTabNameAdapter;
 import gg.vape.fabric.tooltip.RecoveredTooltipAdapter;
 import java.lang.reflect.InvocationTargetException;
@@ -38,6 +39,7 @@ public final class RecoveredCoreLauncher {
             RecoveredTabNameAdapter.enable(logger);
             RecoveredChatAdapter.enable(logger);
             RecoveredTooltipAdapter.enable(logger);
+            RecoveredRenderTaskAdapter.enable(logger);
 
             logger.info("Recovered Vape core started through Fabric lifecycle.");
         } catch (ClassNotFoundException missingDuringMigration) {
