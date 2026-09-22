@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "9e53dfc957204571a3d44acaf5eff131",
+  "task_id": "natural-aim-intent-fix-26-2-20260922",
+  "agent_id": "openai-natural-aim-intent-fix-26-2-63b1",
+  "type": "scope_released",
+  "message": "Released .github/workflows/natural-aim-assist-26-2.yml: Natural Aim Assist 1.1.1 micro-input fix implemented and fully verified.",
+  "data": {
+    "scope": ".github/workflows/natural-aim-assist-26-2.yml"
+  },
+  "created_at": "2026-09-22T22:30:03+00:00"
+}
