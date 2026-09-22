@@ -14,8 +14,13 @@ public final class FabricRenderBridge {
     }
 
     private static final CopyOnWriteArrayList<Listener> LISTENERS = new CopyOnWriteArrayList<>();
+    private static volatile FabricRenderServices renderServices;
 
     private FabricRenderBridge() { }
+
+    public static void installRenderServices(FabricRenderServices services) {
+        renderServices = services;
+    }
 
     public static void addListener(Listener listener) {
         if (listener != null) LISTENERS.addIfAbsent(listener);
@@ -26,7 +31,11 @@ public final class FabricRenderBridge {
     }
 
     public static void extractHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
-        for (Listener listener : LISTENERS) listener.extractHud(graphics, deltaTracker);
+        FabricRenderServices services = renderServices;
+        if (services == null) return;
+        try (FabricRenderServices.Scope ignored = services.begin(graphics)) {
+            for (Listener listener : LISTENERS) listener.extractHud(graphics, deltaTracker);
+        }
     }
 
     public static void extractLevel(LevelExtractionContext context) {
