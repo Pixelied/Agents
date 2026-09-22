@@ -11,7 +11,8 @@ public final class AimMathSimulation {
         testApproach();
         testBoundedStep();
         testIntentAlignment();
-        testPullAway();
+        testPullAwayEvidence();
+        testMicroResistanceMath();
         testRegionClamp();
         testMobTargetRules();
         System.out.println("Natural Aim math simulations passed.");
@@ -48,10 +49,45 @@ public final class AimMathSimulation {
         near(0.0, AimMath.intentAlignment(0.0, 1.0, 5.0, 0.0), 1.0e-9, "orthogonal input alignment");
     }
 
-    private static void testPullAway() {
-        check(AimMath.isDeliberatePullAway(-0.3, 0.0, 3.0, 0.0, 0.05, -0.22), "clear pull-away should disengage");
-        check(!AimMath.isDeliberatePullAway(0.01, 0.0, 3.0, 0.0, 0.05, -0.22), "tiny hand noise should not disengage");
-        check(!AimMath.isDeliberatePullAway(0.3, 0.0, 3.0, 0.0, 0.05, -0.22), "movement toward target should stay assisted");
+    private static void testPullAwayEvidence() {
+        double evidence = 0.0;
+
+        evidence = AimMath.updatePullAwayEvidence(
+                evidence, -0.03, 0.0, 3.0, 0.0,
+                -0.34, 0.008, 3.25, 1.0 / 120.0
+        );
+        check(evidence < 0.05, "one micro movement should not look like deliberate pull-away");
+
+        for (int i = 0; i < 16; i++) {
+            evidence = AimMath.updatePullAwayEvidence(
+                    evidence, -0.08, 0.0, 3.0, 0.0,
+                    -0.34, 0.008, 3.25, 1.0 / 120.0
+            );
+        }
+        check(evidence >= 0.80, "sustained movement away should accumulate enough intent to release");
+
+        double recovered = AimMath.updatePullAwayEvidence(
+                evidence, 0.30, 0.0, 3.0, 0.0,
+                -0.34, 0.008, 3.25, 0.10
+        );
+        check(recovered < evidence, "movement back toward the target should rapidly clear pull-away evidence");
+
+        double towardOnly = AimMath.updatePullAwayEvidence(
+                0.0, 0.25, 0.0, 3.0, 0.0,
+                -0.34, 0.008, 3.25, 1.0 / 60.0
+        );
+        near(0.0, towardOnly, 1.0e-9, "movement toward target should not build pull-away evidence");
+    }
+
+    private static void testMicroResistanceMath() {
+        near(0.10, AimMath.opposingProjection(-0.10, 0.0, 3.0, 0.0), 1.0e-9,
+                "opposing yaw should project fully away from target");
+        near(0.0, AimMath.opposingProjection(0.10, 0.0, 3.0, 0.0), 1.0e-9,
+                "toward-target yaw should not create resistance");
+        near(0.25, AimMath.boundedCorrection(0.40, 0.25), 1.0e-9,
+                "micro resistance must not overshoot target error");
+        near(0.0, AimMath.boundedCorrection(-0.10, 0.25), 1.0e-9,
+                "correction pointing away from target must be rejected");
     }
 
     private static void testRegionClamp() {
