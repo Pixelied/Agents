@@ -6,7 +6,8 @@
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",
     "LocalPlayerMixin",
-    "GuiMixin"
+    "GuiMixin",
+    "MultiPlayerGameModeMixin"
   ],
   "injectors": {
     "defaultRequire": 1
