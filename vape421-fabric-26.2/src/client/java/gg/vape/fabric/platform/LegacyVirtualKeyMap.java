@@ -1,11 +1,36 @@
 package gg.vape.fabric.platform;
 
+import java.util.Arrays;
 import org.lwjgl.glfw.GLFW;
 
-final class LegacyVirtualKeyMap {
+/**
+ * Temporary compatibility map for Vape's recovered Win32-style bind values.
+ * GLFW/Minecraft remains the source of truth; this exists only at the legacy
+ * core boundary and can disappear once bind persistence is migrated.
+ */
+public final class LegacyVirtualKeyMap {
+    private static final int[] GLFW_TO_VIRTUAL_KEY = new int[GLFW.GLFW_KEY_LAST + 1];
+
+    static {
+        Arrays.fill(GLFW_TO_VIRTUAL_KEY, 0);
+        for (int virtualKey = 1; virtualKey <= 255; virtualKey++) {
+            int glfwKey = key(virtualKey);
+            if (glfwKey >= 0 && glfwKey < GLFW_TO_VIRTUAL_KEY.length) {
+                GLFW_TO_VIRTUAL_KEY[glfwKey] = virtualKey;
+            }
+        }
+        // Prefer distinct left/right VK values over generic modifier aliases.
+        GLFW_TO_VIRTUAL_KEY[GLFW.GLFW_KEY_LEFT_SHIFT] = 160;
+        GLFW_TO_VIRTUAL_KEY[GLFW.GLFW_KEY_RIGHT_SHIFT] = 161;
+        GLFW_TO_VIRTUAL_KEY[GLFW.GLFW_KEY_LEFT_CONTROL] = 162;
+        GLFW_TO_VIRTUAL_KEY[GLFW.GLFW_KEY_RIGHT_CONTROL] = 163;
+        GLFW_TO_VIRTUAL_KEY[GLFW.GLFW_KEY_LEFT_ALT] = 164;
+        GLFW_TO_VIRTUAL_KEY[GLFW.GLFW_KEY_RIGHT_ALT] = 165;
+    }
+
     private LegacyVirtualKeyMap() { }
 
-    static int mouseButton(int vk) {
+    public static int mouseButton(int vk) {
         return switch (vk) {
             case 1 -> GLFW.GLFW_MOUSE_BUTTON_LEFT;
             case 2 -> GLFW.GLFW_MOUSE_BUTTON_RIGHT;
@@ -16,7 +41,7 @@ final class LegacyVirtualKeyMap {
         };
     }
 
-    static int key(int vk) {
+    public static int key(int vk) {
         if (vk >= '0' && vk <= '9') return vk;
         if (vk >= 'A' && vk <= 'Z') return vk;
         if (vk >= 112 && vk <= 135) return GLFW.GLFW_KEY_F1 + (vk - 112);
@@ -65,5 +90,10 @@ final class LegacyVirtualKeyMap {
             case 222 -> GLFW.GLFW_KEY_APOSTROPHE;
             default -> GLFW.GLFW_KEY_UNKNOWN;
         };
+    }
+
+    public static int virtualKey(int glfwKey) {
+        if (glfwKey < 0 || glfwKey >= GLFW_TO_VIRTUAL_KEY.length) return 0;
+        return GLFW_TO_VIRTUAL_KEY[glfwKey];
     }
 }
