@@ -170,6 +170,43 @@ public final class NaturalAimEngine {
                 ? AimMath.boundedStep(correctionPitchVelocity, dt, error.pitch())
                 : 0.0;
 
+        // Immediate stabilizer for tiny movement away from the target. This is
+        // intentionally tied to pull-away evidence: hand noise gets resisted,
+        // but resistance rapidly disappears once the user is clearly trying to
+        // leave the target.
+        double opposingInput = AimMath.opposingProjection(
+                rawYaw,
+                intentPitch,
+                error.yaw(),
+                errorPitch
+        );
+        double resistanceRelease = 1.0 - AimMath.smoothstep(
+                PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES * 0.18,
+                PULL_AWAY_EVIDENCE_THRESHOLD_DEGREES,
+                pullAwayEvidenceDegrees
+        );
+        double resistanceStrength = config.strength()
+                * (0.55 + 0.35 * preset.strengthScale())
+                * resistanceRelease;
+        double resistanceDegrees = Math.min(0.45, opposingInput * resistanceStrength);
+
+        if (resistanceDegrees > 0.0 && angularError > 1.0e-6) {
+            double unitYaw = error.yaw() / angularError;
+            double unitPitch = errorPitch / angularError;
+
+            yawStep = AimMath.boundedCorrection(
+                    yawStep + unitYaw * resistanceDegrees,
+                    error.yaw()
+            );
+
+            if (config.verticalAssist()) {
+                pitchStep = AimMath.boundedCorrection(
+                        pitchStep + unitPitch * resistanceDegrees,
+                        error.pitch()
+                );
+            }
+        }
+
         float finalYaw = (float) (vanillaYaw + yawStep);
         float finalPitch = AimMath.clamp((float) (vanillaPitch + pitchStep), -90.0f, 90.0f);
         player.setYRot(finalYaw);
