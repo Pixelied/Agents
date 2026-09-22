@@ -21,8 +21,13 @@ public final class FabricPlatformServices extends FileBackedPlatformServices {
         this.logger = logger;
     }
 
-    private long window() {
-        return Minecraft.getInstance().getWindow().handle();
+    private long window() { return Minecraft.getInstance().getWindow().handle(); }
+
+    @Override
+    public String accessToken() {
+        String token = System.getProperty("vape.accessToken");
+        if (token == null || token.isBlank()) token = System.getenv("VAPE_ACCESS_TOKEN");
+        return token == null ? "" : token.trim();
     }
 
     @Override
@@ -77,16 +82,14 @@ public final class FabricPlatformServices extends FileBackedPlatformServices {
         int glfwKey = LegacyVirtualKeyMap.key(legacyVirtualKey);
         if (glfwKey == GLFW.GLFW_KEY_UNKNOWN) return;
         int scancode = GLFW.glfwGetKeyScancode(glfwKey);
-        FabricInputBridge.onKey(glfwKey, scancode,
-                pressed ? GLFW.GLFW_PRESS : GLFW.GLFW_RELEASE, 0);
+        FabricInputBridge.onKey(glfwKey, scancode, pressed ? GLFW.GLFW_PRESS : GLFW.GLFW_RELEASE, 0);
         InputConstants.Key key = InputConstants.Type.KEYSYM.getOrCreate(glfwKey);
         KeyMapping.set(key, pressed);
         if (pressed) KeyMapping.click(key);
     }
 
     private void dispatchMouseButton(int glfwButton, boolean pressed) {
-        FabricInputBridge.onMouseButton(glfwButton,
-                pressed ? GLFW.GLFW_PRESS : GLFW.GLFW_RELEASE, 0);
+        FabricInputBridge.onMouseButton(glfwButton, pressed ? GLFW.GLFW_PRESS : GLFW.GLFW_RELEASE, 0);
         InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(glfwButton);
         KeyMapping.set(key, pressed);
         if (pressed) KeyMapping.click(key);
@@ -112,7 +115,5 @@ public final class FabricPlatformServices extends FileBackedPlatformServices {
     }
 
     @Override
-    public void log(String message) {
-        logger.info("{}", message);
-    }
+    public void log(String message) { logger.info("{}", message); }
 }
