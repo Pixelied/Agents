@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-assist-fix-26-2-20260922",
+  "title": "Fix Natural Aim Assist 26.2",
+  "objective": "Make Natural Aim Assist visibly functional in real gameplay, expand FOV to 360 degrees, and replace coarse cycle buttons with precise sliders/editable numeric controls.",
+  "created_by": "openai-natural-aim-fix-26-2-9c2a",
+  "created_at": "2026-09-22T21:41:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "projects/natural-aim-assist-26.2",
+    ".github/workflows/natural-aim-assist-26-2.yml"
+  ],
+  "acceptance_criteria": [
+    "Rebalance correction so valid targets receive clearly observable assistance while preserving manual pull-away.",
+    "FOV accepts 1 through 360 degrees.",
+    "Strength, FOV, and range use precise slider controls with editable numeric values.",
+    "Existing boolean targeting/combat settings remain functional and persist.",
+    "Version is bumped and Java 25 / Minecraft 26.2 CI build, simulations, smoke launch, and final JAR verification pass."
+  ]
+}
