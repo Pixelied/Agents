@@ -77,15 +77,15 @@ public final class NaturalAimConfigScreen extends Screen {
 
         y += row;
         addToggle(left, y, buttonWidth, "Enabled", config::enabled, config::toggleEnabled);
-        addToggle(right, y, buttonWidth, "Vertical Assist", config::verticalAssist, config::toggleVerticalAssist);
+        addCycle(right, y, buttonWidth, () -> "Preset: " + config.preset().displayName(), config::cyclePreset);
 
         y += row;
-        addToggle(left, y, buttonWidth, "Require Attack", config::requireAttack, config::toggleRequireAttack);
-        addToggle(right, y, buttonWidth, "Weapons Only", config::weaponsOnly, config::toggleWeaponsOnly);
+        addToggle(left, y, buttonWidth, "Vertical Assist", config::verticalAssist, config::toggleVerticalAssist);
+        addToggle(right, y, buttonWidth, "Require Attack", config::requireAttack, config::toggleRequireAttack);
 
         y += row;
-        addToggle(left, y, buttonWidth, "Pause Mining / Use", config::pauseActions, config::togglePauseActions);
-        addToggle(right, y, buttonWidth, "Ignore Invisible", config::ignoreInvisible, config::toggleIgnoreInvisible);
+        addToggle(left, y, buttonWidth, "Weapons Only", config::weaponsOnly, config::toggleWeaponsOnly);
+        addToggle(right, y, buttonWidth, "Pause Mining / Use", config::pauseActions, config::togglePauseActions);
 
         y += row;
         addToggle(left, y, buttonWidth, "Target Players", config::targetPlayers, config::toggleTargetPlayers);
@@ -97,14 +97,11 @@ public final class NaturalAimConfigScreen extends Screen {
 
         y += row;
         addToggle(left, y, buttonWidth, "Ignore Invisible", config::ignoreInvisible, config::toggleIgnoreInvisible);
-        addCycle(right, y, buttonWidth, () -> "Preset: " + config.preset().displayName(), config::cyclePreset);
-
-        y += row;
         this.addRenderableWidget(Button.builder(Component.literal("Reset Defaults"), button -> {
             config.resetDefaults();
             NaturalAimClient.engine().reset();
             this.rebuildWidgets();
-        }).bounds(left, y, fullWidth, BUTTON_HEIGHT).build());
+        }).bounds(right, y, buttonWidth, BUTTON_HEIGHT).build());
 
         int doneY = Math.min(this.height - 28, y + row + 7);
         this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
