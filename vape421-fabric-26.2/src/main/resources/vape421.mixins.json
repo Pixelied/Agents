@@ -16,7 +16,8 @@
     "LivingEntityMixin",
     "EntityMixin",
     "ScoreboardMixin",
-    "PlayerTabOverlayMixin"
+    "PlayerTabOverlayMixin",
+    "ChatComponentMixin"
   ],
   "injectors": {
     "defaultRequire": 1
