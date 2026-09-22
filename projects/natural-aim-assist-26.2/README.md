@@ -10,6 +10,18 @@ Natural Aim Assist is a lightweight client-side Fabric mod for Minecraft Java 26
 - Fabric API 0.160.0+26.2
 - Optional Mod Menu 20.0.2 integration
 
+## 1.1.2 PvP tracking fix
+
+Version 1.1.2 focuses on the gap between controlled aim-assist testing and real moving PvP:
+
+- Target acquisition now happens before mining-pause evaluation.
+- Brief block hits caused by a missed PvP click no longer suppress assistance when a valid combat target is already available.
+- A short post-click block-destroy tail is also ignored during active combat.
+- Sustained attack-holding still becomes a real mining pause, so Pause Mining / Use keeps its intended behavior.
+- Player targets no longer receive the old close-range assistance penalty.
+- Close player targets get a modest turn-speed increase so fast strafing/circling can be tracked without changing mob behavior.
+- Existing committed-target flick retention and attack-intent continuity remain in place.
+
 ## 1.1.1 micro-input fix
 
 Version 1.1.1 changes manual-override behavior so merely touching the mouse does not overpower the assist.
