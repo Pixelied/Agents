@@ -5,6 +5,10 @@ on:
   pull_request:
     paths: ['vape421-fabric-26.2/**', '.github/workflows/vape421-fabric-port.yml']
 
+concurrency:
+  group: vape421-fabric-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
