@@ -176,17 +176,14 @@ public final class NaturalAimConfig {
 
     public void setStrength(double value) {
         strength = AimMath.clamp(value, MIN_STRENGTH, MAX_STRENGTH);
-        save();
     }
 
     public void setAssistFov(double value) {
         assistFov = AimMath.clamp(value, MIN_FOV, MAX_FOV);
-        save();
     }
 
     public void setRange(double value) {
         range = AimMath.clamp(value, MIN_RANGE, MAX_RANGE);
-        save();
     }
 
     public void toggleVerticalAssist() { verticalAssist = !verticalAssist; save(); }
