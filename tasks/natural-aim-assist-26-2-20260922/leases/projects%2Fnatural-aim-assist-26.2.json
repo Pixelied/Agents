@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "natural-aim-assist-26-2-20260922",
+  "scope": "projects/natural-aim-assist-26.2",
+  "owner": "openai-natural-aim-26-2-5e7c",
+  "state": "active",
+  "intent": "Implement the independent Minecraft 26.2 Fabric mod project, design plan, configuration, tests, and packaging metadata.",
+  "claimed_at": "2026-09-22T16:09:42+00:00",
+  "heartbeat_at": "2026-09-22T16:09:42+00:00",
+  "expires_at": "2026-09-23T16:09:42+00:00",
+  "generation": 1
+}
