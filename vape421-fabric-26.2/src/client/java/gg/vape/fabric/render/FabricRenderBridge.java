@@ -33,16 +33,29 @@ public final class FabricRenderBridge {
     public static void extractHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         FabricRenderServices services = renderServices;
         if (services == null) return;
+
+        // The recovered client schedules font-atlas uploads and other GPU-facing
+        // cleanup through RenderThreadTaskQueue. Its old drain callback belonged
+        // to the injection-era render hook, so Fabric owns the drain point now.
+        RecoveredRenderTaskAdapter.drain();
+
         try (FabricRenderServices.Scope ignored = services.begin(graphics)) {
-            for (Listener listener : LISTENERS) listener.extractHud(graphics, deltaTracker);
+            for (Listener listener : LISTENERS) {
+                listener.extractHud(graphics, deltaTracker);
+            }
         }
     }
 
     public static void extractLevel(LevelExtractionContext context) {
-        for (Listener listener : LISTENERS) listener.extractLevel(context);
+        RecoveredRenderTaskAdapter.drain();
+        for (Listener listener : LISTENERS) {
+            listener.extractLevel(context);
+        }
     }
 
     public static void renderLevel(LevelRenderContext context) {
-        for (Listener listener : LISTENERS) listener.renderLevel(context);
+        for (Listener listener : LISTENERS) {
+            listener.renderLevel(context);
+        }
     }
 }
