@@ -1,6 +1,7 @@
 package gg.vape.fabric;
 
 import gg.vape.fabric.input.RecoveredInputAdapter;
+import gg.vape.fabric.network.RecoveredPacketAdapter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,6 +28,7 @@ public final class RecoveredCoreLauncher {
             start.invoke(null);
             RecoveredInputAdapter.install(logger);
             RecoveredLifecycleAdapter.install(logger);
+            RecoveredPacketAdapter.enable(logger);
             logger.info("Recovered Vape core started through Fabric lifecycle.");
         } catch (ClassNotFoundException missingDuringMigration) {
             logger.info("Recovered Vape core is not included in this migration build yet; Fabric shell remains active.");
