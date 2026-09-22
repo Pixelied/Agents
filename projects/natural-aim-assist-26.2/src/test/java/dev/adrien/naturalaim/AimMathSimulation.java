@@ -1,5 +1,7 @@
 package dev.adrien.naturalaim;
 
+import net.minecraft.world.entity.MobCategory;
+
 public final class AimMathSimulation {
     private AimMathSimulation() {}
 
@@ -11,6 +13,7 @@ public final class AimMathSimulation {
         testIntentAlignment();
         testPullAway();
         testRegionClamp();
+        testMobTargetRules();
         System.out.println("Natural Aim math simulations passed.");
     }
 
@@ -55,6 +58,17 @@ public final class AimMathSimulation {
         near(2.0, AimMath.clampToRegion(1.0, 2.0, 4.0), 1.0e-9, "region low clamp");
         near(3.0, AimMath.clampToRegion(3.0, 2.0, 4.0), 1.0e-9, "region preserves interior aim");
         near(4.0, AimMath.clampToRegion(5.0, 2.0, 4.0), 1.0e-9, "region high clamp");
+    }
+
+    private static void testMobTargetRules() {
+        check(TargetRules.allowsMobCategory(MobCategory.MONSTER, true, false),
+                "hostile mobs should be targetable when hostile targeting is enabled");
+        check(!TargetRules.allowsMobCategory(MobCategory.MONSTER, false, true),
+                "hostile mobs should not leak into passive targeting");
+        check(TargetRules.allowsMobCategory(MobCategory.CREATURE, false, true),
+                "passive creature category should be targetable when passive targeting is enabled");
+        check(!TargetRules.allowsMobCategory(MobCategory.CREATURE, true, false),
+                "passive creature category should not leak into hostile targeting");
     }
 
     private static void near(double expected, double actual, double tolerance, String message) {
