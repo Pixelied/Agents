@@ -15,6 +15,7 @@
     "MinecraftMixin",
     "LivingEntityMixin",
     "EntityMixin",
+    "EntityRenderDispatcherMixin",
     "ScoreboardMixin",
     "PlayerTabOverlayMixin",
     "ChatComponentMixin",
