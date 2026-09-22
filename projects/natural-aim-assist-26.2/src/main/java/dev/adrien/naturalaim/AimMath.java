@@ -77,6 +77,23 @@ public final class AimMath {
         return Math.max(0.0, evidence - decayDegreesPerSecond * recoveryMultiplier * dtSeconds);
     }
 
+    public static double opposingProjection(double inputYaw, double inputPitch, double errorYaw, double errorPitch) {
+        double errorLength = Math.hypot(errorYaw, errorPitch);
+        if (errorLength < 1.0e-6) return 0.0;
+        double unitYaw = errorYaw / errorLength;
+        double unitPitch = errorPitch / errorLength;
+        return Math.max(0.0, -(inputYaw * unitYaw + inputPitch * unitPitch));
+    }
+
+    public static double boundedCorrection(double proposedStep, double remainingErrorDegrees) {
+        if (remainingErrorDegrees == 0.0 || proposedStep == 0.0) return 0.0;
+        if (Math.signum(proposedStep) != Math.signum(remainingErrorDegrees)) return 0.0;
+        return Math.copySign(
+                Math.min(Math.abs(proposedStep), Math.abs(remainingErrorDegrees)),
+                remainingErrorDegrees
+        );
+    }
+
     public static double clampToRegion(double value, double min, double max) {
         if (min > max) {
             double midpoint = (min + max) * 0.5;
