@@ -14,5 +14,7 @@
     "documentation"
   ],
   "registered_at": "2026-09-22T21:41:00+00:00",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-09-22T21:55:06+00:00",
+  "state_reason": "Natural Aim Assist 1.1.0 fix task completed and all scopes released."
 }
