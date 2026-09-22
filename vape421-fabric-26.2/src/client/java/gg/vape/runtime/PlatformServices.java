@@ -19,6 +19,7 @@ public final class PlatformServices {
                     .resolve(relativePath).toAbsolutePath().normalize();
         }
         default void sendMouse(int mode, int value) { }
+        default boolean postLegacyInput(int message, long firstArgument, long secondArgument) { return false; }
         default void traceState(int state) { }
         default void log(String message) { System.err.println("[Vape421] " + message); }
         default byte[] classBytes(Class<?> targetClass) { return new byte[0]; }
