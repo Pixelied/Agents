@@ -116,6 +116,33 @@ public final class AimMath {
         );
     }
 
+    public static boolean shouldPauseForAction(
+            boolean pauseActions,
+            boolean useDown,
+            boolean destroyingBlock,
+            boolean combatTargetAvailable,
+            boolean attackDown,
+            long attackHeldNanos,
+            long incidentalAttackGraceNanos
+    ) {
+        if (!pauseActions) return false;
+        if (useDown) return true;
+        if (!destroyingBlock) return false;
+
+        // A brief block-destroy state is common when a PvP click misses an entity
+        // by a few pixels. If a combat target is already available, do not let that
+        // transient block hit suppress the controller. A sustained held attack still
+        // becomes a real mining pause after the grace window.
+        if (combatTargetAvailable
+                && attackDown
+                && attackHeldNanos >= 0L
+                && attackHeldNanos <= incidentalAttackGraceNanos) {
+            return false;
+        }
+
+        return true;
+    }
+
     public static boolean combatIntentActive(long nowNanos, long lastAttackInputNanos, long holdWindowNanos) {
         if (lastAttackInputNanos <= 0L || holdWindowNanos < 0L) return false;
         long elapsed = nowNanos - lastAttackInputNanos;
