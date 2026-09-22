@@ -456,14 +456,19 @@ public final class NaturalAimEngine {
         double widthZ = box.maxZ - box.minZ;
         double height = box.maxY - box.minY;
 
-        double marginX = widthX * 0.18;
-        double marginZ = widthZ * 0.18;
+        boolean playerTarget = activeTarget instanceof Player;
+        double horizontalInset = playerTarget ? 0.25 : 0.18;
+        double verticalMin = playerTarget ? 0.34 : 0.30;
+        double verticalMax = playerTarget ? 0.80 : 0.84;
+
+        double marginX = widthX * horizontalInset;
+        double marginZ = widthZ * horizontalInset;
         double minX = box.minX + marginX;
         double maxX = box.maxX - marginX;
         double minZ = box.minZ + marginZ;
         double maxZ = box.maxZ - marginZ;
-        double minY = box.minY + height * 0.30;
-        double maxY = box.minY + height * 0.84;
+        double minY = box.minY + height * verticalMin;
+        double maxY = box.minY + height * verticalMax;
 
         Vec3 eye = player.getEyePosition();
         Vec3 center = new Vec3(
