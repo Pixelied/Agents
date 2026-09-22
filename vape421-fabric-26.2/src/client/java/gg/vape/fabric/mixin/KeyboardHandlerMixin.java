@@ -18,6 +18,11 @@ abstract class KeyboardHandlerMixin {
 
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
     private void vape421$onCharTyped(long handle, CharacterEvent event, CallbackInfo ci) {
-        if (FabricInputBridge.onCharacter(event.codepoint(), event.modifiers())) ci.cancel();
+        // 26.2 CharacterEvent contains the code point only; modifier state is
+        // maintained by the preceding key callbacks.
+        if (FabricInputBridge.onCharacter(
+                event.codepoint(), FabricInputBridge.state().modifiers())) {
+            ci.cancel();
+        }
     }
 }
