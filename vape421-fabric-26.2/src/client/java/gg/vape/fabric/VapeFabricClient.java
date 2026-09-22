@@ -2,7 +2,9 @@ package gg.vape.fabric;
 
 import gg.vape.fabric.platform.FabricPlatformServices;
 import gg.vape.fabric.render.FabricRenderBridge;
+import gg.vape.fabric.render.FabricRenderServices;
 import gg.vape.runtime.PlatformServices;
+import gg.vape.runtime.RenderServices;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -22,6 +24,10 @@ public final class VapeFabricClient implements ClientModInitializer {
         var loader = FabricLoader.getInstance();
         var configDir = loader.getConfigDir().resolve(MOD_ID).toAbsolutePath().normalize();
         PlatformServices.install(new FabricPlatformServices(configDir, LOGGER));
+
+        var renderServices = new FabricRenderServices();
+        RenderServices.install(renderServices);
+        FabricRenderBridge.installRenderServices(renderServices);
 
         HudElementRegistry.addLast(
                 Identifier.fromNamespaceAndPath(MOD_ID, "hud"),
