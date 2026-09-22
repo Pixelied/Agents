@@ -10,13 +10,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(MouseHandler.class)
 abstract class MouseHandlerMixin {
-    @Inject(method = "onButton", at = @At("HEAD"))
+    @Inject(method = "onButton", at = @At("HEAD"), cancellable = true)
     private void vape421$onButton(long handle, MouseButtonInfo info, int action, CallbackInfo ci) {
-        FabricInputBridge.onMouseButton(info.button(), action, info.modifiers());
+        if (FabricInputBridge.onMouseButton(info.button(), action, info.modifiers())) ci.cancel();
     }
 
-    @Inject(method = "onScroll", at = @At("HEAD"))
+    @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
     private void vape421$onScroll(long handle, double xOffset, double yOffset, CallbackInfo ci) {
-        FabricInputBridge.onScroll(xOffset, yOffset);
+        if (FabricInputBridge.onScroll(xOffset, yOffset)) ci.cancel();
     }
 }
