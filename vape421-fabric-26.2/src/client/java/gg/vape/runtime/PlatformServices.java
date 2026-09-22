@@ -24,7 +24,13 @@ public final class PlatformServices {
         default void log(String message) { System.err.println("[Vape421] " + message); }
         default byte[] classBytes(Class<?> targetClass) { return new byte[0]; }
         default byte[] resourceBytes(String name) { return new byte[0]; }
-        default int replaceClassBytes(Class<?> targetClass, byte[] bytecode) { return 0; }
+
+        /**
+         * Fabric does not support the legacy JVMTI class-redefinition contract.
+         * Never return zero unless a provider actually replaced the loaded class.
+         */
+        default int replaceClassBytes(Class<?> targetClass, byte[] bytecode) { return -95; }
+
         default String loadSettings(String key) { return null; }
         default void saveSettings(String value) { }
     }
