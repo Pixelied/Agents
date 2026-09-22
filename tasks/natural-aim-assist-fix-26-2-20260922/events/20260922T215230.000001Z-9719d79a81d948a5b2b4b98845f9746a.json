@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "9719d79a81d948a5b2b4b98845f9746a",
+  "task_id": "natural-aim-assist-fix-26-2-20260922",
+  "agent_id": "openai-natural-aim-fix-26-2-9c2a",
+  "type": "progress",
+  "message": "Implemented Natural Aim Assist 1.1.0 runtime/UI fixes and added explicit hostile/passive mob targeting with regression coverage.",
+  "data": {
+    "project_branch": "project/natural-aim-assist-26-2",
+    "head_sha": "94172ac415deccc15dc6395bc0cb8cec95a00cdb",
+    "fixes": [
+      "removed Require Attack versus mining self-cancel",
+      "rebalanced correction strength and flick suppression",
+      "added client tick fallback",
+      "expanded FOV to 1-360 degrees",
+      "replaced numeric cycle buttons with sliders plus editable text boxes",
+      "split hostile and passive mob target categories",
+      "migrated hostile targeting on by default",
+      "added mob-category regression simulation",
+      "compacted configuration screen for smaller GUI heights"
+    ]
+  },
+  "created_at": "2026-09-22T21:52:30+00:00"
+}
