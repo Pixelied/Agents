@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "8e96f4e1300c4262b485419a32aa5ff0",
+  "task_id": "natural-aim-assist-26-2-20260922",
+  "agent_id": "openai-natural-aim-26-2-5e7c",
+  "type": "verification",
+  "message": "Natural Aim Assist 26.2 passed build, deterministic controller simulations, real Fabric client smoke launch, final JAR inspection, and artifact upload.",
+  "data": {
+    "project_branch": "project/natural-aim-assist-26-2",
+    "head_sha": "311ddd3c513c849696d7f858c7d0e80c69323ed7",
+    "workflow_run_id": 35753964129,
+    "workflow_artifact_id": 10707283224,
+    "artifact_name": "natural-aim-assist-26.2-1.0.0",
+    "artifact_archive_sha256": "459ccd20beadbe8acbea9b8c3f1b296edf75cd230cf81fe925dc14df4f9231f9",
+    "jar_sha256": "7eb270a3d9ac12cc87c4157155513e6397017db153f2711680ef1925dbc4cad3",
+    "checks": [
+      "Java 25 / Gradle 9.5.1 clean check build",
+      "deterministic Natural Aim math/controller simulations",
+      "90-second real Fabric 26.2 client smoke launch under Xvfb",
+      "runtime linkage, mixin, and crash-signature scan",
+      "remapped JAR content and fabric.mod.json verification"
+    ]
+  },
+  "created_at": "2026-09-22T16:29:30+00:00"
+}
