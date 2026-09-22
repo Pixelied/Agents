@@ -20,17 +20,19 @@ import java.util.List;
  *
  * Vanilla mouse input is applied before this engine runs. The engine compares that
  * vanilla-produced rotation with the previous final rotation to recover the player's
- * real mouse intent, then adds only a bounded correction.
+ * real mouse intent, then adds only a bounded correction. A 20 Hz client-tick
+ * fallback keeps the controller alive while the mouse hook is idle.
  */
 public final class NaturalAimEngine {
-    private static final long TARGET_SCAN_INTERVAL_NS = 50_000_000L;
-    private static final long REACQUIRE_COOLDOWN_NS = 190_000_000L;
-    private static final double ACQUISITION_RAMP_SECONDS = 0.12;
-    private static final double MIN_INTENT_DEGREES = 0.045;
-    private static final double PULL_AWAY_ALIGNMENT = -0.22;
-    private static final double FLICK_START_DEGREES_PER_SECOND = 115.0;
-    private static final double FLICK_END_DEGREES_PER_SECOND = 285.0;
-    private static final double AXIS_DEADZONE_DEGREES = 0.075;
+    private static final long TARGET_SCAN_INTERVAL_NS = 40_000_000L;
+    private static final long REACQUIRE_COOLDOWN_NS = 120_000_000L;
+    private static final long MOUSE_FALLBACK_DELAY_NS = 35_000_000L;
+    private static final double ACQUISITION_RAMP_SECONDS = 0.08;
+    private static final double MIN_INTENT_DEGREES = 0.055;
+    private static final double PULL_AWAY_ALIGNMENT = -0.34;
+    private static final double FLICK_START_DEGREES_PER_SECOND = 350.0;
+    private static final double FLICK_END_DEGREES_PER_SECOND = 1000.0;
+    private static final double AXIS_DEADZONE_DEGREES = 0.04;
 
     private final NaturalAimConfig config;
 
@@ -40,6 +42,7 @@ public final class NaturalAimEngine {
     private float lastOutputYaw;
     private float lastOutputPitch;
     private long lastFrameNanos;
+    private long lastMouseTurnNanos;
 
     private LivingEntity target;
     private long targetAcquiredNanos;
@@ -54,9 +57,22 @@ public final class NaturalAimEngine {
     }
 
     public void onMouseTurn(Minecraft minecraft) {
+        long now = System.nanoTime();
+        lastMouseTurnNanos = now;
+        update(minecraft, now);
+    }
+
+    public void onClientTick(Minecraft minecraft) {
+        long now = System.nanoTime();
+        if (now - lastMouseTurnNanos < MOUSE_FALLBACK_DELAY_NS) {
+            return;
+        }
+        update(minecraft, now);
+    }
+
+    private void update(Minecraft minecraft, long now) {
         LocalPlayer player = minecraft.player;
         ClientLevel level = minecraft.level;
-        long now = System.nanoTime();
 
         if (player == null || level == null || player != lastPlayer || level != lastLevel) {
             resetSession(player, level, now);
@@ -129,7 +145,7 @@ public final class NaturalAimEngine {
                 : error.yaw() * preset.gain() * factor;
         double desiredPitchVelocity = !config.verticalAssist() || Math.abs(error.pitch()) <= AXIS_DEADZONE_DEGREES
                 ? 0.0
-                : error.pitch() * preset.gain() * factor * 0.84;
+                : error.pitch() * preset.gain() * factor * 0.86;
 
         desiredYawVelocity = AimMath.clamp(desiredYawVelocity, -preset.maxYawSpeed(), preset.maxYawSpeed());
         desiredPitchVelocity = AimMath.clamp(desiredPitchVelocity, -preset.maxPitchSpeed(), preset.maxPitchSpeed());
@@ -162,7 +178,16 @@ public final class NaturalAimEngine {
 
         if (config.pauseActions()) {
             if (minecraft.options.keyUse.isDown()) return false;
-            if (minecraft.gameMode != null && minecraft.gameMode.isDestroying()) return false;
+
+            // When Require Attack is the activation condition, the same held
+            // attack can make vanilla report "destroying" while the crosshair
+            // is still on a block. Treating that as a hard pause made the old
+            // defaults self-cancel before aim assist could ever reach a target.
+            if (!config.requireAttack()
+                    && minecraft.gameMode != null
+                    && minecraft.gameMode.isDestroying()) {
+                return false;
+            }
         }
         return true;
     }
@@ -200,7 +225,7 @@ public final class NaturalAimEngine {
             if (angular > config.assistFov()) continue;
 
             double distance = player.getEyePosition().distanceTo(selectionPoint);
-            double score = angular + distance * 0.035;
+            double score = angular + distance * 0.03;
             if (score < bestScore) {
                 bestScore = score;
                 best = living;
@@ -243,7 +268,8 @@ public final class NaturalAimEngine {
                 selectionAimPoint(candidate)
         );
         double angular = Math.hypot(error.yaw(), config.verticalAssist() ? error.pitch() : 0.0);
-        return angular <= Math.max(config.assistFov() * 1.7, config.assistFov() + 3.0);
+        double releaseFov = Math.min(360.0, Math.max(config.assistFov() * 1.45, config.assistFov() + 6.0));
+        return angular <= releaseFov;
     }
 
     private double correctionFactor(
@@ -257,11 +283,15 @@ public final class NaturalAimEngine {
             double dt,
             long now
     ) {
-        double fov = Math.max(2.0, config.assistFov());
-        double edgeFactor = 1.0 - AimMath.smoothstep(fov * 0.55, fov, angularError);
+        double fov = Math.max(1.0, config.assistFov());
+
+        // Still soften corrections near the configured edge, but never let the
+        // edge factor collapse to zero for a target that is already considered valid.
+        double edgeFalloff = AimMath.smoothstep(fov * 0.62, fov, angularError);
+        double edgeFactor = 1.0 - 0.65 * edgeFalloff;
 
         double inputSpeed = Math.hypot(rawYaw, rawPitch) / Math.max(dt, 1.0e-4);
-        double flickFactor = 1.0 - 0.94 * AimMath.smoothstep(
+        double flickFactor = 1.0 - 0.62 * AimMath.smoothstep(
                 FLICK_START_DEGREES_PER_SECOND,
                 FLICK_END_DEGREES_PER_SECOND,
                 inputSpeed
@@ -277,23 +307,23 @@ public final class NaturalAimEngine {
 
         double intentFactor;
         if (inputMagnitude < 0.015) {
-            intentFactor = 0.42;
+            intentFactor = 0.72;
         } else if (alignment >= 0.0) {
-            intentFactor = 0.56 + 0.44 * alignment;
+            intentFactor = 0.76 + 0.24 * alignment;
         } else {
-            intentFactor = 0.20 + 0.22 * (alignment - PULL_AWAY_ALIGNMENT) / -PULL_AWAY_ALIGNMENT;
-            intentFactor = AimMath.clamp(intentFactor, 0.18, 0.42);
+            intentFactor = 0.46 + 0.20 * (alignment - PULL_AWAY_ALIGNMENT) / -PULL_AWAY_ALIGNMENT;
+            intentFactor = AimMath.clamp(intentFactor, 0.42, 0.66);
         }
 
         double acquisitionSeconds = Math.max(0L, now - targetAcquiredNanos) / 1_000_000_000.0;
-        double acquisitionFactor = AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds);
+        double acquisitionFactor = 0.24 + 0.76 * AimMath.smoothstep(0.0, ACQUISITION_RAMP_SECONDS, acquisitionSeconds);
 
         double distance = player.getEyePosition().distanceTo(selectionAimPoint(activeTarget));
-        double closeFactor = 0.45 + 0.55 * AimMath.smoothstep(1.35, 3.0, distance);
-        double longFactor = 1.0 - 0.12 * AimMath.smoothstep(4.5, 6.0, distance);
+        double closeFactor = 0.62 + 0.38 * AimMath.smoothstep(1.15, 2.7, distance);
+        double longFactor = 1.0 - 0.10 * AimMath.smoothstep(5.0, 8.0, distance);
         double distanceFactor = closeFactor * longFactor;
 
-        double attackFactor = minecraft.options.keyAttack.isDown() ? 1.08 : 0.82;
+        double attackFactor = minecraft.options.keyAttack.isDown() ? 1.10 : 0.95;
 
         return config.strength()
                 * config.preset().strengthScale()
@@ -323,14 +353,14 @@ public final class NaturalAimEngine {
         double widthZ = box.maxZ - box.minZ;
         double height = box.maxY - box.minY;
 
-        double marginX = widthX * 0.20;
-        double marginZ = widthZ * 0.20;
+        double marginX = widthX * 0.18;
+        double marginZ = widthZ * 0.18;
         double minX = box.minX + marginX;
         double maxX = box.maxX - marginX;
         double minZ = box.minZ + marginZ;
         double maxZ = box.maxZ - marginZ;
-        double minY = box.minY + height * 0.34;
-        double maxY = box.minY + height * 0.82;
+        double minY = box.minY + height * 0.30;
+        double maxY = box.minY + height * 0.84;
 
         Vec3 eye = player.getEyePosition();
         Vec3 center = new Vec3(
