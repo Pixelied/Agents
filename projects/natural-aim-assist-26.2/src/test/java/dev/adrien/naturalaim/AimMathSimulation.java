@@ -17,6 +17,7 @@ public final class AimMathSimulation {
         testMobTargetRules();
         testCombatIntentWindow();
         testLerp();
+        testAdaptiveFlickRetention();
         System.out.println("Natural Aim math simulations passed.");
     }
 
@@ -116,6 +117,21 @@ public final class AimMathSimulation {
                 "future timestamps must not count as active combat intent");
         check(!AimMath.combatIntentActive(click, 0L, hold),
                 "no attack history must not activate combat intent");
+    }
+
+    private static void testAdaptiveFlickRetention() {
+        near(1.0, AimMath.adaptiveFlickFactor(300.0, 0.20, 500.0, 1400.0), 1.0e-9,
+                "normal tracking speed should retain full assistance");
+
+        double freshFast = AimMath.adaptiveFlickFactor(1600.0, 0.0, 500.0, 1400.0);
+        double committedFast = AimMath.adaptiveFlickFactor(1600.0, 0.25, 500.0, 1400.0);
+
+        near(0.58, freshFast, 1.0e-9,
+                "fresh high-speed acquisition should retain more than half strength");
+        near(0.80, committedFast, 1.0e-9,
+                "committed PvP tracking should retain 80 percent strength at extreme camera speed");
+        check(committedFast > freshFast,
+                "target commitment should reduce flick suppression");
     }
 
     private static void testLerp() {
