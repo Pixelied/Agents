@@ -73,8 +73,15 @@ public final class AimMath {
             return evidence + awayDegrees;
         }
 
-        double recoveryMultiplier = alignment >= 0.0 ? 1.8 : 1.0;
-        return Math.max(0.0, evidence - decayDegreesPerSecond * recoveryMultiplier * dtSeconds);
+        if (alignment >= 0.0) {
+            double towardDegrees = alignment * inputLength;
+            return Math.max(
+                    0.0,
+                    evidence - towardDegrees * 1.25 - decayDegreesPerSecond * 1.8 * dtSeconds
+            );
+        }
+
+        return Math.max(0.0, evidence - decayDegreesPerSecond * dtSeconds);
     }
 
     public static double opposingProjection(double inputYaw, double inputPitch, double errorYaw, double errorPitch) {
