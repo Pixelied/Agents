@@ -1,5 +1,6 @@
 package gg.vape.fabric;
 
+import gg.vape.fabric.input.RecoveredInputAdapter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -13,17 +14,18 @@ public final class RecoveredCoreLauncher {
     private RecoveredCoreLauncher() { }
 
     public static void startIfPresent(Minecraft client, Logger logger) {
-        if (!ATTEMPTED.compareAndSet(false, true)) return;
         if (!client.isSameThread()) {
             client.execute(() -> startIfPresent(client, logger));
             return;
         }
+        if (!ATTEMPTED.compareAndSet(false, true)) return;
 
         try {
             Class<?> bootstrapClass = Class.forName(
                     BOOTSTRAP_CLASS, true, RecoveredCoreLauncher.class.getClassLoader());
             Method start = bootstrapClass.getMethod("start");
             start.invoke(null);
+            RecoveredInputAdapter.install(logger);
             logger.info("Recovered Vape core started through Fabric lifecycle.");
         } catch (ClassNotFoundException missingDuringMigration) {
             logger.info("Recovered Vape core is not included in this migration build yet; Fabric shell remains active.");
