@@ -4,10 +4,12 @@
   "task_id": "natural-aim-pvp-authority-26-2-20260922",
   "scope": "projects/natural-aim-assist-26.2",
   "owner": "openai-natural-aim-pvp-authority-26-2-7a3d",
-  "state": "active",
+  "state": "released",
   "intent": "Implement and verify stronger PvP authority.",
   "claimed_at": "2026-09-22T22:54:01+00:00",
   "heartbeat_at": "2026-09-22T22:54:01+00:00",
   "expires_at": "2026-09-23T22:54:01+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-09-22T23:11:32+00:00",
+  "release_reason": "Natural Aim Assist 1.1.3 PvP authority implemented and fully verified."
 }
