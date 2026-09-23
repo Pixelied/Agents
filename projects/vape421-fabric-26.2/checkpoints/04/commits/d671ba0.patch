@@ -1,0 +1,166 @@
+From d671ba04be0901e03b79cc1c2060d7897092ef51 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:18:53 +0000
+Subject: [PATCH] Route more render state through Fabric GL abstraction
+
+---
+ src/main/java/gg/vape/friend/ping/PingManager.java       | 3 +--
+ .../vape/module/blatant/blockin/BlockInRenderModule.java | 5 ++---
+ .../crystalaura/CrystalAuraPlacementSubModule.java       | 9 ++++-----
+ .../combat/crystalaura/CrystalAuraTargetSubModule.java   | 5 ++---
+ .../java/gg/vape/utils/render/BufferedOpenGlBackend.java | 8 ++++++++
+ .../java/gg/vape/utils/render/LegacyOpenGlBackend.java   | 5 +++++
+ src/main/java/gg/vape/utils/render/OpenGlBackend.java    | 2 ++
+ 7 files changed, 24 insertions(+), 13 deletions(-)
+
+diff --git a/src/main/java/gg/vape/friend/ping/PingManager.java b/src/main/java/gg/vape/friend/ping/PingManager.java
+index 61541c9..4f6a411 100644
+--- a/src/main/java/gg/vape/friend/ping/PingManager.java
++++ b/src/main/java/gg/vape/friend/ping/PingManager.java
+@@ -30,7 +30,6 @@ import java.util.Collections;
+ import java.util.List;
+ import java.util.concurrent.CopyOnWriteArrayList;
+ import org.jetbrains.annotations.Nullable;
+-import org.lwjgl.opengl.GL11;
+ 
+ public class PingManager
+ implements EventListener {
+@@ -168,7 +167,7 @@ implements EventListener {
+         }
+         OpenGlBackendHolder.backend.pushMatrix();
+         GlStateManager.enableAlpha();
+-        boolean blendEnabled = GL11.glIsEnabled((int)3042);
++        boolean blendEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(3042);
+         RenderUtils.g();
+         for (PingMarker pingMarker : this.getMarkersInReverseOrder()) {
+             if (pingMarker.getClippedScreenPosition() == null) continue;
+diff --git a/src/main/java/gg/vape/module/blatant/blockin/BlockInRenderModule.java b/src/main/java/gg/vape/module/blatant/blockin/BlockInRenderModule.java
+index b742a25..65b4cd8 100644
+--- a/src/main/java/gg/vape/module/blatant/blockin/BlockInRenderModule.java
++++ b/src/main/java/gg/vape/module/blatant/blockin/BlockInRenderModule.java
+@@ -22,7 +22,6 @@ import gg.vape.wrapper.impl.Minecraft;
+ import gg.vape.wrapper.impl.RenderManager;
+ import gg.vape.wrapper.impl.World;
+ import java.awt.Color;
+-import org.lwjgl.opengl.GL11;
+ 
+ public class BlockInRenderModule
+ extends Mod {
+@@ -153,7 +152,7 @@ extends Mod {
+         OpenGlBackendHolder.backend.disableCapability(3553);
+         OpenGlBackendHolder.backend.enableCapability(2848);
+         OpenGlBackendHolder.backend.disableCapability(2929);
+-        GL11.glDepthMask((boolean)false);
++        OpenGlBackendHolder.backend.setDepthMask(false);
+         double renderCameraX;
+         double renderCameraY;
+         double renderCameraZ;
+@@ -174,7 +173,7 @@ extends Mod {
+         RenderUtil.u(renderX - halfWidth, renderY, renderZ - halfWidth,
+                 width, this.simulatedPlayer.Y(), width, 1.5,
+                 this.fillColor, this.outlineColor, renderCameraX, renderCameraY, renderCameraZ);
+-        GL11.glDepthMask((boolean)true);
++        OpenGlBackendHolder.backend.setDepthMask(true);
+         OpenGlBackendHolder.backend.enableCapability(2929);
+         OpenGlBackendHolder.backend.enableCapability(3553);
+         OpenGlBackendHolder.backend.disableCapability(2848);
+diff --git a/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraPlacementSubModule.java b/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraPlacementSubModule.java
+index c8187e2..f571cde 100644
+--- a/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraPlacementSubModule.java
++++ b/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraPlacementSubModule.java
+@@ -81,7 +81,6 @@ import gg.vape.wrapper.impl.WorldClient;
+ import java.awt.Color;
+ import java.util.ArrayList;
+ import java.util.List;
+-import org.lwjgl.opengl.GL11;
+ 
+ public class CrystalAuraPlacementSubModule
+ extends SubModule<CrystalAura> {
+@@ -641,10 +640,10 @@ extends SubModule<CrystalAura> {
+     @EventHandler
+     public void onRender3D(EventRender3D eventRender3D) {
+         EntityLivingBase activeTarget = this.getActiveTarget();
+-        boolean blendEnabled = GL11.glIsEnabled((int)3042);
+-        boolean lineSmoothingEnabled = GL11.glIsEnabled((int)2848);
+-        boolean depthTestEnabled = GL11.glIsEnabled((int)2929);
+-        boolean depthMaskEnabled = GL11.glGetBoolean((int)2930);
++        boolean blendEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(3042);
++        boolean lineSmoothingEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(2848);
++        boolean depthTestEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(2929);
++        boolean depthMaskEnabled = OpenGlBackendHolder.backend.isDepthMaskEnabled();
+         try {
+             RenderUtil.d();
+             RenderUtils.g();
+diff --git a/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraTargetSubModule.java b/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraTargetSubModule.java
+index 58c95e2..ec299b2 100644
+--- a/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraTargetSubModule.java
++++ b/src/main/java/gg/vape/module/combat/crystalaura/CrystalAuraTargetSubModule.java
+@@ -57,7 +57,6 @@ import gg.vape.wrapper.impl.World;
+ import gg.vape.wrapper.impl.WorldClient;
+ import java.awt.Color;
+ import java.util.ArrayList;
+-import org.lwjgl.opengl.GL11;
+ 
+ public class CrystalAuraTargetSubModule
+ extends SubModule<CrystalAura> {
+@@ -601,8 +600,8 @@ extends SubModule<CrystalAura> {
+         if (player.isNull() || world.isNull() || this.state == CrystalAuraActionState.IDLE || this.targetObsidian == null || !KeyBindingInputState.isRightButtonDown()) {
+             return;
+         }
+-        boolean blendEnabled = GL11.glIsEnabled((int)3042);
+-        boolean lineSmoothingEnabled = GL11.glIsEnabled((int)2848);
++        boolean blendEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(3042);
++        boolean lineSmoothingEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(2848);
+         try {
+             RenderUtil.d();
+             RenderUtils.g();
+diff --git a/src/main/java/gg/vape/utils/render/BufferedOpenGlBackend.java b/src/main/java/gg/vape/utils/render/BufferedOpenGlBackend.java
+index 26a7bd0..e22ee84 100644
+--- a/src/main/java/gg/vape/utils/render/BufferedOpenGlBackend.java
++++ b/src/main/java/gg/vape/utils/render/BufferedOpenGlBackend.java
+@@ -117,6 +117,14 @@ implements OpenGlBackend {
+         BufferedGuiRenderPrimitives.capabilityState.setDepthWriteEnabled(enabled);
+     }
+ 
++    @Override
++    public boolean isDepthMaskEnabled() {
++        if (FabricCompatibility.isActive()) {
++            return BufferedGuiRenderPrimitives.capabilityState.depthWriteEnabled;
++        }
++        return GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
++    }
++
+     @Override
+     public void translate(float x, float y, float z) {
+         BufferedGuiRenderPrimitives.matrixStack.translate(x, y, z);
+diff --git a/src/main/java/gg/vape/utils/render/LegacyOpenGlBackend.java b/src/main/java/gg/vape/utils/render/LegacyOpenGlBackend.java
+index 58c5465..a86c8f6 100644
+--- a/src/main/java/gg/vape/utils/render/LegacyOpenGlBackend.java
++++ b/src/main/java/gg/vape/utils/render/LegacyOpenGlBackend.java
+@@ -30,6 +30,11 @@ implements OpenGlBackend {
+         GL11.glDepthMask((boolean)enabled);
+     }
+ 
++    @Override
++    public boolean isDepthMaskEnabled() {
++        return GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
++    }
++
+     @Override
+     public void disableCapabilityState(int capability) {
+         GL11.glDisable((int)capability);
+diff --git a/src/main/java/gg/vape/utils/render/OpenGlBackend.java b/src/main/java/gg/vape/utils/render/OpenGlBackend.java
+index 05c3c54..7281c1f 100644
+--- a/src/main/java/gg/vape/utils/render/OpenGlBackend.java
++++ b/src/main/java/gg/vape/utils/render/OpenGlBackend.java
+@@ -55,6 +55,8 @@ public interface OpenGlBackend {
+ 
+     public void setDepthMask(boolean enabled);
+ 
++    public boolean isDepthMaskEnabled();
++
+     default public /* synthetic */ float getFloat(int parameter) {
+         return this.getFloatState(parameter);
+     }
+-- 
+2.47.3
