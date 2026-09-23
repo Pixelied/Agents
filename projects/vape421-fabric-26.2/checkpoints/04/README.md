@@ -2,82 +2,58 @@
 
 Baseline full-source checkpoint: **Checkpoint 03**.
 
-Current reconstructed source HEAD:
+Verified implementation state: through `9af0b68`, followed by corrective reverts `dc4c88c` and `e276e4e`.
 
-`e79cb855b20a43d568e5fe1ea6ff7f8de9760480`
+The full recovered third-party source is intentionally not dumped into this public repository. This directory is the public audit/history mirror. The preferred valid-only recovery series lives privately at:
 
-The full recovered third-party source is intentionally not dumped into this public repository. Instead, this directory contains every migration delta needed to reconstruct the current working source from Checkpoint 03, plus complete Fabric-owned files where useful.
+`Pixelied/MinecraftHacks:vape421-fabric-26.2-migration/VapeV4.21-main/migration-patches/`
 
-## Exact replay order
+## Exact public replay order
 
-Starting from the full Checkpoint 03 source, apply these patches in order:
+Starting from the full Checkpoint 03 source, apply these **in this exact order**:
 
-1. `commits/d158e03.patch`
-   - Initial Fabric 26.2 entity-outline bridge.
-   - Forces the logical/buffered GL backend before recovered-core startup.
-   - Exposes Outline mode under Fabric and disables legacy stencil/display-list execution there.
+1. `commits/d158e03.patch` — initial Fabric outline bridge + buffered backend forcing.
+2. `commits/4bad6ae.patch` — correct final-26.2 extraction target to `LevelExtractor`.
+3. `commits/a09e791.patch` — disable obsolete legacy lightmap toggles on Fabric.
+4. `commits/ce6252e.patch` — route SpawnerFinder render state through the backend.
+5. `commits/97b1e16.patch` — port custom pipelines/world invalidation to final 26.2.
+6. `commits/d671ba0.patch` — route additional live render state through the backend.
+7. `commits/c5b113e.patch` — add narrow Mixin access to private pipeline snippets.
+8. `commits/13675f6.patch` — buffered Explosions wire/filled spheres.
+9. `commits/c5f476d.patch` — **rejected historical experiment** that assumed public render factories.
+10. `commits/97a04d8.patch` — **rejected historical experiment** that assumed extra BakedQuad metadata fields.
+11. `commits/e79cb85.patch` — route online-friend indicator transforms through the backend.
+12. `commits/9af0b68.patch` — route ESP2D's live blend-state query through the backend.
+13. `commits/dc4c88c.patch` — **required revert of patch 9**; restores Mixin access for private/package-private final-26.2 APIs.
+14. `commits/e276e4e.patch` — **required revert of patch 10**; restores the real 10-field BakedQuad / 6-field MaterialInfo constructors.
 
-2. `commits/4bad6ae.patch`
-   - Corrects the temporary extraction-target mistake.
-   - Exact Fabric API 26.2 target is `net.minecraft.client.renderer.extract.LevelExtractor`.
-   - Wraps the visible-entity call to `EntityRenderDispatcher#extractEntity(Entity,float)`, applies Vape's `outlineColor`, then returns the state to vanilla.
+Do not stop at patches 9 or 10. They are preserved only because this public bundle is an audit trail. Patches 13 and 14 are mandatory.
 
-3. `commits/a09e791.patch`
-   - Makes obsolete legacy lightmap enable/disable wrappers no-ops on the Fabric 26.2 extracted/submitted renderer.
+## Final-26.2 facts verified after the rejected experiments
 
-4. `commits/ce6252e.patch`
-   - Routes SpawnerFinder blend/depth-mask state through Vape's Fabric-safe GL abstraction instead of direct GL11 state calls.
+- World extraction is owned by `net.minecraft.client.renderer.extract.LevelExtractor`.
+- `LevelRenderer#invalidateCompiledGeometry(ClientLevel, Options, Camera, BlockColors)` is the current world-geometry rebuild API.
+- `GameRenderer#mainCamera()` is the current camera accessor.
+- Final RenderPipeline construction uses bind-group layouts, vertex bindings, and primitive topology.
+- The vanilla pipeline snippets used by the adapter remain private; narrow Mixin access is required.
+- `RenderType#create(String, RenderSetup)` remains package-private; the invoker is required.
+- Final `BakedQuad` remains a 10-component record and `MaterialInfo` remains a 6-component record.
 
-5. `commits/97b1e16.patch`
-   - Ports custom Vape world pipeline construction away from stale 26.1 builder calls.
-   - Preserves dedicated depth-tested/no-depth ESP variants.
-   - Uses final-26.2 world geometry invalidation instead of the old renderer reload call.
+## Verification / limitations
 
-6. `commits/d671ba0.patch`
-   - Routes additional PingManager, BlockIn, and CrystalAura render-state reads/writes through the Fabric-safe backend.
-   - Adds logical depth-mask querying to the backend abstraction.
+- `git diff --check` passes on the committed implementation state.
+- Reachable raw-GL paths are being audited instead of blindly deleting historical GL code.
+- Explosions, OnlineFriend indicators, SpawnerFinder, CrystalAura state, and ESP2D live state have additional Fabric-safe paths.
+- No successful Java 25/Loom build is claimed yet. The current runner still lacks a working Java-25/dependency-download path.
 
-7. `commits/c5b113e.patch`
-   - Intermediate exact-26.2 snippet-access experiment using Mixin accessors.
-   - Kept in the replay history because it is an actual local commit; superseded by patch 9.
+## Persistence rule
 
-8. `commits/13675f6.patch`
-   - Replaces Fabric explosion-sphere GLU/immediate rendering with buffered wire/solid sphere geometry.
-
-9. `commits/c5f476d.patch`
-   - Uses final-26.2 public `RenderType.create` and public pipeline snippets directly.
-   - Removes the unnecessary `RenderType` Mixin and snippet accessors; retains only the private pipeline-register invoker.
-
-10. `commits/97a04d8.patch`
-    - Preserves final-26.2 XRay quad metadata when moving non-target geometry to the translucent layer.
-    - Keeps ambient occlusion, baked normals, and baked colors instead of relying on shorter compatibility constructors.
-
-11. `commits/e79cb85.patch`
-    - Routes online-friend world-indicator transforms away from direct GL11 calls and through Vape's render backend.
-
-## Important exact-26.2 correction
-
-Fabric API's own **26.2 branch** imports and Mixins `LevelExtractor`. The earlier temporary `LevelRenderer` extraction assumption came from an incorrectly labelled external decompile and is fully corrected by patch 2.
-
-## Verification so far
-
-- Every local source batch through `e79cb85` is committed.
-- Local working tree was clean when this manifest was written.
-- `git diff --check` passed for the source batches.
-- The Fabric adapter tree has been swept for the stale 26.1 renderer builder calls addressed by these patches.
-- XRay's translucent quad rewrite now preserves the complete final-26.2 quad/material metadata used by the target renderer.
-- No successful Java 25/Loom build is claimed yet: the current runner has Java 21 and its Gradle dependency-download path still fails DNS resolution.
-
-## Persistence rule going forward
-
-For every new implementation batch:
+For each new implementation batch:
 
 1. edit actual source;
-2. run source/static verification;
+2. verify the diff/API assumptions;
 3. commit locally;
-4. generate a per-commit patch;
-5. publish that patch here immediately;
-6. update this manifest/current HEAD;
+4. generate an exact patch;
+5. mirror it immediately to the private valid-only series;
+6. update this public audit bundle when useful;
 7. only then move to the next subsystem.
-
-This prevents a local/container reset from erasing completed migration work.
