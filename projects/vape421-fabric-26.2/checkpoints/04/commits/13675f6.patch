@@ -1,0 +1,208 @@
+From 13675f6c5c6b08649ee84e9d59d8ede53ee0d7de Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:24:21 +0000
+Subject: [PATCH] Port explosion spheres to buffered Fabric rendering
+
+---
+ .../gg/vape/module/render/Explosions.java     | 63 ++++++++++++++-
+ .../render/BufferedRenderPrimitives.java      | 81 +++++++++++++++++++
+ 2 files changed, 141 insertions(+), 3 deletions(-)
+
+diff --git a/src/main/java/gg/vape/module/render/Explosions.java b/src/main/java/gg/vape/module/render/Explosions.java
+index eedf311..471307e 100644
+--- a/src/main/java/gg/vape/module/render/Explosions.java
++++ b/src/main/java/gg/vape/module/render/Explosions.java
+@@ -6,13 +6,15 @@ import gg.vape.mapping.MappedClasses;
+ import gg.vape.module.Category;
+ import gg.vape.module.Mod;
+ import gg.vape.module.render.pearl.PearlEspEnderPearlEntityWrapper;
++import gg.vape.runtime.FabricCompatibility;
++import gg.vape.utils.render.BufferedRenderPrimitives;
+ import gg.vape.utils.render.OpenGlBackendHolder;
+ import gg.vape.utils.render.RenderUtil;
+ import gg.vape.utils.render.glu.GluSphere;
+ import gg.vape.value.BooleanValue;
+ import gg.vape.wrapper.impl.Minecraft;
+ import gg.vape.wrapper.impl.RenderManager;
+-import org.lwjgl.opengl.GL11;
++import java.awt.Color;
+ 
+ public class Explosions
+ extends Mod {
+@@ -20,10 +22,14 @@ extends Mod {
+ 
+     @EventHandler
+     public void onRender3D(EventRender3D event) {
++        if (FabricCompatibility.isActive()) {
++            this.renderFabric(event);
++            return;
++        }
+         double cameraX = RenderManager.getInterpolatedRenderPosX();
+         double cameraY = RenderManager.getInterpolatedRenderPosY();
+         double cameraZ = RenderManager.getInterpolatedRenderPosZ();
+-        boolean blendEnabled = GL11.glIsEnabled(3042);
++        boolean blendEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(3042);
+         double blockDamageRadius = 4.0;
+         double entityDamageRadius = 8.0;
+         for (Object e : Minecraft.theWorld().z()) {
+@@ -56,7 +62,7 @@ extends Mod {
+             gluSphere.draw((float)entityDamageRadius, 32, 32);
+             OpenGlBackendHolder.backend.enableCapability(3553);
+             OpenGlBackendHolder.backend.disableCapability(3042);
+-            GL11.glPopMatrix();
++            OpenGlBackendHolder.backend.popMatrix();
+         }
+         if (blendEnabled) {
+             OpenGlBackendHolder.backend.enableCapability(3042);
+@@ -64,6 +70,57 @@ extends Mod {
+     }
+ 
+ 
++    private void renderFabric(EventRender3D event) {
++        double cameraX = RenderManager.getInterpolatedRenderPosX();
++        double cameraY = RenderManager.getInterpolatedRenderPosY();
++        double cameraZ = RenderManager.getInterpolatedRenderPosZ();
++        boolean blendEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(3042);
++        final float blockDamageRadius = 4.0f;
++        final float entityDamageRadius = 8.0f;
++
++        for (Object e : Minecraft.theWorld().z()) {
++            if (!MappedClasses.qM.isAssignableFrom(e.getClass())) {
++                continue;
++            }
++
++            PearlEspEnderPearlEntityWrapper pearl = new PearlEspEnderPearlEntityWrapper(e);
++            float partialTicks = event.getTicks();
++            double pearlX = pearl.M() + (pearl.z() - pearl.M()) * (double) partialTicks;
++            double pearlY = pearl.W() + (pearl.N() - pearl.W()) * (double) partialTicks;
++            double pearlZ = pearl.m$src$D$fwnne5() + (pearl.h() - pearl.m$src$D$fwnne5()) * (double) partialTicks;
++
++            float pulseProgress = ((float) (pearl.getAgeTicks() % 5) - partialTicks + 1.0f) / 5.0f;
++            float pulseAlpha = pearl.getAgeTicks() / 5 % 2 == 0 ? 1.0f : pulseProgress * pulseProgress;
++            int alpha = Math.max(Math.min((int) (255.0f * pulseAlpha), 255), 0);
++
++            OpenGlBackendHolder.backend.pushMatrix();
++            try {
++                OpenGlBackendHolder.backend.enableCapability(3042);
++                OpenGlBackendHolder.backend.translate(
++                        pearlX - cameraX, pearlY - cameraY, pearlZ - cameraZ);
++
++                if (this.showBlastRing.getEffectiveValue().booleanValue()) {
++                    BufferedRenderPrimitives.drawWireSphere(
++                            blockDamageRadius, 24, 24, 1.0f,
++                            new Color(255, 255, 0, Math.round(alpha * 0.75f)));
++                }
++
++                BufferedRenderPrimitives.fillSphere(
++                        entityDamageRadius, 32, 32,
++                        new Color(255, 0, 0, Math.round(alpha * 0.4f)));
++            } finally {
++                OpenGlBackendHolder.backend.popMatrix();
++            }
++        }
++
++        if (blendEnabled) {
++            OpenGlBackendHolder.backend.enableCapability(3042);
++        } else {
++            OpenGlBackendHolder.backend.disableCapability(3042);
++        }
++    }
++
++
+     public Explosions() {
+         super("Explosions", 11534100, Category.RENDER, "Shows the explosion radius of TNT");
+         this.addValue(this.showBlastRing);
+diff --git a/src/main/java/gg/vape/utils/render/BufferedRenderPrimitives.java b/src/main/java/gg/vape/utils/render/BufferedRenderPrimitives.java
+index 6e94ee8..030d0b0 100644
+--- a/src/main/java/gg/vape/utils/render/BufferedRenderPrimitives.java
++++ b/src/main/java/gg/vape/utils/render/BufferedRenderPrimitives.java
+@@ -62,6 +62,87 @@ public class BufferedRenderPrimitives {
+         RenderBatchManager.getInstance().queueWorldBatch(renderBatchBuilder);
+     }
+ 
++    /**
++     * Queues a complete wire sphere as one world batch. This is primarily used
++     * by the Fabric renderer to replace GLU/immediate-mode sphere drawing.
++     */
++    public static void drawWireSphere(float radius, int slices, int stacks, float lineWidth, Color color) {
++        slices = Math.max(3, slices);
++        stacks = Math.max(2, stacks);
++        int segmentCount = (stacks - 1) * slices + stacks * slices;
++        RenderBatchBuilder builder = new RenderBatchBuilder(
++                segmentCount * 2, VertexCoordinateMode.DEFAULT, true);
++
++        double twoPi = Math.PI * 2.0;
++        for (int stack = 1; stack < stacks; stack++) {
++            double theta = -Math.PI * 0.5 + Math.PI * stack / stacks;
++            float y = (float) (radius * Math.sin(theta));
++            float ringRadius = (float) (radius * Math.cos(theta));
++            for (int slice = 0; slice < slices; slice++) {
++                double phi0 = twoPi * slice / slices;
++                double phi1 = twoPi * (slice + 1) / slices;
++                builder.addLine(
++                        (float) (ringRadius * Math.cos(phi0)), y, (float) (ringRadius * Math.sin(phi0)),
++                        (float) (ringRadius * Math.cos(phi1)), y, (float) (ringRadius * Math.sin(phi1)),
++                        lineWidth, color);
++            }
++        }
++
++        for (int slice = 0; slice < slices; slice++) {
++            double phi = twoPi * slice / slices;
++            for (int stack = 0; stack < stacks; stack++) {
++                double theta0 = -Math.PI * 0.5 + Math.PI * stack / stacks;
++                double theta1 = -Math.PI * 0.5 + Math.PI * (stack + 1) / stacks;
++                float cosPhi = (float) Math.cos(phi);
++                float sinPhi = (float) Math.sin(phi);
++                float ring0 = (float) (radius * Math.cos(theta0));
++                float ring1 = (float) (radius * Math.cos(theta1));
++                builder.addLine(
++                        ring0 * cosPhi, (float) (radius * Math.sin(theta0)), ring0 * sinPhi,
++                        ring1 * cosPhi, (float) (radius * Math.sin(theta1)), ring1 * sinPhi,
++                        lineWidth, color);
++            }
++        }
++
++        RenderBatchManager.getInstance().queueWorldBatch(builder);
++    }
++
++    /** Queues a tessellated solid sphere as one world batch. */
++    public static void fillSphere(float radius, int slices, int stacks, Color color) {
++        slices = Math.max(3, slices);
++        stacks = Math.max(2, stacks);
++        RenderBatchBuilder builder = new RenderBatchBuilder(
++                slices * stacks * 4, VertexCoordinateMode.DEFAULT, true);
++        double twoPi = Math.PI * 2.0;
++
++        for (int stack = 0; stack < stacks; stack++) {
++            double theta0 = -Math.PI * 0.5 + Math.PI * stack / stacks;
++            double theta1 = -Math.PI * 0.5 + Math.PI * (stack + 1) / stacks;
++            float y0 = (float) (radius * Math.sin(theta0));
++            float y1 = (float) (radius * Math.sin(theta1));
++            float ring0 = (float) (radius * Math.cos(theta0));
++            float ring1 = (float) (radius * Math.cos(theta1));
++
++            for (int slice = 0; slice < slices; slice++) {
++                double phi0 = twoPi * slice / slices;
++                double phi1 = twoPi * (slice + 1) / slices;
++                float c0 = (float) Math.cos(phi0);
++                float s0 = (float) Math.sin(phi0);
++                float c1 = (float) Math.cos(phi1);
++                float s1 = (float) Math.sin(phi1);
++
++                builder.addQuad(
++                        ring0 * c0, y0, ring0 * s0,
++                        ring1 * c0, y1, ring1 * s0,
++                        ring0 * c1, y0, ring0 * s1,
++                        ring1 * c1, y1, ring1 * s1,
++                        color);
++            }
++        }
++
++        RenderBatchManager.getInstance().queueWorldBatch(builder);
++    }
++
+     public static void fillQuad(double x1, double y1, double z1, double x2, double y2, double z2, double x3, double y3, double z3, double x4, double y4, double z4, Color color) {
+         BufferedRenderPrimitives.fillQuad((float)x1, (float)y1, (float)z1, (float)x2, (float)y2, (float)z2, (float)x3, (float)y3, (float)z3, (float)x4, (float)y4, (float)z4, color);
+     }
+-- 
+2.47.3
