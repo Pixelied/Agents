@@ -11,14 +11,24 @@ Working notes for the migration of the recovered Vape 4.21 client to a conventio
 - Loom 1.17-SNAPSHOT
 - External injector / DLL loading is not part of the target runtime.
 
-## Current work
+## Current migration state
 
-- Full NativeBridge role audit started.
-- Active JNI declarations in the recovered Java bridge are being replaced by Java/GLFW-side equivalents.
-- Win32 mouse-message paths are being redirected to Vape's own in-process input dispatcher.
-- Runtime class redefinition/JVMTI is classified as obsolete infrastructure for Fabric and is being replaced hook-by-hook with Fabric events or Mixins.
-- A 107-module parity matrix is maintained locally from ModManager registration paths.
-- A separate Fabric 26.2 client-only scaffold exists locally so the historical recovery build can remain intact while the modern runtime is brought up.
+- NativeBridge has been split conceptually into portable Java/GLFW services versus obsolete loader/JVMTI infrastructure.
+- Permanent Fabric events/Mixins replace the historical runtime-transform hook model.
+- Input, tick, movement, silent pre-motion, packet replacement/cancellation, screen, frame, HUD, and world-render bridges are source-implemented.
+- The Fabric renderer uses Minecraft 26.2 render-state/submission APIs instead of raw OpenGL as its normal path.
+- Final-26.2 render-pipeline API hardening is in progress/completed for the shared backend, including separate depth/no-depth world pipelines.
+- XRay uses permanent chunk/block/fluid Mixins and final-26.2 geometry invalidation.
+- ESP Outline now has a Fabric-native entity render-state path rather than the historical stencil/display-list path.
+- A 107-module parity matrix is maintained in the private working migration/checkpoints.
+
+## Current checkpoint
+
+Checkpoint 04 (2026-09-23) preserves the latest working migration source locally. The public Agents branch intentionally stores migration support documentation rather than the recovered proprietary/source tree.
+
+## Verification limitation
+
+The current execution environment does not provide a working Java 25 + dependency-download path, so the migration is not marked as compiling or runtime-verified yet.
 
 ## Important rule
 
