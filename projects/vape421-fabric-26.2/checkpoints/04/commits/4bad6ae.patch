@@ -1,0 +1,94 @@
+From 4bad6ae7a9d4c49e60a08c7fedc45da55b3712ff Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:14:40 +0000
+Subject: [PATCH] Correct entity extraction hook for final 26.2
+
+---
+ ...ionMixin.java => LevelExtractorMixin.java} | 32 ++++++++++++-------
+ .../src/client/resources/vape421.mixins.json  |  2 +-
+ 2 files changed, 22 insertions(+), 12 deletions(-)
+ rename fabric26_2/src/client/java/gg/vape/fabric/mixin/{LevelRendererEntityExtractionMixin.java => LevelExtractorMixin.java} (58%)
+
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelRendererEntityExtractionMixin.java b/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelExtractorMixin.java
+similarity index 58%
+rename from fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelRendererEntityExtractionMixin.java
+rename to fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelExtractorMixin.java
+index f676348..d722118 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelRendererEntityExtractionMixin.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelExtractorMixin.java
+@@ -1,15 +1,17 @@
+ package gg.vape.fabric.mixin;
+ 
+-import com.llamalad7.mixinextras.injector.ModifyReturnValue;
++import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
++import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+ import gg.vape.event.impl.EventPostRenderWorldPass;
+ import gg.vape.event.impl.EventPreRenderWorldPass;
+ import gg.vape.fabric.FabricMigrationRuntime;
+ import gg.vape.fabric.FabricOutlineHooks;
+ import net.minecraft.client.Camera;
+ import net.minecraft.client.DeltaTracker;
+-import net.minecraft.client.renderer.LevelRenderer;
+ import net.minecraft.client.renderer.culling.Frustum;
++import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+ import net.minecraft.client.renderer.entity.state.EntityRenderState;
++import net.minecraft.client.renderer.extract.LevelExtractor;
+ import net.minecraft.client.renderer.state.level.LevelRenderState;
+ import net.minecraft.world.entity.Entity;
+ import org.spongepowered.asm.mixin.Mixin;
+@@ -18,12 +20,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
+ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+ 
+ /**
+- * Final Minecraft 26.2 keeps visible-entity extraction on LevelRenderer.
+- * This replaces the old runtime transformer boundary and also applies Vape's
+- * Outline ESP through the native 26.2 entity render-state pipeline.
++ * Final Minecraft 26.2 moves world-state extraction out of LevelRenderer and
++ * into LevelExtractor. Preserve Vape's historical world-pass event boundary
++ * there and decorate extracted entity render states for modern Outline ESP.
+  */
+-@Mixin(LevelRenderer.class)
+-public abstract class LevelRendererEntityExtractionMixin {
++@Mixin(LevelExtractor.class)
++public abstract class LevelExtractorMixin {
+     @Inject(method = "extractVisibleEntities", at = @At("HEAD"))
+     private void vape421$preVisibleEntityExtraction(Camera camera,
+                                                      Frustum frustum,
+@@ -35,10 +37,18 @@ public abstract class LevelRendererEntityExtractionMixin {
+         }
+     }
+ 
+-    @ModifyReturnValue(method = "extractEntity", at = @At("RETURN"))
+-    private EntityRenderState vape421$applyEntityOutline(EntityRenderState state,
+-                                                          Entity entity,
+-                                                          float partialTickTime) {
++    @WrapOperation(
++            method = "extractVisibleEntities",
++            at = @At(
++                    value = "INVOKE",
++                    target = "Lnet/minecraft/client/renderer/entity/EntityRenderDispatcher;extractEntity(Lnet/minecraft/world/entity/Entity;F)Lnet/minecraft/client/renderer/entity/state/EntityRenderState;"
++            )
++    )
++    private EntityRenderState vape421$extractEntityWithOutline(EntityRenderDispatcher dispatcher,
++                                                                Entity entity,
++                                                                float partialTicks,
++                                                                Operation<EntityRenderState> original) {
++        EntityRenderState state = original.call(dispatcher, entity, partialTicks);
+         FabricOutlineHooks.apply(entity, state);
+         return state;
+     }
+diff --git a/fabric26_2/src/client/resources/vape421.mixins.json b/fabric26_2/src/client/resources/vape421.mixins.json
+index 504581b..a564c4e 100644
+--- a/fabric26_2/src/client/resources/vape421.mixins.json
++++ b/fabric26_2/src/client/resources/vape421.mixins.json
+@@ -13,7 +13,7 @@
+     "EntityMoveMixin",
+     "EntitySprintingMixin",
+     "GameRendererMixin",
+-    "LevelRendererEntityExtractionMixin",
++    "LevelExtractorMixin",
+     "RenderPipelinesInvoker",
+     "RenderTypeInvoker",
+     "SectionCompilerMixin",
+-- 
+2.47.3
