@@ -2,24 +2,23 @@
 
 Date: 2026-09-23
 
-Checkpoint 04 was created from the current recovered-source migration workspace.
+Checkpoint 04 continues the existing Vape 4.21 -> Fabric 26.2 migration; it is not a restart.
 
-## Main changes
+## Corrected final-26.2 state
 
-- Final-26.2 Blaze3D custom-pipeline construction now inherits vanilla 26.2 pipeline snippets instead of using removed 26.1-style builder declarations.
+- Final world extraction uses `net.minecraft.client.renderer.extract.LevelExtractor`.
 - World geometry invalidation uses `LevelRenderer#invalidateCompiledGeometry(...)` and `GameRenderer#mainCamera()`.
-- Fabric explicitly forces Vape's logical/buffered OpenGL abstraction before recovered-core startup.
-- ESP Outline uses 26.2 entity render state (`EntityRenderState.outlineColor` + `LevelRenderState.shouldShowEntityOutlines`) during visible world-entity extraction.
-- Legacy Outline stencil/display-list callbacks are disabled on Fabric.
-- XRay's translucent replacement preserves vanilla quad geometry/UV/direction and MaterialInfo fields while changing the chunk layer.
-- Redundant `RenderType` Mixin factory access was removed because final 26.2 exposes the required factory publicly.
+- Custom pipelines use the final bind-group/vertex-binding/primitive-topology model.
+- Vape retains narrow Mixins for the private vanilla pipeline snippets/registration and package-private `RenderType#create(...)`.
+- ESP Outline uses `EntityRenderState.outlineColor`; the legacy stencil/display-list callbacks are disabled on Fabric.
+- Final `BakedQuad` is the 10-component record and `MaterialInfo` the 6-component record used by the current XRay bridge.
+- Explosions spheres, online-friend indicators, SpawnerFinder, several combat/world state paths, and ESP2D live state have been moved off reachable direct-GL operations on Fabric.
 
-## Verification
+Two stale-source experiments briefly assumed public render factories and extra BakedQuad fields. They were reverted. The Checkpoint-04 README includes the mandatory revert patches in its public historical replay order.
 
-- Static stale-API audit completed for the touched renderer paths.
-- Direct LWJGL2-era import audit completed for the active Fabric compile path.
-- Active Java native/JVMTI declaration audit completed.
-- `git diff --check` passed before the local checkpoint was archived.
-- No successful Java 25/Loom build is claimed; the current runner still lacks the required Java/dependency-download environment.
+## Persistence
 
-The full recovered-source checkpoint is not published in this public repository.
+- Public notes/audit history: `Pixelied/Agents:vape421-fabric-26.2-migration`
+- Private valid-only source deltas: `Pixelied/MinecraftHacks:vape421-fabric-26.2-migration/VapeV4.21-main/migration-patches/`
+
+No successful Java 25/Loom build is claimed yet.
