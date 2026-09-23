@@ -1,0 +1,105 @@
+diff --git a/src/main/java/gg/vape/module/render/ESP.java b/src/main/java/gg/vape/module/render/ESP.java
+index f058fcf..5a9fb84 100644
+--- a/src/main/java/gg/vape/module/render/ESP.java
++++ b/src/main/java/gg/vape/module/render/ESP.java
+@@ -13,0 +14 @@ import gg.vape.render.OffscreenRenderContext;
++import gg.vape.runtime.FabricCompatibility;
+@@ -71 +72,7 @@ extends Mod {
+-        this.mode = ForgeVersion.MC_1_17.d() ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode) : (ForgeVersion.MC_1_12_2.d() ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode) : ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode, this.outlineMode));
++        this.mode = FabricCompatibility.isActive()
++            ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.outlineMode)
++            : (ForgeVersion.MC_1_17.d()
++                ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode)
++                : (ForgeVersion.MC_1_12_2.d()
++                    ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode)
++                    : ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode, this.outlineMode)));
+@@ -92 +99 @@ extends Mod {
+-        if (entityHandle.equals(viewer)) {
++        if (entity.equals(viewer)) {
+@@ -115,0 +123,21 @@ extends Mod {
++    public MutableColor resolveOutlineColor(EntityPlayerSP viewer, Object entityHandle) {
++        MutableColor color = this.resolveEntityColor(viewer, entityHandle);
++        if (color == null) {
++            return null;
++        }
++        Entity entity = new Entity(entityHandle);
++        if (this.enemyOnly.getEffectiveValue().booleanValue()) {
++            boolean rejected = this.enemyListOnly.getEffectiveValue().booleanValue()
++                ? !Vape.INSTANCE.getEnemyManager().isEnemy(entity.getName())
++                : !Vape.INSTANCE.getClientSettings().isValidTarget(entity, false);
++            if (rejected) {
++                return null;
++            }
++        }
++        return color;
++    }
++
++    public boolean isOutlineModeSelected() {
++        return this.mode.getValue() == this.outlineMode;
++    }
++
+@@ -117 +145,2 @@ extends Mod {
+-        return this.mode.getValue() == this.outlineMode && this.outlineRenderer.isRenderingOutline();
++        return this.isOutlineModeSelected()
++            && (FabricCompatibility.isActive() || this.outlineRenderer.isRenderingOutline());
+diff --git a/src/main/java/gg/vape/module/render/esp/ESPOutline.java b/src/main/java/gg/vape/module/render/esp/ESPOutline.java
+index 97e90b7..2251452 100644
+--- a/src/main/java/gg/vape/module/render/esp/ESPOutline.java
++++ b/src/main/java/gg/vape/module/render/esp/ESPOutline.java
+@@ -16,0 +17 @@ import gg.vape.render.OffscreenRenderContext;
++import gg.vape.runtime.FabricCompatibility;
+@@ -41,0 +43,3 @@ extends SubModule<ESP> {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+@@ -65,0 +70,3 @@ extends SubModule<ESP> {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+@@ -78,0 +86,3 @@ extends SubModule<ESP> {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+@@ -102,0 +113,3 @@ extends SubModule<ESP> {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+@@ -122,0 +136,3 @@ extends SubModule<ESP> {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+@@ -141,0 +158,3 @@ extends SubModule<ESP> {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+diff --git a/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java b/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java
+index 6ce05f3..f364828 100644
+--- a/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java
++++ b/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java
+@@ -3,4 +3,3 @@ package gg.vape.utils.render;
+-import gg.vape.utils.render.BufferedOpenGlBackend;
+-import gg.vape.utils.render.GuiRenderPrimitives;
+-import gg.vape.utils.render.LegacyOpenGlBackend;
+-import gg.vape.utils.render.OpenGlBackend;
++public final class OpenGlBackendHolder {
++    private OpenGlBackendHolder() {
++    }
+@@ -8,2 +7,2 @@ import gg.vape.utils.render.OpenGlBackend;
+-public class OpenGlBackendHolder {
+-    public static OpenGlBackend backend = GuiRenderPrimitives.d() ? new BufferedOpenGlBackend() : new LegacyOpenGlBackend();
++    public static volatile OpenGlBackend backend =
++            GuiRenderPrimitives.d() ? new BufferedOpenGlBackend() : new LegacyOpenGlBackend();
+@@ -10,0 +10,11 @@ public class OpenGlBackendHolder {
++    /**
++     * Fabric 26.2 must never execute the legacy immediate-mode GL backend.
++     * The recovered source can load this holder before FabricCompatibility is
++     * installed, so the runtime explicitly forces the buffered/logical backend
++     * during Fabric bootstrap instead of relying on static initialization order.
++     */
++    public static void forceBufferedBackend() {
++        if (!(backend instanceof BufferedOpenGlBackend)) {
++            backend = new BufferedOpenGlBackend();
++        }
++    }
+@@ -12 +21,0 @@ public class OpenGlBackendHolder {
+-
