@@ -1,0 +1,130 @@
+From 97b1e160c1490f72de3cde232a936f9749346108 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:17:46 +0000
+Subject: [PATCH] Port render backend pipeline construction to final 26.2
+
+---
+ .../fabric/render/FabricRenderBackend.java    | 61 +++++++------------
+ 1 file changed, 21 insertions(+), 40 deletions(-)
+
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java b/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
+index cc76a8c..b2c7816 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
+@@ -4,19 +4,14 @@ import java.nio.ByteBuffer;
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Map;
+-import java.util.Optional;
+ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.atomic.AtomicInteger;
+ 
+-import com.mojang.blaze3d.pipeline.BlendFunction;
+-import com.mojang.blaze3d.pipeline.ColorTargetState;
+ import com.mojang.blaze3d.pipeline.DepthStencilState;
+ import com.mojang.blaze3d.pipeline.RenderPipeline;
++import com.mojang.blaze3d.platform.CompareOp;
+ import com.mojang.blaze3d.platform.NativeImage;
+-import com.mojang.blaze3d.shaders.UniformType;
+-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+ import com.mojang.blaze3d.vertex.PoseStack;
+-import com.mojang.blaze3d.vertex.VertexFormat;
+ import com.mojang.blaze3d.vertex.VertexConsumer;
+ import gg.vape.fabric.mixin.GuiGraphicsExtractorAccessor;
+ import gg.vape.fabric.mixin.RenderPipelinesInvoker;
+@@ -344,7 +339,11 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+     public void invalidateWorldGeometry() {
+         Minecraft minecraft = Minecraft.getInstance();
+         if (minecraft.level != null && minecraft.levelRenderer != null) {
+-            minecraft.levelRenderer.allChanged();
++            minecraft.levelRenderer.invalidateCompiledGeometry(
++                    minecraft.level,
++                    minecraft.options,
++                    minecraft.gameRenderer.mainCamera(),
++                    minecraft.getBlockColors());
+         }
+     }
+ 
+@@ -677,65 +676,47 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+     }
+ 
+     private static final class WorldRenderTypes {
++        private static final DepthStencilState NO_DEPTH =
++                new DepthStencilState(CompareOp.ALWAYS_PASS, false);
++
+         private static final RenderPipeline DEPTH_COLOR_PIPELINE = registerColorPipeline(
+-                "world_color_depth", Optional.of(DepthStencilState.DEFAULT));
++                "world_color_depth", DepthStencilState.DEFAULT);
+         private static final RenderPipeline NO_DEPTH_COLOR_PIPELINE = registerColorPipeline(
+-                "world_color_xray", Optional.empty());
++                "world_color_xray", NO_DEPTH);
+         private static final RenderPipeline DEPTH_LINES_PIPELINE = registerLinePipeline(
+-                "world_lines_depth", Optional.of(DepthStencilState.DEFAULT));
++                "world_lines_depth", DepthStencilState.DEFAULT);
+         private static final RenderPipeline NO_DEPTH_LINES_PIPELINE = registerLinePipeline(
+-                "world_lines_xray", Optional.empty());
++                "world_lines_xray", NO_DEPTH);
+         private static final RenderPipeline DEPTH_TEXTURED_PIPELINE = registerTexturedPipeline(
+-                "world_textured_depth", Optional.of(DepthStencilState.DEFAULT));
++                "world_textured_depth", DepthStencilState.DEFAULT);
+         private static final RenderPipeline NO_DEPTH_TEXTURED_PIPELINE = registerTexturedPipeline(
+-                "world_textured_xray", Optional.empty());
++                "world_textured_xray", NO_DEPTH);
+ 
+         private static final RenderType DEPTH_COLOR = renderType("vape421_world_color_depth", DEPTH_COLOR_PIPELINE);
+         private static final RenderType NO_DEPTH_COLOR = renderType("vape421_world_color_xray", NO_DEPTH_COLOR_PIPELINE);
+         private static final RenderType DEPTH_LINES = renderType("vape421_world_lines_depth", DEPTH_LINES_PIPELINE);
+         private static final RenderType NO_DEPTH_LINES = renderType("vape421_world_lines_xray", NO_DEPTH_LINES_PIPELINE);
+ 
+-        private static RenderPipeline registerColorPipeline(String path, Optional<DepthStencilState> depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder()
++        private static RenderPipeline registerColorPipeline(String path, DepthStencilState depth) {
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+-                    .withVertexShader("core/position_color")
+-                    .withFragmentShader("core/position_color")
+-                    .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+-                    .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+-                    .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+                     .withCull(false)
+-                    .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
+                     .withDepthStencilState(depth)
+                     .build());
+         }
+ 
+-        private static RenderPipeline registerLinePipeline(String path, Optional<DepthStencilState> depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder()
++        private static RenderPipeline registerLinePipeline(String path, DepthStencilState depth) {
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+-                    .withVertexShader("core/rendertype_lines")
+-                    .withFragmentShader("core/rendertype_lines")
+-                    .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+-                    .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+-                    .withUniform("Fog", UniformType.UNIFORM_BUFFER)
+-                    .withUniform("Globals", UniformType.UNIFORM_BUFFER)
+-                    .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+                     .withCull(false)
+-                    .withVertexFormat(DefaultVertexFormat.POSITION_COLOR_NORMAL_LINE_WIDTH, VertexFormat.Mode.LINES)
+                     .withDepthStencilState(depth)
+                     .build());
+         }
+ 
+-        private static RenderPipeline registerTexturedPipeline(String path, Optional<DepthStencilState> depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder()
++        private static RenderPipeline registerTexturedPipeline(String path, DepthStencilState depth) {
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+-                    .withVertexShader("core/position_tex_color")
+-                    .withFragmentShader("core/position_tex_color")
+-                    .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+-                    .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+-                    .withSampler("Sampler0")
+-                    .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+                     .withCull(false)
+-                    .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS)
+                     .withDepthStencilState(depth)
+                     .build());
+         }
+-- 
+2.47.3
