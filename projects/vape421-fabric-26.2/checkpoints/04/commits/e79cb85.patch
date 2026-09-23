@@ -1,0 +1,108 @@
+From e79cb855b20a43d568e5fe1ea6ff7f8de9760480 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:28:02 +0000
+Subject: [PATCH] Route online friend indicators through render backend
+
+---
+ .../friend/OnlineFriendActivityListener.java  | 53 ++++++++-----------
+ 1 file changed, 21 insertions(+), 32 deletions(-)
+
+diff --git a/src/main/java/gg/vape/friend/OnlineFriendActivityListener.java b/src/main/java/gg/vape/friend/OnlineFriendActivityListener.java
+index 3fb2a8a..5ba4392 100644
+--- a/src/main/java/gg/vape/friend/OnlineFriendActivityListener.java
++++ b/src/main/java/gg/vape/friend/OnlineFriendActivityListener.java
+@@ -54,7 +54,6 @@ import java.util.List;
+ import java.util.Map;
+ import java.util.UUID;
+ import org.jetbrains.annotations.Nullable;
+-import org.lwjgl.opengl.GL11;
+ 
+ public class OnlineFriendActivityListener
+ implements EventListener {
+@@ -211,23 +210,10 @@ implements EventListener {
+             return;
+         }
+         RenderUtils.g();
+-        double renderX = RenderManager.getInterpolatedRenderPosX();
+-        double renderY = RenderManager.getInterpolatedRenderPosY();
+-        double renderZ = RenderManager.getInterpolatedRenderPosZ();
+         for (Map.Entry<EntityPlayer, List<OnlineFriendActivityState>> entry : statesByPlayer.entrySet()) {
+             EntityPlayer entityPlayer = entry.getKey();
+             List<OnlineFriendActivityState> list = entry.getValue();
+             list.sort(OnlineFriendActivityListener::lambda$onRenderWorldLast$2);
+-            float partialTicks = eventRender3D.getTicks();
+-            double interpolatedX = entityPlayer.M() + (entityPlayer.z() - entityPlayer.M()) * (double)partialTicks;
+-            double interpolatedY = entityPlayer.W() + (entityPlayer.N() - entityPlayer.W()) * (double)partialTicks;
+-            double interpolatedZ = entityPlayer.m$src$D$fwnne5() + (entityPlayer.h() - entityPlayer.m$src$D$fwnne5()) * (double)partialTicks;
+-            GL11.glPushMatrix();
+-            GL11.glTranslated((double)(interpolatedX - renderX + (double)0.03f), (double)(interpolatedY - renderY + 0.001), (double)(interpolatedZ - renderZ + (double)0.03f));
+-            GL11.glRotatef((float)90.0f, (float)1.0f, (float)0.0f, (float)0.0f);
+-            GL11.glScaled((double)0.1, (double)0.1, (double)0.1);
+-            float baseScale = 10.0f;
+-            GL11.glPopMatrix();
+             if (list.size() <= 0 || !onlineSettings.getTargetIndicators().getEffectiveValue().booleanValue()) continue;
+             OnlineFriendActivityState onlineFriendActivityState = list.get(0);
+             MutableColor mutableColor = new MutableColor(OnlineFriendColorUtil.getDisplayColor(onlineFriendActivityState.getFriend())).withAlpha(150);
+@@ -314,39 +300,42 @@ implements EventListener {
+         RenderHelper.e();
+         if (ForgeVersion.MC_1_16_5.d()) {
+             if (Minecraft.gameSettings().x() == 0) {
+-                GL11.glTranslated((double)relativeX, (double)(relativeY + (double)entity.Y() + 0.2), (double)relativeZ);
+-                GL11.glNormal3f((float)0.0f, (float)1.0f, (float)0.0f);
+-                GL11.glRotatef((float)(-Minecraft.D().getPlayerViewX()), (float)0.0f, (float)1.0f, (float)0.0f);
+-                GL11.glRotatef((float)(-Minecraft.D().getPlayerViewY()), (float)-1.0f, (float)0.0f, (float)0.0f);
++                OpenGlBackendHolder.backend.translate(relativeX, relativeY + (double)entity.Y() + 0.2, relativeZ);
++                OpenGlBackendHolder.backend.setNormal(0.0f, 1.0f, 0.0f);
++                OpenGlBackendHolder.backend.rotate(-Minecraft.D().getPlayerViewX(), 0.0f, 1.0f, 0.0f);
++                OpenGlBackendHolder.backend.rotate(-Minecraft.D().getPlayerViewY(), -1.0f, 0.0f, 0.0f);
+             } else {
+                 ActiveRenderInfo activeRenderInfo = Minecraft.m$src$Lgg_vape_wrapper_impl_EntityRenderer_$13begmf().l();
+                 double cameraOffsetX = GuiRenderPrimitives.d() ? 0.0 : RenderManager.getInterpolatedRenderPosX() - activeRenderInfo.o().getX();
+                 double cameraOffsetY = GuiRenderPrimitives.d() ? 0.0 : RenderManager.getInterpolatedRenderPosY() - activeRenderInfo.o().getY();
+                 double cameraOffsetZ = GuiRenderPrimitives.d() ? 0.0 : RenderManager.getInterpolatedRenderPosZ() - activeRenderInfo.o().getZ();
+-                GL11.glTranslated((double)(relativeX + cameraOffsetX), (double)(relativeY + cameraOffsetY + (double)entity.Y() + (double)0.4f), (double)(relativeZ + cameraOffsetZ));
+-                GL11.glNormal3f((float)0.0f, (float)1.0f, (float)0.0f);
+-                GL11.glRotatef((float)(-Minecraft.D().getPlayerViewX()), (float)0.0f, (float)1.0f, (float)0.0f);
+-                GL11.glRotatef((float)Minecraft.D().getPlayerViewY(), (float)1.0f, (float)0.0f, (float)0.0f);
++                OpenGlBackendHolder.backend.translate(
++                    relativeX + cameraOffsetX,
++                    relativeY + cameraOffsetY + (double)entity.Y() + (double)0.4f,
++                    relativeZ + cameraOffsetZ);
++                OpenGlBackendHolder.backend.setNormal(0.0f, 1.0f, 0.0f);
++                OpenGlBackendHolder.backend.rotate(-Minecraft.D().getPlayerViewX(), 0.0f, 1.0f, 0.0f);
++                OpenGlBackendHolder.backend.rotate(Minecraft.D().getPlayerViewY(), 1.0f, 0.0f, 0.0f);
+             }
+         } else {
+-            GL11.glTranslated((double)(relativeX + 0.0), (double)(relativeY + (double)entity.Y() + 0.5), (double)relativeZ);
+-            GL11.glNormal3f((float)0.0f, (float)1.0f, (float)0.0f);
++            OpenGlBackendHolder.backend.translate(relativeX, relativeY + (double)entity.Y() + 0.5, relativeZ);
++            OpenGlBackendHolder.backend.setNormal(0.0f, 1.0f, 0.0f);
+             if (Minecraft.gameSettings().x() == 2) {
+-                GL11.glRotatef((float)(-Minecraft.D().getPlayerViewX()), (float)0.0f, (float)1.0f, (float)0.0f);
+-                GL11.glRotatef((float)Minecraft.D().getPlayerViewY(), (float)-1.0f, (float)0.0f, (float)0.0f);
++                OpenGlBackendHolder.backend.rotate(-Minecraft.D().getPlayerViewX(), 0.0f, 1.0f, 0.0f);
++                OpenGlBackendHolder.backend.rotate(Minecraft.D().getPlayerViewY(), -1.0f, 0.0f, 0.0f);
+             } else {
+-                GL11.glRotatef((float)(-Minecraft.D().getPlayerViewX()), (float)0.0f, (float)1.0f, (float)0.0f);
+-                GL11.glRotatef((float)Minecraft.D().getPlayerViewY(), (float)1.0f, (float)0.0f, (float)0.0f);
++                OpenGlBackendHolder.backend.rotate(-Minecraft.D().getPlayerViewX(), 0.0f, 1.0f, 0.0f);
++                OpenGlBackendHolder.backend.rotate(Minecraft.D().getPlayerViewY(), 1.0f, 0.0f, 0.0f);
+             }
+         }
+-        GL11.glScalef((float)(-worldScale), (float)(-worldScale), (float)worldScale);
++        OpenGlBackendHolder.backend.scale(-worldScale, -worldScale, worldScale);
+         GlStateManager.depthMask(false);
+         GlStateManager.disableDepth();
+         float distanceFactor = (float)(distance / 5.0);
+         float iconScale = 0.01f * distanceFactor;
+-        GL11.glTranslated((double)0.0, (double)(-verticalOffset), (double)0.0);
+-        GL11.glScaled((double)(1.0f / worldScale), (double)(1.0f / worldScale), (double)(-(1.0f / worldScale)));
+-        GL11.glScaled((double)iconScale, (double)iconScale, (double)iconScale);
++        OpenGlBackendHolder.backend.translate(0.0, -verticalOffset, 0.0);
++        OpenGlBackendHolder.backend.scale(1.0f / worldScale, 1.0f / worldScale, -(1.0f / worldScale));
++        OpenGlBackendHolder.backend.scale(iconScale, iconScale, iconScale);
+         OnlineFriendActivityListener.renderIndicators(entity);
+         GlStateManager.enableDepth();
+         GlStateManager.depthMask(true);
+-- 
+2.47.3
