@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "package": "gg.vape.fabric.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "LocalPlayerMixin",
+    "ConnectionMixin",
+    "GuiGraphicsExtractorAccessor",
+    "GuiMixin",
+    "KeyboardHandlerMixin",
+    "MouseHandlerMixin",
+    "EntityAccessor",
+    "EntityMoveMixin",
+    "EntitySprintingMixin",
+    "GameRendererMixin",
+    "LevelRendererEntityExtractionMixin",
+    "RenderPipelinesInvoker",
+    "RenderTypeInvoker",
+    "SectionCompilerMixin",
+    "ModelBlockRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
