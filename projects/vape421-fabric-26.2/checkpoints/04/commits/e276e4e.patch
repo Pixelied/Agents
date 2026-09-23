@@ -1,0 +1,30 @@
+From e276e4eaab5a0abfe4ffec2ebf14d20d7dac0bf5 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:30:39 +0000
+Subject: [PATCH] Revert "Preserve final 26.2 quad metadata in XRay"
+
+This reverts commit 97a04d8bf65b60b5b51bab59b99ea59d7955bddc.
+---
+ .../java/gg/vape/fabric/mixin/SectionCompilerMixin.java      | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/mixin/SectionCompilerMixin.java b/fabric26_2/src/client/java/gg/vape/fabric/mixin/SectionCompilerMixin.java
+index e5de250..437d077 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/mixin/SectionCompilerMixin.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/mixin/SectionCompilerMixin.java
+@@ -95,11 +95,10 @@ public abstract class SectionCompilerMixin {
+                 info.itemRenderType(),
+                 info.tintIndex(),
+                 info.shade(),
+-                info.lightEmission(),
+-                info.ambientOcclusion());
++                info.lightEmission());
+         return new BakedQuad(
+                 quad.position0(), quad.position1(), quad.position2(), quad.position3(),
+                 quad.packedUV0(), quad.packedUV1(), quad.packedUV2(), quad.packedUV3(),
+-                quad.direction(), xrayInfo, quad.bakedNormals(), quad.bakedColors());
++                quad.direction(), xrayInfo);
+     }
+ }
+-- 
+2.47.3
