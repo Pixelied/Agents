@@ -1,0 +1,24 @@
+From 9af0b6899de21007c649e0cfce05bf0a298b5956 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:29:42 +0000
+Subject: [PATCH] Route ESP2D blend state through render backend
+
+---
+ src/main/java/gg/vape/module/render/esp/ESP2D.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/main/java/gg/vape/module/render/esp/ESP2D.java b/src/main/java/gg/vape/module/render/esp/ESP2D.java
+index 5d49021..8bf25bd 100644
+--- a/src/main/java/gg/vape/module/render/esp/ESP2D.java
++++ b/src/main/java/gg/vape/module/render/esp/ESP2D.java
+@@ -48,7 +48,7 @@ extends SubModule<ESP> {
+         OpenGlBackendHolder.backend.scale(renderScale, renderScale, renderScale);
+         GlStateManager.enableAlpha();
+         float renderResolutionMultiplier = RenderWorldLastEvent.getRenderResolutionMultiplier();
+-        boolean blendEnabled = GL11.glIsEnabled((int)3042);
++        boolean blendEnabled = OpenGlBackendHolder.backend.isCapabilityEnabled(3042);
+         RenderUtils.g();
+         for (ProjectedEntityBounds projectedEntityBounds : this.pendingBounds) {
+             double textWidth;
+-- 
+2.47.3
