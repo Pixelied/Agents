@@ -13,7 +13,7 @@
     "EntityMoveMixin",
     "EntitySprintingMixin",
     "GameRendererMixin",
-    "LevelRendererEntityExtractionMixin",
+    "LevelExtractorMixin",
     "RenderPipelinesInvoker",
     "RenderTypeInvoker",
     "SectionCompilerMixin",
