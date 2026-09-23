@@ -1,0 +1,326 @@
+From d158e039b9381ce315059b59e035277c5c5107a0 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:06:40 +0000
+Subject: [PATCH] Port entity extraction and ESP outline to final 26.2
+
+---
+ .../vape/fabric/FabricMigrationRuntime.java   |  2 +
+ .../gg/vape/fabric/FabricOutlineHooks.java    | 38 +++++++++++++++++++
+ ...> LevelRendererEntityExtractionMixin.java} | 23 ++++++++---
+ .../src/client/resources/vape421.mixins.json  |  2 +-
+ src/main/java/gg/vape/module/render/ESP.java  | 35 +++++++++++++++--
+ .../gg/vape/module/render/esp/ESPOutline.java | 19 ++++++++++
+ .../utils/render/OpenGlBackendHolder.java     | 23 +++++++----
+ 7 files changed, 126 insertions(+), 16 deletions(-)
+ create mode 100644 fabric26_2/src/client/java/gg/vape/fabric/FabricOutlineHooks.java
+ rename fabric26_2/src/client/java/gg/vape/fabric/mixin/{LevelExtractorMixin.java => LevelRendererEntityExtractionMixin.java} (64%)
+
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/FabricMigrationRuntime.java b/fabric26_2/src/client/java/gg/vape/fabric/FabricMigrationRuntime.java
+index 59695b9..2b11e32 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/FabricMigrationRuntime.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/FabricMigrationRuntime.java
+@@ -10,6 +10,7 @@ import gg.vape.fabric.render.FabricRenderBackend;
+ import gg.vape.runtime.FabricCompatibility;
+ import gg.vape.runtime.NativeBridge;
+ import gg.vape.ui.click.GuiScreenNativeCallbackBridge;
++import gg.vape.utils.render.OpenGlBackendHolder;
+ import gg.vape.wrapper.impl.MatrixStack;
+ import gg.vape.wrapper.impl.RenderManager;
+ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+@@ -43,6 +44,7 @@ public final class FabricMigrationRuntime {
+ 
+         FabricRenderBackend backend = new FabricRenderBackend();
+         renderBackend = backend;
++        OpenGlBackendHolder.forceBufferedBackend();
+         FabricCompatibility.install(backend);
+         FabricHookRegistry.register();
+     }
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/FabricOutlineHooks.java b/fabric26_2/src/client/java/gg/vape/fabric/FabricOutlineHooks.java
+new file mode 100644
+index 0000000..53d3b78
+--- /dev/null
++++ b/fabric26_2/src/client/java/gg/vape/fabric/FabricOutlineHooks.java
+@@ -0,0 +1,38 @@
++package gg.vape.fabric;
++
++import gg.vape.Vape;
++import gg.vape.module.render.ESP;
++import gg.vape.utils.MutableColor;
++import gg.vape.wrapper.impl.EntityPlayerSP;
++import net.minecraft.client.Minecraft;
++import net.minecraft.client.renderer.entity.state.EntityRenderState;
++import net.minecraft.world.entity.Entity;
++
++/** Bridges recovered ESP targeting/color rules into 26.2 entity render state. */
++public final class FabricOutlineHooks {
++    private FabricOutlineHooks() {
++    }
++
++    public static boolean apply(Entity entity, EntityRenderState state) {
++        if (!FabricMigrationRuntime.isCoreStarted() || entity == null || state == null) {
++            return false;
++        }
++        Minecraft minecraft = Minecraft.getInstance();
++        if (minecraft.player == null || Vape.INSTANCE == null || Vape.INSTANCE.getModManager() == null) {
++            return false;
++        }
++        ESP esp = Vape.INSTANCE.getModManager().getMod(ESP.class);
++        if (esp == null || !esp.isEnabled() || !esp.isOutlineModeActive()) {
++            return false;
++        }
++        MutableColor color = esp.resolveOutlineColor(new EntityPlayerSP(minecraft.player), entity);
++        if (color == null) {
++            return false;
++        }
++        state.outlineColor = 0xFF000000
++                | (color.getRed() << 16)
++                | (color.getGreen() << 8)
++                | color.getBlue();
++        return true;
++    }
++}
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelExtractorMixin.java b/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelRendererEntityExtractionMixin.java
+similarity index 64%
+rename from fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelExtractorMixin.java
+rename to fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelRendererEntityExtractionMixin.java
+index d34a944..f676348 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelExtractorMixin.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/mixin/LevelRendererEntityExtractionMixin.java
+@@ -1,24 +1,29 @@
+ package gg.vape.fabric.mixin;
+ 
++import com.llamalad7.mixinextras.injector.ModifyReturnValue;
+ import gg.vape.event.impl.EventPostRenderWorldPass;
+ import gg.vape.event.impl.EventPreRenderWorldPass;
+ import gg.vape.fabric.FabricMigrationRuntime;
++import gg.vape.fabric.FabricOutlineHooks;
+ import net.minecraft.client.Camera;
+ import net.minecraft.client.DeltaTracker;
++import net.minecraft.client.renderer.LevelRenderer;
+ import net.minecraft.client.renderer.culling.Frustum;
+-import net.minecraft.client.renderer.extract.LevelExtractor;
++import net.minecraft.client.renderer.entity.state.EntityRenderState;
+ import net.minecraft.client.renderer.state.level.LevelRenderState;
++import net.minecraft.world.entity.Entity;
+ import org.spongepowered.asm.mixin.Mixin;
+ import org.spongepowered.asm.mixin.injection.At;
+ import org.spongepowered.asm.mixin.injection.Inject;
+ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+ 
+ /**
+- * Replaces the recovered 26.2 world-pass transformer at the same semantic
+- * extraction boundary used by the existing Fabric262Mappings profile.
++ * Final Minecraft 26.2 keeps visible-entity extraction on LevelRenderer.
++ * This replaces the old runtime transformer boundary and also applies Vape's
++ * Outline ESP through the native 26.2 entity render-state pipeline.
+  */
+-@Mixin(LevelExtractor.class)
+-public abstract class LevelExtractorMixin {
++@Mixin(LevelRenderer.class)
++public abstract class LevelRendererEntityExtractionMixin {
+     @Inject(method = "extractVisibleEntities", at = @At("HEAD"))
+     private void vape421$preVisibleEntityExtraction(Camera camera,
+                                                      Frustum frustum,
+@@ -30,6 +35,14 @@ public abstract class LevelExtractorMixin {
+         }
+     }
+ 
++    @ModifyReturnValue(method = "extractEntity", at = @At("RETURN"))
++    private EntityRenderState vape421$applyEntityOutline(EntityRenderState state,
++                                                          Entity entity,
++                                                          float partialTickTime) {
++        FabricOutlineHooks.apply(entity, state);
++        return state;
++    }
++
+     @Inject(method = "extractVisibleEntities", at = @At("RETURN"))
+     private void vape421$postVisibleEntityExtraction(Camera camera,
+                                                       Frustum frustum,
+diff --git a/fabric26_2/src/client/resources/vape421.mixins.json b/fabric26_2/src/client/resources/vape421.mixins.json
+index a564c4e..504581b 100644
+--- a/fabric26_2/src/client/resources/vape421.mixins.json
++++ b/fabric26_2/src/client/resources/vape421.mixins.json
+@@ -13,7 +13,7 @@
+     "EntityMoveMixin",
+     "EntitySprintingMixin",
+     "GameRendererMixin",
+-    "LevelExtractorMixin",
++    "LevelRendererEntityExtractionMixin",
+     "RenderPipelinesInvoker",
+     "RenderTypeInvoker",
+     "SectionCompilerMixin",
+diff --git a/src/main/java/gg/vape/module/render/ESP.java b/src/main/java/gg/vape/module/render/ESP.java
+index f058fcf..5a9fb84 100644
+--- a/src/main/java/gg/vape/module/render/ESP.java
++++ b/src/main/java/gg/vape/module/render/ESP.java
+@@ -11,6 +11,7 @@ import gg.vape.module.render.esp.ESP3D;
+ import gg.vape.module.render.esp.ESPOutline;
+ import gg.vape.module.render.esp.ESPSkeleton;
+ import gg.vape.render.OffscreenRenderContext;
++import gg.vape.runtime.FabricCompatibility;
+ import gg.vape.unmap.ModeOption;
+ import gg.vape.utils.MutableColor;
+ import gg.vape.value.BooleanValue;
+@@ -68,7 +69,13 @@ extends Mod {
+         this.useDisplayName = BooleanValue.create(this, "Use Displayname", false, "Shows the tab list display name.");
+         this.showNameBackground = BooleanValue.create(this, "Show Background", false, "Renders a box behind the text.");
+         this.renderManager = Minecraft.D();
+-        this.mode = ForgeVersion.MC_1_17.d() ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode) : (ForgeVersion.MC_1_12_2.d() ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode) : ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode, this.outlineMode));
++        this.mode = FabricCompatibility.isActive()
++            ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.outlineMode)
++            : (ForgeVersion.MC_1_17.d()
++                ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode)
++                : (ForgeVersion.MC_1_12_2.d()
++                    ? ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode)
++                    : ModeValue.create((Object)this, "Mode", this.threeDimensionalMode, this.threeDimensionalMode, this.twoDimensionalMode, this.skeletonMode, this.outlineMode)));
+         this.showExpandedHitbox.addDependentValues(this.showNormalHitbox);
+         this.showBoundingBox.addDependentValues(this.priorityOnly);
+         this.showName.addDependentValues(this.useDisplayName, this.showNameBackground);
+@@ -89,7 +96,7 @@ extends Mod {
+         if (!entity.isInstance(MappedClasses.zm)) {
+             return null;
+         }
+-        if (entityHandle.equals(viewer)) {
++        if (entity.equals(viewer)) {
+             return null;
+         }
+         EntityLivingBase entityLivingBase = new EntityLivingBase(entityHandle);
+@@ -113,8 +120,30 @@ extends Mod {
+         return null;
+     }
+ 
++    public MutableColor resolveOutlineColor(EntityPlayerSP viewer, Object entityHandle) {
++        MutableColor color = this.resolveEntityColor(viewer, entityHandle);
++        if (color == null) {
++            return null;
++        }
++        Entity entity = new Entity(entityHandle);
++        if (this.enemyOnly.getEffectiveValue().booleanValue()) {
++            boolean rejected = this.enemyListOnly.getEffectiveValue().booleanValue()
++                ? !Vape.INSTANCE.getEnemyManager().isEnemy(entity.getName())
++                : !Vape.INSTANCE.getClientSettings().isValidTarget(entity, false);
++            if (rejected) {
++                return null;
++            }
++        }
++        return color;
++    }
++
++    public boolean isOutlineModeSelected() {
++        return this.mode.getValue() == this.outlineMode;
++    }
++
+     public boolean isOutlineModeActive() {
+-        return this.mode.getValue() == this.outlineMode && this.outlineRenderer.isRenderingOutline();
++        return this.isOutlineModeSelected()
++            && (FabricCompatibility.isActive() || this.outlineRenderer.isRenderingOutline());
+     }
+ }
+ 
+diff --git a/src/main/java/gg/vape/module/render/esp/ESPOutline.java b/src/main/java/gg/vape/module/render/esp/ESPOutline.java
+index 97e90b7..2251452 100644
+--- a/src/main/java/gg/vape/module/render/esp/ESPOutline.java
++++ b/src/main/java/gg/vape/module/render/esp/ESPOutline.java
+@@ -14,6 +14,7 @@ import gg.vape.module.Mod;
+ import gg.vape.module.SubModule;
+ import gg.vape.module.render.ESP;
+ import gg.vape.render.OffscreenRenderContext;
++import gg.vape.runtime.FabricCompatibility;
+ import gg.vape.utils.MutableColor;
+ import gg.vape.utils.render.OpenGlBackendHolder;
+ import gg.vape.utils.render.RenderUtils;
+@@ -39,6 +40,9 @@ extends SubModule<ESP> {
+ 
+     @EventHandler
+     public void onPreRenderLiving(EventPreRenderLiving event) {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+         if (OffscreenRenderContext.isRenderingOffscreen()) {
+             return;
+         }
+@@ -63,6 +67,9 @@ extends SubModule<ESP> {
+ 
+     @EventHandler
+     public void onTick(EventPrePlayerTick eventPrePlayerTick) {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+         if (Minecraft.gameSettings().M()) {
+             this.parentEsp.mode.setValue(this.parentEsp.threeDimensionalMode);
+             Vape.INSTANCE.getNotificationManager().showInfo("ESP reverted to 3D mode", "Disable fast render to use outline", 5000L);
+@@ -76,6 +83,9 @@ extends SubModule<ESP> {
+ 
+     @EventHandler
+     public void onSetArmorModel(EventSetArmorModel event) {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+         if (OffscreenRenderContext.isRenderingOffscreen()) {
+             return;
+         }
+@@ -100,6 +110,9 @@ extends SubModule<ESP> {
+ 
+     @EventHandler
+     public void onPreRenderEntity(EventPreRenderEntity event) {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+         if (OffscreenRenderContext.isRenderingOffscreen()) {
+             return;
+         }
+@@ -120,6 +133,9 @@ extends SubModule<ESP> {
+ 
+     @EventHandler
+     public void onPreRenderPlayerSpec(EventPreRenderPlayerSpec event) {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+         if (OffscreenRenderContext.isRenderingOffscreen()) {
+             return;
+         }
+@@ -139,6 +155,9 @@ extends SubModule<ESP> {
+ 
+     @EventHandler
+     public void onRender3D(EventRender3D event) {
++        if (FabricCompatibility.isActive()) {
++            return;
++        }
+         if (OffscreenRenderContext.isRenderingOffscreen()) {
+             return;
+         }
+diff --git a/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java b/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java
+index 6ce05f3..f364828 100644
+--- a/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java
++++ b/src/main/java/gg/vape/utils/render/OpenGlBackendHolder.java
+@@ -1,12 +1,21 @@
+ package gg.vape.utils.render;
+ 
+-import gg.vape.utils.render.BufferedOpenGlBackend;
+-import gg.vape.utils.render.GuiRenderPrimitives;
+-import gg.vape.utils.render.LegacyOpenGlBackend;
+-import gg.vape.utils.render.OpenGlBackend;
++public final class OpenGlBackendHolder {
++    private OpenGlBackendHolder() {
++    }
+ 
+-public class OpenGlBackendHolder {
+-    public static OpenGlBackend backend = GuiRenderPrimitives.d() ? new BufferedOpenGlBackend() : new LegacyOpenGlBackend();
++    public static volatile OpenGlBackend backend =
++            GuiRenderPrimitives.d() ? new BufferedOpenGlBackend() : new LegacyOpenGlBackend();
+ 
++    /**
++     * Fabric 26.2 must never execute the legacy immediate-mode GL backend.
++     * The recovered source can load this holder before FabricCompatibility is
++     * installed, so the runtime explicitly forces the buffered/logical backend
++     * during Fabric bootstrap instead of relying on static initialization order.
++     */
++    public static void forceBufferedBackend() {
++        if (!(backend instanceof BufferedOpenGlBackend)) {
++            backend = new BufferedOpenGlBackend();
++        }
++    }
+ }
+-
+-- 
+2.47.3
