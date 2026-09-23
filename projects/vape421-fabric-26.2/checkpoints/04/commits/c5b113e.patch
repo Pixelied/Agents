@@ -1,0 +1,75 @@
+From c5b113e8f6a674d6c631eeccd48d4af87c110383 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:21:51 +0000
+Subject: [PATCH] Access final 26.2 pipeline snippets through Mixin
+
+---
+ .../fabric/mixin/RenderPipelinesInvoker.java     | 16 ++++++++++++++++
+ .../vape/fabric/render/FabricRenderBackend.java  |  6 +++---
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java b/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java
+index 3038de7..317098b 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java
+@@ -3,6 +3,7 @@ package gg.vape.fabric.mixin;
+ import com.mojang.blaze3d.pipeline.RenderPipeline;
+ import net.minecraft.client.renderer.RenderPipelines;
+ import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.gen.Accessor;
+ import org.spongepowered.asm.mixin.gen.Invoker;
+ 
+ /** Exposes vanilla's private static pipeline registration for custom 26.2 render types. */
+@@ -12,4 +13,19 @@ public interface RenderPipelinesInvoker {
+     static RenderPipeline vape421$register(RenderPipeline pipeline) {
+         throw new AssertionError();
+     }
++
++    @Accessor("DEBUG_FILLED_SNIPPET")
++    static RenderPipeline.Snippet vape421$debugFilledSnippet() {
++        throw new AssertionError();
++    }
++
++    @Accessor("LINES_SNIPPET")
++    static RenderPipeline.Snippet vape421$linesSnippet() {
++        throw new AssertionError();
++    }
++
++    @Accessor("GUI_TEXTURED_SNIPPET")
++    static RenderPipeline.Snippet vape421$guiTexturedSnippet() {
++        throw new AssertionError();
++    }
+ }
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java b/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
+index b2c7816..883c9be 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
+@@ -698,7 +698,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+         private static final RenderType NO_DEPTH_LINES = renderType("vape421_world_lines_xray", NO_DEPTH_LINES_PIPELINE);
+ 
+         private static RenderPipeline registerColorPipeline(String path, DepthStencilState depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelinesInvoker.vape421$debugFilledSnippet())
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+                     .withCull(false)
+                     .withDepthStencilState(depth)
+@@ -706,7 +706,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+         }
+ 
+         private static RenderPipeline registerLinePipeline(String path, DepthStencilState depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelinesInvoker.vape421$linesSnippet())
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+                     .withCull(false)
+                     .withDepthStencilState(depth)
+@@ -714,7 +714,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+         }
+ 
+         private static RenderPipeline registerTexturedPipeline(String path, DepthStencilState depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelinesInvoker.vape421$guiTexturedSnippet())
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+                     .withCull(false)
+                     .withDepthStencilState(depth)
+-- 
+2.47.3
