@@ -1,0 +1,48 @@
+From a09e791d7435b3f3b3a0b9cf6331ac25af187744 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:15:12 +0000
+Subject: [PATCH] Harden legacy lightmap toggles under Fabric 26.2
+
+---
+ .../java/gg/vape/wrapper/impl/EntityRenderer.java    | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/src/main/java/gg/vape/wrapper/impl/EntityRenderer.java b/src/main/java/gg/vape/wrapper/impl/EntityRenderer.java
+index 467307b..3fe893b 100644
+--- a/src/main/java/gg/vape/wrapper/impl/EntityRenderer.java
++++ b/src/main/java/gg/vape/wrapper/impl/EntityRenderer.java
+@@ -2,6 +2,7 @@ package gg.vape.wrapper.impl;
+ 
+ import gg.vape.mapping.mappings.MEntityRenderer;
+ import gg.vape.module.control.SharedModuleControlClaims;
++import gg.vape.runtime.FabricCompatibility;
+ import gg.vape.utils.MathUtil;
+ import gg.vape.wrapper.Wrapper;
+ 
+@@ -64,6 +65,12 @@ extends Wrapper {
+     }
+ 
+     public void B(double d) {
++        if (FabricCompatibility.isActive()) {
++            // 26.2 submit nodes carry their own lighting state/light coordinates.
++            // Toggling the legacy light texture here is both unnecessary and tied
++            // to obsolete renderer mappings, so Fabric treats this as a no-op.
++            return;
++        }
+         if (ForgeVersion.MC_1_16_5.d()) {
+             this.l$src$Lgg_vape_wrapper_impl_LightTexture_$to78f8().V();
+             return;
+@@ -189,6 +196,11 @@ extends Wrapper {
+     }
+ 
+     public void O(double d) {
++        if (FabricCompatibility.isActive()) {
++            // See B(double): lighting is part of the extracted/submitted render
++            // state under Fabric 26.2 rather than mutable global GL state.
++            return;
++        }
+         if (ForgeVersion.MC_1_16_5.d()) {
+             this.l$src$Lgg_vape_wrapper_impl_LightTexture_$to78f8().X();
+             return;
+-- 
+2.47.3
