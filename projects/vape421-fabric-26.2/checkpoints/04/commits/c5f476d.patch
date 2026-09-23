@@ -1,0 +1,137 @@
+From c5f476d1db59d285aabce8b77a97baddd997e938 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:24:33 +0000
+Subject: [PATCH] Use public 26.2 render APIs directly
+
+---
+ .../vape/fabric/mixin/RenderPipelinesInvoker.java | 15 ---------------
+ .../gg/vape/fabric/mixin/RenderTypeInvoker.java   | 15 ---------------
+ .../vape/fabric/render/FabricRenderBackend.java   | 11 +++++------
+ .../src/client/resources/vape421.mixins.json      |  1 -
+ 4 files changed, 5 insertions(+), 37 deletions(-)
+ delete mode 100644 fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderTypeInvoker.java
+
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java b/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java
+index 317098b..04b1f62 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderPipelinesInvoker.java
+@@ -3,7 +3,6 @@ package gg.vape.fabric.mixin;
+ import com.mojang.blaze3d.pipeline.RenderPipeline;
+ import net.minecraft.client.renderer.RenderPipelines;
+ import org.spongepowered.asm.mixin.Mixin;
+-import org.spongepowered.asm.mixin.gen.Accessor;
+ import org.spongepowered.asm.mixin.gen.Invoker;
+ 
+ /** Exposes vanilla's private static pipeline registration for custom 26.2 render types. */
+@@ -14,18 +13,4 @@ public interface RenderPipelinesInvoker {
+         throw new AssertionError();
+     }
+ 
+-    @Accessor("DEBUG_FILLED_SNIPPET")
+-    static RenderPipeline.Snippet vape421$debugFilledSnippet() {
+-        throw new AssertionError();
+-    }
+-
+-    @Accessor("LINES_SNIPPET")
+-    static RenderPipeline.Snippet vape421$linesSnippet() {
+-        throw new AssertionError();
+-    }
+-
+-    @Accessor("GUI_TEXTURED_SNIPPET")
+-    static RenderPipeline.Snippet vape421$guiTexturedSnippet() {
+-        throw new AssertionError();
+-    }
+-
+ }
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderTypeInvoker.java b/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderTypeInvoker.java
+deleted file mode 100644
+index 9726e9e..0000000
+--- a/fabric26_2/src/client/java/gg/vape/fabric/mixin/RenderTypeInvoker.java
++++ /dev/null
+@@ -1,15 +0,0 @@
+-package gg.vape.fabric.mixin;
+-
+-import net.minecraft.client.renderer.rendertype.RenderSetup;
+-import net.minecraft.client.renderer.rendertype.RenderType;
+-import org.spongepowered.asm.mixin.Mixin;
+-import org.spongepowered.asm.mixin.gen.Invoker;
+-
+-/** Exposes the package-private RenderType factory for backend-neutral custom submits. */
+-@Mixin(RenderType.class)
+-public interface RenderTypeInvoker {
+-    @Invoker("create")
+-    static RenderType vape421$create(String name, RenderSetup setup) {
+-        throw new AssertionError();
+-    }
+-}
+diff --git a/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java b/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
+index 883c9be..850b19e 100644
+--- a/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
++++ b/fabric26_2/src/client/java/gg/vape/fabric/render/FabricRenderBackend.java
+@@ -15,7 +15,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
+ import com.mojang.blaze3d.vertex.VertexConsumer;
+ import gg.vape.fabric.mixin.GuiGraphicsExtractorAccessor;
+ import gg.vape.fabric.mixin.RenderPipelinesInvoker;
+-import gg.vape.fabric.mixin.RenderTypeInvoker;
+ import gg.vape.runtime.FabricCompatibility;
+ import gg.vape.utils.render.GlImageTexture;
+ import gg.vape.utils.render.GlScissorRect;
+@@ -539,7 +538,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+                     .withTexture("Sampler0", textureId)
+                     .sortOnUpload()
+                     .createRenderSetup();
+-            return RenderTypeInvoker.vape421$create(
++            return RenderType.create(
+                     "vape421_world_texture_" + Integer.toUnsignedString(textureId.hashCode(), 16)
+                             + (depth ? "_depth" : "_xray"),
+                     setup);
+@@ -698,7 +697,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+         private static final RenderType NO_DEPTH_LINES = renderType("vape421_world_lines_xray", NO_DEPTH_LINES_PIPELINE);
+ 
+         private static RenderPipeline registerColorPipeline(String path, DepthStencilState depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelinesInvoker.vape421$debugFilledSnippet())
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+                     .withCull(false)
+                     .withDepthStencilState(depth)
+@@ -706,7 +705,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+         }
+ 
+         private static RenderPipeline registerLinePipeline(String path, DepthStencilState depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelinesInvoker.vape421$linesSnippet())
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+                     .withCull(false)
+                     .withDepthStencilState(depth)
+@@ -714,7 +713,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+         }
+ 
+         private static RenderPipeline registerTexturedPipeline(String path, DepthStencilState depth) {
+-            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelinesInvoker.vape421$guiTexturedSnippet())
++            return RenderPipelinesInvoker.vape421$register(RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
+                     .withLocation(Identifier.fromNamespaceAndPath("vape421", "pipeline/" + path))
+                     .withCull(false)
+                     .withDepthStencilState(depth)
+@@ -722,7 +721,7 @@ public final class FabricRenderBackend implements FabricCompatibility.Backend {
+         }
+ 
+         private static RenderType renderType(String name, RenderPipeline pipeline) {
+-            return RenderTypeInvoker.vape421$create(name,
++            return RenderType.create(name,
+                     RenderSetup.builder(pipeline).sortOnUpload().createRenderSetup());
+         }
+     }
+diff --git a/fabric26_2/src/client/resources/vape421.mixins.json b/fabric26_2/src/client/resources/vape421.mixins.json
+index a564c4e..4de59c4 100644
+--- a/fabric26_2/src/client/resources/vape421.mixins.json
++++ b/fabric26_2/src/client/resources/vape421.mixins.json
+@@ -15,7 +15,6 @@
+     "GameRendererMixin",
+     "LevelExtractorMixin",
+     "RenderPipelinesInvoker",
+-    "RenderTypeInvoker",
+     "SectionCompilerMixin",
+     "ModelBlockRendererMixin"
+   ],
+-- 
+2.47.3
