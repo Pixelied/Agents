@@ -1,0 +1,68 @@
+From ce6252efa01ce7f2302c90baaac4cebf49fcd2a6 Mon Sep 17 00:00:00 2001
+From: OpenAI Migration Worker <migration@local.invalid>
+Date: Wed, 23 Sep 2026 20:16:31 +0000
+Subject: [PATCH] Route SpawnerFinder render state through Fabric backend
+
+---
+ .../java/gg/vape/module/render/SpawnerFinder.java     | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/java/gg/vape/module/render/SpawnerFinder.java b/src/main/java/gg/vape/module/render/SpawnerFinder.java
+index 6ceaa06..75c48e8 100644
+--- a/src/main/java/gg/vape/module/render/SpawnerFinder.java
++++ b/src/main/java/gg/vape/module/render/SpawnerFinder.java
+@@ -19,7 +19,6 @@ import gg.vape.wrapper.impl.Minecraft;
+ import gg.vape.wrapper.impl.RenderManager;
+ import gg.vape.wrapper.impl.TileEntityMobSpawner;
+ import java.awt.Color;
+-import org.lwjgl.opengl.GL11;
+ 
+ public class SpawnerFinder
+ extends Mod {
+@@ -39,7 +38,7 @@ extends Mod {
+ 
+     @EventHandler
+     public void onRender3D(EventRender3D eventRender3D) {
+-        boolean bl = GL11.glIsEnabled((int)3042);
++        boolean bl = OpenGlBackendHolder.backend.isCapabilityEnabled(3042);
+         if (bl) {
+             Minecraft.m$src$Lgg_vape_wrapper_impl_EntityRenderer_$13begmf().B(1.0);
+             RenderUtil.d();
+@@ -47,7 +46,7 @@ extends Mod {
+             OpenGlBackendHolder.backend.setLineWidth(1.5f);
+             OpenGlBackendHolder.backend.enableCapability(2848);
+             OpenGlBackendHolder.backend.disableCapability(2929);
+-            GL11.glDepthMask((boolean)false);
++            OpenGlBackendHolder.backend.setDepthMask(false);
+             double d = RenderManager.getInterpolatedRenderPosX();
+             double d2 = RenderManager.getInterpolatedRenderPosY();
+             double d3 = RenderManager.getInterpolatedRenderPosZ();
+@@ -65,7 +64,7 @@ extends Mod {
+                 string2 = string2 + string + " spawner";
+                 RenderUtil.U(string2, (double)tileEntityMobSpawner.getX() - d + 0.5, (double)tileEntityMobSpawner.getY() - d2 - 1.0, (double)tileEntityMobSpawner.getZ() - d3 + 0.5, (Double)this.scale.getValue(), RotationUtil.p(entityPlayerSP, tileEntityMobSpawner.getX(), tileEntityMobSpawner.getY(), tileEntityMobSpawner.getZ()), -1, this.backgroundColor, 1.4, matrixStack);
+             }
+-            GL11.glDepthMask((boolean)true);
++            OpenGlBackendHolder.backend.setDepthMask(true);
+             OpenGlBackendHolder.backend.enableCapability(2929);
+             OpenGlBackendHolder.backend.enableCapability(3553);
+             OpenGlBackendHolder.backend.disableCapability(2848);
+@@ -80,7 +79,7 @@ extends Mod {
+         OpenGlBackendHolder.backend.setLineWidth(1.5f);
+         OpenGlBackendHolder.backend.enableCapability(2848);
+         OpenGlBackendHolder.backend.disableCapability(2929);
+-        GL11.glDepthMask((boolean)false);
++        OpenGlBackendHolder.backend.setDepthMask(false);
+         double d = RenderManager.getInterpolatedRenderPosX();
+         double d4 = RenderManager.getInterpolatedRenderPosY();
+         double d5 = RenderManager.getInterpolatedRenderPosZ();
+@@ -98,7 +97,7 @@ extends Mod {
+             string4 = string4 + string + " spawner";
+             RenderUtil.U(string4, (double)tileEntityMobSpawner.getX() - d + 0.5, (double)tileEntityMobSpawner.getY() - d4 - 1.0, (double)tileEntityMobSpawner.getZ() - d5 + 0.5, (Double)this.scale.getValue(), RotationUtil.p(entityPlayerSP, tileEntityMobSpawner.getX(), tileEntityMobSpawner.getY(), tileEntityMobSpawner.getZ()), -1, this.backgroundColor, 1.4, matrixStack);
+         }
+-        GL11.glDepthMask((boolean)true);
++        OpenGlBackendHolder.backend.setDepthMask(true);
+         OpenGlBackendHolder.backend.enableCapability(2929);
+         OpenGlBackendHolder.backend.enableCapability(3553);
+         OpenGlBackendHolder.backend.disableCapability(2848);
+-- 
+2.47.3
