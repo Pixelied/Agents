@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "dev.adrien.togglesneak.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "KeyboardInputMixin",
+    "MinecraftMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
