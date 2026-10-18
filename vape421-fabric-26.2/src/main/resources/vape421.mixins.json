@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "package": "gg.vape.fabric.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "KeyboardHandlerMixin",
+    "MouseHandlerMixin",
+    "LocalPlayerMixin",
+    "PlayerMixin",
+    "ClientLevelMixin",
+    "KeyMappingMixin",
+    "GuiMixin",
+    "MultiPlayerGameModeMixin",
+    "ConnectionMixin",
+    "MinecraftMixin",
+    "LivingEntityMixin",
+    "EntityMixin",
+    "EntityRenderDispatcherMixin",
+    "ScoreboardMixin",
+    "PlayerTabOverlayMixin",
+    "ChatComponentMixin",
+    "ItemStackMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,249 @@
+name: Vape Fabric 26.2 scaffold CI
+on:
+  push:
+    paths: ['vape421-fabric-26.2/**', '.github/workflows/vape421-fabric-port.yml']
+  pull_request:
+    paths: ['vape421-fabric-26.2/**', '.github/workflows/vape421-fabric-port.yml']
+
+concurrency:
+  group: vape421-fabric-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15, macos-15-intel, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: vape421-fabric-26.2
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+      - name: Build Fabric 26.2 scaffold
+        shell: bash
+        run: gradle build --stacktrace
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vape421-${{ matrix.os }}
+          path: vape421-fabric-26.2/build/libs/
+
+  runtime-smoke:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: vape421-fabric-26.2
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+      - name: Install virtual display
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+      - name: Launch Minecraft long enough to apply client mixins
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a timeout 90s gradle runClient --args="--demo --width 854 --height 480" > runtime-smoke.txt 2>&1
+          status=$?
+          set -e
+          cat runtime-smoke.txt
+          test -f run/logs/latest.log
+          grep -F "Vape 4.21 Fabric bootstrap" run/logs/latest.log
+          if grep -E "MixinApplyError|MixinTransformerError|InvalidInjectionException|InjectionError" run/logs/latest.log; then
+            echo "Mixin/runtime bootstrap error detected"
+            exit 1
+          fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            echo "Minecraft exited unexpectedly with status $status"
+            exit "$status"
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: vape421-runtime-smoke
+          path: |
+            vape421-fabric-26.2/runtime-smoke.txt
+            vape421-fabric-26.2/run/logs/latest.log
+
+  recovered-core-probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Clone and verify untouched recovery baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/vape421-core"
+          second="$RUNNER_TEMP/vape421-second-recovery"
+          git clone --depth 1 https://github.com/RSSeeker/Vape-v4.git "$core"
+          git clone --depth 1 https://github.com/minecrafttzh/OpenVape4.21.git "$second"
+
+          base64 -d vape421-fabric-26.2/core-fixture/original-java-paths.bloom.b64 \
+            > "$RUNNER_TEMP/original-java-paths.bloom"
+
+          CORE="$core" SECOND="$second" BLOOM="$RUNNER_TEMP/original-java-paths.bloom" \
+          HASHES="$GITHUB_WORKSPACE/vape421-fabric-26.2/core-fixture/divergent-original-sha256.txt" \
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import os
+          import shutil
+
+          core = Path(os.environ["CORE"])
+          second = Path(os.environ["SECOND"])
+          bloom = Path(os.environ["BLOOM"]).read_bytes()
+          hash_file = Path(os.environ["HASHES"])
+          bit_count = len(bloom) * 8
+          hash_count = 10
+
+          def sha(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def maybe_original(rel: str) -> bool:
+              digest = hashlib.sha256(rel.encode()).digest()
+              h1 = int.from_bytes(digest[:8], "little")
+              h2 = int.from_bytes(digest[8:16], "little") | 1
+              for i in range(hash_count):
+                  index = (h1 + i * h2) % bit_count
+                  if not (bloom[index >> 3] & (1 << (index & 7))):
+                      return False
+              return True
+
+          expected_divergent = {}
+          for line in hash_file.read_text().splitlines():
+              if not line.strip():
+                  continue
+              digest, rel = line.split("  ", 1)
+              expected_divergent[rel] = digest
+
+          all_files = sorted(
+              (core / "src/main/java").rglob("*.java"),
+              key=lambda p: p.as_posix()
+          )
+          kept = []
+          removed = []
+          for path in all_files:
+              rel = path.relative_to(core).as_posix()
+              if maybe_original(rel):
+                  kept.append(path)
+              else:
+                  removed.append(path)
+
+          print(f"primary mirror java files={len(all_files)}")
+          print(f"path-filter kept={len(kept)} removed={len(removed)}")
+          if len(kept) != 2948:
+              raise SystemExit(
+                  f"Path filter retained {len(kept)} files; expected exactly 2948. "
+                  "Refusing to weaken the source-integrity check."
+              )
+
+          repaired = []
+          already_correct = []
+          unavailable = []
+          for rel, expected in expected_divergent.items():
+              primary = core / rel
+              secondary = second / rel
+              if primary.is_file() and sha(primary) == expected:
+                  already_correct.append(rel)
+                  continue
+              if secondary.is_file() and sha(secondary) == expected:
+                  primary.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(secondary, primary)
+                  repaired.append(rel)
+                  continue
+              unavailable.append(rel)
+
+          print(f"divergent originals already correct in primary={len(already_correct)}")
+          print(f"divergent originals repaired from second mirror={len(repaired)}")
+          if repaired:
+              print("repaired paths:")
+              for rel in repaired:
+                  print(rel)
+          if unavailable:
+              print("no verified mirror copy for:")
+              for rel in unavailable:
+                  print(rel)
+              raise SystemExit(
+                  "Neither recovery mirror contains the supplied original bytes "
+                  "for every known divergent file."
+              )
+
+          for path in removed:
+              path.unlink()
+
+          normalized = sorted(
+              (core / "src/main/java").rglob("*.java"),
+              key=lambda p: p.as_posix()
+          )
+          manifest = "".join(
+              f"{sha(path)}  {path.relative_to(core).as_posix()}\n"
+              for path in normalized
+          ).encode()
+          digest = hashlib.sha256(manifest).hexdigest()
+          expected = "18727af501c62c6278416ef85ffe9c3cd0dcb10bc3c141b5fdaafdbf1dd6bc11"
+
+          print(f"normalized java files={len(normalized)}")
+          print(f"normalized baseline manifest sha256={digest}")
+          if len(normalized) != 2948 or digest != expected:
+              raise SystemExit(
+                  "Normalized mirrors still do not exactly match the supplied "
+                  "original source; refusing to run the core compile probe."
+              )
+          PY
+
+      - name: Apply exact migration overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/vape421-core"
+          base64 -d vape421-fabric-26.2/core-fixture/core-overlay.patch.gz.b64 |
+            gzip -dc > "$RUNNER_TEMP/vape421-core.patch"
+          cd "$core"
+          git apply --check "$RUNNER_TEMP/vape421-core.patch"
+          git apply "$RUNNER_TEMP/vape421-core.patch"
+
+          runtime_src="$GITHUB_WORKSPACE/vape421-fabric-26.2/src/client/java/gg/vape/runtime"
+          mkdir -p src/main/java/gg/vape/runtime
+          for file in             FabricMigrationRuntime.java             FileBackedPlatformServices.java             FontAtlasServices.java             PlatformServices.java             ProjectionServices.java             RenderServices.java             VapeBootstrap.java; do
+            cp "$runtime_src/$file" "src/main/java/gg/vape/runtime/$file"
+          done
+
+      - name: Compile recovered bootstrap dependency graph
+        id: core_compile
+        working-directory: vape421-fabric-26.2
+        shell: bash
+        run: |
+          set +e
+          gradle coreCompileProbe             -PrecoveredCoreDir="$RUNNER_TEMP/vape421-core"             --stacktrace > core-compile-probe.txt 2>&1
+          status=$?
+          set -e
+          cat core-compile-probe.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: vape421-recovered-core-compile-probe
+          path: vape421-fabric-26.2/core-compile-probe.txt
