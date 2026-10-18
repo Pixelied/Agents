@@ -1,0 +1,194 @@
+name: Build ToggleSneak 26.2
+
+on:
+  push:
+    branches:
+      - project/togglesneak-26-2-20260920
+    paths:
+      - "projects/togglesneak-26.2/**"
+      - ".github/workflows/togglesneak-build.yml"
+  pull_request:
+    paths:
+      - "projects/togglesneak-26.2/**"
+      - ".github/workflows/togglesneak-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: projects/togglesneak-26.2
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle 9.5.1
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "9.5.1"
+
+      - name: Generate Gradle wrapper
+        run: gradle wrapper --gradle-version 9.5.1 --no-validate-url
+
+      - name: Build and run simulations
+        run: ./gradlew clean check build --stacktrace
+
+      - name: Smoke-launch Fabric client
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p build
+          set +e
+          timeout 90s xvfb-run -a ./gradlew runClient --no-daemon > build/client-smoke.log 2>&1
+          STATUS=$?
+          set -e
+
+          if [ "$STATUS" -ne 124 ]; then
+            echo "ERROR: client exited before the smoke-test timeout (status $STATUS)"
+            tail -n 250 build/client-smoke.log || true
+            exit 1
+          fi
+
+          test -f run/logs/latest.log
+
+          if grep -E -i 'NoSuch(Method|Field)Error|ClassCastException|Mixin.*(failed|error)|Exception in thread|Crash report' run/logs/latest.log; then
+            echo "ERROR: runtime linkage/mixin/crash signature found during client smoke launch"
+            tail -n 250 run/logs/latest.log
+            exit 1
+          fi
+
+          echo "Fabric client remained alive through the smoke window with no linkage/mixin/crash signature."
+
+      - name: Verify final JAR and bytecode
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          JAR="build/libs/togglesneak-1.0.2.jar"
+          test -f "$JAR"
+
+          jar tf "$JAR" | tee build/jar-contents.txt
+
+          if grep -Eq 'StateSimulation|src/test|(^|/)test/' build/jar-contents.txt; then
+            echo "ERROR: test/development classes found in final JAR"
+            exit 1
+          fi
+
+          if grep -R -n -E 'Minecraft[.]screen|Component[.]literal|ClientTickEvents|net[.]fabricmc[.]fabric[.]api[.]event[.]Event' src/main/java; then
+            echo "ERROR: forbidden/fragile API reference found in runtime source"
+            exit 1
+          fi
+
+          : > build/bytecode.txt
+          while IFS= read -r classfile; do
+            classname="${classfile%.class}"
+            classname="${classname//\//.}"
+            javap -classpath "$JAR" -p -c -s -verbose "$classname" >> build/bytecode.txt
+          done < <(jar tf "$JAR" | grep '^dev/adrien/togglesneak/.*[.]class$')
+
+          if grep -E 'ClientTickEvents|Component[.].*literal|fabric/api/event/Event' build/bytecode.txt; then
+            echo "ERROR: forbidden/fragile API reference found in compiled bytecode"
+            exit 1
+          fi
+
+          if grep -E 'net/minecraft/client/Minecraft[.].*screen' build/bytecode.txt; then
+            echo "ERROR: direct Minecraft.screen reference found in compiled bytecode"
+            exit 1
+          fi
+
+          unzip -p "$JAR" fabric.mod.json | tee build/fabric.mod.final.json
+          grep -F '"environment": "client"' build/fabric.mod.final.json
+          grep -F '0.160.0+26.2' build/fabric.mod.final.json
+          grep -F '~26.2' build/fabric.mod.final.json
+
+          cat > build/VERIFICATION.md <<'EOF'
+          # ToggleSneak 1.0.2 verification
+
+          This report is generated only after the clean CI build succeeds.
+
+          - Built with Java 25.
+          - Built using Gradle 9.5.1 and Fabric Loom against Minecraft 26.2.
+          - Fabric API baseline: 0.160.0+26.2.
+          - Fabric Loader baseline: 0.19.5.
+          - `clean check build` passed.
+          - A real Fabric development client was launched under Xvfb and remained alive through the smoke-test window with no runtime linkage, mixin-application, or crash signature.
+          - State/HUD simulation suite passed.
+          - Final remapped JAR exists and its contents were enumerated.
+          - No test/development simulation classes are packaged in the final JAR.
+          - Runtime source contains no direct `Minecraft.screen` reference.
+          - Runtime source/compiled classes contain no `Component.literal` use.
+          - Runtime source/compiled classes contain no `ClientTickEvents` use.
+          - Runtime source/compiled classes contain no direct Fabric `Event` ABI use.
+          - Compiled mod classes were inspected with `javap -p -c -s -verbose`.
+          - Final `fabric.mod.json` was extracted from the built JAR and checked for client-only environment, Minecraft 26.2, and Fabric API 0.160.0+26.2 baseline.
+
+          Simulation coverage includes:
+          - backslash toggle ON/OFF
+          - held-key/repeat protection
+          - physical Sneak disabling Toggle Sneak
+          - same-press Smart Latch blocking
+          - moving Smart Latch timing
+          - stationary Smart Latch timing
+          - movement changes mid-hold without progress reset
+          - mining/attacking suppresses Smart Latch for the current Sneak press
+          - placement/use/interact cancels and suppresses Smart Latch until Sneak release
+          - interaction cancels an already release-ready latch
+          - release-to-lock
+          - GUI cancellation during Smart Latch
+          - GUI suspension with logical toggle preservation/resume
+          - inventory/chat policy keeps active Toggle Sneak applied while Smart Latch remains GUI-cancelled
+          - riding suspension
+          - death/disconnect/world-change reset state
+          - HUD fade-in, persistent ON, fade-out, upward slide
+          - repeated HUD countdown text changes
+          EOF
+
+      - name: Package deliverables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="$PWD"
+          JAR="$ROOT/build/libs/togglesneak-1.0.2.jar"
+          OUT="$ROOT/build/deliverables"
+          mkdir -p "$OUT"
+
+          cp "$JAR" "$OUT/ToggleSneak-1.0.2+mc26.2.jar"
+          cp README.md CHANGELOG.md build/VERIFICATION.md "$OUT/"
+
+          zip -q -r "$OUT/ToggleSneak-1.0.2-source.zip"             src build.gradle settings.gradle gradle.properties README.md CHANGELOG.md
+
+          BUNDLE="$ROOT/build/project-bundle/ToggleSneak-1.0.2"
+          mkdir -p "$BUNDLE"
+          rsync -a             --exclude '.gradle'             --exclude 'build'             ./ "$BUNDLE/"
+          mkdir -p "$BUNDLE/dist"
+          cp "$JAR" "$BUNDLE/dist/ToggleSneak-1.0.2+mc26.2.jar"
+          cp build/VERIFICATION.md "$BUNDLE/VERIFICATION.md"
+
+          (
+            cd "$ROOT/build/project-bundle"
+            zip -q -r "$OUT/ToggleSneak-1.0.2-project.zip" ToggleSneak-1.0.2
+          )
+
+          sha256sum             "$OUT/ToggleSneak-1.0.2+mc26.2.jar"             "$OUT/ToggleSneak-1.0.2-source.zip"             "$OUT/ToggleSneak-1.0.2-project.zip"             > "$OUT/SHA256SUMS.txt"
+
+          ls -lh "$OUT"
+          cat "$OUT/SHA256SUMS.txt"
+
+      - name: Upload deliverables
+        uses: actions/upload-artifact@v4
+        with:
+          name: ToggleSneak-1.0.2-deliverables
+          path: projects/togglesneak-26.2/build/deliverables/*
+          if-no-files-found: error
+          retention-days: 30

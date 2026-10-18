@@ -1,0 +1,64 @@
+plugins {
+    id "net.fabricmc.fabric-loom" version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "loader_version", project.loader_version
+    inputs.property "fabric_version", project.fabric_version
+
+    filesMatching("fabric.mod.json") {
+        expand(
+                "version": project.version,
+                "minecraft_version": project.minecraft_version,
+                "loader_version": project.loader_version,
+                "fabric_version": project.fabric_version
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+    withSourcesJar()
+}
+
+tasks.register("stateSimulation", JavaExec) {
+    group = "verification"
+    description = "Runs ToggleSneak state-machine and HUD animation simulations."
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set("dev.adrien.togglesneak.StateSimulation")
+}
+
+check {
+    dependsOn tasks.named("stateSimulation")
+}
+
+// Simulations are executed by stateSimulation; this project intentionally has no JUnit engine.
+tasks.named("test") {
+    enabled = false
+}

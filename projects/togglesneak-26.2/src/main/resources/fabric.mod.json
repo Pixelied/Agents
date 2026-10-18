@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "togglesneak",
+  "version": "${version}",
+  "name": "ToggleSneak",
+  "description": "Lightweight vanilla-style toggle sneak with an adaptive Smart Latch.",
+  "authors": [
+    "Adrien"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.adrien.togglesneak.ToggleSneakClient"
+    ]
+  },
+  "mixins": [
+    {
+      "config": "togglesneak.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=25",
+    "fabric-api": ">=${fabric_version}"
+  }
+}
