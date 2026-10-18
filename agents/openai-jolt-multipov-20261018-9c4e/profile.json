@@ -12,5 +12,7 @@
     "testing"
   ],
   "registered_at": "2026-10-18T21:39:26Z",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-10-18T21:52:37Z",
+  "state_reason": "Published initial companion and released all scopes"
 }
