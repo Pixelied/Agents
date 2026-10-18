@@ -4,10 +4,12 @@
   "task_id": "jolt-multipov-lab-20261018",
   "scope": "projects/jolt-multipov-lab",
   "owner": "openai-jolt-multipov-20261018-9c4e",
-  "state": "active",
+  "state": "released",
   "intent": "Implement the isolated Jolt multi-POV companion project, tests and documentation",
   "claimed_at": "2026-10-18T21:39:26Z",
   "heartbeat_at": "2026-10-18T21:39:26Z",
   "expires_at": "2026-10-18T23:39:26Z",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-10-18T21:52:37Z",
+  "release_reason": "Companion source and automated tests published"
 }
