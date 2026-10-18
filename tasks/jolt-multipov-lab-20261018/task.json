@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "jolt-multipov-lab-20261018",
+  "title": "Jolt multi-POV companion",
+  "objective": "Build a functional standalone multi-recording and multi-POV analysis tool consuming authentic Jolt v2.4 JSON results, with alignment, gap review, offline interface, tests, and documented limitations.",
+  "created_by": "openai-jolt-multipov-20261018-9c4e",
+  "created_at": "2026-10-18T21:39:26Z",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "projects/jolt-multipov-lab"
+  ],
+  "acceptance_criteria": [
+    "Import Jolt v2.4 results with games, runs, breaks, points, and unread intervals",
+    "Support separately scanned recordings and independent POV tracks",
+    "Align recordings with event anchors and flag timing inconsistencies",
+    "Surface cross-POV gap inspection candidates without claiming proof",
+    "Provide offline UI, CLI, example fixtures, and passing automated tests"
+  ]
+}
