@@ -1,0 +1,8 @@
+{
+  "name": "jolt-multipov-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline multi-recording investigation companion for JoltCracker JSON results",
+  "scripts": {"test": "node --test tests/*.test.js"},
+  "engines": {"node": ">=18"}
+}

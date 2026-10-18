@@ -1,0 +1,400 @@
+{
+  "version": "2.4",
+  "title": "Sample manhunt edit - speedrunner and hunter POV switches",
+  "source": "speedrunner.mp4",
+  "bar": {
+    "x": 820.5,
+    "y": 900.2,
+    "scale": 3
+  },
+  "fps": 60,
+  "span": [
+    0,
+    60
+  ],
+  "readable": 0.72,
+  "unread": [
+    [
+      0,
+      1
+    ],
+    [
+      50,
+      60
+    ]
+  ],
+  "screens": [
+    {
+      "x": 820.5,
+      "y": 900.2,
+      "scale": 3
+    },
+    {
+      "x": 540.5,
+      "y": 700.2,
+      "scale": 2
+    }
+  ],
+  "games": [
+    {
+      "number": 1,
+      "uptime_at_video_start": 250,
+      "screen": 0
+    },
+    {
+      "number": 2,
+      "uptime_at_video_start": 426,
+      "screen": 1
+    }
+  ],
+  "runs": [
+    {
+      "game": 1,
+      "points": [
+        [
+          0,
+          5000,
+          0
+        ],
+        [
+          4,
+          5080,
+          1
+        ],
+        [
+          8,
+          5160,
+          2
+        ]
+      ]
+    },
+    {
+      "game": 2,
+      "points": [
+        [
+          9,
+          8700,
+          3
+        ],
+        [
+          11,
+          8740,
+          4
+        ],
+        [
+          15,
+          8820,
+          5
+        ]
+      ]
+    },
+    {
+      "game": 1,
+      "points": [
+        [
+          16,
+          5330,
+          6
+        ],
+        [
+          20,
+          5410,
+          7
+        ],
+        [
+          25,
+          5510,
+          8
+        ]
+      ]
+    },
+    {
+      "game": 1,
+      "points": [
+        [
+          26,
+          5630,
+          9
+        ],
+        [
+          30,
+          5710,
+          10
+        ],
+        [
+          40,
+          5910,
+          11
+        ]
+      ]
+    }
+  ],
+  "breaks": [
+    {
+      "from": 8,
+      "to": 9,
+      "since": 0,
+      "kind": "screen",
+      "game": 2,
+      "jump_seconds": null
+    },
+    {
+      "from": 15,
+      "to": 16,
+      "since": 1,
+      "kind": "back",
+      "game": 1,
+      "jump_seconds": 0
+    },
+    {
+      "from": 25,
+      "to": 26,
+      "since": 2,
+      "kind": "removed",
+      "game": 1,
+      "jump_seconds": 5
+    }
+  ],
+  "jolts": [
+    {
+      "time": 0,
+      "frame": 0,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5000,
+      "skipped_draws": 0
+    },
+    {
+      "time": 4,
+      "frame": 240,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5080,
+      "skipped_draws": 0
+    },
+    {
+      "time": 8,
+      "frame": 480,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5160,
+      "skipped_draws": 0
+    },
+    {
+      "time": 9,
+      "frame": 540,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 8700,
+      "skipped_draws": 0
+    },
+    {
+      "time": 11,
+      "frame": 660,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 8740,
+      "skipped_draws": 0
+    },
+    {
+      "time": 15,
+      "frame": 900,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 8820,
+      "skipped_draws": 0
+    },
+    {
+      "time": 16,
+      "frame": 960,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5330,
+      "skipped_draws": 0
+    },
+    {
+      "time": 20,
+      "frame": 1200,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5410,
+      "skipped_draws": 0
+    },
+    {
+      "time": 25,
+      "frame": 1500,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5510,
+      "skipped_draws": 0
+    },
+    {
+      "time": 26,
+      "frame": 1560,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5630,
+      "skipped_draws": 0
+    },
+    {
+      "time": 30,
+      "frame": 1800,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5710,
+      "skipped_draws": 0
+    },
+    {
+      "time": 40,
+      "frame": 2400,
+      "frames": 1,
+      "offsets": [
+        -1,
+        0,
+        1,
+        0,
+        0,
+        -1,
+        1,
+        0,
+        -1,
+        0
+      ],
+      "food": 20,
+      "tick": 5910,
+      "skipped_draws": 0
+    }
+  ]
+}
