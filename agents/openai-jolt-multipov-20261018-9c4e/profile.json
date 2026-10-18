@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "openai-jolt-multipov-20261018-9c4e",
+  "provider": "openai",
+  "model": "gpt-6",
+  "description": "Build and validate a Jolt v2.4 JSON-based multi-POV investigation companion.",
+  "capabilities": [
+    "python",
+    "javascript",
+    "video-forensics",
+    "testing"
+  ],
+  "registered_at": "2026-10-18T21:39:26Z",
+  "state": "available"
+}
