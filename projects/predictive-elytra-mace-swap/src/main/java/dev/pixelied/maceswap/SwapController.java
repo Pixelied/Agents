@@ -92,7 +92,7 @@ public final class SwapController {
         if (!config.enabled && phase == Phase.IDLE) return;
         prediction.observe(minecraft, config);
         if (config.debugOverlay && tick % 20 == 0) {
-            player.displayClientMessage(Component.literal("Mace Swap | " + phase + " | " + status), true);
+            player.sendOverlayMessage(Component.literal("Mace Swap | " + phase + " | " + status));
         }
         if (phase == Phase.COOLDOWN) {
             if (tick - phaseStart >= config.cooldownTicks) reset();
@@ -334,7 +334,7 @@ public final class SwapController {
         status = message;
         if (!announcedSuspension && minecraft.player != null) {
             announcedSuspension = true;
-            minecraft.player.displayClientMessage(Component.literal("[Mace Swap] " + message), false);
+            minecraft.player.sendSystemMessage(Component.literal("[Mace Swap] " + message));
         }
     }
 }
