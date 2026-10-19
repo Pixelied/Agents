@@ -1,0 +1,73 @@
+name: Build predictive Elytra Mace Swap
+
+on:
+  push:
+    branches: [feature/predictive-elytra-mace-26-3]
+    paths:
+      - 'projects/predictive-elytra-mace-swap/**'
+      - '.github/workflows/predictive-mace-swap.yml'
+  pull_request:
+    paths:
+      - 'projects/predictive-elytra-mace-swap/**'
+      - '.github/workflows/predictive-mace-swap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack original mod sources (initial bootstrap only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          project=projects/predictive-elytra-mace-swap
+          if [[ -d "$project/_bootstrap" ]]; then
+            cat "$project/_bootstrap"/p{0,1,2,3,4} | base64 -d > "$RUNNER_TEMP/mace-mod-source.tar.xz"
+            echo '48ebd7ace94e54aca7dc1ae3efeb9cc65c96729c28f0e119d172f70903a90b0c  '"$RUNNER_TEMP/mace-mod-source.tar.xz" | sha256sum -c -
+            tar -xJf "$RUNNER_TEMP/mace-mod-source.tar.xz" -C "$project"
+            rm -r "$project/_bootstrap"
+            if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+              git config user.name 'github-actions[bot]'
+              git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+              git add -A "$project"
+              git commit -m 'Initialize standalone Minecraft mod source'
+              git push
+            fi
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.0'
+      - name: Compile and test 26.3 client mod
+        working-directory: projects/predictive-elytra-mace-swap
+        run: gradle --no-daemon --stacktrace clean test build
+      - name: Validate compiled Fabric jar
+        working-directory: projects/predictive-elytra-mace-swap
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lh build/libs/*.jar
+          jar tf build/libs/predictive-elytra-mace-swap-1.0.2.jar | grep -E 'fabric.mod.json|dev/pixelied/maceswap/SwapController.class|assets/predictivemaceswap/icon.png'
+          unzip -p build/libs/predictive-elytra-mace-swap-1.0.2.jar fabric.mod.json | grep '26.3'
+      - name: Package complete project source
+        working-directory: projects/predictive-elytra-mace-swap
+        run: |
+          mkdir -p build/libs
+          zip -qr build/libs/predictive-elytra-mace-swap-1.0.2-source.zip . -x './.git/*' './.gradle/*' './build/*'
+      - name: Publish mod jar and source archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictive-elytra-mace-swap-26.3
+          if-no-files-found: error
+          path: |
+            projects/predictive-elytra-mace-swap/build/libs/predictive-elytra-mace-swap-1.0.2.jar
+            projects/predictive-elytra-mace-swap/build/libs/predictive-elytra-mace-swap-1.0.2-sources.jar
+            projects/predictive-elytra-mace-swap/build/libs/predictive-elytra-mace-swap-1.0.2-source.zip

@@ -1,0 +1,34 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+group = project.maven_group
+version = project.mod_version
+base.archivesName = 'predictive-elytra-mace-swap'
+repositories {
+    maven { url = 'https://maven.terraformersmc.com/releases/' }
+    maven { url = 'https://maven.terraformersmc.com/' }
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    // Compile against Mod Menu API without bundling or requiring it at runtime.
+    compileOnly "com.terraformersmc:modmenu:${modmenu_version}"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand(version: project.version) }
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+    withSourcesJar()
+}
+tasks.withType(Test).configureEach { useJUnitPlatform() }

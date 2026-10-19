@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "predictivemaceswap",
+  "version": "${version}",
+  "name": "Predictive Elytra Mace Swap",
+  "description": "Predicts Elytra mace-smash windows when a mace is anywhere in the hotbar, then manages chestplate swaps and glide recovery.",
+  "authors": ["Pixelied"],
+  "environment": "client",
+  "license": "MIT",
+  "mixins": ["predictivemaceswap.mixins.json"],
+  "icon": "assets/predictivemaceswap/icon.png",
+  "entrypoints": {
+    "client": ["dev.pixelied.maceswap.PredictiveMaceSwapClient"],
+    "modmenu": ["dev.pixelied.maceswap.MaceSwapModMenu"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "=26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "suggests": {"modmenu": ">=21.0.0"}
+}

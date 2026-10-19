@@ -1,0 +1,5 @@
+{
+  "modmenu.nameTranslation.predictivemaceswap": "Predictive Elytra Mace Swap",
+  "modmenu.summaryTranslation.predictivemaceswap": "Predictive chestplate swapping for Elytra mace smashes",
+  "modmenu.descriptionTranslation.predictivemaceswap": "Predicts short-range smash windows using gliding physics, target motion, attack reach, and latency. Swaps armor only for promising attacks, then restores Elytra and resumes flight. Manual attacks only."
+}
