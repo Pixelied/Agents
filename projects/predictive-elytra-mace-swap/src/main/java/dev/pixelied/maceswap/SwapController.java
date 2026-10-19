@@ -304,22 +304,19 @@ public final class SwapController {
     }
 
     private int findMaceHotbar(LocalPlayer player) {
-        int selected = player.getInventory().getSelectedSlot();
-        if (player.getInventory().getItem(selected).is(Items.MACE)) return selected;
-        for (int i = 0; i < 9; i++) {
-            if (player.getInventory().getItem(i).is(Items.MACE)) return i;
+        boolean[] maceSlots = new boolean[HotbarSlotPicker.HOTBAR_SIZE];
+        for (int i = 0; i < maceSlots.length; i++) {
+            maceSlots[i] = player.getInventory().getItem(i).is(Items.MACE);
         }
-        return -1;
+        return HotbarSlotPicker.findMaceSlot(maceSlots, player.getInventory().getSelectedSlot());
     }
 
     private int findSpareHotbar(LocalPlayer player, int selected, int maceSlot) {
-        for (int i = 0; i < 9; i++) {
-            if (i != selected && i != maceSlot && player.getInventory().getItem(i).isEmpty()) return i;
+        boolean[] emptySlots = new boolean[HotbarSlotPicker.HOTBAR_SIZE];
+        for (int i = 0; i < emptySlots.length; i++) {
+            emptySlots[i] = player.getInventory().getItem(i).isEmpty();
         }
-        for (int i = 0; i < 9; i++) {
-            if (i != selected && i != maceSlot) return i;
-        }
-        return -1;
+        return HotbarSlotPicker.findBufferSlot(emptySlots, selected, maceSlot);
     }
 
     private void restoreSelectedSlot(LocalPlayer player) {
