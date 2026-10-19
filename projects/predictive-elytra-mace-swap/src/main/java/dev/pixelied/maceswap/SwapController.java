@@ -247,7 +247,7 @@ public final class SwapController {
     private void attemptStart(LocalPlayer player) {
         if (minecraft.gui.screen() != null || player.containerMenu != player.inventoryMenu || player.isSpectator()
             || player.getAbilities().flying || player.onGround() || !player.isFallFlying()
-            || !player.getMainHandItem().is(Items.MACE) || player.isPassenger()
+            || player.isPassenger()
             || !player.inventoryMenu.getCarried().isEmpty()) return;
         ItemStack currentChest = player.getItemBySlot(EquipmentSlot.CHEST);
         if (!currentChest.is(Items.ELYTRA) || !net.minecraft.world.entity.LivingEntity.canGlideUsing(currentChest, EquipmentSlot.CHEST)) return;
