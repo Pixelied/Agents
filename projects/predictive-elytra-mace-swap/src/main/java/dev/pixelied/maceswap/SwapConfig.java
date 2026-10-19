@@ -22,7 +22,8 @@ public final class SwapConfig {
     public boolean requireAim = true;
     public boolean debugOverlay = false;
     public int predictionTicks = 18;
-    public int extraLeadTicks = 1;
+    /** Maximum ticks after predicted glide exit in which a smash may be forecast; lower values delay the swap. */
+    public int swapTimingTicks = 3;
     public int opportunityTicks = 5;
     public int latencyFloorMs = 50;
     public int rangeSafetyPercent = 12;
@@ -49,7 +50,7 @@ public final class SwapConfig {
 
     public void normalize() {
         predictionTicks = clamp(predictionTicks, 8, 32);
-        extraLeadTicks = clamp(extraLeadTicks, 0, 8);
+        swapTimingTicks = clamp(swapTimingTicks, 1, 8);
         opportunityTicks = clamp(opportunityTicks, 2, 10);
         latencyFloorMs = clamp(latencyFloorMs, 0, 500);
         rangeSafetyPercent = clamp(rangeSafetyPercent, 0, 45);
