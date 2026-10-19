@@ -34,7 +34,7 @@ Standalone **client-side** Fabric mod. The mod predicts a short-term mace-smash 
 gradle --no-daemon clean test build
 ```
 
-Requires Gradle 9.6 and a Java 25 JDK. CI creates the installable mod jar as a GitHub Actions artifact and also keeps the source jar. The Gradle setup uses the 26.3 deobfuscated (`net.fabricmc.fabric-loom`) toolchain.
+Requires Gradle 9.7 and a Java 25 JDK. CI creates the installable mod jar as a GitHub Actions artifact and also keeps the source jar. The Gradle setup uses the 26.3 deobfuscated (`net.fabricmc.fabric-loom`) toolchain.
 
 ## Validated vs not validated
 
