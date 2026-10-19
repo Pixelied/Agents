@@ -55,13 +55,13 @@ jobs:
         run: |
           set -euo pipefail
           ls -lh build/libs/*.jar
-          jar tf build/libs/predictive-elytra-mace-swap-1.0.1.jar | grep -E 'fabric.mod.json|dev/pixelied/maceswap/SwapController.class|assets/predictivemaceswap/icon.png'
-          unzip -p build/libs/predictive-elytra-mace-swap-1.0.1.jar fabric.mod.json | grep '26.3'
+          jar tf build/libs/predictive-elytra-mace-swap-1.0.2.jar | grep -E 'fabric.mod.json|dev/pixelied/maceswap/SwapController.class|assets/predictivemaceswap/icon.png'
+          unzip -p build/libs/predictive-elytra-mace-swap-1.0.2.jar fabric.mod.json | grep '26.3'
       - name: Publish mod jar and source jar
         uses: actions/upload-artifact@v4
         with:
           name: predictive-elytra-mace-swap-26.3
           if-no-files-found: error
           path: |
-            projects/predictive-elytra-mace-swap/build/libs/predictive-elytra-mace-swap-1.0.1.jar
-            projects/predictive-elytra-mace-swap/build/libs/predictive-elytra-mace-swap-1.0.1-sources.jar
+            projects/predictive-elytra-mace-swap/build/libs/predictive-elytra-mace-swap-1.0.2.jar
+            projects/predictive-elytra-mace-swap/build/libs/predictive-elytra-mace-swap-1.0.2-sources.jar
