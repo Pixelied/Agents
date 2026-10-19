@@ -32,6 +32,9 @@ public final class SwapController {
     private int targetId = -1;
     private int bufferSlot = -1;
     private int originalSlot = -1;
+    private int maceSlot = -1;
+    private int restoreSelectedSlot = -1;
+    private boolean selectedSlotChangedByMod;
     private boolean needsBuffer;
     private ItemStack chestplate = ItemStack.EMPTY;
     private ItemStack elytra = ItemStack.EMPTY;
@@ -67,7 +70,8 @@ public final class SwapController {
 
     private void reset() {
         phase = Phase.IDLE;
-        targetId = bufferSlot = originalSlot = -1;
+        targetId = bufferSlot = originalSlot = maceSlot = restoreSelectedSlot = -1;
+        selectedSlotChangedByMod = false;
         needsBuffer = false;
         elytra = chestplate = originalBuffer = ItemStack.EMPTY;
         previousAttack = false;
@@ -137,6 +141,17 @@ public final class SwapController {
         if (phase == Phase.WAIT_ARMOR) {
             if (equipmentMatches(player.getItemBySlot(EquipmentSlot.CHEST), chestplate)
                 && equipmentMatches(player.getInventory().getItem(bufferSlot), elytra)) {
+                if (maceSlot < 0 || !player.getInventory().getItem(maceSlot).is(Items.MACE)) {
+                    beginRecovery("Mace hotbar slot changed");
+                    return;
+                }
+                int selectedNow = player.getInventory().getSelectedSlot();
+                if (selectedNow != maceSlot) {
+                    // Remember the slot the player was using immediately before our temporary selection.
+                    restoreSelectedSlot = selectedNow;
+                    player.getInventory().setSelectedSlot(maceSlot);
+                    selectedSlotChangedByMod = true;
+                }
                 phase = Phase.ARMED;
                 phaseStart = tick;
                 status = "Smash opportunity armed";
@@ -151,7 +166,8 @@ public final class SwapController {
                 beginRecovery("Attack input detected");
             } else if (tick - phaseStart >= config.opportunityTicks + latencyTicks(player) + 7) {
                 beginRecovery("Opportunity expired");
-            } else if (player.onGround() || !player.getMainHandItem().is(Items.MACE)) {
+            } else if (player.onGround() || player.getInventory().getSelectedSlot() != maceSlot
+                || !player.getMainHandItem().is(Items.MACE)) {
                 beginRecovery("Glide or mace interrupted");
             } else if (targetId >= 0 && (minecraft.level.getEntity(targetId) == null ||
                 minecraft.level.getEntity(targetId).distanceToSqr(player) > Math.pow(config.searchRadius * 1.6, 2))) {
@@ -180,6 +196,7 @@ public final class SwapController {
             } else {
                 phase = Phase.REGLIDE;
                 phaseStart = tick;
+                restoreSelectedSlot(player);
             }
             attemptReglide(player);
             return;
@@ -190,6 +207,7 @@ public final class SwapController {
                 && equipmentMatches(player.getInventory().getItem(bufferSlot), originalBuffer)) {
                 phase = Phase.REGLIDE;
                 phaseStart = tick;
+                restoreSelectedSlot(player);
                 status = "Inventory restored";
                 return;
             }
@@ -233,19 +251,29 @@ public final class SwapController {
             || !player.inventoryMenu.getCarried().isEmpty()) return;
         ItemStack currentChest = player.getItemBySlot(EquipmentSlot.CHEST);
         if (!currentChest.is(Items.ELYTRA) || !net.minecraft.world.entity.LivingEntity.canGlideUsing(currentChest, EquipmentSlot.CHEST)) return;
+        int foundMaceSlot = findMaceHotbar(player);
+        if (foundMaceSlot < 0) { status = "Put a mace in your hotbar"; return; }
         int chosen = findChestplate(player);
         if (chosen < 0) { status = "Put a chestplate in your inventory"; return; }
         int selected = player.getInventory().getSelectedSlot();
-        originalSlot = chosen;
-        needsBuffer = chosen >= 9;
-        bufferSlot = needsBuffer ? findSpareHotbar(player, selected) : chosen;
-        if (bufferSlot < 0) return;
+        boolean candidateNeedsBuffer = chosen >= 9;
+        int candidateBufferSlot = candidateNeedsBuffer
+            ? findSpareHotbar(player, selected, foundMaceSlot)
+            : chosen;
+        if (candidateBufferSlot < 0) return;
         int latency = latencyTicks(player);
         // Keep one tick of safety allowance for the server-side equipment transition.
-        int exitTick = latency + (needsBuffer ? 2 : 1) + 1;
-        PredictionEngine.Forecast forecast = prediction.forecast(minecraft, config, exitTick);
+        int exitTick = latency + (candidateNeedsBuffer ? 2 : 1) + 1;
+        ItemStack maceStack = player.getInventory().getItem(foundMaceSlot);
+        PredictionEngine.Forecast forecast = prediction.forecast(minecraft, config, exitTick, maceStack);
         if (forecast == null || !TrajectoryMath.withinSwapTimingWindow(
             forecast.smashTick(), exitTick, config.swapTimingTicks)) return;
+        maceSlot = foundMaceSlot;
+        restoreSelectedSlot = -1;
+        selectedSlotChangedByMod = false;
+        originalSlot = chosen;
+        needsBuffer = candidateNeedsBuffer;
+        bufferSlot = candidateBufferSlot;
         targetId = forecast.targetId();
         chestplate = player.getInventory().getItem(chosen).copy();
         elytra = currentChest.copy();
@@ -275,10 +303,34 @@ public final class SwapController {
         return hotbar >= 0 ? hotbar : main;
     }
 
-    private int findSpareHotbar(LocalPlayer player, int selected) {
-        for (int i = 0; i < 9; i++) if (i != selected && player.getInventory().getItem(i).isEmpty()) return i;
-        for (int i = 0; i < 9; i++) if (i != selected) return i;
+    private int findMaceHotbar(LocalPlayer player) {
+        int selected = player.getInventory().getSelectedSlot();
+        if (player.getInventory().getItem(selected).is(Items.MACE)) return selected;
+        for (int i = 0; i < 9; i++) {
+            if (player.getInventory().getItem(i).is(Items.MACE)) return i;
+        }
         return -1;
+    }
+
+    private int findSpareHotbar(LocalPlayer player, int selected, int maceSlot) {
+        for (int i = 0; i < 9; i++) {
+            if (i != selected && i != maceSlot && player.getInventory().getItem(i).isEmpty()) return i;
+        }
+        for (int i = 0; i < 9; i++) {
+            if (i != selected && i != maceSlot) return i;
+        }
+        return -1;
+    }
+
+    private void restoreSelectedSlot(LocalPlayer player) {
+        if (!selectedSlotChangedByMod) return;
+        // Do not override a manual slot change made after the automatic mace selection.
+        if (player.getInventory().getSelectedSlot() == maceSlot
+            && restoreSelectedSlot >= 0 && restoreSelectedSlot < 9) {
+            player.getInventory().setSelectedSlot(restoreSelectedSlot);
+        }
+        selectedSlotChangedByMod = false;
+        restoreSelectedSlot = -1;
     }
 
     private static int menuSlot(int inventoryIndex) { return inventoryIndex < 9 ? 36 + inventoryIndex : inventoryIndex; }
