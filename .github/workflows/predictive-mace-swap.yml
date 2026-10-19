@@ -31,11 +31,13 @@ jobs:
             echo '48ebd7ace94e54aca7dc1ae3efeb9cc65c96729c28f0e119d172f70903a90b0c  '"$RUNNER_TEMP/mace-mod-source.tar.xz" | sha256sum -c -
             tar -xJf "$RUNNER_TEMP/mace-mod-source.tar.xz" -C "$project"
             rm -r "$project/_bootstrap"
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add -A "$project"
-            git commit -m 'Initialize standalone Minecraft mod source'
-            git push
+            if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+              git config user.name 'github-actions[bot]'
+              git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+              git add -A "$project"
+              git commit -m 'Initialize standalone Minecraft mod source'
+              git push
+            fi
           fi
       - uses: actions/setup-java@v4
         with:
