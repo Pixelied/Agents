@@ -8,6 +8,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.AttackRange;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
@@ -63,12 +64,10 @@ public final class PredictionEngine {
     }
 
     /** @param exitAtTick projected server-acknowledged end of gliding */
-    public Forecast forecast(Minecraft mc, SwapConfig config, int exitAtTick) {
-        if (mc.player == null || mc.level == null) return null;
+    public Forecast forecast(Minecraft mc, SwapConfig config, int exitAtTick, ItemStack mace) {
+        if (mc.player == null || mc.level == null || mace == null || !mace.is(Items.MACE)) return null;
         var player = mc.player;
         if (player.isInWater() || player.isPassenger() || player.hasEffect(MobEffects.LEVITATION) || player.onGround()) return null;
-
-        ItemStack mace = player.getMainHandItem();
         AttackRange attackRange = player.getAttackRangeWith(mace);
         double maxReach = attackRange.effectiveMaxRange(player) + attackRange.hitboxMargin();
         maxReach *= (100.0 - config.rangeSafetyPercent) / 100.0;
