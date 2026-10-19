@@ -38,6 +38,7 @@ public final class SwapController {
     private ItemStack originalBuffer = ItemStack.EMPTY;
     private boolean previousAttack;
     private boolean queuedAttackAttempt;
+    private boolean attackPending;
 
     public void recordAttackAttempt() { queuedAttackAttempt = true; }
     private boolean announcedSuspension;
@@ -71,6 +72,7 @@ public final class SwapController {
         elytra = chestplate = originalBuffer = ItemStack.EMPTY;
         previousAttack = false;
         queuedAttackAttempt = false;
+        attackPending = false;
         status = "Idle";
         announcedSuspension = false;
         restoreArmorSent = false;
@@ -89,6 +91,10 @@ public final class SwapController {
         boolean newAttack = (attack && !previousAttack) || queuedAttackAttempt;
         queuedAttackAttempt = false;
         previousAttack = attack;
+        if (newAttack && (phase == Phase.WAIT_BUFFER || phase == Phase.WAIT_ARMOR || phase == Phase.ARMED)) {
+            // Preserve attacks that happen while the inventory transaction is still being acknowledged.
+            attackPending = true;
+        }
         if (!config.enabled && phase == Phase.IDLE) return;
         prediction.observe(minecraft, config);
         if (config.debugOverlay && tick % 20 == 0) {
@@ -99,7 +105,8 @@ public final class SwapController {
             return;
         }
         if (phase == Phase.IDLE) {
-            if (config.enabled) attemptStart(player);
+            // Never begin an automated swap on the same tick as the user's manual attack.
+            if (config.enabled && !newAttack) attemptStart(player);
             return;
         }
         if (phase == Phase.SUSPENDED) return; // Never guess where equipment went.
@@ -140,7 +147,7 @@ public final class SwapController {
         }
         if (phase == Phase.ARMED) {
             // Manual hit OR miss. No automatic attack is attempted.
-            if (newAttack && tick - phaseStart >= 1) {
+            if (attackPending && tick - phaseStart >= 1) {
                 beginRecovery("Attack input detected");
             } else if (tick - phaseStart >= config.opportunityTicks + latencyTicks(player) + 7) {
                 beginRecovery("Opportunity expired");
@@ -306,6 +313,7 @@ public final class SwapController {
         phase = Phase.RESTORE_ARMOR;
         restoreArmorSent = false;
         restoreSourceSent = false;
+        attackPending = false;
         phaseStart = tick;
         status = reason + " - restoring";
     }
