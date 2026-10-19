@@ -7,21 +7,21 @@ Standalone **client-side** Fabric mod. The mod predicts a short-term mace-smash 
 - Minecraft **Java Edition 26.3**, Java **25**
 - Fabric Loader **0.19.5+** and Fabric API **0.163.0+26.3**
 - Optional (for its Config button): Mod Menu **21.0.0**
-- A usable Elytra equipped, a mace in your selected hand, and a chestplate in your main inventory or hotbar
+- A usable Elytra equipped, a mace anywhere in your hotbar, and a chestplate in your main inventory or hotbar
 
 ## Install
 
 1. Install Fabric Loader for Java 26.3 and place Fabric API 0.163.0+26.3 into `mods`.
-2. Put `predictive-elytra-mace-swap-1.0.1.jar` into your Minecraft `mods` directory. **Don't use** the `-sources.jar`.
+2. Put `predictive-elytra-mace-swap-1.0.2.jar` into your Minecraft `mods` directory. **Don't use** the `-sources.jar`.
 3. Install Mod Menu 21.0.0 for a Configure button, or omit it and keep the conservative defaults.
 4. Launch the Fabric 26.3 profile. Open **Mods → Predictive Elytra Mace Swap → Configure**.
-5. Equip Elytra; keep your chestplate in inventory or hotbar; hold the mace and fly toward a target. **You attack manually.**
+5. Equip Elytra; keep your chestplate in inventory or hotbar and a mace anywhere in your hotbar. Fly toward a target. The mod selects the mace only after the chestplate swap is confirmed; you still attack manually.
 
 ## Behavior and conservative assumptions
 
 - Uses `MaceItem.canSmashAttack` rule (`fallDistance > 1.5` and no gliding), the 26.3 glide lift/drag equations, 26.3 item attack range, target hitboxes, predicted remote velocity, obstructing blocks, and measured ping. The prediction runs only within a configurable nearby area.
 - **Swap timing is adjustable** in Mods → Configure → Prediction. The default is 3 ticks after the predicted glide exit; lower values wait until the smash is closer, while higher values start preparing earlier. If set too low for your trajectory or ping, the mod may skip an opportunity rather than swap early.
-- Does **not** change your aiming, movement, attack binding, or send attack packets.
+- Does **not** change your aiming, movement, attack binding, or send attack packets. If the mace is not selected, it selects the hotbar mace after the chestplate swap is confirmed, then restores your previous selected slot during recovery unless you manually change slots. The temporary inventory buffer never uses the chosen mace slot.
 - Uses vanilla `ContainerInput.SWAP` operations with empty cursor; it never performs cursor pickup/drop operations. Chestplate can be in main inventory: a *temporary* unselected hotbar slot is reserved, then returned to its initial contents after the attack.
 - Its state machine checks each predicted client inventory transition before proceeding; when a match is unexpected, it stops instead of blindly swapping and warns you.
 - On attack input, expiry, invalidated target, or disabled setting, reverses inventory changes. Re-glide sends the same START_FALL_FLYING action as a Space press as soon as the client observes Elytra restored. It cannot guarantee recovery if the player has already touched the ground or if a server plugin rejects flight.
@@ -35,7 +35,7 @@ Standalone **client-side** Fabric mod. The mod predicts a short-term mace-smash 
 gradle --no-daemon clean test build
 ```
 
-Requires Gradle 9.7 and a Java 25 JDK. This timing update is version 1.0.1. CI creates the installable mod jar as a GitHub Actions artifact and also keeps the source jar. The Gradle setup uses the 26.3 deobfuscated (`net.fabricmc.fabric-loom`) toolchain.
+Requires Gradle 9.7 and a Java 25 JDK. This release is version 1.0.2 and supports a mace anywhere in the hotbar. CI creates the installable mod jar as a GitHub Actions artifact and also keeps the source jar. The Gradle setup uses the 26.3 deobfuscated (`net.fabricmc.fabric-loom`) toolchain.
 
 ## Validated vs not validated
 
