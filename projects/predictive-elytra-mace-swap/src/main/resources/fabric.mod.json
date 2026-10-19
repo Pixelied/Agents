@@ -3,7 +3,7 @@
   "id": "predictivemaceswap",
   "version": "${version}",
   "name": "Predictive Elytra Mace Swap",
-  "description": "Predicts Elytra-to-mace smash windows and safely manages chestplate swaps and glide recovery.",
+  "description": "Predicts Elytra mace-smash windows when a mace is anywhere in the hotbar, then manages chestplate swaps and glide recovery.",
   "authors": ["Pixelied"],
   "environment": "client",
   "license": "MIT",
