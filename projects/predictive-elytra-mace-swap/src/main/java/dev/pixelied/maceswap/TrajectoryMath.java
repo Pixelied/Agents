@@ -19,6 +19,10 @@ public final class TrajectoryMath {
         if (damping == 1) return velocity * ticks;
         return velocity * (1 - Math.pow(damping, ticks)) / (1 - damping);
     }
+    /** True only when the predicted smash is close enough after glide exit to justify swapping now. */
+    public static boolean withinSwapTimingWindow(int smashTick, int exitTick, int swapTimingTicks) {
+        return smashTick > exitTick && smashTick <= exitTick + Math.max(1, swapTimingTicks);
+    }
     public static int latencyTicks(int pingMs, int floorMs) {
         // Approximate one-way packet travel, plus one server scheduling tick.
         return Math.max(1, (int)Math.ceil(Math.max(pingMs, floorMs) / 100.0) + 1);
