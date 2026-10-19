@@ -56,8 +56,8 @@ public final class ConfigScreen extends Screen {
             case 1 -> {
                 addNumber(left, firstY, colWidth, "Lookahead", "Maximum flight forecast",
                     () -> working.predictionTicks, n -> working.predictionTicks = n, 8, 32, 2, " ticks");
-                addNumber(left + colWidth + colGap, firstY, colWidth, "Extra lead", "Extra swap preparation",
-                    () -> working.extraLeadTicks, n -> working.extraLeadTicks = n, 0, 8, 1, " ticks");
+                addNumber(left + colWidth + colGap, firstY, colWidth, "Swap timing", "Lower = later swap",
+                    () -> working.swapTimingTicks, n -> working.swapTimingTicks = n, 1, 8, 1, " ticks");
                 addNumber(left, firstY + 56, colWidth, "Smash window", "Time to attack after exit",
                     () -> working.opportunityTicks, n -> working.opportunityTicks = n, 2, 10, 1, " ticks");
                 addNumber(left + colWidth + colGap, firstY + 56, colWidth, "Range margin", "Conservative attack reach",
@@ -120,7 +120,7 @@ public final class ConfigScreen extends Screen {
         String[] descriptions = tab == 0
             ? new String[]{"Scan for a valid smash", "Only swap when on-target", "Show state over hotbar", "Maximum search distance"}
             : tab == 1
-                ? new String[]{"Simulate ahead", "Allow for packet timing", "How long to stay armed", "Avoid edge-of-reach hits"}
+                ? new String[]{"Simulate ahead", "Lower = later swap", "How long to stay armed", "Avoid edge-of-reach hits"}
                 : new String[]{"Retry Space action safely", "Minimum assumed RTT", "Limit glide retries", "Prevent swap loops"};
         int gap = 12;
         int colW = (total - gap) / 2;
