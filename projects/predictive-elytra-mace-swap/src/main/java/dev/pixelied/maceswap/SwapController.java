@@ -241,9 +241,11 @@ public final class SwapController {
         bufferSlot = needsBuffer ? findSpareHotbar(player, selected) : chosen;
         if (bufferSlot < 0) return;
         int latency = latencyTicks(player);
-        int exitTick = latency + (needsBuffer ? 2 : 1) + config.extraLeadTicks;
+        // Keep one tick of safety allowance for the server-side equipment transition.
+        int exitTick = latency + (needsBuffer ? 2 : 1) + 1;
         PredictionEngine.Forecast forecast = prediction.forecast(minecraft, config, exitTick);
-        if (forecast == null || forecast.smashTick() <= exitTick) return;
+        if (forecast == null || !TrajectoryMath.withinSwapTimingWindow(
+            forecast.smashTick(), exitTick, config.swapTimingTicks)) return;
         targetId = forecast.targetId();
         chestplate = player.getInventory().getItem(chosen).copy();
         elytra = currentChest.copy();
