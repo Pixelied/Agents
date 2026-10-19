@@ -139,7 +139,8 @@ public final class PredictionEngine {
                     TrajectoryMath.airVelocityY(stepMotion.y(), effectiveGravity, vertDrag),
                     stepMotion.z() * horDrag);
             }
-            if (!TrajectoryMath.maceEligible(falling, gliding) || t > exitAtTick + config.opportunityTicks) continue;
+            if (!TrajectoryMath.maceEligible(falling, gliding)
+                || t <= exitAtTick || t > exitAtTick + config.swapTimingTicks) continue;
             Vec3 eye = position.add(0, standEyes, 0);
             for (Entity candidate : candidates) {
                 AABB bb = candidate.getBoundingBox();
