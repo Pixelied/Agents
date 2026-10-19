@@ -16,6 +16,14 @@ class TrajectoryMathTest {
     @Test void atmosphericVerticalMotion() {
         assertEquals((-0.3 - 0.08) * 0.98, TrajectoryMath.airVelocityY(-0.3, 0.08, 0.98), 1e-8);
     }
+    @Test void swapTimingWindowWaitsUntilSmashIsCloseToGlideExit() {
+        assertFalse(TrajectoryMath.withinSwapTimingWindow(10, 4, 3));
+        assertFalse(TrajectoryMath.withinSwapTimingWindow(8, 4, 3));
+        assertTrue(TrajectoryMath.withinSwapTimingWindow(7, 4, 3));
+        assertTrue(TrajectoryMath.withinSwapTimingWindow(5, 4, 1));
+        assertFalse(TrajectoryMath.withinSwapTimingWindow(4, 4, 3));
+        assertFalse(TrajectoryMath.withinSwapTimingWindow(3, 4, 3));
+    }
     @Test void targetMovementAndLatency() {
         assertEquals(0.0, TrajectoryMath.dampedTargetMotion(2, 0, 0.85), 1e-9);
         assertEquals(1.85, TrajectoryMath.dampedTargetMotion(1, 2, 0.85), 1e-9);
