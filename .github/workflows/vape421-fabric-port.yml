@@ -209,7 +209,7 @@ jobs:
               key=lambda p: p.as_posix()
           )
           manifest = "".join(
-              f"{sha(path)}  {path.relative_to(core).as_posix()}\\n"
+              f"{sha(path)}  {path.relative_to(core).as_posix()}\n"
               for path in normalized
           ).encode()
           digest = hashlib.sha256(manifest).hexdigest()
