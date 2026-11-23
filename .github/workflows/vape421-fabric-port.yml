@@ -101,11 +101,11 @@ jobs:
           import re
 
           root = Path(os.environ["CORE"]) / "src/main/java"
-          pattern = re.compile(r"GL11\\.glGetFloat\\((\\(int\\)[^,]+),")
+          pattern = re.compile(r"GL11\.glGetFloat\((\(int\)[^,]+),")
           changed = 0
           for source in root.rglob("*.java"):
               text = source.read_text(encoding="utf-8")
-              updated, count = pattern.subn(r"GL11.glGetFloatv(\\1,", text)
+              updated, count = pattern.subn(r"GL11.glGetFloatv(\1,", text)
               if count:
                   source.write_text(updated, encoding="utf-8")
                   changed += count
