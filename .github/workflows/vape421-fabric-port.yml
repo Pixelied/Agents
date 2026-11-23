@@ -107,6 +107,10 @@ jobs:
                   "GL11.glGetFloat((int)2983, (FloatBuffer)previousProjectionMatrix);",
                   "GL11.glGetFloatv((int)2983, (FloatBuffer)previousProjectionMatrix);",
               ),
+              "gg/vape/utils/render/CachedTextTexture.java#matrix": (
+                  "GL11.glLoadMatrix((FloatBuffer)previousProjectionMatrix);",
+                  "GL11.glLoadMatrixf((FloatBuffer)previousProjectionMatrix);",
+              ),
           }
 
           for relative, (old, new) in replacements.items():
