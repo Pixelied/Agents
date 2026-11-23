@@ -43,10 +43,14 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-    // The recovered sources still reference these types in legacy mapping
-    // and transformer classes. They are compile-only: the Fabric runtime must
-    // use Minecraft/Mixin's ASM and must not package the old injector libraries.
-    clientCompileOnly 'org.javassist:javassist:3.29.2-GA'
+    // Javassist is still used by the recovered mapping task graph at runtime,
+    // not merely by javac. Ship the pure-Java dependency through Fabric Loom's
+    // jar-in-jar support; omit the old native injector binaries.
+    clientImplementation 'org.javassist:javassist:3.29.2-GA'
+    include 'org.javassist:javassist:3.29.2-GA'
+
+    // ASM is supplied by Minecraft/Fabric. Avoid shipping additional
+    // incompatible ASM versions inside this mod.
     clientCompileOnly 'org.ow2.asm:asm:9.7.1'
     clientCompileOnly 'org.ow2.asm:asm-tree:9.7.1'
     clientCompileOnly 'org.ow2.asm:asm-analysis:9.7.1'
