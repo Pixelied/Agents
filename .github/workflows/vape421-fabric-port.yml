@@ -107,14 +107,6 @@ jobs:
                   "GL11.glGetFloat((int)2983, (FloatBuffer)previousProjectionMatrix);",
                   "GL11.glGetFloatv((int)2983, (FloatBuffer)previousProjectionMatrix);",
               ),
-              "gg/vape/utils/render/BufferedOpenGlBackend.java": (
-                  "GL11.glGetFloatv((int)parameter)",
-                  "GL11.glGetFloat((int)parameter)",
-              ),
-              "gg/vape/utils/render/LegacyOpenGlBackend.java": (
-                  "GL11.glGetFloatv((int)parameter)",
-                  "GL11.glGetFloat((int)parameter)",
-              ),
           }
 
           for relative, (old, new) in replacements.items():
