@@ -91,6 +91,22 @@ jobs:
           git apply --check "$RUNNER_TEMP/vape421-core.patch"
           git apply "$RUNNER_TEMP/vape421-core.patch"
 
+          # LWJGL 3 (bundled by Minecraft 26.2) renamed the LWJGL 2
+          # glGetFloat entrypoint to glGetFloatv. Keep this legacy fallback
+          # source-compatible without bundling LWJGL 2 into the Fabric mod.
+          CORE="$core" python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          source = Path(os.environ["CORE"]) / "src/main/java/gg/vape/render/OffscreenRenderContext.java"
+          text = source.read_text(encoding="utf-8")
+          old = "GL11.glGetFloat((int)3106, (FloatBuffer)floatBuffer);"
+          new = "GL11.glGetFloatv((int)3106, (FloatBuffer)floatBuffer);"
+          if old not in text:
+              raise SystemExit("Expected LWJGL 2 glGetFloat call was not found; refusing an unverified source rewrite.")
+          source.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
           git diff --check
 
       - name: Inspect migrated native bridge call contracts
