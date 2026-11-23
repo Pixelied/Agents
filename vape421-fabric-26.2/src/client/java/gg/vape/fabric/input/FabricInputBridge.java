@@ -1,5 +1,7 @@
 package gg.vape.fabric.input;
 
+import gg.vape.fabric.screen.VapeFabricMenuScreen;
+import org.lwjgl.glfw.GLFW;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class FabricInputBridge {
@@ -22,6 +24,13 @@ public final class FabricInputBridge {
 
     public static boolean onKey(int key, int scancode, int action, int modifiers) {
         STATE.onKey(key, action, modifiers);
+        // Always make the GUI key functional, even if legacy managers failed.
+        // Minecraft 26.2 uses a native Screen instead of injected OpenGL UI.
+        if (key == GLFW.GLFW_KEY_RIGHT_SHIFT
+                && action == GLFW.GLFW_PRESS
+                && VapeFabricMenuScreen.toggleFromKey()) {
+            return true;
+        }
         boolean consumed = false;
         for (Listener listener : LISTENERS) consumed |= listener.onKey(key, scancode, action, modifiers);
         return consumed;
