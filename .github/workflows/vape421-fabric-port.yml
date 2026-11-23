@@ -224,12 +224,6 @@ jobs:
           git apply --check "$RUNNER_TEMP/vape421-core.patch"
           git apply "$RUNNER_TEMP/vape421-core.patch"
 
-          runtime_src="$GITHUB_WORKSPACE/vape421-fabric-26.2/src/client/java/gg/vape/runtime"
-          mkdir -p src/main/java/gg/vape/runtime
-          for file in FabricMigrationRuntime.java FileBackedPlatformServices.java FontAtlasServices.java PlatformServices.java ProjectionServices.java RenderServices.java VapeBootstrap.java; do
-            cp "$runtime_src/$file" "src/main/java/gg/vape/runtime/$file"
-          done
-
           git diff --check
 
       - name: Compile recovered bootstrap dependency graph
@@ -245,15 +239,15 @@ jobs:
           set -euo pipefail
           core="$RUNNER_TEMP/vape421-core"
           stage="$RUNNER_TEMP/recovered-source"
-          mkdir -p "$stage/main/java" "$stage/main/resources/resources"
-          rsync -a "$core/src/main/java/" "$stage/main/java/"
+          mkdir -p "$stage/client/java" "$stage/client/resources/resources"
+          rsync -a "$core/src/main/java/" "$stage/client/java/"
           if [ -d "$core/src/main/resources/resources" ]; then
-            rsync -a "$core/src/main/resources/resources/" "$stage/main/resources/resources/"
+            rsync -a "$core/src/main/resources/resources/" "$stage/client/resources/resources/"
           fi
-          test "$(find "$stage/main/java" -type f -name '*.java' | wc -l)" -eq 2950
-          test -f "$stage/main/java/gg/vape/Vape.java"
-          test -f "$stage/main/java/gg/vape/runtime/NativeBridge.java"
-          test -f "$stage/main/resources/resources/noto.ttf"
+          test "$(find "$stage/client/java" -type f -name '*.java' | wc -l)" -eq 2950
+          test -f "$stage/client/java/gg/vape/Vape.java"
+          test -f "$stage/client/java/gg/vape/runtime/NativeBridge.java"
+          test -f "$stage/client/resources/resources/noto.ttf"
 
       - uses: actions/upload-artifact@v7
         with:
