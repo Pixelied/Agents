@@ -107,10 +107,6 @@ jobs:
                   "GL11.glGetFloat((int)2983, (FloatBuffer)previousProjectionMatrix);",
                   "GL11.glGetFloatv((int)2983, (FloatBuffer)previousProjectionMatrix);",
               ),
-              "gg/vape/utils/render/CachedTextTexture.java#matrix": (
-                  "GL11.glLoadMatrix((FloatBuffer)previousProjectionMatrix);",
-                  "GL11.glLoadMatrixf((FloatBuffer)previousProjectionMatrix);",
-              ),
           }
 
           for relative, (old, new) in replacements.items():
@@ -120,6 +116,14 @@ jobs:
                   raise SystemExit(f"Expected LWJGL call was not found in {relative}: {old}")
               source.write_text(text.replace(old, new), encoding="utf-8")
               print(f"Updated {relative}")
+          source = root / "gg/vape/utils/render/CachedTextTexture.java"
+          text = source.read_text(encoding="utf-8")
+          old = "GL11.glLoadMatrix((FloatBuffer)previousProjectionMatrix);"
+          new = "GL11.glLoadMatrixf((FloatBuffer)previousProjectionMatrix);"
+          if old not in text:
+              raise SystemExit("Expected LWJGL 2 glLoadMatrix call was not found in CachedTextTexture.java")
+          source.write_text(text.replace(old, new), encoding="utf-8")
+          print("Updated CachedTextTexture.java glLoadMatrix overload")
           PY
 
           git diff --check
