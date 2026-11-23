@@ -225,7 +225,7 @@ jobs:
           done
           # The old recovered mapping code requires this pure-Java dependency
           # at runtime. An unbundled copy caused the user's missing GUI.
-          nested_lib="$(grep -E 'META-INF/jars/javassist.*\\.jar' "$RUNNER_TEMP/vape421-jar-contents.txt" | head -n 1)"
+          nested_lib="$(grep -Ei 'META-INF/jars/.*javassist.*[.]jar' "$RUNNER_TEMP/vape421-jar-contents.txt" | head -n 1)"
           test -n "$nested_lib"
           echo "Javassist bundled: $nested_lib"
 
