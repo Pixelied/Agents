@@ -30,198 +30,53 @@ jobs:
         with:
           gradle-version: '9.5.1'
 
-      - name: Reconstruct exact original Java source
+      - name: Recover the exact source revision supplied by the user
         shell: bash
         run: |
           set -euo pipefail
           core="$RUNNER_TEMP/vape421-core"
-          second="$RUNNER_TEMP/vape421-second-recovery"
-          fixture="$GITHUB_WORKSPACE/vape421-fabric-26.2/core-fixture"
+          original_commit="5a6ff6ca04c62f32aebf6eee0c983c1a1a5602c4"
 
-          # Pin the two public mirrors so recovery is deterministic.
-          git clone --depth 1 --branch main https://github.com/RSSeeker/Vape-v4.git "$core"
-          git clone --depth 1 --branch main https://github.com/minecrafttzh/OpenVape4.21.git "$second"
-          test "$(git -C "$core" rev-parse HEAD)" = "45cf92f439803ef9b1a2dd8543f715a9d58fd194"
-          test "$(git -C "$second" rev-parse HEAD)" = "17397d92a2e3ba68cd0b8760f693193647df64f8"
+          # The uploaded ZIP identifies this exact upstream Git commit. Fetch
+          # that commit directly rather than rebuilding it from lossy mirrors.
+          git init "$core"
+          git -C "$core" remote add origin https://github.com/xiaoyu777-coder/VapeV4.21.git
+          git -C "$core" fetch --depth 1 origin "$original_commit"
+          git -C "$core" checkout --detach FETCH_HEAD
+          test "$(git -C "$core" rev-parse HEAD)" = "$original_commit"
 
-          base64 --decode "$fixture/original-java-paths.bloom.b64" > "$RUNNER_TEMP/original-java-paths.bloom"
-
-          # These eleven files are byte-exact copies from the user's supplied
-          # original ZIP. The archive digest and each file digest are checked.
-          base64 --decode "$fixture/missing-originals-exact.tar.gz.b64" > "$RUNNER_TEMP/missing-originals-exact.tar.gz"
-          printf '%s  %s\n' '4aebdee8bcc1352d493f6d87c23b799327f3b8982b132d6b983dae0014c5cf39' "$RUNNER_TEMP/missing-originals-exact.tar.gz" | sha256sum --check -
-          test "$(tar -tzf "$RUNNER_TEMP/missing-originals-exact.tar.gz" | wc -l)" -eq 8
-          mkdir -p "$RUNNER_TEMP/missing-originals-exact"
-          tar -xzf "$RUNNER_TEMP/missing-originals-exact.tar.gz" -C "$RUNNER_TEMP/missing-originals-exact"
-
-          # Three more files were absent or divergent in both public mirrors.
-          cat "$fixture/additional-originals-source3-00.b64" \
-              "$fixture/additional-originals-source3-01.b64" \
-              "$fixture/additional-originals-source3-01b.b64" \
-              "$fixture/additional-originals-source3-02.b64" \
-              "$fixture/additional-originals-source3-03.b64" \
-              > "$RUNNER_TEMP/additional-originals.b64"
-          base64 --decode "$RUNNER_TEMP/additional-originals.b64" > "$RUNNER_TEMP/additional-originals.tar.gz"
-          printf '%s  %s\n' 'adfc6d5bc58d149b7fa25f51828dec4979836d559612b3e407e7b4a09c34aea2' "$RUNNER_TEMP/additional-originals.tar.gz" | sha256sum --check -
-          test "$(tar -tzf "$RUNNER_TEMP/additional-originals.tar.gz" | wc -l)" -eq 3
-          tar -xzf "$RUNNER_TEMP/additional-originals.tar.gz" -C "$RUNNER_TEMP/missing-originals-exact"
-
-          CORE="$core" SECOND="$second" BLOOM="$RUNNER_TEMP/original-java-paths.bloom" ORIGINALS="$RUNNER_TEMP/missing-originals-exact" HASHES="$fixture/divergent-original-sha256.txt" python3 - <<'PY'
+          CORE="$core" python3 - <<'PY'
           from pathlib import Path
           import hashlib
           import os
-          import shutil
 
           core = Path(os.environ["CORE"])
-          second = Path(os.environ["SECOND"])
-          originals = Path(os.environ["ORIGINALS"])
-          bloom = Path(os.environ["BLOOM"]).read_bytes()
-          hash_file = Path(os.environ["HASHES"])
-          bit_count = len(bloom) * 8
-          hash_count = 10
-
-          def sha(path: Path) -> str:
-              return hashlib.sha256(path.read_bytes()).hexdigest()
-
-          def maybe_original(rel: str) -> bool:
-              digest = hashlib.sha256(rel.encode()).digest()
-              h1 = int.from_bytes(digest[:8], "little")
-              h2 = int.from_bytes(digest[8:16], "little") | 1
-              for i in range(hash_count):
-                  index = (h1 + i * h2) % bit_count
-                  if not (bloom[index >> 3] & (1 << (index & 7))):
-                      return False
-              return True
-
-          expected_divergent = {}
-          for line in hash_file.read_text().splitlines():
-              if line.strip():
-                  digest, rel = line.split("  ", 1)
-                  expected_divergent[rel] = digest
-
-          fixture_files = sorted(
-              p.relative_to(originals).as_posix()
-              for p in originals.rglob("*")
-              if p.is_file()
-          )
-          if len(fixture_files) != 11:
-              raise SystemExit(f"Exact-original fixture contains {len(fixture_files)} files; expected 11.")
-          for rel in fixture_files:
-              expected = expected_divergent.get(rel)
-              if expected is None:
-                  raise SystemExit(f"Unexpected path in exact-original fixture: {rel}")
-              if sha(originals / rel) != expected:
-                  raise SystemExit(f"Exact-original fixture SHA-256 mismatch: {rel}")
-
-          primary_root = core / "src/main/java"
-          secondary_root = second / "src/main/java"
-          secondary_files = sorted(
-              secondary_root.rglob("*.java"),
-              key=lambda p: p.as_posix()
-          )
-          secondary_originals = [
-              p for p in secondary_files
-              if maybe_original(p.relative_to(second).as_posix())
-          ]
-          if len(secondary_originals) != 2948:
-              raise SystemExit(
-                  f"Secondary mirror path filter retained {len(secondary_originals)} files; "
-                  "expected exactly 2948."
-              )
-
-          primary_paths = {
-              p.relative_to(core).as_posix()
-              for p in primary_root.rglob("*.java")
-          }
-          added_from_secondary = []
-          for source in secondary_originals:
-              rel = source.relative_to(second).as_posix()
-              if rel not in primary_paths:
-                  destination = core / rel
-                  destination.parent.mkdir(parents=True, exist_ok=True)
-                  shutil.copyfile(source, destination)
-                  primary_paths.add(rel)
-                  added_from_secondary.append(rel)
-
-          all_files = sorted(
-              primary_root.rglob("*.java"),
-              key=lambda p: p.as_posix()
-          )
-          kept = []
-          removed = []
-          for path in all_files:
-              rel = path.relative_to(core).as_posix()
-              if maybe_original(rel):
-                  kept.append(path)
-              else:
-                  removed.append(path)
-
-          print(f"primary mirror Java files before union={len(primary_paths) - len(added_from_secondary)}")
-          print(f"original paths added from secondary mirror={len(added_from_secondary)}")
-          print(f"path-filter kept={len(kept)} removed={len(removed)}")
-          if len(kept) != 2948:
-              raise SystemExit(
-                  f"Path filter retained {len(kept)} files; expected exactly 2948. "
-                  "Refusing to weaken the source-integrity check."
-              )
-
-          repaired_primary = []
-          repaired_secondary = []
-          restored_original = []
-          unavailable = []
-          for rel, expected in expected_divergent.items():
-              primary = core / rel
-              secondary = second / rel
-              exact_original = originals / rel
-
-              if primary.is_file() and sha(primary) == expected:
-                  repaired_primary.append(rel)
-                  continue
-              if secondary.is_file() and sha(secondary) == expected:
-                  primary.parent.mkdir(parents=True, exist_ok=True)
-                  shutil.copyfile(secondary, primary)
-                  repaired_secondary.append(rel)
-                  continue
-              if exact_original.is_file() and sha(exact_original) == expected:
-                  primary.parent.mkdir(parents=True, exist_ok=True)
-                  shutil.copyfile(exact_original, primary)
-                  restored_original.append(rel)
-                  continue
-              unavailable.append(rel)
-
-          print(f"divergent originals already correct in primary={len(repaired_primary)}")
-          print(f"divergent originals repaired from second mirror={len(repaired_secondary)}")
-          print(f"divergent originals restored from supplied original ZIP={len(restored_original)}")
-          if unavailable:
-              print("no verified source copy for:")
-              for rel in unavailable:
-                  print(rel)
-              raise SystemExit(
-                  "Neither pinned mirror nor the supplied original ZIP contains "
-                  "the exact bytes for every known divergent file."
-              )
-
-          for path in removed:
-              path.unlink()
-
-          normalized = sorted(
-              (core / "src/main/java").rglob("*.java"),
-              key=lambda p: p.as_posix()
-          )
+          java_root = core / "src/main/java"
+          files = sorted(java_root.rglob("*.java"), key=lambda p: p.as_posix())
           manifest = "".join(
-              f"{sha(path)}  {path.relative_to(core).as_posix()}\n"
-              for path in normalized
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(core).as_posix()}\\n"
+              for path in files
           ).encode()
           digest = hashlib.sha256(manifest).hexdigest()
-          expected_manifest = "18727af501c62c6278416ef85ffe9c3cd0dcb10bc3c141b5fdaafdbf1dd6bc11"
+          expected = "18727af501c62c6278416ef85ffe9c3cd0dcb10bc3c141b5fdaafdbf1dd6bc11"
 
-          print(f"normalized Java files={len(normalized)}")
-          print(f"normalized original-source manifest SHA-256={digest}")
-          if len(normalized) != 2948 or digest != expected_manifest:
+          print(f"pinned upstream commit={os.popen('git -C ' + str(core) + ' rev-parse HEAD').read().strip()}")
+          print(f"original Java source files={len(files)}")
+          print(f"original source manifest SHA-256={digest}")
+          if len(files) != 2948 or digest != expected:
               raise SystemExit(
-                  "Normalized mirrors do not exactly match the supplied original ZIP; "
-                  "refusing to compile an altered source tree."
+                  "Pinned upstream source does not exactly match the uploaded original ZIP."
               )
+          for required in (
+              "src/main/java/gg/vape/Vape.java",
+              "src/main/java/gg/vape/runtime/NativeBridge.java",
+              "src/main/java/gg/vape/module/combat/AutoMace.java",
+              "src/main/java/gg/vape/module/utility/PearlCatch.java",
+          ):
+              if not (core / required).is_file():
+                  raise SystemExit(f"Missing original Vape source: {required}")
+          if not (core / "src/main/resources/resources/noto.ttf").is_file():
+              raise SystemExit("Original Vape font resources are missing.")
           PY
 
       - name: Apply Fabric migration overlay
