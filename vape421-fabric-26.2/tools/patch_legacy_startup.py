@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Disable injected OpenGL UI only on the recovered Minecraft 26.2 Fabric path.
+"""Replace only legacy OpenGL frame/render initialization after source recovery.
 
-The existing Fabric migration overlay already skips the old Javassist/JVMTI
-runtime transformers. Its GUI initialization still queued an OpenGL renderer,
-which fails on Vulkan and aborts manager startup. The GUI is now a native Screen.
+The original modules remain byte-for-byte except for the existing Fabric
+migration overlay and these narrow, verified compatibility adjustments.
 """
 from pathlib import Path
 import sys
@@ -11,46 +10,35 @@ import sys
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_legacy_startup.py <recovered src/main/java>")
 
-root = Path(sys.argv[1])
-vape = root / "gg/vape/Vape.java"
-source = vape.read_text(encoding="utf-8")
+source = Path(sys.argv[1]) / "gg/vape/Vape.java"
+text = source.read_text(encoding="utf-8")
 
 replacements = {
-    """        if (NativeBridge.isFabric262Runtime()) {
-            // Fabric/Mixin hooks are launch-time infrastructure. Do not invoke the legacy
-            // Javassist/JVMTI transformer on 26.2. Frame initialization remains client
-            // functionality and is kept.
-            EventRenderWorldPassExecutorDrain.EXECUTOR.execute(ClientSettings::initializeFrames);
+    """            // Fabric events and targeted Mixins instead. Frame construction is
+            // ordinary client state and can be initialized directly here.
+            ClientSettings.initializeFrames();
             return;
-        }
 """:
-    """        if (NativeBridge.isFabric262Runtime()) {
-            // The recovered renderer relies on injected OpenGL shaders.
-            // Minecraft 26.2 (including Vulkan) uses a native Screen instead.
-            // Retain the original module implementations and Fabric/Mixin hooks.
+    """            // Fabric events and targeted Mixins instead. The legacy frame UI
+            // requires fixed-function OpenGL and breaks Vulkan initialization.
+            // A native Minecraft Screen displays the recovered modules instead.
             return;
-        }
 """,
-
     """    public void initializeRender() {
         if (this.renderInitialized) {
 """:
     """    public void initializeRender() {
-        if (gg.vape.runtime.FabricMigrationRuntime.isActive()) {
-            // The old OpenGL shader pipeline is unsupported on Vulkan.
-            // Fabric-native GUI controls the same recovered module instances.
+        if (FabricMigrationRuntime.isActive()) {
+            // Native Minecraft Screen and Fabric HUD replace old OpenGL shaders.
             return;
         }
         if (this.renderInitialized) {
 """
 }
 for old, new in replacements.items():
-    occurrences = source.count(old)
-    if occurrences != 1:
-        raise SystemExit(
-            f"Expected exactly one recovered startup block, got {occurrences}: {old!r}"
-        )
-    source = source.replace(old, new, 1)
-
-vape.write_text(source, encoding="utf-8")
-print("Fabric startup patched: no injected transformer or legacy OpenGL GUI")
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"Expected one recovered source block, found {count}: {old!r}")
+    text = text.replace(old, new, 1)
+source.write_text(text, encoding="utf-8")
+print("Vape Fabric startup: legacy OpenGL frame construction bypassed")
