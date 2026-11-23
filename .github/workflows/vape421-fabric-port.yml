@@ -46,13 +46,19 @@ jobs:
 
           base64 --decode "$fixture/original-java-paths.bloom.b64" > "$RUNNER_TEMP/original-java-paths.bloom"
 
-          # These eight files are byte-exact copies from the user's supplied
+          # These eleven files are byte-exact copies from the user's supplied
           # original ZIP. The archive digest and each file digest are checked.
           base64 --decode "$fixture/missing-originals-exact.tar.gz.b64" > "$RUNNER_TEMP/missing-originals-exact.tar.gz"
           printf '%s  %s\n' '4aebdee8bcc1352d493f6d87c23b799327f3b8982b132d6b983dae0014c5cf39' "$RUNNER_TEMP/missing-originals-exact.tar.gz" | sha256sum --check -
           test "$(tar -tzf "$RUNNER_TEMP/missing-originals-exact.tar.gz" | wc -l)" -eq 8
           mkdir -p "$RUNNER_TEMP/missing-originals-exact"
           tar -xzf "$RUNNER_TEMP/missing-originals-exact.tar.gz" -C "$RUNNER_TEMP/missing-originals-exact"
+
+          # Three more files were absent or divergent in both public mirrors.
+          base64 --decode "$fixture/additional-originals.tar.gz.b64" > "$RUNNER_TEMP/additional-originals.tar.gz"
+          printf '%s  %s\n' 'feb7ea3153f6ef212ac25e97d94546711d82f3a8d69262fcdb8baabbae441198' "$RUNNER_TEMP/additional-originals.tar.gz" | sha256sum --check -
+          test "$(tar -tzf "$RUNNER_TEMP/additional-originals.tar.gz" | wc -l)" -eq 3
+          tar -xzf "$RUNNER_TEMP/additional-originals.tar.gz" -C "$RUNNER_TEMP/missing-originals-exact"
 
           CORE="$core" SECOND="$second" BLOOM="$RUNNER_TEMP/original-java-paths.bloom" ORIGINALS="$RUNNER_TEMP/missing-originals-exact" HASHES="$fixture/divergent-original-sha256.txt" python3 - <<'PY'
           from pathlib import Path
@@ -92,8 +98,8 @@ jobs:
               for p in originals.rglob("*")
               if p.is_file()
           )
-          if len(fixture_files) != 8:
-              raise SystemExit(f"Exact-original fixture contains {len(fixture_files)} files; expected 8.")
+          if len(fixture_files) != 11:
+              raise SystemExit(f"Exact-original fixture contains {len(fixture_files)} files; expected 11.")
           for rel in fixture_files:
               expected = expected_divergent.get(rel)
               if expected is None:
