@@ -101,8 +101,38 @@ jobs:
               if sha(originals / rel) != expected:
                   raise SystemExit(f"Exact-original fixture SHA-256 mismatch: {rel}")
 
+          primary_root = core / "src/main/java"
+          secondary_root = second / "src/main/java"
+          secondary_files = sorted(
+              secondary_root.rglob("*.java"),
+              key=lambda p: p.as_posix()
+          )
+          secondary_originals = [
+              p for p in secondary_files
+              if maybe_original(p.relative_to(second).as_posix())
+          ]
+          if len(secondary_originals) != 2948:
+              raise SystemExit(
+                  f"Secondary mirror path filter retained {len(secondary_originals)} files; "
+                  "expected exactly 2948."
+              )
+
+          primary_paths = {
+              p.relative_to(core).as_posix()
+              for p in primary_root.rglob("*.java")
+          }
+          added_from_secondary = []
+          for source in secondary_originals:
+              rel = source.relative_to(second).as_posix()
+              if rel not in primary_paths:
+                  destination = core / rel
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(source, destination)
+                  primary_paths.add(rel)
+                  added_from_secondary.append(rel)
+
           all_files = sorted(
-              (core / "src/main/java").rglob("*.java"),
+              primary_root.rglob("*.java"),
               key=lambda p: p.as_posix()
           )
           kept = []
@@ -114,7 +144,8 @@ jobs:
               else:
                   removed.append(path)
 
-          print(f"primary mirror Java files={len(all_files)}")
+          print(f"primary mirror Java files before union={len(primary_paths) - len(added_from_secondary)}")
+          print(f"original paths added from secondary mirror={len(added_from_secondary)}")
           print(f"path-filter kept={len(kept)} removed={len(removed)}")
           if len(kept) != 2948:
               raise SystemExit(
