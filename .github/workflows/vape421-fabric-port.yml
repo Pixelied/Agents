@@ -92,19 +92,26 @@ jobs:
           git apply "$RUNNER_TEMP/vape421-core.patch"
 
           # LWJGL 3 (bundled by Minecraft 26.2) renamed the LWJGL 2
-          # glGetFloat entrypoint to glGetFloatv. Keep this legacy fallback
-          # source-compatible without bundling LWJGL 2 into the Fabric mod.
+          # glGetFloat(int, FloatBuffer) entrypoint to glGetFloatv.
+          # Update only the two-argument FloatBuffer overloads; keep scalar
+          # glGetFloat(int) calls unchanged.
           CORE="$core" python3 - <<'PY'
           from pathlib import Path
           import os
+          import re
 
-          source = Path(os.environ["CORE"]) / "src/main/java/gg/vape/render/OffscreenRenderContext.java"
-          text = source.read_text(encoding="utf-8")
-          old = "GL11.glGetFloat((int)3106, (FloatBuffer)floatBuffer);"
-          new = "GL11.glGetFloatv((int)3106, (FloatBuffer)floatBuffer);"
-          if old not in text:
-              raise SystemExit("Expected LWJGL 2 glGetFloat call was not found; refusing an unverified source rewrite.")
-          source.write_text(text.replace(old, new), encoding="utf-8")
+          root = Path(os.environ["CORE"]) / "src/main/java"
+          pattern = re.compile(r"GL11\\.glGetFloat\\((\\(int\\)[^,]+),")
+          changed = 0
+          for source in root.rglob("*.java"):
+              text = source.read_text(encoding="utf-8")
+              updated, count = pattern.subn(r"GL11.glGetFloatv(\\1,", text)
+              if count:
+                  source.write_text(updated, encoding="utf-8")
+                  changed += count
+          print(f"Updated LWJGL 2 FloatBuffer queries: {changed}")
+          if changed < 1:
+              raise SystemExit("No legacy GL11 FloatBuffer query was found; refusing an unverified source rewrite.")
           PY
 
           git diff --check
