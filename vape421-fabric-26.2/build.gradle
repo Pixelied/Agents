@@ -6,7 +6,12 @@ group = project.maven_group
 version = project.mod_version
 base { archivesName = project.archives_base_name }
 
-repositories { mavenCentral() }
+repositories {
+    // Use Google's read-only Maven Central mirror first to avoid transient
+    // Maven Central 429 throttling in parallel cross-platform CI jobs.
+    maven { url = uri('https://maven-central.storage-download.googleapis.com/maven2/') }
+    mavenCentral()
+}
 
 loom {
     splitEnvironmentSourceSets()
