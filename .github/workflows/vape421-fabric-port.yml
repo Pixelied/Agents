@@ -99,6 +99,19 @@ jobs:
           git clone --depth 1 https://github.com/RSSeeker/Vape-v4.git "$core"
           git clone --depth 1 https://github.com/minecrafttzh/OpenVape4.21.git "$second"
 
+          # Restore the exact original source bytes preserved in this repo's
+          # fixture. The two public mirrors no longer contain every divergent
+          # original file, so relying on them alone makes the integrity gate
+          # fail before the actual core compile can run.
+          mkdir -p "$core/src/main/java/gg/vape"
+          base64 -d vape421-fabric-26.2/core-fixture/original-vape-java.gz.b64 |
+            gzip -dc > "$core/src/main/java/gg/vape/Vape.java"
+          base64 -d vape421-fabric-26.2/core-fixture/missing-originals.tar.gz.b64 \
+            > "$RUNNER_TEMP/missing-originals.tar.gz"
+          echo "Restoring exact original files from the fixture:"
+          tar -tzf "$RUNNER_TEMP/missing-originals.tar.gz" | sed -n '1,60p'
+          tar -xzf "$RUNNER_TEMP/missing-originals.tar.gz" -C "$core"
+
           base64 -d vape421-fabric-26.2/core-fixture/original-java-paths.bloom.b64 \
             > "$RUNNER_TEMP/original-java-paths.bloom"
 
