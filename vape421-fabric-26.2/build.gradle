@@ -105,8 +105,8 @@ tasks.register('coreCompileProbe', JavaCompile) {
 
     options.release = 25
     options.encoding = 'UTF-8'
+    options.sourcepath = files(coreJava)
     options.compilerArgs += [
-            '-sourcepath', coreJava.absolutePath,
             '-Xmaxerrs', '500',
             '-Xmaxwarns', '100',
             '-Xdiags:verbose'
