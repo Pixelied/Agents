@@ -42,3 +42,20 @@ for old, new in replacements.items():
     text = text.replace(old, new, 1)
 source.write_text(text, encoding="utf-8")
 print("Vape Fabric startup: legacy OpenGL frame construction bypassed")
+
+# The shipped universal_items.csv ends in a newline. The original parser
+# used split("\\n") then unconditionally indexed columns[1] even for the
+# final empty row, aborting initializeManagers() before ProfilesManager exists.
+resolver = Path(sys.argv[1]) / "gg/vape/module/utility/inventory/ItemStackSemanticResolver.java"
+text = resolver.read_text(encoding="utf-8")
+old = """            String mappingLine = line.trim();
+            ItemMappingEntry itemMappingEntry = ItemMappingEntry.parse(mappingLine);
+"""
+new = """            String mappingLine = line.trim();
+            if (mappingLine.isEmpty()) continue;
+            ItemMappingEntry itemMappingEntry = ItemMappingEntry.parse(mappingLine);
+"""
+if text.count(old) != 1:
+    raise SystemExit("Recovered item mapping parser changed; cannot apply verified empty-row fix.")
+resolver.write_text(text.replace(old, new, 1), encoding="utf-8")
+print("Vape Fabric startup: empty CSV mapping rows are ignored")
