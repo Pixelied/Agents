@@ -41,13 +41,13 @@ dependencies {
     // The recovered sources still reference these types in legacy mapping
     // and transformer classes. They are compile-only: the Fabric runtime must
     // use Minecraft/Mixin's ASM and must not package the old injector libraries.
-    compileOnly 'org.javassist:javassist:3.29.2-GA'
-    compileOnly 'org.ow2.asm:asm:9.7.1'
-    compileOnly 'org.ow2.asm:asm-tree:9.7.1'
-    compileOnly 'org.ow2.asm:asm-analysis:9.7.1'
-    compileOnly 'org.ow2.asm:asm-util:9.7.1'
-    compileOnly 'org.ow2.asm:asm-commons:9.7.1'
-    compileOnly 'org.jetbrains:annotations:24.1.0'
+    clientCompileOnly 'org.javassist:javassist:3.29.2-GA'
+    clientCompileOnly 'org.ow2.asm:asm:9.7.1'
+    clientCompileOnly 'org.ow2.asm:asm-tree:9.7.1'
+    clientCompileOnly 'org.ow2.asm:asm-analysis:9.7.1'
+    clientCompileOnly 'org.ow2.asm:asm-util:9.7.1'
+    clientCompileOnly 'org.ow2.asm:asm-commons:9.7.1'
+    clientCompileOnly 'org.jetbrains:annotations:24.1.0'
 
     coreProbeCompile 'org.javassist:javassist:3.29.2-GA'
     coreProbeCompile 'org.ow2.asm:asm:9.7.1'
@@ -91,9 +91,10 @@ tasks.register('coreCompileProbe', JavaCompile) {
             .orElse('recovered-core').get())
     def coreJava = new File(coreRoot, 'src/main/java')
 
+    // Fabric bootstrap/adapters are compiled in the client source set and
+    // are already present on sourceSets.client.output. Only the recovered core
+    // roots come from the reconstructed source tree.
     source = files(
-            new File(coreJava, 'gg/vape/runtime/VapeBootstrap.java'),
-            new File(coreJava, 'gg/vape/runtime/FabricMigrationRuntime.java'),
             new File(coreJava, 'gg/vape/runtime/NativeBridge.java'),
             new File(coreJava, 'gg/vape/Vape.java'))
 
