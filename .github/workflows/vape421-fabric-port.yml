@@ -93,6 +93,18 @@ jobs:
 
           git diff --check
 
+      - name: Inspect migrated native bridge call contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/vape421-core"
+          for range in '180,200' '435,455' '480,505' '690,715'; do
+            echo "--- NativeBridge.java lines $range ---"
+            sed -n "${range}p" "$core/src/main/java/gg/vape/runtime/NativeBridge.java"
+          done
+          echo "--- OffscreenRenderContext.java lines 292-308 ---"
+          sed -n '292,308p' "$core/src/main/java/gg/vape/render/OffscreenRenderContext.java"
+
       - name: Compile recovered bootstrap dependency graph
         working-directory: vape421-fabric-26.2
         shell: bash
