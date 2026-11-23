@@ -1,6 +1,7 @@
 package gg.vape.fabric;
 
 import gg.vape.fabric.platform.FabricPlatformServices;
+import gg.vape.fabric.screen.VapeFabricMenuScreen;
 import gg.vape.fabric.render.FabricFontAtlasServices;
 import gg.vape.fabric.render.FabricProjectionServices;
 import gg.vape.fabric.render.FabricRenderBridge;
@@ -46,6 +47,20 @@ public final class VapeFabricClient implements ClientModInitializer {
 
         ClientLifecycleEvents.CLIENT_STARTED.register(
                 client -> RecoveredCoreLauncher.startIfPresent(client, LOGGER));
+
+        // CI-only interaction smoke: actually instantiate and open the native
+        // Screen on the real 26.2 render thread. Off in ordinary game sessions.
+        if ("1".equals(System.getenv("VAPE421_GUI_SMOKE"))) {
+            ClientLifecycleEvents.CLIENT_STARTED.register(client ->
+                    client.execute(() -> {
+                        client.gui.setScreen(new VapeFabricMenuScreen(client.gui.screen()));
+                        if (client.gui.screen() instanceof VapeFabricMenuScreen) {
+                            LOGGER.info("Vape native GUI smoke opened successfully.");
+                        } else {
+                            LOGGER.error("Vape native GUI smoke failed to open.");
+                        }
+                    }));
+        }
 
         var mcVersion = loader.getModContainer("minecraft")
                 .map(c -> c.getMetadata().getVersion().getFriendlyString())
