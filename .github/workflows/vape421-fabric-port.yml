@@ -55,8 +55,14 @@ jobs:
           tar -xzf "$RUNNER_TEMP/missing-originals-exact.tar.gz" -C "$RUNNER_TEMP/missing-originals-exact"
 
           # Three more files were absent or divergent in both public mirrors.
-          base64 --decode "$fixture/additional-originals.tar.gz.b64" > "$RUNNER_TEMP/additional-originals.tar.gz"
-          printf '%s  %s\n' 'feb7ea3153f6ef212ac25e97d94546711d82f3a8d69262fcdb8baabbae441198' "$RUNNER_TEMP/additional-originals.tar.gz" | sha256sum --check -
+          cat "$fixture/additional-originals-source3-00.b64" \
+              "$fixture/additional-originals-source3-01.b64" \
+              "$fixture/additional-originals-source3-01b.b64" \
+              "$fixture/additional-originals-source3-02.b64" \
+              "$fixture/additional-originals-source3-03.b64" \
+              > "$RUNNER_TEMP/additional-originals.b64"
+          base64 --decode "$RUNNER_TEMP/additional-originals.b64" > "$RUNNER_TEMP/additional-originals.tar.gz"
+          printf '%s  %s\n' 'adfc6d5bc58d149b7fa25f51828dec4979836d559612b3e407e7b4a09c34aea2' "$RUNNER_TEMP/additional-originals.tar.gz" | sha256sum --check -
           test "$(tar -tzf "$RUNNER_TEMP/additional-originals.tar.gz" | wc -l)" -eq 3
           tar -xzf "$RUNNER_TEMP/additional-originals.tar.gz" -C "$RUNNER_TEMP/missing-originals-exact"
 
