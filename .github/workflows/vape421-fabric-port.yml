@@ -91,27 +91,39 @@ jobs:
           git apply --check "$RUNNER_TEMP/vape421-core.patch"
           git apply "$RUNNER_TEMP/vape421-core.patch"
 
-          # LWJGL 3 (bundled by Minecraft 26.2) renamed the LWJGL 2
-          # glGetFloat(int, FloatBuffer) entrypoint to glGetFloatv.
-          # Update only the two-argument FloatBuffer overloads; keep scalar
-          # glGetFloat(int) calls unchanged.
+          # LWJGL 3 uses glGetFloatv for the FloatBuffer overload. Keep
+          # the scalar glGetFloat(int) queries unchanged.
           CORE="$core" python3 - <<'PY'
           from pathlib import Path
           import os
-          import re
 
           root = Path(os.environ["CORE"]) / "src/main/java"
-          pattern = re.compile(r"GL11\.glGetFloat\((\(int\)[^,]+),")
-          changed = 0
-          for source in root.rglob("*.java"):
+          replacements = {
+              "gg/vape/render/OffscreenRenderContext.java": (
+                  "GL11.glGetFloat((int)3106, (FloatBuffer)floatBuffer);",
+                  "GL11.glGetFloatv((int)3106, (FloatBuffer)floatBuffer);",
+              ),
+              "gg/vape/utils/render/CachedTextTexture.java": (
+                  "GL11.glGetFloat((int)2983, (FloatBuffer)previousProjectionMatrix);",
+                  "GL11.glGetFloatv((int)2983, (FloatBuffer)previousProjectionMatrix);",
+              ),
+              "gg/vape/utils/render/BufferedOpenGlBackend.java": (
+                  "GL11.glGetFloatv((int)parameter)",
+                  "GL11.glGetFloat((int)parameter)",
+              ),
+              "gg/vape/utils/render/LegacyOpenGlBackend.java": (
+                  "GL11.glGetFloatv((int)parameter)",
+                  "GL11.glGetFloat((int)parameter)",
+              ),
+          }
+
+          for relative, (old, new) in replacements.items():
+              source = root / relative
               text = source.read_text(encoding="utf-8")
-              updated, count = pattern.subn(r"GL11.glGetFloatv(\1,", text)
-              if count:
-                  source.write_text(updated, encoding="utf-8")
-                  changed += count
-          print(f"Updated LWJGL 2 FloatBuffer queries: {changed}")
-          if changed < 1:
-              raise SystemExit("No legacy GL11 FloatBuffer query was found; refusing an unverified source rewrite.")
+              if old not in text:
+                  raise SystemExit(f"Expected LWJGL call was not found in {relative}: {old}")
+              source.write_text(text.replace(old, new), encoding="utf-8")
+              print(f"Updated {relative}")
           PY
 
           git diff --check
