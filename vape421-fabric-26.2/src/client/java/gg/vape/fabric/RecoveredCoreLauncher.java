@@ -33,6 +33,11 @@ public final class RecoveredCoreLauncher {
             Method start = bootstrapClass.getMethod("start");
             start.invoke(null);
 
+            // The old NativeBridge intentionally logs and swallows exceptions
+            // from initializeManagers(). A returned start() is NOT proof that
+            // modules, profiles or the GUI are usable.
+            requireInitializedCore(logger);
+
             RecoveredInputAdapter.install(logger);
             RecoveredLifecycleAdapter.install(logger);
             RecoveredPacketAdapter.enable(logger);
@@ -52,6 +57,30 @@ public final class RecoveredCoreLauncher {
             logger.error("Recovered Vape core bootstrap failed", cause);
         } catch (ReflectiveOperationException reflectionFailure) {
             logger.error("Unable to invoke recovered Vape core bootstrap", reflectionFailure);
+        } catch (IllegalStateException incompleteCore) {
+            logger.error("Recovered Vape core initialization INCOMPLETE; input and tick hooks were not enabled", incompleteCore);
+        } catch (LinkageError missingRuntimeDependency) {
+            logger.error("Recovered Vape core is missing a runtime dependency", missingRuntimeDependency);
         }
+    }
+
+    private static void requireInitializedCore(Logger logger)
+            throws ReflectiveOperationException {
+        Class<?> vapeClass = Class.forName(
+                "gg.vape.Vape", false, RecoveredCoreLauncher.class.getClassLoader());
+        Object instance = vapeClass.getField("INSTANCE").get(null);
+        if (instance == null) {
+            throw new IllegalStateException("Vape.INSTANCE was not created");
+        }
+        for (String getter : new String[]{
+                "getProfilesManager", "getModManager", "getClientSettings",
+                "getNotificationManager"
+        }) {
+            Object manager = vapeClass.getMethod(getter).invoke(instance);
+            if (manager == null) {
+                throw new IllegalStateException(getter + "() is null; initializeManagers failed");
+            }
+        }
+        logger.info("Recovered Vape managers initialized (profiles, modules, settings, notifications).");
     }
 }
