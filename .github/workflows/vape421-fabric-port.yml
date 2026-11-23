@@ -137,7 +137,15 @@ jobs:
           mkdir -p "$stage/client/java" "$stage/client/resources"
           rsync -a "$core/src/main/java/" "$stage/client/java/"
           rsync -a "$core/src/main/resources/" "$stage/client/resources/"
-          test "$(find "$stage/client/java" -type f -name '*.java' | wc -l)" -eq 2950
+          java_count="$(find "$stage/client/java" -type f -name '*.java' | wc -l)"
+          resource_count="$(find "$stage/client/resources" -type f | wc -l)"
+          echo "staged recovered Java files=$java_count"
+          echo "staged original resource files=$resource_count"
+          # The uploaded ZIP contains 2,948 original Java files; the overlay
+          # may add or remove compatibility shims, so do not hard-code its
+          # post-overlay file count.
+          test "$java_count" -ge 2948
+          test "$resource_count" -gt 0
           test -f "$stage/client/java/gg/vape/Vape.java"
           test -f "$stage/client/java/gg/vape/runtime/NativeBridge.java"
           test -f "$stage/client/resources/resources/noto.ttf"
