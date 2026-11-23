@@ -38,6 +38,17 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
+    // The recovered sources still reference these types in legacy mapping
+    // and transformer classes. They are compile-only: the Fabric runtime must
+    // use Minecraft/Mixin's ASM and must not package the old injector libraries.
+    compileOnly 'org.javassist:javassist:3.29.2-GA'
+    compileOnly 'org.ow2.asm:asm:9.7.1'
+    compileOnly 'org.ow2.asm:asm-tree:9.7.1'
+    compileOnly 'org.ow2.asm:asm-analysis:9.7.1'
+    compileOnly 'org.ow2.asm:asm-util:9.7.1'
+    compileOnly 'org.ow2.asm:asm-commons:9.7.1'
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+
     coreProbeCompile 'org.javassist:javassist:3.29.2-GA'
     coreProbeCompile 'org.ow2.asm:asm:9.7.1'
     coreProbeCompile 'org.ow2.asm:asm-tree:9.7.1'
