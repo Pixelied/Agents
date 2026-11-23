@@ -54,7 +54,7 @@ jobs:
           java_root = core / "src/main/java"
           files = sorted(java_root.rglob("*.java"), key=lambda p: p.as_posix())
           manifest = "".join(
-              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(core).as_posix()}\\n"
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(core).as_posix()}\n"
               for path in files
           ).encode()
           digest = hashlib.sha256(manifest).hexdigest()
@@ -106,15 +106,14 @@ jobs:
           set -euo pipefail
           core="$RUNNER_TEMP/vape421-core"
           stage="$RUNNER_TEMP/recovered-source"
-          mkdir -p "$stage/client/java" "$stage/client/resources/resources"
+          mkdir -p "$stage/client/java" "$stage/client/resources"
           rsync -a "$core/src/main/java/" "$stage/client/java/"
-          if [ -d "$core/src/main/resources/resources" ]; then
-            rsync -a "$core/src/main/resources/resources/" "$stage/client/resources/resources/"
-          fi
+          rsync -a "$core/src/main/resources/" "$stage/client/resources/"
           test "$(find "$stage/client/java" -type f -name '*.java' | wc -l)" -eq 2950
           test -f "$stage/client/java/gg/vape/Vape.java"
           test -f "$stage/client/java/gg/vape/runtime/NativeBridge.java"
           test -f "$stage/client/resources/resources/noto.ttf"
+          test -f "$stage/client/resources/mappings/fabric12111/joined.srg"
 
       - uses: actions/upload-artifact@v7
         with:
