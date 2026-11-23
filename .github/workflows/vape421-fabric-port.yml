@@ -126,8 +126,7 @@ jobs:
           print("Updated CachedTextTexture.java glLoadMatrix overload")
           PY
 
-          python3 "$GITHUB_WORKSPACE/vape421-fabric-26.2/tools/patch_legacy_startup.py" \
-                  "$core/src/main/java"
+          python3 "$GITHUB_WORKSPACE/vape421-fabric-26.2/tools/patch_legacy_startup.py" "$core/src/main/java"
 
           git diff --check
 
