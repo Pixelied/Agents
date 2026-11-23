@@ -223,10 +223,12 @@ jobs:
           for entry in fabric.mod.json vape421.mixins.json gg/vape/Vape.class gg/vape/module/Mod.class gg/vape/module/combat/SilentAura.class gg/vape/runtime/NativeBridge.class gg/vape/fabric/VapeFabricClient.class resources/noto.ttf resources/english.properties.txt; do
             grep -Fx "$entry" "$RUNNER_TEMP/vape421-jar-contents.txt"
           done
-          # The original 4.21 mappings call javassist.ClassPool at runtime.
-          # The initial migration compiled against javassist but forgot to
-          # bundle it, so the GUI never initialized on actual user systems.
-          nested_lib="$(grep -E '^META-INF/jars/javassist-[^/]+\\.jar
+          # The old recovered mapping code requires this pure-Java dependency
+          # at runtime. An unbundled copy caused the user's missing GUI.
+          nested_lib="$(grep -E 'META-INF/jars/javassist.*\\.jar' "$RUNNER_TEMP/vape421-jar-contents.txt" | head -n 1)"
+          test -n "$nested_lib"
+          echo "Javassist bundled: $nested_lib"
+
       - uses: actions/upload-artifact@v7
         with:
           name: vape421-full-${{ matrix.os }}
@@ -277,77 +279,6 @@ jobs:
           grep -F "Recovered Vape core started through Fabric lifecycle." run/logs/latest.log
 
           if grep -E "MixinApplyError|MixinTransformerError|InvalidInjectionException|InjectionError|Recovered Vape core bootstrap failed|Recovered Vape core initialization INCOMPLETE|Unable to invoke recovered Vape core bootstrap|NoClassDefFoundError|EXC initializeManagers|Recovered Vape input event dispatch failed|ClassNotFoundException: gg.vape.runtime.NativeBridge" run/logs/latest.log; then
-            echo "Recovered-core or Mixin/runtime initialization error detected"
-            exit 1
-          fi
-
-          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
-            echo "Minecraft exited unexpectedly with status $status"
-            exit "$status"
-          fi
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: vape421-recovered-runtime-smoke
-          path: |
-            vape421-fabric-26.2/runtime-smoke.txt
-            vape421-fabric-26.2/run/logs/latest.log
-          if-no-files-found: warn
-          retention-days: 7
- "$RUNNER_TEMP/vape421-jar-contents.txt" | head -n 1)"
-          test -n "$nested_lib"
-          echo "Javassist runtime dependency bundled: $nested_lib"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: vape421-full-${{ matrix.os }}
-          path: vape421-fabric-26.2/build/libs/*.jar
-          if-no-files-found: error
-          retention-days: 14
-
-  runtime-smoke:
-    name: Launch Minecraft with recovered Vape core
-    needs: recover-core
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: vape421-fabric-26.2
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v7
-        with:
-          name: vape421-recovered-core
-          path: vape421-fabric-26.2/src
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: microsoft
-          java-version: '25'
-
-      - uses: gradle/actions/setup-gradle@v5
-        with:
-          gradle-version: '9.5.1'
-
-      - name: Install virtual display
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
-
-      - name: Launch Minecraft and require recovered-core initialization
-        shell: bash
-        run: |
-          set +e
-          xvfb-run -a timeout 120s gradle runClient --args="--demo --width 854 --height 480" > runtime-smoke.txt 2>&1
-          status=$?
-          set -e
-          cat runtime-smoke.txt
-
-          test -f run/logs/latest.log
-          grep -F "Vape 4.21 Fabric bootstrap" run/logs/latest.log
-          grep -F "Recovered Vape core started through Fabric lifecycle." run/logs/latest.log
-
-          if grep -E "MixinApplyError|MixinTransformerError|InvalidInjectionException|InjectionError|Recovered Vape core bootstrap failed|Unable to invoke recovered Vape core bootstrap|ClassNotFoundException: gg.vape.runtime.NativeBridge" run/logs/latest.log; then
             echo "Recovered-core or Mixin/runtime initialization error detected"
             exit 1
           fi
