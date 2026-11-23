@@ -2,6 +2,7 @@ package gg.vape.runtime;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import net.minecraft.client.Minecraft;
 
 /**
  * Stable entrypoint used by the Fabric shell.
@@ -27,6 +28,11 @@ public final class VapeBootstrap {
                     "gg.vape.runtime.NativeBridge",
                     true,
                     VapeBootstrap.class.getClassLoader());
+            // Initialize the Java-side window bridge before module managers
+            // register their legacy input callbacks. No native injector is used.
+            Method setWindow = bridge.getMethod("wh", long.class);
+            setWindow.invoke(null, Minecraft.getInstance().getWindow().handle());
+
             Method start = bridge.getMethod("start");
             start.invoke(null);
             started = true;
