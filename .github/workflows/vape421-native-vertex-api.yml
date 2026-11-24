@@ -1,0 +1,31 @@
+name: Minecraft 26.2 native GPU vertex API inspection
+on:
+  push:
+    branches: [feat/vape421-native-vertex-7b19]
+    paths:
+      - 'projects/vape421-fabric-clean-build/runtime-verification/inspect_vertex_api.py'
+      - '.github/workflows/vape421-native-vertex-api.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-runtime-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Fetch official game and Fabric dependencies; inspect and compile
+        run: python3 -u projects/vape421-fabric-clean-build/runtime-verification/inspect_vertex_api.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: minecraft-26.2-native-vertex-api-report
+          path: runtime-api-report/
+          if-no-files-found: warn
+          retention-days: 7
