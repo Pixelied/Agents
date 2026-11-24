@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-native-vertex-pass-20261124",
+  "title": "Validate custom 128-byte native GUI vertex ABI and offscreen passes",
+  "objective": "Prove actual game-native GPU pipeline with 15 original-layout attributes, indexed geometry, alpha blending and offscreen compositing using an isolated diagnostic. Do not edit existing client or gameplay modules.",
+  "created_by": "chatgpt-native-vertex-7b19",
+  "created_at": "2026-11-24T06:28:36+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "ci/native-vertex-offscreen-test"
+  ],
+  "acceptance_criteria": [
+    "Inspect exact official 26.2 GPU API",
+    "Compile native probe against official game and Fabric",
+    "Validate pixels on requested OpenGL and Vulkan backends",
+    "Record release blockers and artifacts without publishing game or client binaries"
+  ]
+}
