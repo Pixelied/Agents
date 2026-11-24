@@ -7,8 +7,19 @@ version = project.mod_version
 base { archivesName = project.archives_base_name }
 
 repositories {
-    // Use Google's read-only Maven Central mirror first to avoid transient
-    // Maven Central 429 throttling in parallel cross-platform CI jobs.
+    // Loom's bootstrap needs org.jetbrains:annotations:26.0.2, for which
+    // Maven Central repeatedly returns HTTP 429 in GitHub Actions. Resolve
+    // exactly that group through the public Google Maven Central mirror,
+    // excluding Maven Central as a fallback for this group.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'JetBrainsAnnotationsMirror'
+                url = uri('https://maven-central.storage-download.googleapis.com/maven2/')
+            }
+        }
+        filter { includeGroup('org.jetbrains') }
+    }
     maven { url = uri('https://maven-central.storage-download.googleapis.com/maven2/') }
     mavenCentral()
 }
