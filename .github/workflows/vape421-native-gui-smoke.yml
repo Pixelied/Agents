@@ -1,9 +1,11 @@
-name: Minecraft 26.2 native GUI smoke
+name: Minecraft 26.2 custom vertex and offscreen smoke
 on:
   push:
-    branches: [feat/vape421-hardening-e51a]
+    branches: [feat/vape421-native-vertex-7b19]
     paths:
       - 'projects/vape421-fabric-clean-build/runtime-verification/NativeApiSmoke.java'
+      - 'projects/vape421-fabric-clean-build/runtime-verification/NativeMesh.java'
+      - 'projects/vape421-fabric-clean-build/runtime-verification/CheckPixels.java'
       - 'projects/vape421-fabric-clean-build/runtime-verification/launch_native_probe.py'
       - 'projects/vape421-fabric-clean-build/runtime-verification/resources/**'
       - '.github/workflows/vape421-native-gui-smoke.yml'
@@ -48,7 +50,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-gui-smoke-${{ matrix.backend }}
+          name: native-mesh-smoke-${{ matrix.backend }}
           path: smoke-results/
           if-no-files-found: warn
           retention-days: 7

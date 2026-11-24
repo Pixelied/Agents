@@ -19,6 +19,7 @@ public final class NativeApiSmoke implements ClientModInitializer {
  private static final Identifier TILE=Identifier.fromNamespaceAndPath("native_api_probe","dynamic/tile");
  private static final String TAG="[NativeApiSmoke] ";
  private RenderPipeline pipeline;
+ private final NativeMesh mesh=new NativeMesh();
  private DynamicTexture texture;
  private int ticks,uploads,frames;
  private String backend;
@@ -26,7 +27,7 @@ public final class NativeApiSmoke implements ClientModInitializer {
  @Override public void onInitializeClient(){
   HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,Identifier.fromNamespaceAndPath("native_api_probe","panel"),(graphics,delta)->draw(graphics));
   ClientTickEvents.END_CLIENT_TICK.register(this::tick);
-  ClientLifecycleEvents.CLIENT_STOPPING.register(mc->{if(texture!=null&&mc.getTextureManager().getTexture(TILE)==texture){mc.getTextureManager().release(TILE);texture=null;}System.out.println(TAG+"STOP uploads="+uploads+" frames="+frames);});
+  ClientLifecycleEvents.CLIENT_STOPPING.register(mc->{mesh.close();if(texture!=null&&mc.getTextureManager().getTexture(TILE)==texture){mc.getTextureManager().release(TILE);texture=null;}System.out.println(TAG+"STOP uploads="+uploads+" frames="+frames);});
   System.out.println(TAG+"REGISTERED");
  }
  private void tick(Minecraft mc){
@@ -41,7 +42,7 @@ public final class NativeApiSmoke implements ClientModInitializer {
   int argb=(uploads&1)==0?0xff38a5f1:0xffed962a;
   var image=texture.getPixels();
   for(int y=0;y<64;y++)for(int x=0;x<64;x++)image.setPixelABGR(x,y,abgr(argb));
-  texture.upload();uploads++;
+  texture.upload();uploads++;mesh.render();
   if(uploads<=5)System.out.println(TAG+"UPLOAD "+uploads);
  }
  private RenderPipeline makePipeline(){
@@ -64,7 +65,8 @@ public final class NativeApiSmoke implements ClientModInitializer {
   g.enableScissor(12,42,40,58);g.enableScissor(18,46,34,54);
   g.fill(6,36,46,64,0xffb251e0);g.disableScissor();g.disableScissor();
   g.blit(RenderPipelines.GUI_TEXTURED,TILE,10,70,0f,0f,64,64,64,64);
-  g.text(mc.font,"Native render smoke",90,10,-1,false);
+  g.text(mc.font,"Native 128-byte mesh smoke",90,10,-1,false);
+  mesh.composite(g);
   if(frames++==0)System.out.println(TAG+"DRAW "+g.guiWidth()+" "+g.guiHeight());
  }
 }
