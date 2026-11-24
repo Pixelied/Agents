@@ -49,3 +49,71 @@ for rel, sha in baseline.items():
         assert digest(target / rel) == sha, rel
 print(f"Verified {len(baseline) - len(changes)} unchanged original Java source files")
 shutil.rmtree(target / "native", ignore_errors=True)
+
+# Fabric 26.2 must use the game's LWJGL3, never ship LWJGL2.
+def edit(rel, replacements):
+    path = target / "src/main/java" / rel
+    text = path.read_text(encoding="utf-8")
+    for old,new in replacements:
+        assert text.count(old) == 1, (rel, old, text.count(old))
+        text = text.replace(old,new,1)
+    path.write_bytes(text.encode("utf-8"))
+
+edit("gg/vape/runtime/NativeBridge.java", [
+    ("import org.lwjgl.util.glu.GLU;\n", ""),
+    ("""        GLU.gluProject((float)worldX, (float)worldY, (float)worldZ,
+                modelViewMatrix, projectionMatrix, viewport, screenPosition);""",
+     """        gg.vape.fabric.Projection.project(worldX, worldY, worldZ,
+                modelViewMatrix, projectionMatrix, viewport, screenPosition);""")
+])
+edit("gg/vape/input/KeyboardInput.java", [
+    ("import org.lwjgl.input.Keyboard;\n", ""),
+    ("return Keyboard.getKeyName((int)keyCode);",
+     "return gg.vape.fabric.FabricInput.keyName(((long)keyCode & 255L) << 16);")
+])
+edit("gg/vape/input/KeyboardCodeUtil.java", [
+    ("import org.lwjgl.input.Keyboard;\n", ""),
+    ("""        if (ForgeVersion.MC_1_16_5.v() && Keyboard.areRepeatEventsEnabled()) {
+            Keyboard.enableRepeatEvents((boolean)false);
+        }""", "        // GLFW has no LWJGL2 global keyboard repeat switch.")
+])
+edit("gg/vape/utils/render/GlImageTexture.java", [
+    ("import org.lwjgl.opengl.ContextCapabilities;\n", "import org.lwjgl.opengl.GLCapabilities;\n"),
+    ("import org.lwjgl.opengl.GLContext;\n", "import org.lwjgl.opengl.GL;\n"),
+    ("ContextCapabilities capabilities = GLContext.getCapabilities();",
+     "GLCapabilities capabilities = GL.getCapabilities();")
+])
+edit("gg/vape/ui/click/frame/FrameComponent.java", [
+    ("import org.lwjgl.opengl.GLContext;\n", "import org.lwjgl.opengl.GL;\n"),
+    ("GLContext.getCapabilities();", "GL.getCapabilities();")
+])
+edit("gg/vape/render/OffscreenRenderContext.java", [
+    ("GL11.glGetFloat((int)3106, (FloatBuffer)floatBuffer);",
+     "GL11.glGetFloatv((int)3106, (FloatBuffer)floatBuffer);")
+])
+edit("gg/vape/utils/render/CachedTextTexture.java", [
+    ("GL11.glGetFloat((int)2983, (FloatBuffer)previousProjectionMatrix);",
+     "GL11.glGetFloatv((int)2983, (FloatBuffer)previousProjectionMatrix);"),
+    ("GL11.glLoadMatrix((FloatBuffer)previousProjectionMatrix);",
+     "GL11.glLoadMatrixf((FloatBuffer)previousProjectionMatrix);")
+])
+shutil.copyfile(here / "Projection.java", java_root / "gg/vape/fabric/Projection.java")
+b = gradle.read_text(encoding="utf-8")
+for old,new in [
+    ("implementation 'org.lwjgl.lwjgl:lwjgl:2.9.3'", "compileOnly 'org.lwjgl:lwjgl-opengl:3.3.6'"),
+    ("    implementation 'org.lwjgl.lwjgl:lwjgl_util:2.9.3'\n", ""),
+    ("implementation 'commons-io:commons-io:2.4'", "compileOnly 'commons-io:commons-io:2.4'"),
+    ("compileOnly 'net.fabricmc:fabric-loader:0.18.4'", "compileOnly 'net.fabricmc:fabric-loader:0.19.5'"),
+]:
+    assert b.count(old) == 1, old
+    b = b.replace(old,new,1)
+gradle.write_bytes(b.encode("utf-8"))
+meta_path=target / "src/main/resources/fabric.mod.json"
+meta=json.loads(meta_path.read_text(encoding="utf-8"))
+meta["version"]="4.21-fabric.2"
+meta_path.write_bytes((json.dumps(meta,indent=2)+"\n").encode("utf-8"))
+# Verify the entire recovered module source tree is identical to the input.
+for rel, sha in baseline.items():
+    if "/module/" in rel:
+        assert digest(target / rel) == sha, rel
+print("All original module sources unchanged; legacy LWJGL removed from runtime dependencies.")

@@ -15,6 +15,10 @@ with zipfile.ZipFile(jar) as z:
     meta = json.loads(z.read("fabric.mod.json"))
     assert meta["entrypoints"]["client"] == ["gg.vape.fabric.FabricClient"]
     assert meta["depends"]["minecraft"] == "26.2"
+    assert meta["version"] == "4.21-fabric.2"
+    forbidden=[n for n in entries if n.startswith(("org/lwjgl/","net/java/games/","org/apache/commons/io/")) or (not n.startswith("fabric-native/") and n.lower().endswith((".dll",".so",".dylib",".jnilib")))]
+    assert not forbidden, forbidden
+    print("PASS: zero LWJGL/JInput/Commons IO collisions or legacy native binaries")
     assert len([n for n in entries if n.startswith("fabric-native/") and not n.endswith("/")]) == 1
     assert not any(n.endswith(".exe") for n in entries)
     assert "gg/vape/Vape.class" in entries

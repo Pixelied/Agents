@@ -43,12 +43,12 @@ tasks.register('fabricJar', com.github.jengelman.gradle.plugins.shadow.tasks.Sha
         exclude(dependency('com.google.code.gson:gson:.*'))
         exclude(dependency('io.netty:netty-all:.*'))
     }
-    ['GL11','GL12','GL13','GL14','GL15','GL20','GL21','GL30','GL31','GL32','GL33','GL40','GL41','GL42','GL43','GL44','GL45','GL46'].each { gl ->
-        exclude "org/lwjgl/opengl/${gl}.class", "org/lwjgl/opengl/${gl}\$*.class"
-    }
-    exclude 'org/lwjgl/BufferUtils.class', 'org/lwjgl/PointerBuffer.class', 'org/lwjgl/PointerWrapper*.class', 'org/lwjgl/Sys.class', 'org/lwjgl/LWJGLUtil*.class', 'org/lwjgl/MemoryUtil*.class', 'org/lwjgl/MemoryAccess*.class', 'org/lwjgl/BufferChecks.class', 'org/lwjgl/Native*.class'
+    // No game-owned native binding or input class can be packaged here.
+    exclude 'org/lwjgl/**', 'net/java/games/input/**', 'net/java/games/util/**'
+    exclude 'org/apache/commons/io/**'
+    exclude 'OpenAL*.dll', 'lwjgl*.dll', 'liblwjgl*', 'libopenal*', 'openal.dylib', 'libjinput*', 'jinput-*.dll'
     exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class', 'META-INF/versions/**'
-    manifest { attributes('Implementation-Title': 'Vape 4.21 recovered Fabric mod', 'Implementation-Version': '4.21-fabric.1') }
+    manifest { attributes('Implementation-Title': 'Vape 4.21 recovered Fabric mod', 'Implementation-Version': '4.21-fabric.2') }
 }
 
 tasks.register('verifyFabricJar') {
@@ -57,6 +57,14 @@ tasks.register('verifyFabricJar') {
     doLast {
         def jar = tasks.named('fabricJar').get().archiveFile.get().asFile
         new java.util.jar.JarFile(jar).withCloseable { archive ->
+            def forbidden = archive.entries().findAll { entry ->
+                def n = entry.name
+                n.startsWith('org/lwjgl/') || n.startsWith('net/java/games/') ||
+                    n.startsWith('org/apache/commons/io/') ||
+                    (!n.startsWith('fabric-native/') && (n.endsWith('.dll') ||
+                        n.endsWith('.so') || n.endsWith('.dylib') || n.endsWith('.jnilib')))
+            }
+            if (!forbidden.isEmpty()) throw new GradleException("Game-owned libraries in mod: " + forbidden)
             ['fabric.mod.json', 'gg/vape/fabric/FabricClient.class',
              'gg/vape/runtime/NativeBridge.class', 'gg/vape/Vape.class',
              "fabric-native/${fabricPlatform}-${fabricCPU}/${nativeFile}"].each { name ->

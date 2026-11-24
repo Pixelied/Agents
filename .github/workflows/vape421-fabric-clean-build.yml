@@ -1,4 +1,4 @@
-name: Vape 4.21 clean Fabric build
+name: Vape 4.21 Fabric runtime-safe build
 on:
   push:
     branches:
