@@ -4,10 +4,12 @@
   "task_id": "vape421-gl41-render-fix-20261123",
   "scope": "gl41-shaders",
   "owner": "chatgpt-vape-gl41-c8a2",
-  "state": "active",
+  "state": "released",
   "intent": "Test resource-only GLSL 410 patch on dedicated CI",
   "claimed_at": "2026-11-24T03:10:00+00:00",
   "heartbeat_at": "2026-11-24T03:10:00+00:00",
   "expires_at": "2026-11-24T04:10:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-11-24T03:11:15+00:00",
+  "release_reason": "Resource-only fix passed restricted OpenGL shader compiler and linker; CI integration result pending."
 }
