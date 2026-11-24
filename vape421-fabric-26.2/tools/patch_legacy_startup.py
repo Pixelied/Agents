@@ -170,3 +170,32 @@ rewrite(
 """,
 )
 print("Fabric patched: avoid abandoned OpenGL notification/font renderer")
+
+
+# The optional online settings service can be unavailable (HTTP 404 or
+# network failure). The decompiled catch block dereferences this.settings
+# even before a GlobalSettingsPayload was created, logging a startup NPE
+# while the Fabric launcher incorrectly reports all managers initialized.
+# Keep the online behavior when it works; fall back to local defaults.
+rewrite(
+    "gg/vape/manager/client/GlobalSettingsController.java",
+    """        catch (Exception exception) {
+            this.settings.initializeDefaults();
+            this.loadFailed = true;
+        }
+        this.firstRun = this.settings.isFirstRun();""",
+    """        catch (Exception exception) {
+            if (this.settings == null) {
+                this.settings = new GlobalSettingsPayload();
+            }
+            this.settings.initializeDefaults();
+            this.loadFailed = true;
+        }
+        if (this.settings == null) {
+            this.settings = new GlobalSettingsPayload();
+            this.settings.initializeDefaults();
+            this.loadFailed = true;
+        }
+        this.firstRun = this.settings.isFirstRun();""",
+)
+print("Fabric patched: safe local global settings fallback when online API is unavailable")
