@@ -53,11 +53,17 @@ public final class VapeFabricClient implements ClientModInitializer {
         if ("1".equals(System.getenv("VAPE421_GUI_SMOKE"))) {
             ClientLifecycleEvents.CLIENT_STARTED.register(client ->
                     client.execute(() -> {
-                        client.gui.setScreen(new VapeFabricMenuScreen(client.gui.screen()));
-                        if (client.gui.screen() instanceof VapeFabricMenuScreen) {
-                            LOGGER.info("Vape native GUI smoke opened successfully.");
-                        } else {
-                            LOGGER.error("Vape native GUI smoke failed to open.");
+                        try {
+                            int loadedModules = VapeFabricMenuScreen.requireModulesReady();
+                            client.gui.setScreen(new VapeFabricMenuScreen(client.gui.screen()));
+                            if (client.gui.screen() instanceof VapeFabricMenuScreen) {
+                                LOGGER.info("Vape native GUI smoke opened successfully.");
+                                LOGGER.info("Vape native GUI verified {} accessible modules.", loadedModules);
+                            } else {
+                                LOGGER.error("Vape native GUI smoke failed to open.");
+                            }
+                        } catch (Throwable error) {
+                            LOGGER.error("Vape native GUI smoke failed to enumerate modules.", error);
                         }
                     }));
         }
