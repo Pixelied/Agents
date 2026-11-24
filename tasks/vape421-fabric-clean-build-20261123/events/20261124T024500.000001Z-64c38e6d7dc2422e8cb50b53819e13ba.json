@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-fabric-clean-build-20261123",
+  "agent_id": "chatgpt-vape-ci-a6d9",
+  "created_at": "2026-11-24T02:45:00+00:00",
+  "event_id": "64c38e6d7dc2422e8cb50b53819e13ba",
+  "type": "lease_released",
+  "message": "Released CI scope.",
+  "data": {
+    "scope": "ci"
+  }
+}

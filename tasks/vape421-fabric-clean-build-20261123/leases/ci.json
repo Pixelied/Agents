@@ -4,10 +4,12 @@
   "task_id": "vape421-fabric-clean-build-20261123",
   "scope": "ci",
   "owner": "chatgpt-vape-ci-a6d9",
-  "state": "active",
+  "state": "released",
   "intent": "Run fresh source conversion build on dedicated branch",
   "claimed_at": "2026-11-24T02:38:00+00:00",
   "heartbeat_at": "2026-11-24T02:38:00+00:00",
   "expires_at": "2026-11-24T03:38:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-11-24T02:45:00+00:00",
+  "release_reason": "Builds and native smoke tests completed; actual game run remains separate."
 }

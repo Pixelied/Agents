@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-fabric-clean-build-20261123",
+  "agent_id": "chatgpt-vape-ci-a6d9",
+  "created_at": "2026-11-24T02:45:00+00:00",
+  "event_id": "39b6c3c2fd044161ad6e61389fe5f3a9",
+  "type": "task_state",
+  "message": "All three platform builds and Java 25 bridge tests passed. Downloaded and verified JARs. Full Minecraft demo test launched separately; no gameplay claim.",
+  "data": {
+    "state": "completed",
+    "build_run": "https://github.com/Pixelied/Agents/actions/runs/45314385759",
+    "minecraft_smoke_run": "https://github.com/Pixelied/Agents/actions/runs/45314487038",
+    "workspace_validation": "Existing unrelated insect handoffs reference unregistered agent IDs; no edits to those records."
+  }
+}
