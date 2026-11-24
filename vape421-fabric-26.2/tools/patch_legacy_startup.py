@@ -62,14 +62,14 @@ def rewrite(relative, old, replacement):
 # non-existent click-GUI frames.
 rewrite(
     "gg/vape/ui/click/frame/impl/VisibleModuleListFrame.java",
-    "    public static void e() {\\n",
+    "    public static void e() {\n",
     """    public static void e() {
         if (gg.vape.runtime.FabricMigrationRuntime.isActive()) return;
 """,
 )
 rewrite(
     "gg/vape/ui/click/frame/impl/profile/ProfilesSettingsFrame.java",
-    "    public static void refreshProfileList() {\\n",
+    "    public static void refreshProfileList() {\n",
     """    public static void refreshProfileList() {
         if (gg.vape.runtime.FabricMigrationRuntime.isActive()) return;
 """,
