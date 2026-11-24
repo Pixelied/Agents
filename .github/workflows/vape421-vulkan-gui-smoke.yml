@@ -1,0 +1,80 @@
+name: Vape 4.21 Vulkan GUI pipeline smoke
+on:
+  push:
+    branches:
+      - feature/vape421-vulkan-gui-blaze3d
+    paths:
+      - 'projects/vape421-fabric-clean-build/vulkan-prototype/**'
+      - 'projects/vape421-fabric-clean-build/minecraft_smoke.py'
+      - '.github/workflows/vape421-vulkan-gui-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
+      - name: Build Minecraft 26.2 Fabric Vulkan probe
+        working-directory: projects/vape421-fabric-clean-build/vulkan-prototype
+        run: gradle --no-daemon clean build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vape421-vulkan-gui-probe
+          path: projects/vape421-fabric-clean-build/vulkan-prototype/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
+  vulkan-smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: vape421-vulkan-gui-probe
+          path: projects/vape421-fabric-clean-build/vulkan-prototype/build/libs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Mesa Vulkan and virtual display
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools xvfb xauth libx11-6 libxtst6 libgl1-mesa-dri libglx-mesa0 libasound2t64
+      - name: Verify Lavapipe Vulkan device
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        run: |
+          test -f "$VK_ICD_FILENAMES"
+          vulkaninfo --summary
+      - name: Launch official Minecraft 26.2 with Vulkan
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 -ac >/tmp/vape-xvfb.log 2>&1 &
+          export DISPLAY=:99
+          sleep 2
+          python -u projects/vape421-fabric-clean-build/vulkan-prototype/minecraft_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vape421-vulkan-gui-smoke-evidence
+          path: vulkan-smoke-results/
+          if-no-files-found: warn
+          retention-days: 14

@@ -20,9 +20,9 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 
-root=Path("minecraft-smoke").resolve()
+root=Path("minecraft-vulkan-smoke").resolve()
 root.mkdir(exist_ok=True)
-logs=Path("smoke-results").resolve()
+logs=Path("vulkan-smoke-results").resolve()
 logs.mkdir(exist_ok=True)
 game=root/"game"
 game.mkdir(exist_ok=True)
@@ -137,13 +137,12 @@ api="0.161.0+26.2"
 assert api in versions, (api,versions[-5:])
 api_file="fabric-api-"+api+".jar"
 fetch(api_base+api+"/"+api_file,mods/api_file)
-jars=list(Path("test-mod").glob("vape421-fabric-4.21-linux-x64.jar"))
+jars=list(Path("projects/vape421-fabric-clean-build/vulkan-prototype/build/libs").glob("vape421-vulkan-probe-*.jar"))
 assert len(jars)==1,jars
 with zipfile.ZipFile(jars[0]) as z:
-    assert json.loads(z.read("fabric.mod.json"))["version"] == "4.21-fabric.2"
-    assert not any(n.startswith("org/lwjgl/") for n in z.namelist())
+    assert json.loads(z.read("fabric.mod.json"))["id"] == "vape421_vulkan_probe"
 shutil.copyfile(jars[0],mods/jars[0].name)
-(game/"options.txt").write_text("guiScale:2\nfullscreen:false\nonboardAccessibility:false\ntutorialStep:none\npauseOnLostFocus:false\n",encoding="utf-8")
+(game/"options.txt").write_text("preferredGraphicsBackend:\"vulkan\"\nguiScale:2\nfullscreen:false\nonboardAccessibility:false\ntutorialStep:none\npauseOnLostFocus:false\n",encoding="utf-8")
 replacements={
     "natives_directory":str(natives),"launcher_name":"FabricSmoke","launcher_version":"1",
     "classpath":os.pathsep.join(str(p) for p in cp),"classpath_separator":os.pathsep,
@@ -181,6 +180,7 @@ if any("${" in x for x in command):
 env={k:v for k,v in os.environ.items() if k not in ("GITHUB_TOKEN","GH_TOKEN","ACTIONS_RUNTIME_TOKEN","VAPE_ACCESS_TOKEN","VAPE_ONLINE_BASE_URL")}
 env["LIBGL_ALWAYS_SOFTWARE"]="1"
 env["ALSOFT_DRIVERS"]="null"
+env["VK_ICD_FILENAMES"]=os.environ.get("VK_ICD_FILENAMES", "/usr/share/vulkan/icd.d/lvp_icd.x86_64.json")
 console=logs/"client-console.log"
 def read_log():
     return console.read_text(encoding="utf-8",errors="replace") if console.exists() else ""
@@ -263,41 +263,34 @@ def wait_log(marker,timeout,proc):
             return False
         time.sleep(1)
     return False
-print("Launching official 26.2 demo with Fabric API",api,flush=True)
+print("Launching official Minecraft 26.2 demo with Vulkan + Fabric API",api,flush=True)
 with console.open("wb") as out:
     proc=subprocess.Popen(command,cwd=game,env=env,stdout=out,stderr=subprocess.STDOUT)
     try:
-        assert wait_log("[Vape421] Fabric entrypoint registered",120,proc),"Fabric entrypoint was not registered"
-        print("PASS: real Minecraft Fabric entrypoint registered",flush=True)
+        assert wait_log("[VapeVulkanProbe] Fabric entrypoint registered",120,proc),"Vulkan probe entrypoint was not registered"
+        print("PASS: Vulkan probe Fabric entrypoint registered",flush=True)
         assert wait_log("minecraft:textures/atlas/gui.png-atlas",60,proc),"Game did not reach GUI texture loading"
-        print("PASS: real Minecraft reached resource and GUI texture initialization after OpenAL loading",flush=True)
-        assert "NoSuchMethodError: 'void org.lwjgl.openal.AL.init()'" not in read_log()
         time.sleep(6)
         if proc.poll() is not None:
-            raise RuntimeError("Client exited before main menu")
-        print("PASS: real Minecraft survived startup after OpenAL initialization",flush=True)
+            raise RuntimeError("Minecraft exited before the main menu")
         shot("title-screen.png")
         probe.click(0.5,236/480)
         time.sleep(6)
         shot("after-demo-click.png")
-        if "Preparing spawn" not in read_log() and "Starting integrated minecraft server" not in read_log() and "[Vape421] Fabric initialization completed" not in read_log():
+        if "Preparing spawn" not in read_log() and "Starting integrated minecraft server" not in read_log():
             probe.click(0.5,264/480)
-        if not wait_log("[Vape421] Fabric initialization completed",65,proc):
+        if not wait_log("[VapeVulkanProbe] HUD callback reached",120,proc):
             shot("world-or-failure.png")
-            if "[Vape421] initialization failed" in read_log() or "[Vape421] Fabric startup failed" in read_log():
-                raise RuntimeError("Recovered runtime failed during world startup")
-            raise RuntimeError("World initialization not confirmed; inspect screenshot and log")
-        print("PASS: recovered runtime initialized in a real demo world",flush=True)
-        shot("world-before-gui.png")
-        probe.key(0xff1b)
-        time.sleep(2)
-        probe.key(0xffe2)
+            raise RuntimeError("Vulkan HUD callback was not reached; inspect screenshot and log")
+        log=read_log()
+        assert "Vulkan" in log, "The mod did not observe a Vulkan GPU device; game may have fallen back to OpenGL"
+        assert "Failed to compile shader" not in log and "ShaderCompileException" not in log, "Custom Blaze3D shader compilation failed"
+        print("PASS: custom Blaze3D HUD pipeline reached the real Minecraft Vulkan renderer",flush=True)
         time.sleep(5)
-        shot("right-shift-result.png")
+        shot("vulkan-probe.png")
         if proc.poll() is not None:
-            raise RuntimeError("Game exited after Right Shift")
-        assert "ClickGUI 26.2: render callback queued" in read_log(), "Right Shift did not produce the original GUI render callback"
-        print("PASS: actual original ClickGUI render callback fired after Right Shift",flush=True)
+            raise RuntimeError("Minecraft exited after the custom Vulkan GUI pipeline was submitted")
+        print("PASS: Minecraft remained alive after custom Vulkan GUI pipeline draw",flush=True)
     finally:
         proc.terminate()
         try:
