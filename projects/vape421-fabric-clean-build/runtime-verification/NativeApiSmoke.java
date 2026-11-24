@@ -22,16 +22,39 @@ public final class NativeApiSmoke implements ClientModInitializer {
  private final UniversalMesh mesh=new UniversalMesh();
  private DynamicTexture texture;
  private int ticks,uploads,frames;
+ private volatile boolean reloading;
+ private int reloads;
  private String backend;
  private static int abgr(int argb){return (argb&0xff00ff00)|((argb&255)<<16)|((argb>>>16)&255);}
  @Override public void onInitializeClient(){
   HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,Identifier.fromNamespaceAndPath("native_api_probe","panel"),(graphics,delta)->draw(graphics));
   ClientTickEvents.END_CLIENT_TICK.register(this::tick);
-  ClientLifecycleEvents.CLIENT_STOPPING.register(mc->{mesh.close();if(texture!=null&&mc.getTextureManager().getTexture(TILE)==texture){mc.getTextureManager().release(TILE);texture=null;}System.out.println(TAG+"STOP uploads="+uploads+" frames="+frames);});
+  ClientLifecycleEvents.CLIENT_STOPPING.register(mc->{release(mc);System.out.println(TAG+"STOP uploads="+uploads+" frames="+frames+" reloads="+reloads);});
   System.out.println(TAG+"REGISTERED");
+ }
+ private void release(Minecraft mc){
+  mesh.close();pipeline=null;
+  if(texture!=null&&mc.getTextureManager().getTexture(TILE)==texture)mc.getTextureManager().release(TILE);
+  texture=null;
  }
  private void tick(Minecraft mc){
   if(mc.level==null)return;
+  // Test-only lifecycle controls. Never enabled by default or on an ordinary launch.
+  if(Boolean.getBoolean("nativeprobe.ci.control")){
+   var reload=new java.io.File(mc.gameDirectory,"nativeprobe.reload");
+   var stop=new java.io.File(mc.gameDirectory,"nativeprobe.stop");
+   if(!reloading&&stop.delete()){mc.stop();return;}
+   if(!reloading&&reload.delete()){
+    reloading=true;release(mc);
+    mc.reloadResourcePacks().whenComplete((ignored,error)->{
+     if(error!=null)System.out.println(TAG+"RELOAD_FAILED "+error);
+     else System.out.println(TAG+"RELOAD_OK "+(++reloads));
+     reloading=false;
+    });
+    return;
+   }
+  }
+  if(reloading)return;
   if(ticks++%20!=0)return;
   if(!RenderSystem.isOnRenderThread())throw new IllegalStateException("native texture tick not on render thread");
   if(backend==null){System.out.println(TAG+"PREFERENCE "+mc.options.preferredGraphicsBackend().get().getSerializedName());backend=RenderSystem.getDevice().getDeviceInfo().backendName();System.out.println(TAG+"BACKEND "+backend);}
@@ -42,7 +65,7 @@ public final class NativeApiSmoke implements ClientModInitializer {
   int argb=(uploads&1)==0?0xff38a5f1:0xffed962a;
   var image=texture.getPixels();
   for(int y=0;y<64;y++)for(int x=0;x<64;x++)image.setPixelABGR(x,y,abgr(argb));
-  texture.upload();uploads++;mesh.render();
+  texture.upload();mesh.render(uploads&1);uploads++;
   if(uploads<=5)System.out.println(TAG+"UPLOAD "+uploads);
  }
  private RenderPipeline makePipeline(){
@@ -56,7 +79,7 @@ public final class NativeApiSmoke implements ClientModInitializer {
   return b.build();
  }
  private void draw(GuiGraphicsExtractor g){
-  Minecraft mc=Minecraft.getInstance();if(mc.level==null||texture==null)return;
+  Minecraft mc=Minecraft.getInstance();if(mc.level==null||texture==null||reloading)return;
   if(pipeline==null)pipeline=makePipeline();
   g.fill(10,10,42,30,0xff17d9ad);
   // Input color e23419, custom shader must output 1934e2.

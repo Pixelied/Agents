@@ -76,13 +76,12 @@ public final class UniversalMesh implements AutoCloseable {
   }
   return out;
  }
- public void render(){
+ public void render(int phase){
   if(!RenderSystem.isOnRenderThread())throw new IllegalStateException("native mesh outside render thread");
   GpuDevice device=RenderSystem.getDevice();
   if(renderer==null)init(device);
-  // Exercise the native buffer update path, then restore the independently known transform.
-  renderer.updateMatrices(20,projection(),view(),model(20,1));
-  renderer.updateMatrices(20,projection(),view(),model(20,0));
+  // Shift the clipped solid quad in phase 1; the screenshot checks the changed uniform.
+  renderer.updateMatrices(9,projection(),view(),model(9,phase==0?0:32));
   renderer.render(targetView,sourceView,sampler,Optional.of(new Vector4f(16/255f,32/255f,48/255f,1)),WIDTH,HEIGHT);
   if(++draws==1)System.out.println("[NativeApiSmoke] UNIVERSAL 21 modes 15 attributes stride=128 indexed=126 matrix draws=21");
   if(draws==5)System.out.println("[NativeApiSmoke] UNIVERSAL_REUSED 5");

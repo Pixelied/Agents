@@ -40,6 +40,7 @@ print("Verified current options data version",data_version,"and requested backen
 print("PASS: native probe compiled against official client and Fabric API",flush=True)
 '''
 tail=r'''
+command.insert(1,"-Dnativeprobe.ci.control=true")
 print("Launching native rendering diagnostic on",backend,flush=True)
 with console.open("wb") as out:
     proc=subprocess.Popen(command,cwd=game,env=env,stdout=out,stderr=subprocess.STDOUT)
@@ -77,14 +78,33 @@ with console.open("wb") as out:
         assert "[NativeApiSmoke] UNIVERSAL 21 modes 15 attributes stride=128 indexed=126" in read_log(),"original 21-mode mesh draw not reached"
         assert proc.poll() is None
         print("PASS: Minecraft actually drew all 21 original fragment shader modes, nested clips and both dynamic texture phases on",backend,flush=True)
-        # Quit with standard game window close; no forced JVM kill during normal path.
-        probe.key(0xff1b)
-        time.sleep(1)
+        # Two real resource-pack reloads; both dynamic phases must survive reconstruction.
+        for cycle in (1,2):
+            (game/"nativeprobe.reload").touch()
+            assert wait_log(f"[NativeApiSmoke] RELOAD_OK {cycle}",120,proc),"resource reload failed"
+            after=set()
+            for attempt in range(10):
+                assert proc.poll() is None,"Minecraft exited during post-reload verification"
+                name=f"reload-{cycle}-{attempt}.png";shot(name)
+                _,x,y,w,h=probe.window()
+                p=subprocess.run(["java",str(source_dir/"CheckPixels.java"),str(logs/name),str(x),str(y),str(w),str(h),*dims.groups()],text=True,capture_output=True,timeout=20)
+                print(p.stdout+p.stderr,flush=True)
+                if p.returncode==0:
+                    after.add(re.search(r"PHASE=(\d)",p.stdout).group(1))
+                    if len(after)==2:break
+                time.sleep(1.2)
+            assert after=={"0","1"},"post-reload native rendering incomplete"
+            print("PASS: resource reload",cycle,"and both dynamic matrix phases",flush=True)
         shot("final-screen.png")
+        (game/"nativeprobe.stop").touch()
+        assert proc.wait(timeout=60)==0,"Minecraft did not exit normally"
+        assert "[NativeApiSmoke] STOP" in read_log() and "reloads=2" in read_log(),"native cleanup event missing"
+        print("PASS: graceful shutdown and native cleanup",flush=True)
     finally:
-        proc.terminate()
-        try:proc.wait(timeout=15)
-        except subprocess.TimeoutExpired:proc.kill();proc.wait()
+        if proc.poll() is None:
+            proc.terminate()
+            try:proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:proc.kill();proc.wait()
         latest=game/"logs/latest.log"
         if latest.exists():shutil.copyfile(latest,logs/"latest.log")
         if (game/"options.txt").exists():shutil.copyfile(game/"options.txt",logs/"final-options.txt")
