@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-hardening-20261124",
+  "agent_id": "chatgpt-vape-hardening-e51a",
+  "created_at": "2026-11-24T06:08:40+00:00",
+  "event_id": "ac8c72a84f0f4d46b0187bd9f07f64a2",
+  "type": "task_state",
+  "message": "Three ordinary client UX regressions reproduced on supplied Fabric.4.4 and fixed in Fabric.4.4.1. Candidate passed 21,447 local assertions (19,344 glyph checks), ABI comparison and exact archive diff. No gameplay module or networking changes. Verified official runtime data-version migration resets preferredGraphicsBackend to default on old options. Corrected native diagnostic OpenGL job passed pixel tests. Vulkan job status below; no full client Vulkan or Mac gameplay claim. Existing unrelated handoff validation issues were observed previously.",
+  "data": {
+    "state": "completed",
+    "baseline_sha256": "81ee40874fcee57538123cd4ecb8f6f98d7811bf1b37618e1820460c0f2047b9",
+    "candidate_sha256": "f834be8c056ca655dba0edb298900b3248aa9abd5487534dddf9de95e522f16a",
+    "local_checks": 21447,
+    "backend_inspection_run": 45337796336,
+    "backend_report_artifact": 14894791184,
+    "corrected_native_smoke_run": 45337987030,
+    "opengl_artifact": 14894921636,
+    "jobs": [
+      {
+        "id": 138254513833,
+        "name": "native-render (vulkan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 138254514068,
+        "name": "native-render (opengl)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "branch": "feat/vape421-hardening-e51a",
+    "commit": "4c9878244f4381bcb4ac424969bd06888871ac9c"
+  }
+}

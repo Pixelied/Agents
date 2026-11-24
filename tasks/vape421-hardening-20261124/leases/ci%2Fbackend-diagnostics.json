@@ -4,10 +4,12 @@
   "task_id": "vape421-hardening-20261124",
   "scope": "ci/backend-diagnostics",
   "owner": "chatgpt-vape-hardening-e51a",
-  "state": "active",
+  "state": "released",
   "intent": "Independent diagnostics and UX hardening",
   "claimed_at": "2026-11-24T06:07:00+00:00",
   "heartbeat_at": "2026-11-24T06:07:00+00:00",
   "expires_at": "2026-11-24T08:07:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-11-24T06:08:40+00:00",
+  "release_reason": "Local UX candidate verified; diagnostic status and remaining Vulkan gate recorded."
 }
