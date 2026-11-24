@@ -4,10 +4,12 @@
   "task_id": "vape421-native-vertex-pass-20261124",
   "scope": "ci/native-vertex-offscreen-test",
   "owner": "chatgpt-native-vertex-7b19",
-  "state": "active",
+  "state": "released",
   "intent": "Independent offscreen pass diagnostic, based on the proven GUI smoke test; no client implementation modifications",
   "claimed_at": "2026-11-24T06:28:36+00:00",
   "heartbeat_at": "2026-11-24T06:28:36+00:00",
   "expires_at": "2026-11-24T08:28:36+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-11-24T06:48:35+00:00",
+  "release_reason": "Diagnostic acceptance tests passed; results recorded with integration and workspace-validation limitations."
 }

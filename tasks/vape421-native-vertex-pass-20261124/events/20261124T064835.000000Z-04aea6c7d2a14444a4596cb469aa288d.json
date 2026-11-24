@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "04aea6c7d2a14444a4596cb469aa288d",
+  "task_id": "vape421-native-vertex-pass-20261124",
+  "agent_id": "chatgpt-native-vertex-7b19",
+  "type": "task_state",
+  "message": "All planned independent native diagnostic gates passed on actual Minecraft 26.2 software OpenGL and Vulkan. Workspace-wide validation remains blocked by four pre-existing unrelated handoff references; 35 workspace unit tests passed. Full client integration and physical macOS GPU validation remain outstanding.",
+  "data": {
+    "state": "blocked",
+    "branch": "feat/vape421-native-vertex-7b19",
+    "commit": "26aceee146348356448d6714a20312b1d658dc29",
+    "verification": {
+      "universal_shader_run": 45342149597,
+      "matrix_run": 45342555373,
+      "lifecycle_run": 45342780920,
+      "workspace_run": 45340759627,
+      "lifecycle_artifacts": [
+        14897261662,
+        14896996997
+      ],
+      "native_modes": 21,
+      "identical_atlas_pixels": 86016,
+      "resource_reloads_per_backend": 2,
+      "client_assertions": 41482,
+      "geometry_fuzz_frames": 2000
+    },
+    "diagnostic_sha256": "bfef7a6f1acc07d4cf16006922177aad0705f56730bde0a313d7339aa00253ce",
+    "client_open_gl_candidate_sha256": "0237b81efa8b9378cd3df87b90cbcf6c698a25adb4968825e2e6ed3d10891496",
+    "remaining": "Native GUI scheduling, full texture/atlas/framebuffer ownership, remaining legacy GL call sites and physical Apple Silicon tests."
+  },
+  "created_at": "2026-11-24T06:48:35+00:00"
+}
