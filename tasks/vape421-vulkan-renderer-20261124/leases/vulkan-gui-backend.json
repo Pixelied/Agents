@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-vulkan-renderer-20261124",
+  "scope": "vulkan-gui-backend",
+  "owner": "chatgpt-vape-vulkan-c4f1",
+  "state": "active",
+  "intent": "Implement and verify a real custom GUI render pipeline using the 26.2 GUI render-state queue",
+  "claimed_at": "2026-11-24T05:00:00+00:00",
+  "heartbeat_at": "2026-11-24T05:00:00+00:00",
+  "expires_at": "2026-11-24T06:00:00+00:00",
+  "generation": 1
+}

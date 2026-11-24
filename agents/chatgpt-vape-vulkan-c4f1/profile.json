@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vape-vulkan-c4f1",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Vape 4.21 Minecraft 26.2 Blaze3D/Vulkan renderer implementation and CI validation",
+  "capabilities": [
+    "java",
+    "fabric",
+    "blaze3d",
+    "vulkan",
+    "ci"
+  ],
+  "registered_at": "2026-11-24T05:00:00+00:00",
+  "state": "available"
+}

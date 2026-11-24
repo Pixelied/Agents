@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "8c7a61c29b6a45a0b92f6db4a49d4e21",
+  "task_id": "vape421-vulkan-renderer-20261124",
+  "agent_id": "chatgpt-vape-vulkan-c4f1",
+  "type": "task_created",
+  "message": "Starting a separate Blaze3D GUI renderer prototype against the existing stable OpenGL project branch.",
+  "data": {
+    "base_project_branch": "project/vape421-fabric-clean-build-20261123",
+    "minecraft": "26.2",
+    "fabric_loader": "0.19.5",
+    "fabric_api": "0.161.0+26.2"
+  },
+  "created_at": "2026-11-24T05:00:00+00:00"
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-vulkan-renderer-20261124",
+  "title": "Migrate Vape 4.21 GUI rendering to Blaze3D for Vulkan",
+  "objective": "Build and validate a native Minecraft 26.2 GUI render-state backend using Blaze3D so Vape can render through OpenGL and Vulkan without issuing raw OpenGL calls on Vulkan.",
+  "created_by": "chatgpt-vape-vulkan-c4f1",
+  "created_at": "2026-11-24T05:00:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "vulkan-gui-backend"
+  ],
+  "acceptance_criteria": [
+    "A 26.2 Fabric prototype registers a custom GUI render state and custom RenderPipeline through GuiGraphicsExtractor/GuiRenderState",
+    "The custom pipeline compiles and renders under the Minecraft 26.2 Vulkan backend on a Vulkan-capable CI runner",
+    "A small adapter can translate Vape's 32-float GUI batch payload into native vertex attributes plus per-shape GPU parameters",
+    "OpenGL backend remains unchanged and is covered by regression checks",
+    "Document unsupported effects and next migration layers instead of silently falling back to raw GL"
+  ]
+}
