@@ -33,7 +33,7 @@ public final class NativeApiSmoke implements ClientModInitializer {
   if(mc.level==null)return;
   if(ticks++%20!=0)return;
   if(!RenderSystem.isOnRenderThread())throw new IllegalStateException("native texture tick not on render thread");
-  if(backend==null){backend=RenderSystem.getDevice().getDeviceInfo().backendName();System.out.println(TAG+"BACKEND "+backend);}
+  if(backend==null){System.out.println(TAG+"PREFERENCE "+mc.options.preferredGraphicsBackend().get().getSerializedName());backend=RenderSystem.getDevice().getDeviceInfo().backendName();System.out.println(TAG+"BACKEND "+backend);}
   if(texture==null||mc.getTextureManager().getTexture(TILE)!=texture){
    texture=new DynamicTexture(()->"Native smoke texture",new NativeImage(64,64,false));
    mc.getTextureManager().register(TILE,texture);

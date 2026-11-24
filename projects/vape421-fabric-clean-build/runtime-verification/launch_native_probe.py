@@ -22,7 +22,17 @@ subprocess.run(["jar","--create","--file",str(mods/"native-api-smoke.jar"),"-C",
 shutil.copyfile(mods/"native-api-smoke.jar",logs/"native-api-smoke.jar")
 backend=os.environ["PROBE_BACKEND"]
 assert backend in ("opengl","vulkan")
-(game/"options.txt").write_text("guiScale:2\nfullscreen:false\nonboardAccessibility:false\ntutorialStep:none\npauseOnLostFocus:false\nrenderDistance:4\nsimulationDistance:4\nmaxFps:30\npreferredGraphicsBackend:"+backend+"\n",encoding="utf-8")
+with zipfile.ZipFile(client) as z:
+    data_version=json.loads(z.read("version.json"))["world_version"]
+assert isinstance(data_version,int) and data_version>0
+# Options.load applies historical migrations before decoding the fields. Never
+# let a synthetic current-version options fixture masquerade as a legacy file.
+options="version:"+str(data_version)+"\nguiScale:2\nfullscreen:false\nonboardAccessibility:false\ntutorialStep:none\npauseOnLostFocus:false\nrenderDistance:5\nsimulationDistance:5\nmaxFps:30\npreferredGraphicsBackend:"+json.dumps(backend)+"\n"
+(game/"options.txt").write_text(options,encoding="utf-8")
+(logs/"initial-options.txt").write_text(options,encoding="utf-8")
+fix=subprocess.run(["javap","-p","-c","-classpath",str(client),"net.minecraft.util.datafix.fixes.OptionsForceDefaultGraphicsApiFix"],check=True,capture_output=True,text=True)
+(logs/"graphics-option-migration.txt").write_text(fix.stdout)
+print("Verified current options data version",data_version,"and requested backend",backend,flush=True)
 print("PASS: native probe compiled against official client and Fabric API",flush=True)
 '''
 tail=r'''
@@ -38,6 +48,9 @@ with console.open("wb") as out:
         time.sleep(6)
         if "Preparing spawn" not in read_log() and "Starting integrated minecraft server" not in read_log() and "[NativeApiSmoke] BACKEND" not in read_log():probe.click(0.5,264/480)
         assert wait_log("[NativeApiSmoke] DRAW",100,proc),"native HUD did not submit its first frame"
+        preference=re.search(r"\[NativeApiSmoke\] PREFERENCE ([^\r\n]+)",read_log())
+        assert preference and preference.group(1).strip()==backend,("Preference was changed by Minecraft",preference.group(1) if preference else None)
+        print("PASS: options preference retained",preference.group(1),flush=True)
         actual=re.search(r"\[NativeApiSmoke\] BACKEND ([^\r\n]+)",read_log())
         assert actual and backend in actual.group(1).lower(),("Backend fallback or mismatch",actual.group(1) if actual else None)
         print("PASS: real active GPU backend",actual.group(1),flush=True)
@@ -69,6 +82,7 @@ with console.open("wb") as out:
         except subprocess.TimeoutExpired:proc.kill();proc.wait()
         latest=game/"logs/latest.log"
         if latest.exists():shutil.copyfile(latest,logs/"latest.log")
+        if (game/"options.txt").exists():shutil.copyfile(game/"options.txt",logs/"final-options.txt")
         print(read_log()[-18000:],flush=True)
 '''
 # The verified launcher source owns the downloader and X11 test helpers.
