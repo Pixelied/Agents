@@ -174,6 +174,23 @@ public final class VapeFabricMenuScreen extends Screen {
                 new VapeFabricMenuScreen(previous, category, currentPage, error));
     }
 
+    /**
+     * Stronger than checking that a Screen was merely instantiated: verifies
+     * that the recovered core can enumerate real module instances and read
+     * their state. Called by the CI Minecraft integration smoke test.
+     */
+    public static int requireModulesReady() {
+        ModuleLoad loaded = loadModules();
+        if (loaded.error() != null) {
+            throw new IllegalStateException("Vape native menu module loading failed: " + loaded.error());
+        }
+        int size = loaded.modules().size();
+        if (size < 50) {
+            throw new IllegalStateException("Vape native menu only found " + size + " modules");
+        }
+        return size;
+    }
+
     private static ModuleLoad loadModules() {
         try {
             Class<?> vapeClass = Class.forName("gg.vape.Vape");
