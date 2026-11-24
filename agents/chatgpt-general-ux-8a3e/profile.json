@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-general-ux-8a3e",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Audit ordinary client settings, profile isolation and display utilities",
+  "capabilities": [
+    "java",
+    "testing"
+  ],
+  "registered_at": "2026-11-24T06:55:45+00:00",
+  "state": "available"
+}

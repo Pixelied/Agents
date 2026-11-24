@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-general-ux-audit-20261124",
+  "scope": "ci/config-ux-test-dependencies",
+  "owner": "chatgpt-general-ux-8a3e",
+  "state": "active",
+  "intent": "Download public Maven test dependencies via isolated CI; no gameplay source changes",
+  "claimed_at": "2026-11-24T06:55:45+00:00",
+  "heartbeat_at": "2026-11-24T06:55:45+00:00",
+  "expires_at": "2026-11-24T08:55:45+00:00",
+  "generation": 1
+}

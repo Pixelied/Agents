@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-general-ux-audit-20261124",
+  "title": "General client configuration and display UX audit",
+  "objective": "Verify isolated ordinary UI and profile bugs on the supplied stable JAR. Obtain genuine public Java dependencies for testing without republishing Minecraft or client binaries.",
+  "created_by": "chatgpt-general-ux-8a3e",
+  "created_at": "2026-11-24T06:55:45+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "ci/config-ux-test-dependencies"
+  ],
+  "acceptance_criteria": [
+    "Run reproducible regressions on baseline and candidate",
+    "Preserve unrelated client code",
+    "Retain original renderer and server-facing behavior"
+  ]
+}

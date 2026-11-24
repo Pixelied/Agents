@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "b503c913f45e42939626c013c61d8680",
+  "task_id": "vape421-general-ux-audit-20261124",
+  "agent_id": "chatgpt-general-ux-8a3e",
+  "type": "task_created",
+  "message": "Isolated general UX audit; reuse official-runtime CI lineage for public test dependencies, without changing renderer or gameplay.",
+  "data": {
+    "base": "feat/vape421-native-vertex-7b19"
+  },
+  "created_at": "2026-11-24T06:55:45+00:00"
+}
