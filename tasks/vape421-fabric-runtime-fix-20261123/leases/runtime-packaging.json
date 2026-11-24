@@ -4,12 +4,10 @@
   "task_id": "vape421-fabric-runtime-fix-20261123",
   "scope": "runtime-packaging",
   "owner": "chatgpt-vape-runtime-b94f",
-  "state": "released",
-  "intent": "Correct dependencies and validate game startup",
-  "claimed_at": "2026-11-24T02:51:30+00:00",
-  "heartbeat_at": "2026-11-24T02:51:30+00:00",
-  "expires_at": "2026-11-24T03:51:30+00:00",
-  "generation": 1,
-  "released_at": "2026-11-24T02:57:10+00:00",
-  "release_reason": "Corrected cross-platform packaging built and verified; game integration test has not returned a final result."
+  "state": "active",
+  "intent": "Re-run game integration with a null audio output on headless CI",
+  "claimed_at": "2026-11-24T02:57:30+00:00",
+  "heartbeat_at": "2026-11-24T02:57:30+00:00",
+  "expires_at": "2026-11-24T03:57:30+00:00",
+  "generation": 2
 }
