@@ -33,7 +33,7 @@ tasks.register('fabricJar', com.github.jengelman.gradle.plugins.shadow.tasks.Sha
     archiveClassifier = "${fabricPlatform}-${fabricCPU}"
     dependsOn(tasks.named('classes'), tasks.named('compileFabricNative'))
     from(sourceSets.main.output)
-    from(nativeRoot)
+    from(nativeRoot) { include "**/${nativeFile}" }
     configurations = [project.configurations.runtimeClasspath]
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     relocate 'javassist', 'gg.vape.shaded.javassist'
