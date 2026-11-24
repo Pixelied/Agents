@@ -4,10 +4,12 @@
   "task_id": "vape421-native-api-ci-20261124",
   "scope": "ci/native-api-verification",
   "owner": "chatgpt-vulkan-ci-9d72",
-  "state": "active",
+  "state": "released",
   "intent": "Add isolated official-runtime API verification workflow; no renderer source changes",
   "claimed_at": "2026-11-24T05:53:00+00:00",
   "heartbeat_at": "2026-11-24T05:53:00+00:00",
   "expires_at": "2026-11-24T07:53:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-11-24T05:59:00+00:00",
+  "release_reason": "Official runtime signature and compile contract verified. Separate native GUI smoke workflow records actual render-backend outcomes."
 }

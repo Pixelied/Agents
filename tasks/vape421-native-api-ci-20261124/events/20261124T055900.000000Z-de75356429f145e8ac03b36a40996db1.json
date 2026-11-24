@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-native-api-ci-20261124",
+  "agent_id": "chatgpt-vulkan-ci-9d72",
+  "created_at": "2026-11-24T05:59:00+00:00",
+  "event_id": "de75356429f145e8ac03b36a40996db1",
+  "type": "task_state",
+  "message": "Official Minecraft 26.2 client SHA-1 verified; native GUI, texture and Fabric callback contract compiled. Real Minecraft OpenGL smoke passed custom fragment shader, nested scissor and both dynamic texture pixel states. Initial Vulkan job failed before game launch due missing runner driver directory; corrected job status is recorded below. No claim of completed renderer or Mac runtime support. Workspace unit tests 35 passed; unrelated pre-existing handoff validation errors remain.",
+  "data": {
+    "state": "completed",
+    "runtime_api_run": 45336439922,
+    "runtime_api_artifact": 14893913878,
+    "initial_smoke_run": 45336693569,
+    "opengl_artifact": 14894600114,
+    "corrected_smoke_run": 45336751719,
+    "corrected_jobs": [
+      {
+        "id": 138250525596,
+        "name": "native-render (vulkan)",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 138250525981,
+        "name": "native-render (opengl)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "branch": "feat/vape421-native-api-ci-9d72",
+    "commit": "729118a4a43c2658d2b886015fabc797bb605dbe"
+  }
+}
