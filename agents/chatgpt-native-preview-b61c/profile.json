@@ -11,5 +11,7 @@
     "ci"
   ],
   "registered_at": "2026-11-24T15:57:00+00:00",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-11-24T16:01:55+00:00",
+  "state_reason": "Preview test session finished."
 }

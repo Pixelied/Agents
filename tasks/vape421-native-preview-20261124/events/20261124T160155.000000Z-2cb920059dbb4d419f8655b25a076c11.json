@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "2cb920059dbb4d419f8655b25a076c11",
+  "task_id": "vape421-native-preview-20261124",
+  "agent_id": "chatgpt-native-preview-b61c",
+  "type": "task_state",
+  "message": "Native interactive preview passed real Minecraft 26.2 software Vulkan HUD, right-shift menu, coordinate toggle/persistence, search, reload, reopen and graceful shutdown. Combined JAR preserves 4059 original archive entries; guard and version metadata changed, 15 native entries added. 41554 prior assertions plus eight routing tests passed. Original module runtime intentionally not started on Vulkan. Combined game launch and physical Mac not verified; optional shader switch not exercised in the interactive run. 35 workspace tests pass; validator remains blocked by four unrelated pre-existing handoff references.",
+  "data": {
+    "state": "blocked",
+    "branch": "feat/vape421-native-preview-b61c",
+    "commit": "392c539191c53a8a7502ba89f337e26475f6ff84",
+    "runtime_run": 45431692164,
+    "runtime_artifact": 14939158191,
+    "workspace_run": 45431373063,
+    "baseline_sha256": "045eed06564be1af11d1569f31d5cbdd34eb8f2058d01aa6384f1cfb969db7a6",
+    "candidate_sha256": "dd60d498d28558137c3bd03393a2e67e635e288ba7e07030aa7a9e5f772f14b6",
+    "remaining": "Complete native original GUI and module runtime migration, assembled-game testing, MoltenVK testing."
+  },
+  "created_at": "2026-11-24T16:01:55+00:00"
+}

@@ -4,10 +4,12 @@
   "task_id": "vape421-native-preview-20261124",
   "scope": "ci/native-preview-shell",
   "owner": "chatgpt-native-preview-b61c",
-  "state": "active",
+  "state": "released",
   "intent": "Independent native GUI shell and display testing, no edits to original gameplay or existing renderer implementation",
   "claimed_at": "2026-11-24T15:57:00+00:00",
   "heartbeat_at": "2026-11-24T15:57:00+00:00",
   "expires_at": "2026-11-24T17:57:00+00:00",
-  "generation": 1
+  "generation": 1,
+  "released_at": "2026-11-24T16:01:55+00:00",
+  "release_reason": "Verified preview assembly and recorded integration limitations."
 }

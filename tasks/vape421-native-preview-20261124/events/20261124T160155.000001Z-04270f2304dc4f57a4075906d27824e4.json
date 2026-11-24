@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "04270f2304dc4f57a4075906d27824e4",
+  "task_id": "vape421-native-preview-20261124",
+  "agent_id": "chatgpt-native-preview-b61c",
+  "type": "lease_released",
+  "message": "Native preview test scope released; stable and renderer implementation branches untouched.",
+  "data": {
+    "scope": "ci/native-preview-shell"
+  },
+  "created_at": "2026-11-24T16:01:55+00:00"
+}
