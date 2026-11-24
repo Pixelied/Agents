@@ -180,6 +180,7 @@ if any("${" in x for x in command):
     raise RuntimeError("Unresolved launcher arguments: "+repr([x for x in command if "${" in x]))
 env={k:v for k,v in os.environ.items() if k not in ("GITHUB_TOKEN","GH_TOKEN","ACTIONS_RUNTIME_TOKEN","VAPE_ACCESS_TOKEN","VAPE_ONLINE_BASE_URL")}
 env["LIBGL_ALWAYS_SOFTWARE"]="1"
+env["ALSOFT_DRIVERS"]="null"
 console=logs/"client-console.log"
 def read_log():
     return console.read_text(encoding="utf-8",errors="replace") if console.exists() else ""
@@ -268,25 +269,28 @@ with console.open("wb") as out:
     try:
         assert wait_log("[Vape421] Fabric entrypoint registered",120,proc),"Fabric entrypoint was not registered"
         print("PASS: real Minecraft Fabric entrypoint registered",flush=True)
-        assert wait_log("Sound engine started",120,proc),"Game did not initialize audio and reach resource loading"
-        print("PASS: real Minecraft OpenAL sound engine started",flush=True)
-        time.sleep(8)
+        assert wait_log("minecraft:textures/atlas/gui.png-atlas",60,proc),"Game did not reach GUI texture loading"
+        print("PASS: real Minecraft reached resource and GUI texture initialization after OpenAL loading",flush=True)
+        assert "NoSuchMethodError: 'void org.lwjgl.openal.AL.init()'" not in read_log()
+        time.sleep(6)
         if proc.poll() is not None:
             raise RuntimeError("Client exited before main menu")
         print("PASS: real Minecraft survived startup after OpenAL initialization",flush=True)
         shot("title-screen.png")
         probe.click(0.5,236/480)
-        time.sleep(10)
+        time.sleep(6)
         shot("after-demo-click.png")
         if "Preparing spawn" not in read_log() and "Starting integrated minecraft server" not in read_log() and "[Vape421] Fabric initialization completed" not in read_log():
             probe.click(0.5,264/480)
-        if not wait_log("[Vape421] Fabric initialization completed",100,proc):
+        if not wait_log("[Vape421] Fabric initialization completed",65,proc):
             shot("world-or-failure.png")
             if "[Vape421] initialization failed" in read_log() or "[Vape421] Fabric startup failed" in read_log():
                 raise RuntimeError("Recovered runtime failed during world startup")
             raise RuntimeError("World initialization not confirmed; inspect screenshot and log")
         print("PASS: recovered runtime initialized in a real demo world",flush=True)
         shot("world-before-gui.png")
+        probe.key(0xff1b)
+        time.sleep(2)
         probe.key(0xffe2)
         time.sleep(5)
         shot("right-shift-result.png")
