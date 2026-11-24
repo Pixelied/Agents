@@ -5,6 +5,7 @@ on:
       - project/vape421-fabric-clean-build-20261123
     paths:
       - 'projects/vape421-fabric-clean-build/**'
+      - '!projects/vape421-fabric-clean-build/minecraft_smoke.py'
       - '.github/workflows/vape421-fabric-clean-build.yml'
   workflow_dispatch:
 permissions:

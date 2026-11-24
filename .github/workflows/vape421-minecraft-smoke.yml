@@ -18,10 +18,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Wait for the corrected build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for attempt in $(seq 1 80); do
+            if gh api repos/Pixelied/Agents/actions/runs/45315454547/artifacts --jq '.artifacts[].name' | grep -qx 'vape421-fabric-linux-x64'; then exit 0; fi
+            status=$(gh api repos/Pixelied/Agents/actions/runs/45315454547 --jq '.status')
+            if [ "$status" = completed ]; then echo "Corrected build ended without Linux artifact"; exit 1; fi
+            sleep 3
+          done
+          echo "Corrected artifact not produced"; exit 1
       - uses: actions/download-artifact@v4
         with:
           name: vape421-fabric-linux-x64
-          run-id: 45314168947
+          run-id: 45315454547
           github-token: ${{ github.token }}
           path: test-mod
       - uses: actions/setup-java@v4
@@ -32,7 +44,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install disposable display
-        run: sudo apt-get update -q && sudo apt-get install -y xvfb xauth xdotool scrot libgl1-mesa-dri libglx-mesa0 libasound2t64
+        run: |
+          if command -v xvfb-run && command -v xdotool && command -v scrot; then exit 0; fi
+          timeout 90s sudo apt-get install -y --no-install-recommends xvfb xauth xdotool scrot libgl1-mesa-dri libglx-mesa0 libasound2t64 || { timeout 60s sudo apt-get update -q; timeout 90s sudo apt-get install -y --no-install-recommends xvfb xauth xdotool scrot libgl1-mesa-dri libglx-mesa0 libasound2t64; }
       - name: Launch real Minecraft demo and test Fabric world initialization
         run: xvfb-run -a -s "-screen 0 1280x720x24" python -u projects/vape421-fabric-clean-build/minecraft_smoke.py
       - uses: actions/upload-artifact@v4

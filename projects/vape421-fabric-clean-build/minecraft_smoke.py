@@ -89,7 +89,7 @@ item=next(x for x in manifest["versions"] if x["id"]==version)
 meta=get_json(item["url"])
 client=root/"client.jar"
 fetch(meta["downloads"]["client"]["url"],client,meta["downloads"]["client"]["sha1"])
-profile=get_json("https://meta.fabricmc.net/v2/versions/loader/26.2/0.18.4/profile/json")
+profile=get_json("https://meta.fabricmc.net/v2/versions/loader/26.2/0.19.5/profile/json")
 cp=[]
 for entry in profile.get("libraries",[]):
     if allowed(entry.get("rules")):
@@ -131,11 +131,15 @@ api_base="https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/"
 versions=[e.text for e in ET.fromstring(fetch(api_base+"maven-metadata.xml")).findall("./versioning/versions/version") if e.text and e.text.endswith("+26.2")]
 if not versions:
     raise RuntimeError("No official Fabric API for 26.2")
-api="0.160.0+26.2" if "0.160.0+26.2" in versions else versions[-1]
+api="0.161.0+26.2"
+assert api in versions, (api,versions[-5:])
 api_file="fabric-api-"+api+".jar"
 fetch(api_base+api+"/"+api_file,mods/api_file)
 jars=list(Path("test-mod").glob("vape421-fabric-4.21-linux-x64.jar"))
 assert len(jars)==1,jars
+with zipfile.ZipFile(jars[0]) as z:
+    assert json.loads(z.read("fabric.mod.json"))["version"] == "4.21-fabric.2"
+    assert not any(n.startswith("org/lwjgl/") for n in z.namelist())
 shutil.copyfile(jars[0],mods/jars[0].name)
 (game/"options.txt").write_text("guiScale:2\nfullscreen:false\nonboardAccessibility:false\ntutorialStep:none\npauseOnLostFocus:false\n",encoding="utf-8")
 replacements={
@@ -195,10 +199,12 @@ with console.open("wb") as out:
     try:
         assert wait_log("[Vape421] Fabric entrypoint registered",120,proc),"Fabric entrypoint was not registered"
         print("PASS: real Minecraft Fabric entrypoint registered",flush=True)
-        wait_log("Sound engine started",100,proc)
+        assert wait_log("Sound engine started",120,proc),"Game did not initialize audio and reach resource loading"
+        print("PASS: real Minecraft OpenAL sound engine started",flush=True)
         time.sleep(8)
         if proc.poll() is not None:
             raise RuntimeError("Client exited before main menu")
+        print("PASS: real Minecraft survived startup after OpenAL initialization",flush=True)
         shot("title-screen.png")
         windows=subprocess.check_output(["xdotool","search","--onlyvisible","--name","Minecraft"],text=True).split()
         if not windows:
@@ -206,6 +212,10 @@ with console.open("wb") as out:
         win=windows[-1]
         subprocess.run(["xdotool","windowfocus",win],check=False)
         subprocess.run(["xdotool","mousemove","--window",win,"427","236","click","1"],check=False)
+        time.sleep(10)
+        shot("after-demo-click.png")
+        if "Preparing spawn" not in read_log() and "Starting integrated minecraft server" not in read_log() and "[Vape421] Fabric initialization completed" not in read_log():
+            subprocess.run(["xdotool","mousemove","--window",win,"427","264","click","1"],check=False)
         if not wait_log("[Vape421] Fabric initialization completed",100,proc):
             shot("world-or-failure.png")
             if "[Vape421] initialization failed" in read_log() or "[Vape421] Fabric startup failed" in read_log():
@@ -218,7 +228,8 @@ with console.open("wb") as out:
         shot("right-shift-result.png")
         if proc.poll() is not None:
             raise RuntimeError("Game exited after Right Shift")
-        print("PASS: game remained running after Right Shift; screenshot requires GUI inspection",flush=True)
+        assert "ClickGUI 26.2: render callback queued" in read_log(), "Right Shift did not produce the original GUI render callback"
+        print("PASS: actual original ClickGUI render callback fired after Right Shift",flush=True)
     finally:
         proc.terminate()
         try:
