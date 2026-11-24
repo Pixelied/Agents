@@ -4,6 +4,8 @@ No account credentials, no multiplayer server, and no modifications to the
 downloaded game. The tested mod is an already-built CI artifact.
 """
 import concurrent.futures
+import ctypes as C
+import ctypes.util
 import hashlib
 import json
 import os
@@ -181,8 +183,50 @@ env["LIBGL_ALWAYS_SOFTWARE"]="1"
 console=logs/"client-console.log"
 def read_log():
     return console.read_text(encoding="utf-8",errors="replace") if console.exists() else ""
+# Use X11 directly; avoid installing xdotool/scrot via slow apt mirrors.
+class DisplayProbe:
+    def __init__(self):
+        self.x=C.CDLL("libX11.so.6")
+        self.xt=C.CDLL("libXtst.so.6")
+        self.x.XOpenDisplay.argtypes=[C.c_char_p]; self.x.XOpenDisplay.restype=C.c_void_p
+        self.d=self.x.XOpenDisplay(None)
+        if not self.d:
+            raise RuntimeError("Cannot open virtual X11 display")
+        self.x.XSetInputFocus.argtypes=[C.c_void_p,C.c_ulong,C.c_int,C.c_ulong]
+        self.x.XFlush.argtypes=[C.c_void_p]
+        self.x.XKeysymToKeycode.argtypes=[C.c_void_p,C.c_ulong]; self.x.XKeysymToKeycode.restype=C.c_ubyte
+        self.xt.XTestFakeMotionEvent.argtypes=[C.c_void_p,C.c_int,C.c_int,C.c_int,C.c_ulong]
+        self.xt.XTestFakeButtonEvent.argtypes=[C.c_void_p,C.c_uint,C.c_int,C.c_ulong]
+        self.xt.XTestFakeKeyEvent.argtypes=[C.c_void_p,C.c_uint,C.c_int,C.c_ulong]
+    def window(self):
+        result=subprocess.check_output(["xwininfo","-root","-tree"],text=True)
+        matches=re.findall(r'^\s*(0x[0-9a-fA-F]+)\s+"[^"]*Minecraft[^"]*"',result,re.M)
+        if not matches:
+            raise RuntimeError("Minecraft window not found: "+result[-1000:])
+        win=matches[-1]
+        info=subprocess.check_output(["xwininfo","-id",win],text=True)
+        get=lambda key:int(re.search(r"^\s*"+re.escape(key)+r":\s*(-?\d+)",info,re.M).group(1))
+        return int(win,16),get("Absolute upper-left X"),get("Absolute upper-left Y"),get("Width"),get("Height")
+    def click(self,rx,ry):
+        win,x,y,w,h=self.window()
+        self.x.XSetInputFocus(self.d,win,2,0)
+        self.xt.XTestFakeMotionEvent(self.d,-1,x+int(w*rx),y+int(h*ry),0)
+        self.xt.XTestFakeButtonEvent(self.d,1,1,0)
+        self.xt.XTestFakeButtonEvent(self.d,1,0,0)
+        self.x.XFlush(self.d)
+    def key(self,keysym):
+        win,*_=self.window()
+        self.x.XSetInputFocus(self.d,win,2,0)
+        code=self.x.XKeysymToKeycode(self.d,keysym)
+        self.xt.XTestFakeKeyEvent(self.d,code,1,0)
+        self.xt.XTestFakeKeyEvent(self.d,code,0,0)
+        self.x.XFlush(self.d)
+probe=DisplayProbe()
 def shot(name):
-    subprocess.run(["scrot","-o",str(logs/name)],check=False)
+    try:
+        subprocess.run(["java",str(Path(__file__).resolve().parent/"CaptureScreen.java"),str(logs/name)],check=True,timeout=12)
+    except Exception as e:
+        print("Screenshot failed:",e,flush=True)
 def wait_log(marker,timeout,proc):
     end=time.monotonic()+timeout
     while time.monotonic()<end:
@@ -206,16 +250,11 @@ with console.open("wb") as out:
             raise RuntimeError("Client exited before main menu")
         print("PASS: real Minecraft survived startup after OpenAL initialization",flush=True)
         shot("title-screen.png")
-        windows=subprocess.check_output(["xdotool","search","--onlyvisible","--name","Minecraft"],text=True).split()
-        if not windows:
-            raise RuntimeError("Minecraft window not found")
-        win=windows[-1]
-        subprocess.run(["xdotool","windowfocus",win],check=False)
-        subprocess.run(["xdotool","mousemove","--window",win,"427","236","click","1"],check=False)
+        probe.click(0.5,236/480)
         time.sleep(10)
         shot("after-demo-click.png")
         if "Preparing spawn" not in read_log() and "Starting integrated minecraft server" not in read_log() and "[Vape421] Fabric initialization completed" not in read_log():
-            subprocess.run(["xdotool","mousemove","--window",win,"427","264","click","1"],check=False)
+            probe.click(0.5,264/480)
         if not wait_log("[Vape421] Fabric initialization completed",100,proc):
             shot("world-or-failure.png")
             if "[Vape421] initialization failed" in read_log() or "[Vape421] Fabric startup failed" in read_log():
@@ -223,7 +262,7 @@ with console.open("wb") as out:
             raise RuntimeError("World initialization not confirmed; inspect screenshot and log")
         print("PASS: recovered runtime initialized in a real demo world",flush=True)
         shot("world-before-gui.png")
-        subprocess.run(["xdotool","key","Shift_R"],check=False)
+        probe.key(0xffe2)
         time.sleep(5)
         shot("right-shift-result.png")
         if proc.poll() is not None:

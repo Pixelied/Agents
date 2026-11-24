@@ -43,12 +43,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install disposable display
+      - name: Check virtual display availability
         run: |
-          if command -v xvfb-run && command -v xdotool && command -v scrot; then exit 0; fi
-          timeout 90s sudo apt-get install -y --no-install-recommends xvfb xauth xdotool scrot libgl1-mesa-dri libglx-mesa0 libasound2t64 || { timeout 60s sudo apt-get update -q; timeout 90s sudo apt-get install -y --no-install-recommends xvfb xauth xdotool scrot libgl1-mesa-dri libglx-mesa0 libasound2t64; }
+          command -v Xvfb
+          command -v xwininfo
+          ldconfig -p | grep 'libXtst.so.6'
       - name: Launch real Minecraft demo and test Fabric world initialization
-        run: xvfb-run -a -s "-screen 0 1280x720x24" python -u projects/vape421-fabric-clean-build/minecraft_smoke.py
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 -ac >/tmp/vape-xvfb.log 2>&1 &
+          export DISPLAY=:99
+          for i in $(seq 1 20); do xwininfo -root >/dev/null 2>&1 && break; sleep 1; done
+          python -u projects/vape421-fabric-clean-build/minecraft_smoke.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
