@@ -66,7 +66,8 @@ public final class NativeMesh implements AutoCloseable {
    pass.bindTexture("imgTexture",sourceView,sampler);
    pass.setVertexBuffer(0,vertex.slice());
    pass.setIndexBuffer(index,IndexType.INT);
-   pass.drawIndexed(0,0,30,1,0);
+   // 26.2: indexCount, instanceCount, firstIndex, vertexOffset, firstInstance.
+   pass.drawIndexed(30,1,0,0,0);
   }
   encoder.submit();
   if(++draws==1)System.out.println("[NativeApiSmoke] MESH 15 attributes stride=128 indexed=30");
@@ -96,7 +97,7 @@ public final class NativeMesh implements AutoCloseable {
   }catch(RuntimeException|Error failure){close();throw failure;}
  }
  public void composite(GuiGraphicsExtractor g){
-  if(targetView!=null)g.blit(targetView,sampler,100,40,228,168,0f,0f,1f,1f);
+  if(targetView!=null)g.blit(targetView,sampler,100,40,228,168,0f,1f,0f,1f); // u0,u1,v0,v1
  }
  @Override public void close(){
   if(vertex!=null){vertex.close();vertex=null;}if(index!=null){index.close();index=null;}
