@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vulkan-integration-c62a",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Integrate the verified native renderer into the latest stable Vape Fabric client",
+  "capabilities": [
+    "java",
+    "fabric",
+    "vulkan",
+    "ci",
+    "testing"
+  ],
+  "registered_at": "2026-11-24T10:58:00-05:00",
+  "state": "available"
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-vulkan-integrated-preview-20261124",
+  "title": "Build an installable Vulkan preview from latest stable Vape 4.4.3",
+  "objective": "Integrate the proven Minecraft 26.2 native GPU renderer into the exact latest 4.4.3 client, preserve all UX/config/font/module fixes, and deliver a separately testable preview JAR only with verified fail-closed behavior for unsupported legacy paths.",
+  "created_by": "chatgpt-vulkan-integration-c62a",
+  "created_at": "2026-11-24T10:58:00-05:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "renderer/full-client-integration"
+  ],
+  "acceptance_criteria": [
+    "Candidate baseline is the exact 4.4.3 JAR SHA-256 045eed06564be1af11d1569f31d5cbdd34eb8f2058d01aa6384f1cfb969db7a6",
+    "Native 26.2 GPU GUI batches use original 32-float vertex ABI, original shader modes, texture identity, matrices, scissor and draw order",
+    "OpenGL mode remains unchanged",
+    "Vulkan mode never silently falls back to OpenGL; unsupported framebuffer/world callbacks fail closed and are reported",
+    "Run real Minecraft 26.2 OpenGL and Vulkan smoke tests; package candidate only with clear preview limitations"
+  ]
+}

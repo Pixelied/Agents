@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-vulkan-integrated-preview-20261124",
+  "scope": "renderer/full-client-integration",
+  "owner": "chatgpt-vulkan-integration-c62a",
+  "state": "active",
+  "intent": "Integrate native GUI renderer into the latest stable client, separate from old expired prototype lease",
+  "claimed_at": "2026-11-24T10:58:00-05:00",
+  "heartbeat_at": "2026-11-24T10:58:00-05:00",
+  "expires_at": "2026-11-24T13:58:00-05:00",
+  "generation": 1
+}
