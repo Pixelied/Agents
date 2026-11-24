@@ -1,0 +1,25 @@
+name: Public Java test dependencies for general UX regressions
+on:
+  push:
+    branches: [feat/vape421-general-ux-8a3e]
+    paths:
+      - 'projects/vape421-fabric-clean-build/runtime-verification/fetch_ux_test_deps.py'
+      - '.github/workflows/vape421-ux-test-deps.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dependencies:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download and verify public libraries from official metadata
+        run: python3 -u projects/vape421-fabric-clean-build/runtime-verification/fetch_ux_test_deps.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-26.2-public-ux-test-deps
+          path: ux-test-deps/
+          retention-days: 7
