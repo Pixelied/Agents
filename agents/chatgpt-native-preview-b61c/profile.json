@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-native-preview-b61c",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Native Vulkan GUI/HUD preview isolated from legacy client initialization",
+  "capabilities": [
+    "java",
+    "fabric",
+    "ci"
+  ],
+  "registered_at": "2026-11-24T15:57:00+00:00",
+  "state": "available"
+}

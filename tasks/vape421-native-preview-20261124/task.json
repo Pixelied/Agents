@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-native-preview-20261124",
+  "title": "Testable native Vulkan GUI and HUD preview for latest client",
+  "objective": "Compile and verify an interactive native GUI and ordinary HUD preview, then combine with exact Fabric.4.4.3 baseline without enabling unsafe legacy GL renderer.",
+  "created_by": "chatgpt-native-preview-b61c",
+  "created_at": "2026-11-24T15:57:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "ci/native-preview-shell"
+  ],
+  "acceptance_criteria": [
+    "Verify real Vulkan backend, GUI open and HUD extraction in official Minecraft 26.2",
+    "Preserve baseline entries and configuration",
+    "Clearly mark unsupported legacy module runtime"
+  ]
+}

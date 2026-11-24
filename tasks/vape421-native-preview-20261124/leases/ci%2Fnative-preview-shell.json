@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-native-preview-20261124",
+  "scope": "ci/native-preview-shell",
+  "owner": "chatgpt-native-preview-b61c",
+  "state": "active",
+  "intent": "Independent native GUI shell and display testing, no edits to original gameplay or existing renderer implementation",
+  "claimed_at": "2026-11-24T15:57:00+00:00",
+  "heartbeat_at": "2026-11-24T15:57:00+00:00",
+  "expires_at": "2026-11-24T17:57:00+00:00",
+  "generation": 1
+}
