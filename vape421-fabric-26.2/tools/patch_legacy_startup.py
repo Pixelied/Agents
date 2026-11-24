@@ -45,3 +45,88 @@ if mapping_source.count(old_mapping) != 1:
     raise SystemExit("Expected exactly one universal item mapping loop")
 mapping_path.write_text(mapping_source.replace(old_mapping, new_mapping, 1), encoding="utf-8")
 print("Fabric patched: ignore trailing empty universal_items.csv records")
+
+
+def rewrite(relative, old, replacement):
+    source_file = root / relative
+    original = source_file.read_text(encoding="utf-8")
+    count = original.count(old)
+    if count != 1:
+        raise SystemExit(f"Expected one source block in {relative}, found {count}")
+    source_file.write_text(original.replace(old, replacement, 1), encoding="utf-8")
+
+
+# Profiles and favorites are data model state. Their old GUI refreshes are
+# presentation-only side effects; that injected GUI is never constructed in
+# the normal 26.2 Fabric path. Do not make profile initialization depend on
+# non-existent click-GUI frames.
+rewrite(
+    "gg/vape/ui/click/frame/impl/VisibleModuleListFrame.java",
+    "    public static void e() {\\n",
+    """    public static void e() {
+        if (gg.vape.runtime.FabricMigrationRuntime.isActive()) return;
+""",
+)
+rewrite(
+    "gg/vape/ui/click/frame/impl/profile/ProfilesSettingsFrame.java",
+    "    public static void refreshProfileList() {\\n",
+    """    public static void refreshProfileList() {
+        if (gg.vape.runtime.FabricMigrationRuntime.isActive()) return;
+""",
+)
+rewrite(
+    "gg/vape/manager/client/ProfilesManager.java",
+    """        ClientSettings.getFrame(ProfilesSettingsFrame.class).addProfile(profile);
+        ProfilesSettingsFrame.refreshProfileList();""",
+    """        if (!gg.vape.runtime.FabricMigrationRuntime.isActive()) {
+            ClientSettings.getFrame(ProfilesSettingsFrame.class).addProfile(profile);
+            ProfilesSettingsFrame.refreshProfileList();
+        }""",
+)
+rewrite(
+    "gg/vape/manager/client/ProfilesManager.java",
+    "        ClientSettings.getFrame(ProfilesSettingsFrame.class).removeProfile(profile);",
+    """        if (!gg.vape.runtime.FabricMigrationRuntime.isActive())
+            ClientSettings.getFrame(ProfilesSettingsFrame.class).removeProfile(profile);""",
+)
+
+# The initial client lifecycle fires before all item registry components are
+# bound on 26.2. The "missing mappings" scan is diagnostic only, and its
+# ItemStack construction can fail before resource loading completes.
+rewrite(
+    "gg/vape/Vape.java",
+    "            this.itemStackSemanticResolver.reportMissingMappings();",
+    """            if (!FabricMigrationRuntime.isActive()) {
+                this.itemStackSemanticResolver.reportMissingMappings();
+            }""",
+)
+
+# The recovered native bridge logged initialization errors but swallowed
+# them, leaving half-initialized managers and claiming the client started.
+# Propagate errors to the Fabric launcher so it never enables input hooks
+# against an incomplete client.
+rewrite(
+    "gg/vape/runtime/NativeBridge.java",
+    """            catch (java.lang.reflect.InvocationTargetException wrapper) {
+                NativeBridge.logThrowable(name, wrapper.getCause() != null ? wrapper.getCause() : wrapper);
+            }
+            catch (Throwable other) {
+                NativeBridge.logThrowable(name, other);
+            }
+""",
+    """            catch (java.lang.reflect.InvocationTargetException wrapper) {
+                Throwable cause = wrapper.getCause() != null ? wrapper.getCause() : wrapper;
+                NativeBridge.logThrowable(name, cause);
+                if (FabricMigrationRuntime.isActive()) {
+                    throw new IllegalStateException("Vape " + name + " failed", cause);
+                }
+            }
+            catch (Throwable other) {
+                NativeBridge.logThrowable(name, other);
+                if (FabricMigrationRuntime.isActive()) {
+                    throw new IllegalStateException("Vape " + name + " failed", other);
+                }
+            }
+""",
+)
+print("Fabric patched: skip obsolete GUI view side effects; fail fast on incomplete bootstrap")
