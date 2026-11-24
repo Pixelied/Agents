@@ -12,17 +12,38 @@ public class CheckPixels {
   check("custom channel swap shader",65,20,0x1934e2);
   check("outside nested clip",14,50,0x223344);
   check("inside nested clip",24,50,0xb251e0);
-  // Distinct locations, hand-derived shader values; no fallback from a solid GUI fill.
-  check("offscreen clear",102,42,0x102030);
-  check("offscreen indexed solid",132,72,0x17d9ad);
-  check("rounded rectangle interior",196,72,0xe23419);
-  check("rounded rectangle clipped corner",173,49,0x102030);
-  check("circle interior",132,136,0x4278e5);
-  check("circle clipped corner",109,113,0x102030);
-  check("font coverage blend",196,136,0x808890);
-  check("15-attribute sentinel",164,104,0x254e72);
+  // 63 independent color samples from the supplied original shader's software OpenGL reference.
+  int[][][] refs={
+  {{35,11,0x3996c8},{35,47,0x3996c8},{41,19,0x3996c8}},
+  {{33,36,0xffffff},{33,46,0xffffff},{33,56,0xffffff}},
+  {{17,29,0x3996c8},{19,39,0x3996c8},{23,20,0x3996c8}},
+  {{17,28,0x3996c8},{28,17,0x3996c8},{28,46,0x3996c8}},
+  {{33,33,0x3996c8},{33,43,0x3996c8},{42,38,0x3996c8}},
+  {{3,24,0x3996c8},{3,34,0x3996c8},{7,44,0x3996c8}},
+  {{7,15,0x1f4b67},{7,48,0x1f4b67},{15,7,0x1f4b67}},
+  {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
+  {{46,46,0x3996c8},{22,49,0x3894c5},{49,22,0x3894c5}},
+  {{3,3,0x3996c8},{3,13,0x3996c8},{3,23,0x3996c8}},
+  {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
+  {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
+  {{3,3,0x3996c8},{3,13,0x3996c8},{3,42,0x3996c8}},
+  {{15,29,0x308dbd},{17,39,0x308dbd},{20,20,0x308dbd}},
+  {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
+  {{33,33,0x3da3d9},{33,43,0x3da3d9},{33,53,0x3da3d9}},
+  {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
+  {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
+  {{14,30,0x235676},{27,30,0x245b7c},{41,30,0x245b7c}},
+  {{7,29,0x3996c8},{12,38,0x3996c8},{16,24,0x3996c8}},
+  {{7,29,0xe80305},{12,38,0xe80305},{51,25,0x025feb}}
+  };
+  for(int m=0;m<refs.length;m++)for(int[] p:refs[m]){
+   int px=wx+(int)((100+(m%7*64+p[0]+.5)/2)*ww/gw);
+   int py=wy+(int)((40+(m/7*64+p[1]+.5)/2)*wh/gh);
+   int actual=img.getRGB(px,py)&0xffffff;
+   if(!near(actual,p[2]))throw new AssertionError(String.format("original shader mode %d (%d,%d) expected %06x got %06x",m,p[0],p[1],p[2],actual));
+  }
   int color=sample(20,80);int phase=near(color,0x38a5f1)?0:near(color,0xed962a)?1:-1;
   if(phase<0)throw new AssertionError(String.format("native texture color %06x",color));
-  System.out.println("PASS PIXELS: standard HUD + 128-byte native mesh, rounded rect, circle, glyph blend, ABI checksum; PHASE="+phase);
+  System.out.println("PASS PIXELS: standard HUD + 63 original-shader samples across 21 native modes; PHASE="+phase);
  }
 }

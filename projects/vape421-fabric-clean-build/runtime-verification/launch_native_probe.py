@@ -21,7 +21,7 @@ for cls in ["com.mojang.blaze3d.vertex.VertexFormat","com.mojang.blaze3d.systems
     report=subprocess.run(["javap","-p","-c","-l","-classpath",str(client),cls],capture_output=True,text=True,check=True)
     (logs/(cls+".txt")).write_text(report.stdout)
 
-subprocess.run(["javac","-proc:none","--release","25","-cp",os.pathsep.join(map(str,cp+compile_libs)),"-d",str(classes),str(source_dir/"NativeApiSmoke.java"),str(source_dir/"NativeMesh.java")],check=True)
+subprocess.run(["javac","-proc:none","--release","25","-cp",os.pathsep.join(map(str,cp+compile_libs)),"-d",str(classes),str(source_dir/"NativeApiSmoke.java"),str(source_dir/"UniversalMesh.java")],check=True)
 subprocess.run(["jar","--create","--file",str(mods/"native-api-smoke.jar"),"-C",str(classes),".","-C",str(source_dir/"resources"),"."],check=True)
 shutil.copyfile(mods/"native-api-smoke.jar",logs/"native-api-smoke.jar")
 backend=os.environ["PROBE_BACKEND"]
@@ -74,9 +74,9 @@ with console.open("wb") as out:
             time.sleep(1.2)
         assert phases=={"0","1"},"native rendering pixel/animation verification incomplete"
         assert "[NativeApiSmoke] UPLOAD 2" in read_log(),"dynamic texture update not observed"
-        assert "[NativeApiSmoke] MESH 15 attributes stride=128 indexed=30" in read_log(),"custom mesh draw not reached"
+        assert "[NativeApiSmoke] UNIVERSAL 21 modes 15 attributes stride=128 indexed=126" in read_log(),"original 21-mode mesh draw not reached"
         assert proc.poll() is None
-        print("PASS: Minecraft actually drew the standard rectangle, custom fragment shader, nested clips and both dynamic texture phases on",backend,flush=True)
+        print("PASS: Minecraft actually drew all 21 original fragment shader modes, nested clips and both dynamic texture phases on",backend,flush=True)
         # Quit with standard game window close; no forced JVM kill during normal path.
         probe.key(0xff1b)
         time.sleep(1)
