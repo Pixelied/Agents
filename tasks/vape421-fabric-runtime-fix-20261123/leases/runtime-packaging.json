@@ -4,10 +4,12 @@
   "task_id": "vape421-fabric-runtime-fix-20261123",
   "scope": "runtime-packaging",
   "owner": "chatgpt-vape-runtime-b94f",
-  "state": "active",
+  "state": "released",
   "intent": "Re-run game integration with a null audio output on headless CI",
   "claimed_at": "2026-11-24T02:57:30+00:00",
   "heartbeat_at": "2026-11-24T02:57:30+00:00",
   "expires_at": "2026-11-24T03:57:30+00:00",
-  "generation": 2
+  "generation": 2,
+  "released_at": "2026-11-24T02:59:35+00:00",
+  "release_reason": "Corrected JAR built and startup reproduced. World/GUI test is not yet verified."
 }

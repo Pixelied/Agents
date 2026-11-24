@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-fabric-runtime-fix-20261123",
+  "agent_id": "chatgpt-vape-runtime-b94f",
+  "created_at": "2026-11-24T02:59:35+00:00",
+  "event_id": "4600a24a06d34444af62b0480c68db01",
+  "type": "lease_released",
+  "message": "Released CI and packaging scope.",
+  "data": {
+    "scope": "runtime-packaging"
+  }
+}
