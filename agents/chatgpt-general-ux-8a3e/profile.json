@@ -10,5 +10,7 @@
     "testing"
   ],
   "registered_at": "2026-11-24T06:55:45+00:00",
-  "state": "available"
+  "state": "offline",
+  "state_updated_at": "2026-11-24T07:01:10+00:00",
+  "state_reason": "Audit pass finished."
 }

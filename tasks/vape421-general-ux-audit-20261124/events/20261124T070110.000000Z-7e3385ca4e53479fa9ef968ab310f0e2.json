@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "7e3385ca4e53479fa9ef968ab310f0e2",
+  "task_id": "vape421-general-ux-audit-20261124",
+  "agent_id": "chatgpt-general-ux-8a3e",
+  "type": "task_state",
+  "message": "General UX audit produced 4.4.3. Baseline 49 failed assertions; candidate 72 new assertions pass and all 41,482 prior regression assertions pass. Ten modified classes retain public ABI; archive comparison and independent rebuild passed. No gameplay automation changes or physical Mac test. Repository-wide validation remains blocked by four unrelated pre-existing handoff references; all 35 workspace tests pass.",
+  "data": {
+    "state": "blocked",
+    "baseline_sha256": "0237b81efa8b9378cd3df87b90cbcf6c698a25adb4968825e2e6ed3d10891496",
+    "candidate_sha256": "045eed06564be1af11d1569f31d5cbdd34eb8f2058d01aa6384f1cfb969db7a6",
+    "new_checks": 72,
+    "previous_checks": 41482,
+    "dependency_run": 45344151676,
+    "dependency_artifact": 14897496888,
+    "workspace_run": 45344118499,
+    "branch": "feat/vape421-general-ux-8a3e",
+    "remaining": "In-game per-module verification and UI lifecycle tests"
+  },
+  "created_at": "2026-11-24T07:01:10+00:00"
+}
