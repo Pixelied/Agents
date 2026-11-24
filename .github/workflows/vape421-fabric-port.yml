@@ -278,8 +278,9 @@ jobs:
           grep -F "Recovered Vape managers initialized (profiles, modules, settings, notifications)." run/logs/latest.log
           grep -F "Recovered Vape core started through Fabric lifecycle." run/logs/latest.log
           grep -F "Vape native GUI smoke opened successfully." run/logs/latest.log
+          grep -E "Vape native GUI verified [0-9]+ accessible modules." run/logs/latest.log
 
-          if grep -E "MixinApplyError|MixinTransformerError|InvalidInjectionException|InjectionError|Recovered Vape core bootstrap failed|Recovered Vape core initialization INCOMPLETE|Unable to invoke recovered Vape core bootstrap|NoClassDefFoundError|EXC initializeManagers|Vape native GUI smoke failed to open|Recovered Vape input event dispatch failed|ClassNotFoundException: gg.vape.runtime.NativeBridge" run/logs/latest.log; then
+          if grep -E "MixinApplyError|MixinTransformerError|InvalidInjectionException|InjectionError|Recovered Vape core bootstrap failed|Recovered Vape core initialization INCOMPLETE|Unable to invoke recovered Vape core bootstrap|NoClassDefFoundError|EXC initializeManagers|Vape native GUI smoke failed to open|Vape native GUI smoke failed to enumerate modules|Exception java.lang.NullPointerException|Recovered Vape input event dispatch failed|ClassNotFoundException: gg.vape.runtime.NativeBridge" run/logs/latest.log; then
             echo "Recovered-core or Mixin/runtime initialization error detected"
             exit 1
           fi
