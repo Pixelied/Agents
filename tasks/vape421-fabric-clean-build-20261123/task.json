@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-fabric-clean-build-20261123",
+  "title": "Fresh Vape 4.21 Fabric packaging build",
+  "objective": "Compile the current conversion from the user-provided original source commit, without previous ports; verify packaging and bridge smoke tests on GitHub Actions.",
+  "created_by": "chatgpt-vape-ci-a6d9",
+  "created_at": "2026-11-24T02:38:00+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "ci"
+  ],
+  "acceptance_criteria": [
+    "Build platform-specific Fabric JARs",
+    "Verify JAR structure and native bridge smoke tests",
+    "Record actual results and limitations"
+  ]
+}

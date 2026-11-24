@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vape-ci-a6d9",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "One-shot clean Fabric build and CI verification",
+  "capabilities": [
+    "java",
+    "gradle",
+    "ci"
+  ],
+  "registered_at": "2026-11-24T02:38:00+00:00",
+  "state": "available"
+}
