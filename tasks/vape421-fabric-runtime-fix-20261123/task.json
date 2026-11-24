@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-fabric-runtime-fix-20261123",
+  "title": "Correct Vape Fabric runtime packaging",
+  "objective": "Resolve OpenAL/LWJGL runtime collisions reported by user and validate a real Minecraft startup.",
+  "created_by": "chatgpt-vape-runtime-b94f",
+  "created_at": "2026-11-24T02:51:30+00:00",
+  "priority": "high",
+  "status": "open",
+  "scopes": [
+    "runtime-packaging"
+  ],
+  "acceptance_criteria": [
+    "No legacy LWJGL classes or native libraries in distribution",
+    "Actual Minecraft 26.2 startup and world test attempted; report verified results and blockers"
+  ]
+}

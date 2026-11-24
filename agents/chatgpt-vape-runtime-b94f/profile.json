@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vape-runtime-b94f",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Investigate reported runtime library conflict and test isolated Minecraft launch",
+  "capabilities": [
+    "java",
+    "gradle",
+    "ci"
+  ],
+  "registered_at": "2026-11-24T02:51:30+00:00",
+  "state": "available"
+}

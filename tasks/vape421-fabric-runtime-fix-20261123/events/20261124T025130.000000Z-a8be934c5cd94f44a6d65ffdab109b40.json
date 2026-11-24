@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "a8be934c5cd94f44a6d65ffdab109b40",
+  "task_id": "vape421-fabric-runtime-fix-20261123",
+  "agent_id": "chatgpt-vape-runtime-b94f",
+  "type": "task_created",
+  "message": "Crash report identifies legacy LWJGL2 collision with game libraries.",
+  "data": {},
+  "created_at": "2026-11-24T02:51:30+00:00"
+}
