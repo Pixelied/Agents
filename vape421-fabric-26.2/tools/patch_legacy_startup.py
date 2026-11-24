@@ -144,3 +144,29 @@ if friend_src.count(old_helper) != 2:
     raise SystemExit("Unexpected decompiled friend callback helper count")
 friend_path.write_text(friend_src.replace(old_helper, new_helper), encoding="utf-8")
 print("Fabric patched: removed duplicate synthetic friend callback signature")
+
+# The recovered notifications are old fixed-function/OpenGL widgets and need
+# the legacy font renderer, which is intentionally not created in the native
+# 26.2/Vulkan GUI. They must not crash startup or module toggles.
+rewrite(
+    "gg/vape/notification/NotificationManager.java",
+    """    public void show(String title, String message, NotificationType type, long durationMillis, boolean force) {
+        this.enqueue(new Notification(type, title, new TextNotificationContent(message), 0.0, 0.0, durationMillis), force);
+    }
+""",
+    """    public void show(String title, String message, NotificationType type, long durationMillis, boolean force) {
+        if (gg.vape.runtime.FabricMigrationRuntime.isActive()) {
+            return; // native Screen reports module state without the old overlay
+        }
+        this.enqueue(new Notification(type, title, new TextNotificationContent(message), 0.0, 0.0, durationMillis), force);
+    }
+""",
+)
+rewrite(
+    "gg/vape/notification/NotificationManager.java",
+    "    public void enqueue(INotification notification, boolean force) {\n",
+    """    public void enqueue(INotification notification, boolean force) {
+        if (gg.vape.runtime.FabricMigrationRuntime.isActive()) return;
+""",
+)
+print("Fabric patched: avoid abandoned OpenGL notification/font renderer")
