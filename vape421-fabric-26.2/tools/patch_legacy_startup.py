@@ -199,3 +199,22 @@ rewrite(
         this.firstRun = this.settings.isFirstRun();""",
 )
 print("Fabric patched: safe local global settings fallback when online API is unavailable")
+
+
+# The account endpoint and original registration window are optional in the
+# injector-free client. If account lookup fails, the old failure handler tries
+# to show an OnlineFriendsFrame that was deliberately never constructed.
+# Retain the REGISTRATION_OFFLINE account state, but skip that obsolete UI
+# side effect on Fabric. The native GUI still exposes local modules.
+rewrite(
+    "gg/vape/manager/client/OnlineConnectionManager.java",
+    """        this.setAccountState(OnlineAccountState.REGISTRATION_OFFLINE);
+        ClientSettings.getFrame(OnlineFriendsFrame.class).showRegistration();
+        this.initializationStarted = false;""",
+    """        this.setAccountState(OnlineAccountState.REGISTRATION_OFFLINE);
+        if (!gg.vape.runtime.FabricMigrationRuntime.isActive()) {
+            ClientSettings.getFrame(OnlineFriendsFrame.class).showRegistration();
+        }
+        this.initializationStarted = false;""",
+)
+print("Fabric patched: unavailable online registration does not invoke abandoned GUI")
