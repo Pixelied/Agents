@@ -32,10 +32,14 @@ out float f_Spread;
 out vec4 f_Corners;
 
 
+layout(std140) uniform VapeMatrices {
+    mat4 u_Projection;
+    mat4 u_View;
+    mat4 u_Model;
+};
+
 void main() {
-    // Diagnostic atlas projection only; original shader varyings are unchanged.
-    vec2 pixel = aPos.xy + vec2(mod(selectedShader, 7.0), floor(selectedShader / 7.0)) * 64.0;
-    gl_Position = vec4(pixel.x / 224.0 - 1.0, 1.0 - pixel.y / 96.0, 0.0, 1.0);
+    gl_Position = u_Projection * u_View * u_Model * vec4(aPos, 1.0);
 
     f_SelectedShader = selectedShader;
     f_Position = aPos;

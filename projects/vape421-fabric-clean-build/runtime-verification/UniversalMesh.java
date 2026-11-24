@@ -22,8 +22,7 @@ public final class UniversalMesh implements AutoCloseable {
  private GpuTexture target,source;
  private GpuTextureView targetView,sourceView;
  private GpuSampler sampler;
- private GpuBuffer vertex,index;
- private RenderPipeline pipeline;
+ private NativeGuiBatchRenderer renderer;
  private int draws;
  private static GpuFormat floatFormat(int n){return switch(n){case 1->GpuFormat.R32_FLOAT;case 2->GpuFormat.RG32_FLOAT;case 3->GpuFormat.RGB32_FLOAT;case 4->GpuFormat.RGBA32_FLOAT;default->throw new IllegalArgumentException();};}
  static VertexFormat format(){
@@ -35,9 +34,10 @@ public final class UniversalMesh implements AutoCloseable {
   int offset=0;for(int i=0;i<NAMES.length;i++){var a=format.getElement(NAMES[i]);if(a==null||a.offset()!=offset||a.format()!=floatFormat(WIDTHS[i]))throw new IllegalStateException("Incorrect ABI attribute "+NAMES[i]);offset+=WIDTHS[i]*4;}
   return format;
  }
- private static ByteBuffer vertices(){
-  ByteBuffer b=ByteBuffer.allocateDirect(21*4*STRIDE).order(ByteOrder.nativeOrder());
+ private static BatchGeometry geometry(){
+  List<BatchGeometry.Part> parts=new ArrayList<>();
   for(int mode=0;mode<21;mode++){
+   ByteBuffer b=ByteBuffer.allocate(4*STRIDE).order(ByteOrder.nativeOrder());
    float[] color={.24f,.64f,.85f,.9f},corners={1,1,1,1},rect={23,23,41,41},radius={18,3,2},center={32,32},origin={50,32},screen={64,64};
    float inner=12,feather=2,middle=0,sweep=180,spread=2;
    if(mode==8||mode==13){rect=new float[]{14,14,36,36};center=new float[]{2,2};spread=6;sweep=0;screen=new float[]{.2f,.6f};origin=new float[]{.8f,.9f};inner=2;}
@@ -55,42 +55,41 @@ public final class UniversalMesh implements AutoCloseable {
     for(float[] a:new float[][]{screen,origin,rect,radius})for(float f:a)b.putFloat(f);
     b.putFloat(spread);for(float f:corners)b.putFloat(f);
    }
+   if(b.position()!=4*STRIDE)throw new IllegalStateException("wrong fixture ABI");
+   float[] data=new float[4*32];b.flip();b.asFloatBuffer().get(data);
+   int n=mode*4;parts.add(new BatchGeometry.Part(data,4,new int[]{n,n+1,n+2,n+1,n+3,n+2},n));
   }
-  if(b.position()!=21*4*STRIDE)throw new IllegalStateException("vertex bytes "+b.position());
-  return b.flip();
+  return BatchGeometry.pack(parts);
  }
- private static ByteBuffer indices(){
-  ByteBuffer b=ByteBuffer.allocateDirect(21*6*Integer.BYTES).order(ByteOrder.nativeOrder());
-  for(int q=0;q<21;q++)for(int i:new int[]{0,1,2,1,3,2})b.putInt(q*4+i);
-  return b.flip();
+ private static float[] transform(float sx,float sy,float tx,float ty){
+  return new float[]{sx,0,0,0,0,sy,0,0,0,0,1,0,tx,ty,0,1};
+ }
+ private static float[] projection(){return transform(1f/224,-1f/96,-1,1);}
+ private static float[] view(){return transform(2,2,4,6);}
+ private static float[] model(int m,float xOffset){return transform(.5f,.5f,(m%7*64+xOffset)/2-2,(m/7*64)/2f-3);}
+ private static List<NativeGuiBatchRenderer.Draw> draws(){
+  List<NativeGuiBatchRenderer.Draw> out=new ArrayList<>();
+  for(int m=0;m<21;m++){
+   // Native target-space clipping. Mode 9 is a solid quad so its clip is independently observable.
+   NativeGuiBatchRenderer.Clip clip=m==9?new NativeGuiBatchRenderer.Clip(136,88,48,32):null;
+   out.add(new NativeGuiBatchRenderer.Draw(m,projection(),view(),model(m,0),clip));
+  }
+  return out;
  }
  public void render(){
   if(!RenderSystem.isOnRenderThread())throw new IllegalStateException("native mesh outside render thread");
   GpuDevice device=RenderSystem.getDevice();
-  if(pipeline==null)init(device);
-  CommandEncoder encoder=device.createCommandEncoder();
-  try(RenderPass pass=encoder.createRenderPass(()->"Native 128-byte ABI test",targetView,Optional.of(new Vector4f(16/255f,32/255f,48/255f,1)))){
-   pass.setPipeline(pipeline);
-   pass.bindTexture("imgTexture",sourceView,sampler);
-   pass.setVertexBuffer(0,vertex.slice());
-   pass.setIndexBuffer(index,IndexType.INT);
-   // 26.2: indexCount, instanceCount, firstIndex, vertexOffset, firstInstance.
-   pass.drawIndexed(126,1,0,0,0);
-  }
-  encoder.submit();
-  if(++draws==1)System.out.println("[NativeApiSmoke] UNIVERSAL 21 modes 15 attributes stride=128 indexed=126");
+  if(renderer==null)init(device);
+  // Exercise the native buffer update path, then restore the independently known transform.
+  renderer.updateMatrices(20,projection(),view(),model(20,1));
+  renderer.updateMatrices(20,projection(),view(),model(20,0));
+  renderer.render(targetView,sourceView,sampler,Optional.of(new Vector4f(16/255f,32/255f,48/255f,1)),WIDTH,HEIGHT);
+  if(++draws==1)System.out.println("[NativeApiSmoke] UNIVERSAL 21 modes 15 attributes stride=128 indexed=126 matrix draws=21");
   if(draws==5)System.out.println("[NativeApiSmoke] UNIVERSAL_REUSED 5");
  }
  private void init(GpuDevice device){
   try{
-   VertexFormat layout=format();
-   pipeline=RenderPipeline.builder().withLocation(Identifier.fromNamespaceAndPath("native_api_probe","pipeline/universal"))
-    .withVertexShader(Identifier.fromNamespaceAndPath("native_api_probe","core/universal"))
-    .withFragmentShader(Identifier.fromNamespaceAndPath("native_api_probe","core/universal"))
-    .withVertexBinding(0,layout).withPrimitiveTopology(PrimitiveTopology.TRIANGLES).withCull(false)
-    .withColorTargetState(new ColorTargetState(Optional.of(BlendFunction.TRANSLUCENT),GpuFormat.RGBA8_UNORM,ColorTargetState.WRITE_ALL))
-    .withDepthStencilState(Optional.empty())
-    .withBindGroupLayout(BindGroupLayout.builder().withSampler("imgTexture").build()).build();
+   renderer=new NativeGuiBatchRenderer(device,format(),geometry(),draws());
    target=device.createTexture("Native mesh target",GpuTexture.USAGE_RENDER_ATTACHMENT|GpuTexture.USAGE_TEXTURE_BINDING,GpuFormat.RGBA8_UNORM,WIDTH,HEIGHT,1,1);
    targetView=device.createTextureView(target);
    source=device.createTexture("Native glyph coverage",GpuTexture.USAGE_COPY_DST|GpuTexture.USAGE_TEXTURE_BINDING,GpuFormat.RGBA8_UNORM,2,2,1,1);
@@ -102,17 +101,15 @@ public final class UniversalMesh implements AutoCloseable {
     image.setPixelABGR(0,1,0x96ff7846);image.setPixelABGR(1,1,0xffffffff);
     CommandEncoder upload=device.createCommandEncoder();upload.writeToTexture(source,image);upload.submit();
    }
-   vertex=device.createBuffer(()->"Native mesh vertex buffer",GpuBuffer.USAGE_VERTEX|GpuBuffer.USAGE_COPY_DST,vertices());
-   index=device.createBuffer(()->"Native mesh index buffer",GpuBuffer.USAGE_INDEX|GpuBuffer.USAGE_COPY_DST,indices());
   }catch(RuntimeException|Error failure){close();throw failure;}
  }
  public void composite(GuiGraphicsExtractor g){
   if(targetView!=null)g.blit(targetView,sampler,100,40,324,136,0f,1f,1f,0f); // Render-target V origin is bottom-left; GUI is top-left on both backends.
  }
  @Override public void close(){
-  if(vertex!=null){vertex.close();vertex=null;}if(index!=null){index.close();index=null;}
+  if(renderer!=null){renderer.close();renderer=null;}
   if(targetView!=null){targetView.close();targetView=null;}if(sourceView!=null){sourceView.close();sourceView=null;}
   if(target!=null){target.close();target=null;}if(source!=null){source.close();source=null;}
-  if(sampler!=null){sampler.close();sampler=null;}pipeline=null;
+  if(sampler!=null){sampler.close();sampler=null;}
  }
 }

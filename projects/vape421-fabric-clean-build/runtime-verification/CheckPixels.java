@@ -23,7 +23,7 @@ public class CheckPixels {
   {{7,15,0x1f4b67},{7,48,0x1f4b67},{15,7,0x1f4b67}},
   {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
   {{46,46,0x3996c8},{22,49,0x3894c5},{49,22,0x3894c5}},
-  {{3,3,0x3996c8},{3,13,0x3996c8},{3,23,0x3996c8}},
+  {{12,12,0x3996c8},{12,24,0x3996c8},{12,36,0x3996c8}},
   {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
   {{33,33,0x3996c8},{33,43,0x3996c8},{33,53,0x3996c8}},
   {{3,3,0x3996c8},{3,13,0x3996c8},{3,42,0x3996c8}},
@@ -42,8 +42,13 @@ public class CheckPixels {
    int actual=img.getRGB(px,py)&0xffffff;
    if(!near(actual,p[2]))throw new AssertionError(String.format("original shader mode %d (%d,%d) expected %06x got %06x",m,p[0],p[1],p[2],actual));
   }
+  // Three points outside the asymmetric native scissor must be the clear color.
+  for(int[] p:new int[][]{{3,12},{12,3},{12,45}}){
+   int px=wx+(int)((100+(2*64+p[0]+.5)/2)*ww/gw),py=wy+(int)((40+(64+p[1]+.5)/2)*wh/gh);
+   if(!near(img.getRGB(px,py)&0xffffff,0x102030))throw new AssertionError("native scissor leaked at "+p[0]+","+p[1]);
+  }
   int color=sample(20,80);int phase=near(color,0x38a5f1)?0:near(color,0xed962a)?1:-1;
   if(phase<0)throw new AssertionError(String.format("native texture color %06x",color));
-  System.out.println("PASS PIXELS: standard HUD + 63 original-shader samples across 21 native modes; PHASE="+phase);
+  System.out.println("PASS PIXELS: standard HUD + 63 original-shader samples, 21 matrix draws, native scissor; PHASE="+phase);
  }
 }

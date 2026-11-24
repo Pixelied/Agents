@@ -21,7 +21,7 @@ for cls in ["com.mojang.blaze3d.vertex.VertexFormat","com.mojang.blaze3d.systems
     report=subprocess.run(["javap","-p","-c","-l","-classpath",str(client),cls],capture_output=True,text=True,check=True)
     (logs/(cls+".txt")).write_text(report.stdout)
 
-subprocess.run(["javac","-proc:none","--release","25","-cp",os.pathsep.join(map(str,cp+compile_libs)),"-d",str(classes),str(source_dir/"NativeApiSmoke.java"),str(source_dir/"UniversalMesh.java")],check=True)
+subprocess.run(["javac","-proc:none","--release","25","-cp",os.pathsep.join(map(str,cp+compile_libs)),"-d",str(classes),str(source_dir/"NativeApiSmoke.java"),str(source_dir/"UniversalMesh.java"),str(source_dir/"BatchGeometry.java"),str(source_dir/"NativeGuiBatchRenderer.java")],check=True)
 subprocess.run(["jar","--create","--file",str(mods/"native-api-smoke.jar"),"-C",str(classes),".","-C",str(source_dir/"resources"),"."],check=True)
 shutil.copyfile(mods/"native-api-smoke.jar",logs/"native-api-smoke.jar")
 backend=os.environ["PROBE_BACKEND"]
