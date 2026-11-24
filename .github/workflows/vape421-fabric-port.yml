@@ -1,0 +1,301 @@
+name: Vape Fabric 26.2 full-core CI
+on:
+  push:
+    paths:
+      - 'vape421-fabric-26.2/**'
+      - '.github/workflows/vape421-fabric-port.yml'
+  pull_request:
+    paths:
+      - 'vape421-fabric-26.2/**'
+      - '.github/workflows/vape421-fabric-port.yml'
+
+concurrency:
+  group: vape421-fabric-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  recover-core:
+    name: Recover and verify original Vape source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Recover the exact source revision supplied by the user
+        shell: bash
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/vape421-core"
+          original_commit="5a6ff6ca04c62f32aebf6eee0c983c1a1a5602c4"
+
+          # The uploaded ZIP identifies this exact upstream Git commit. Fetch
+          # that commit directly rather than rebuilding it from lossy mirrors.
+          git init "$core"
+          git -C "$core" remote add origin https://github.com/xiaoyu777-coder/VapeV4.21.git
+          git -C "$core" fetch --depth 1 origin "$original_commit"
+          git -C "$core" checkout --detach FETCH_HEAD
+          test "$(git -C "$core" rev-parse HEAD)" = "$original_commit"
+
+          CORE="$core" python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import os
+
+          core = Path(os.environ["CORE"])
+          java_root = core / "src/main/java"
+          files = sorted(java_root.rglob("*.java"), key=lambda p: p.as_posix())
+          manifest = "".join(
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(core).as_posix()}\n"
+              for path in files
+          ).encode()
+          digest = hashlib.sha256(manifest).hexdigest()
+          expected = "18727af501c62c6278416ef85ffe9c3cd0dcb10bc3c141b5fdaafdbf1dd6bc11"
+
+          print(f"pinned upstream commit={os.popen('git -C ' + str(core) + ' rev-parse HEAD').read().strip()}")
+          print(f"original Java source files={len(files)}")
+          print(f"original source manifest SHA-256={digest}")
+          if len(files) != 2948 or digest != expected:
+              raise SystemExit(
+                  "Pinned upstream source does not exactly match the uploaded original ZIP."
+              )
+          for required in (
+              "src/main/java/gg/vape/Vape.java",
+              "src/main/java/gg/vape/runtime/NativeBridge.java",
+              "src/main/java/gg/vape/module/combat/AutoMace.java",
+              "src/main/java/gg/vape/module/utility/PearlCatch.java",
+          ):
+              if not (core / required).is_file():
+                  raise SystemExit(f"Missing original Vape source: {required}")
+          if not (core / "src/main/resources/resources/noto.ttf").is_file():
+              raise SystemExit("Original Vape font resources are missing.")
+          PY
+
+      - name: Apply Fabric migration overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/vape421-core"
+          fixture="$GITHUB_WORKSPACE/vape421-fabric-26.2/core-fixture"
+
+          base64 --decode "$fixture/core-overlay.patch.gz.b64" | gzip --decompress > "$RUNNER_TEMP/vape421-core.patch"
+          cd "$core"
+          git apply --check "$RUNNER_TEMP/vape421-core.patch"
+          git apply "$RUNNER_TEMP/vape421-core.patch"
+
+          # LWJGL 3 uses glGetFloatv for the FloatBuffer overload. Keep
+          # the scalar glGetFloat(int) queries unchanged.
+          CORE="$core" python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          root = Path(os.environ["CORE"]) / "src/main/java"
+          replacements = {
+              "gg/vape/render/OffscreenRenderContext.java": (
+                  "GL11.glGetFloat((int)3106, (FloatBuffer)floatBuffer);",
+                  "GL11.glGetFloatv((int)3106, (FloatBuffer)floatBuffer);",
+              ),
+              "gg/vape/utils/render/CachedTextTexture.java": (
+                  "GL11.glGetFloat((int)2983, (FloatBuffer)previousProjectionMatrix);",
+                  "GL11.glGetFloatv((int)2983, (FloatBuffer)previousProjectionMatrix);",
+              ),
+          }
+
+          for relative, (old, new) in replacements.items():
+              source = root / relative
+              text = source.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"Expected LWJGL call was not found in {relative}: {old}")
+              source.write_text(text.replace(old, new), encoding="utf-8")
+              print(f"Updated {relative}")
+          source = root / "gg/vape/utils/render/CachedTextTexture.java"
+          text = source.read_text(encoding="utf-8")
+          old = "GL11.glLoadMatrix((FloatBuffer)previousProjectionMatrix);"
+          new = "GL11.glLoadMatrixf((FloatBuffer)previousProjectionMatrix);"
+          if old not in text:
+              raise SystemExit("Expected LWJGL 2 glLoadMatrix call was not found in CachedTextTexture.java")
+          source.write_text(text.replace(old, new), encoding="utf-8")
+          print("Updated CachedTextTexture.java glLoadMatrix overload")
+          PY
+
+          python3 "$GITHUB_WORKSPACE/vape421-fabric-26.2/tools/patch_legacy_startup.py" "$core/src/main/java"
+
+          git diff --check
+
+      - name: Inspect migrated native bridge call contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/vape421-core"
+          for range in '180,200' '435,455' '480,505' '690,715'; do
+            echo "--- NativeBridge.java lines $range ---"
+            sed -n "${range}p" "$core/src/main/java/gg/vape/runtime/NativeBridge.java"
+          done
+          echo "--- OffscreenRenderContext.java lines 292-308 ---"
+          sed -n '292,308p' "$core/src/main/java/gg/vape/render/OffscreenRenderContext.java"
+
+      - name: Compile recovered bootstrap dependency graph
+        working-directory: vape421-fabric-26.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle coreCompileProbe -PrecoveredCoreDir="$RUNNER_TEMP/vape421-core" --stacktrace
+
+      - name: Stage complete recovered source and resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          core="$RUNNER_TEMP/vape421-core"
+          stage="$RUNNER_TEMP/recovered-source"
+          mkdir -p "$stage/client/java" "$stage/client/resources"
+          rsync -a "$core/src/main/java/" "$stage/client/java/"
+          rsync -a "$core/src/main/resources/" "$stage/client/resources/"
+          java_count="$(find "$stage/client/java" -type f -name '*.java' | wc -l)"
+          resource_count="$(find "$stage/client/resources" -type f | wc -l)"
+          echo "staged recovered Java files=$java_count"
+          echo "staged original resource files=$resource_count"
+          # The uploaded ZIP contains 2,948 original Java files; the overlay
+          # may add or remove compatibility shims, so do not hard-code its
+          # post-overlay file count.
+          test "$java_count" -ge 2948
+          test "$resource_count" -gt 0
+          test -f "$stage/client/java/gg/vape/Vape.java"
+          test -f "$stage/client/java/gg/vape/runtime/NativeBridge.java"
+          test -f "$stage/client/resources/resources/noto.ttf"
+          test -f "$stage/client/resources/mappings/fabric12111/joined.srg"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vape421-recovered-core
+          path: ${{ runner.temp }}/recovered-source/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
+
+  build:
+    name: Build full recovered mod (${{ matrix.os }})
+    needs: recover-core
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15, macos-15-intel, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: vape421-fabric-26.2
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vape421-recovered-core
+          path: vape421-fabric-26.2/src
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Build full recovered Fabric mod
+        shell: bash
+        run: gradle build --stacktrace
+
+      - name: Verify the JAR contains the recovered client
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar_file="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | sort | head -n 1)"
+          test -n "$jar_file"
+          jar tf "$jar_file" > "$RUNNER_TEMP/vape421-jar-contents.txt"
+          for entry in fabric.mod.json vape421.mixins.json gg/vape/Vape.class gg/vape/module/Mod.class gg/vape/module/combat/SilentAura.class gg/vape/runtime/NativeBridge.class gg/vape/fabric/VapeFabricClient.class resources/noto.ttf resources/english.properties.txt; do
+            grep -Fx "$entry" "$RUNNER_TEMP/vape421-jar-contents.txt"
+          done
+          # The old recovered mapping code requires this pure-Java dependency
+          # at runtime. An unbundled copy caused the user's missing GUI.
+          nested_lib="$(grep -Ei 'META-INF/jars/.*javassist.*[.]jar' "$RUNNER_TEMP/vape421-jar-contents.txt" | head -n 1)"
+          test -n "$nested_lib"
+          echo "Javassist bundled: $nested_lib"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vape421-full-${{ matrix.os }}
+          path: vape421-fabric-26.2/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  runtime-smoke:
+    name: Launch Minecraft with recovered Vape core
+    needs: recover-core
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: vape421-fabric-26.2
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: vape421-recovered-core
+          path: vape421-fabric-26.2/src
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Install virtual display
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+
+      - name: Launch Minecraft and require recovered-core initialization
+        shell: bash
+        run: |
+          set +e
+          VAPE421_GUI_SMOKE=1 xvfb-run -a timeout 120s gradle runClient --args="--demo --width 854 --height 480" > runtime-smoke.txt 2>&1
+          status=$?
+          set -e
+          cat runtime-smoke.txt
+
+          test -f run/logs/latest.log
+          grep -F "Vape 4.21 Fabric bootstrap" run/logs/latest.log
+          grep -F "Recovered Vape managers initialized (profiles, modules, settings, notifications)." run/logs/latest.log
+          grep -F "Recovered Vape core started through Fabric lifecycle." run/logs/latest.log
+          grep -F "Vape native GUI smoke opened successfully." run/logs/latest.log
+          grep -E "Vape native GUI verified [0-9]+ accessible modules." run/logs/latest.log
+
+          if grep -E "MixinApplyError|MixinTransformerError|InvalidInjectionException|InjectionError|Recovered Vape core bootstrap failed|Recovered Vape core initialization INCOMPLETE|Unable to invoke recovered Vape core bootstrap|NoClassDefFoundError|EXC initializeManagers|Vape native GUI smoke failed to open|Vape native GUI smoke failed to enumerate modules|Exception java.lang.NullPointerException|Recovered Vape input event dispatch failed|ClassNotFoundException: gg.vape.runtime.NativeBridge" run/logs/latest.log; then
+            echo "Recovered-core or Mixin/runtime initialization error detected"
+            exit 1
+          fi
+
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            echo "Minecraft exited unexpectedly with status $status"
+            exit "$status"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: vape421-recovered-runtime-smoke
+          path: |
+            vape421-fabric-26.2/runtime-smoke.txt
+            vape421-fabric-26.2/run/logs/latest.log
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,11 @@
+pluginManagement {
+    repositories {
+        // Resolve Fabric Loom's third-party plugin dependencies without
+        // tripping Maven Central HTTP 429 in fresh CI workers.
+        maven { name = 'MavenCentralMirror'; url = 'https://maven-central.storage-download.googleapis.com/maven2/' }
+        maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+rootProject.name = 'vape421-fabric-26.2'
