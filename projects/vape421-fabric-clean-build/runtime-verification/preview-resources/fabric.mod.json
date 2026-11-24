@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "vape421_preview_test",
+  "version": "0.1.0",
+  "name": "Native Vulkan preview test",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.renderprobe.preview.PreviewClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "26.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

@@ -1,0 +1,4 @@
+gg.vape.module.render.CoordinatesHud
+gg.vape.module.render.Scoreboard
+gg.vape.module.render.PotionStatus
+gg.vape.module.render.FpsHud
