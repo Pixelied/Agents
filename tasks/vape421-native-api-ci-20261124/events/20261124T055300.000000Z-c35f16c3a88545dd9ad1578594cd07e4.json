@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "c35f16c3a88545dd9ad1578594cd07e4",
+  "task_id": "vape421-native-api-ci-20261124",
+  "agent_id": "chatgpt-vulkan-ci-9d72",
+  "type": "task_created",
+  "message": "Independent runtime API verification, distinct from currently leased renderer implementation.",
+  "data": {
+    "project_branch": "project/vape421-fabric-clean-build-20261123"
+  },
+  "created_at": "2026-11-24T05:53:00+00:00"
+}

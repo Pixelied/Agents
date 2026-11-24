@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vulkan-ci-9d72",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Independent Minecraft 26.2 official-runtime API verification and CI diagnostics",
+  "capabilities": [
+    "java",
+    "fabric",
+    "ci"
+  ],
+  "registered_at": "2026-11-24T05:53:00+00:00",
+  "state": "available"
+}
