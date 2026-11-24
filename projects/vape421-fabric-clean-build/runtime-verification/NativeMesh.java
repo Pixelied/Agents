@@ -97,7 +97,7 @@ public final class NativeMesh implements AutoCloseable {
   }catch(RuntimeException|Error failure){close();throw failure;}
  }
  public void composite(GuiGraphicsExtractor g){
-  if(targetView!=null)g.blit(targetView,sampler,100,40,228,168,0f,1f,0f,1f); // u0,u1,v0,v1
+  if(targetView!=null)g.blit(targetView,sampler,100,40,228,168,0f,1f,1f,0f); // Render-target V origin is bottom-left; GUI is top-left on both backends.
  }
  @Override public void close(){
   if(vertex!=null){vertex.close();vertex=null;}if(index!=null){index.close();index=null;}
