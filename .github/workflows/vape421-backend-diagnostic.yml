@@ -1,0 +1,30 @@
+name: Minecraft 26.2 backend option diagnostic
+on:
+  push:
+    branches: [feat/vape421-hardening-e51a]
+    paths:
+      - 'projects/vape421-fabric-clean-build/runtime-verification/inspect_backend.py'
+      - '.github/workflows/vape421-backend-diagnostic.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Inspect verified Minecraft backend option codec
+        run: python3 -u projects/vape421-fabric-clean-build/runtime-verification/inspect_backend.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: minecraft-26.2-backend-report
+          path: backend-report/
+          retention-days: 7
