@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vape-gl41-c8a2",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Validate OpenGL 4.1 GUI shader compatibility",
+  "capabilities": [
+    "opengl",
+    "java",
+    "ci"
+  ],
+  "registered_at": "2026-11-24T03:10:00+00:00",
+  "state": "available"
+}

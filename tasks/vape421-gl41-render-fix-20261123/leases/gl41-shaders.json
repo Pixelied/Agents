@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-gl41-render-fix-20261123",
+  "scope": "gl41-shaders",
+  "owner": "chatgpt-vape-gl41-c8a2",
+  "state": "active",
+  "intent": "Test resource-only GLSL 410 patch on dedicated CI",
+  "claimed_at": "2026-11-24T03:10:00+00:00",
+  "heartbeat_at": "2026-11-24T03:10:00+00:00",
+  "expires_at": "2026-11-24T04:10:00+00:00",
+  "generation": 1
+}

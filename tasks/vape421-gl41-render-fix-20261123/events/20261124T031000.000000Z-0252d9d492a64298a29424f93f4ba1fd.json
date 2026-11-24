@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "0252d9d492a64298a29424f93f4ba1fd",
+  "task_id": "vape421-gl41-render-fix-20261123",
+  "agent_id": "chatgpt-vape-gl41-c8a2",
+  "type": "task_created",
+  "message": "OpenGL 4.1 shader failure reproduced and corrected locally; validate actual Minecraft GUI next.",
+  "data": {},
+  "created_at": "2026-11-24T03:10:00+00:00"
+}
