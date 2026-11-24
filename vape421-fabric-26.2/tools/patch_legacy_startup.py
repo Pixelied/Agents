@@ -130,3 +130,17 @@ rewrite(
 """,
 )
 print("Fabric patched: skip obsolete GUI view side effects; fail fast on incomplete bootstrap")
+
+# Decompilation preserved the private helper lambda$acceptIncomingRequest$0.
+# javac also generates its own synthetic lambda$acceptIncomingRequest$0 from
+# the callback in acceptIncomingRequest(), producing two identical method
+# signatures in the .class file. The JVM rejects that class with
+# ClassFormatError. Rename only the explicit helper and its invocation.
+friend_path = root / "gg/vape/friend/FriendRequestManager.java"
+friend_src = friend_path.read_text(encoding="utf-8")
+old_helper = "lambda$acceptIncomingRequest$0"
+new_helper = "recoveredAcceptIncomingRequestCallback"
+if friend_src.count(old_helper) != 2:
+    raise SystemExit("Unexpected decompiled friend callback helper count")
+friend_path.write_text(friend_src.replace(old_helper, new_helper), encoding="utf-8")
+print("Fabric patched: removed duplicate synthetic friend callback signature")
