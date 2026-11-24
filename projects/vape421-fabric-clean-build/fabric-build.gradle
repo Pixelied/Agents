@@ -1,0 +1,69 @@
+// Fabric distribution: no external process injector.
+def hostOS = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+def hostArch = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+def fabricPlatform = hostOS.contains('win') ? 'windows' : hostOS.contains('mac') ? 'macos' : 'linux'
+def fabricCPU = ['aarch64','arm64'].contains(hostArch) ? 'arm64' : ['amd64','x86_64'].contains(hostArch) ? 'x64' : hostArch
+def nativeFile = fabricPlatform == 'windows' ? 'vape_bridge.dll' : fabricPlatform == 'macos' ? 'libvape_bridge.dylib' : 'libvape_bridge.so'
+def nativeRoot = layout.buildDirectory.dir('fabric-native-resources')
+def nativeOutput = nativeRoot.map { it.file("fabric-native/${fabricPlatform}-${fabricCPU}/${nativeFile}") }
+
+tasks.register('compileFabricNative', Exec) {
+    inputs.file('fabric-native/bridge.c')
+    outputs.file(nativeOutput)
+    doFirst {
+        def jdk = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get().metadata.installationPath.asFile
+        def jni = new File(jdk, 'include')
+        def platformHeaders = new File(jni, fabricPlatform == 'windows' ? 'win32' : fabricPlatform == 'macos' ? 'darwin' : 'linux')
+        def output = nativeOutput.get().asFile
+        output.parentFile.mkdirs()
+        if (fabricPlatform == 'windows') {
+            workingDir(output.parentFile)
+            commandLine 'cl.exe', '/nologo', '/LD', '/O2', '/std:c11', '/TC', "/I${jni}", "/I${platformHeaders}", file('fabric-native/bridge.c').absolutePath, "/Fe:${output.absolutePath}"
+        } else {
+            commandLine(System.getenv('CC') ?: 'cc', '-std=c11', '-O2', '-fPIC', fabricPlatform == 'macos' ? '-dynamiclib' : '-shared', "-I${jni}", "-I${platformHeaders}", file('fabric-native/bridge.c').absolutePath, '-o', output.absolutePath)
+        }
+    }
+}
+
+tasks.register('fabricJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+    group = 'build'
+    description = 'Build a regular Fabric client mod with the native bridge bundled for this host.'
+    archiveBaseName = 'vape421-fabric'
+    archiveVersion = '4.21'
+    archiveClassifier = "${fabricPlatform}-${fabricCPU}"
+    dependsOn(tasks.named('classes'), tasks.named('compileFabricNative'))
+    from(sourceSets.main.output)
+    from(nativeRoot)
+    configurations = [project.configurations.runtimeClasspath]
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    relocate 'javassist', 'gg.vape.shaded.javassist'
+    relocate 'org.objectweb.asm', 'gg.vape.shaded.org.objectweb.asm'
+    dependencies {
+        exclude(dependency('com.google.guava:guava:.*'))
+        exclude(dependency('com.google.code.gson:gson:.*'))
+        exclude(dependency('io.netty:netty-all:.*'))
+    }
+    ['GL11','GL12','GL13','GL14','GL15','GL20','GL21','GL30','GL31','GL32','GL33','GL40','GL41','GL42','GL43','GL44','GL45','GL46'].each { gl ->
+        exclude "org/lwjgl/opengl/${gl}.class", "org/lwjgl/opengl/${gl}\$*.class"
+    }
+    exclude 'org/lwjgl/BufferUtils.class', 'org/lwjgl/PointerBuffer.class', 'org/lwjgl/PointerWrapper*.class', 'org/lwjgl/Sys.class', 'org/lwjgl/LWJGLUtil*.class', 'org/lwjgl/MemoryUtil*.class', 'org/lwjgl/MemoryAccess*.class', 'org/lwjgl/BufferChecks.class', 'org/lwjgl/Native*.class'
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class', 'META-INF/versions/**'
+    manifest { attributes('Implementation-Title': 'Vape 4.21 recovered Fabric mod', 'Implementation-Version': '4.21-fabric.1') }
+}
+
+tasks.register('verifyFabricJar') {
+    group = 'verification'
+    dependsOn(tasks.named('fabricJar'))
+    doLast {
+        def jar = tasks.named('fabricJar').get().archiveFile.get().asFile
+        new java.util.jar.JarFile(jar).withCloseable { archive ->
+            ['fabric.mod.json', 'gg/vape/fabric/FabricClient.class',
+             'gg/vape/runtime/NativeBridge.class', 'gg/vape/Vape.class',
+             "fabric-native/${fabricPlatform}-${fabricCPU}/${nativeFile}"].each { name ->
+                if (archive.getEntry(name) == null) throw new GradleException("Missing ${name} in ${jar}")
+            }
+        }
+        println("Verified Fabric archive structure: ${jar}")
+    }
+}
+tasks.named('build') { dependsOn(tasks.named('verifyFabricJar')) }

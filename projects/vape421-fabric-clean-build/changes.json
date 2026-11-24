@@ -1,0 +1,96 @@
+{
+  "src/main/java/gg/vape/Vape.java": [
+    [
+      "public boolean isFabricMinecraftPresent() {",
+      "public boolean isFabricMinecraftPresent() {\n        if (gg.vape.fabric.FabricClient.isActive()) return true;"
+    ],
+    [
+      "this.primaryMappingTaskSet = new PrimaryMappingTaskSet();\n        if (NativeBridge.isBadlion189Runtime())",
+      "this.primaryMappingTaskSet = new PrimaryMappingTaskSet();\n        if (gg.vape.fabric.FabricClient.isActive()) {\n            gg.vape.fabric.FabricClient.runAndWait(ClientSettings::initializeFrames);\n            return;\n        }\n        if (NativeBridge.isBadlion189Runtime())"
+    ]
+  ],
+  "src/main/java/gg/vape/runtime/NativeBridge.java": [
+    [
+      "import gg.vape.Vape;",
+      "import gg.vape.Vape;\nimport gg.vape.fabric.FabricInput;\nimport gg.vape.fabric.InProcessBytecode;\nimport java.io.InputStream;\nimport java.lang.reflect.InvocationTargetException;"
+    ],
+    [
+      "public static native String gkn(long keyCode);",
+      "public static String gkn(long keyCode) { return FabricInput.keyName(keyCode); }"
+    ],
+    [
+      "public static native short gks(int keyCode);",
+      "public static short gks(int keyCode) { return FabricInput.keyState(keyCode); }"
+    ],
+    [
+      "public static native String gat();",
+      "public static String gat() { String token = System.getenv(\"VAPE_ACCESS_TOKEN\"); return token == null || token.isEmpty() ? \"0\" : token; }"
+    ],
+    [
+      "public static native byte[] gcb(Class<?> targetClass);",
+      "public static byte[] gcb(Class<?> targetClass) { return InProcessBytecode.capture(targetClass); }"
+    ],
+    [
+      "public static native void trs(int state);",
+      "public static void trs(int state) { System.out.println(\"[Vape421] startup stage \" + state); }"
+    ],
+    [
+      "public static native byte[] gfb(String name);",
+      "public static byte[] gfb(String name) {\n        try (InputStream in = NativeBridge.class.getResourceAsStream(\"/\" + name)) {\n            return in == null ? null : in.readAllBytes();\n        } catch (java.io.IOException e) { throw new IllegalStateException(\"Unable to read resource \" + name, e); }\n    }"
+    ],
+    [
+      "public static native int mvk(int virtualKey, int scanCode);",
+      "public static int mvk(int virtualKey, int scanCode) { return FabricInput.mapKey(virtualKey, scanCode); }"
+    ],
+    [
+      "NativeBridge.invokeVoidInit(vape, \"loadMappings\");",
+      "NativeBridge.sce(\"LOAD loadMappings\");\n        vape.loadMappings();\n        NativeBridge.sce(\"OK loadMappings\");"
+    ],
+    [
+      "NativeBridge.invokeVoidInit(vape, \"initializeManagers\");",
+      "NativeBridge.sce(\"LOAD initializeManagers\");\n        vape.initializeManagers();\n        NativeBridge.sce(\"OK initializeManagers\");"
+    ],
+    [
+      "public static native void cpy(String text);",
+      "public static void cpy(String text) { FabricInput.copy(text); }"
+    ],
+    [
+      "public static native void smd(int mode, int value);",
+      "public static void smd(int mode, int value) { FabricInput.mouseMessage(mode, value); }"
+    ],
+    [
+      "public static native int dsv2(int fontId, String text, double x, double y,\n                                  int color, float scale);",
+      "public static int dsv2(int fontId, String text, double x, double y,\n                                  int color, float scale) { return 0; }"
+    ],
+    [
+      "public static native int ss_2(String value);",
+      "public static int ss_2(String value) { return 0; }"
+    ],
+    [
+      "public static native int scb(Class<?> targetClass, byte[] bytecode);",
+      "public static int scb(Class<?> targetClass, byte[] bytecode) { return InProcessBytecode.redefine(targetClass, bytecode); }"
+    ],
+    [
+      "public static native int mfv2(int fontId, int style, String text);",
+      "public static int mfv2(int fontId, int style, String text) { return 0; }"
+    ],
+    [
+      "public static native void ss(String value);",
+      "public static void ss(String value) {}"
+    ],
+    [
+      "public static native void sce(String message);",
+      "public static void sce(String message) { System.out.println(\"[Vape421] \" + message); }"
+    ],
+    [
+      "public static native Object inv(Method method, Object target, Object ... arguments);",
+      "public static Object inv(Method method, Object target, Object ... arguments) {\n        try {\n            java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.privateLookupIn(method.getDeclaringClass(), java.lang.invoke.MethodHandles.lookup());\n            java.lang.invoke.MethodHandle handle = java.lang.reflect.Modifier.isStatic(method.getModifiers())\n                    ? lookup.unreflect(method)\n                    : lookup.unreflectSpecial(method, method.getDeclaringClass()).bindTo(target);\n            return handle.invokeWithArguments(arguments);\n        } catch (Throwable e) { return NativeBridge.<RuntimeException,Object>rethrow(e); }\n    }\n\n    @SuppressWarnings(\"unchecked\")\n    private static <E extends Throwable,T> T rethrow(Throwable error) throws E { throw (E) error; }"
+    ]
+  ],
+  "src/main/java/gg/vape/sync/SyncThread.java": [
+    [
+      "if (this.vape.getAccountInfo().hasProfilesEnabled()) {\n                this.loadRemoteConfig();",
+      "if (this.vape.getAccountInfo() != null && this.vape.getAccountInfo().hasProfilesEnabled()) {\n                this.loadRemoteConfig();"
+    ]
+  ]
+}

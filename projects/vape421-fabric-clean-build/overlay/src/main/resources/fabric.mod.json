@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "vape421recovered",
+  "version": "4.21-fabric.1",
+  "name": "Vape 4.21 (Recovered Fabric Port)",
+  "description": "An experimental, independently recovered Java client loaded by Fabric for authorized testing.",
+  "environment": "client",
+  "entrypoints": {"client": ["gg.vape.fabric.FabricClient"]},
+  "depends": {"fabricloader": ">=0.18.0", "minecraft": "26.2", "java": ">=25", "fabric-api": "*"},
+  "license": "CC0-1.0"
+}
