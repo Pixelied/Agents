@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vape-hardening-e51a",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Native GUI diagnostics and local client UX hardening",
+  "capabilities": [
+    "java",
+    "fabric",
+    "ci",
+    "testing"
+  ],
+  "registered_at": "2026-11-24T06:07:00+00:00",
+  "state": "available"
+}

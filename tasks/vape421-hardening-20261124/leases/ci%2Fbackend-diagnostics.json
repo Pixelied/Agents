@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-hardening-20261124",
+  "scope": "ci/backend-diagnostics",
+  "owner": "chatgpt-vape-hardening-e51a",
+  "state": "active",
+  "intent": "Independent diagnostics and UX hardening",
+  "claimed_at": "2026-11-24T06:07:00+00:00",
+  "heartbeat_at": "2026-11-24T06:07:00+00:00",
+  "expires_at": "2026-11-24T08:07:00+00:00",
+  "generation": 1
+}
