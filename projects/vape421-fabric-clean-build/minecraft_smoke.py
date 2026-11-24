@@ -194,19 +194,44 @@ class DisplayProbe:
             raise RuntimeError("Cannot open virtual X11 display")
         self.x.XSetInputFocus.argtypes=[C.c_void_p,C.c_ulong,C.c_int,C.c_ulong]
         self.x.XFlush.argtypes=[C.c_void_p]
+        self.x.XDefaultRootWindow.argtypes=[C.c_void_p]; self.x.XDefaultRootWindow.restype=C.c_ulong
+        self.x.XQueryTree.argtypes=[C.c_void_p,C.c_ulong,C.POINTER(C.c_ulong),C.POINTER(C.c_ulong),C.POINTER(C.POINTER(C.c_ulong)),C.POINTER(C.c_uint)]
+        self.x.XFetchName.argtypes=[C.c_void_p,C.c_ulong,C.POINTER(C.c_void_p)]
+        self.x.XFree.argtypes=[C.c_void_p]
+        self.x.XGetGeometry.argtypes=[C.c_void_p,C.c_ulong,C.POINTER(C.c_ulong),C.POINTER(C.c_int),C.POINTER(C.c_int),C.POINTER(C.c_uint),C.POINTER(C.c_uint),C.POINTER(C.c_uint),C.POINTER(C.c_uint)]
+        self.x.XTranslateCoordinates.argtypes=[C.c_void_p,C.c_ulong,C.c_ulong,C.c_int,C.c_int,C.POINTER(C.c_int),C.POINTER(C.c_int),C.POINTER(C.c_ulong)]
         self.x.XKeysymToKeycode.argtypes=[C.c_void_p,C.c_ulong]; self.x.XKeysymToKeycode.restype=C.c_ubyte
         self.xt.XTestFakeMotionEvent.argtypes=[C.c_void_p,C.c_int,C.c_int,C.c_int,C.c_ulong]
         self.xt.XTestFakeButtonEvent.argtypes=[C.c_void_p,C.c_uint,C.c_int,C.c_ulong]
         self.xt.XTestFakeKeyEvent.argtypes=[C.c_void_p,C.c_uint,C.c_int,C.c_ulong]
     def window(self):
-        result=subprocess.check_output(["xwininfo","-root","-tree"],text=True)
-        matches=re.findall(r'^\s*(0x[0-9a-fA-F]+)\s+"[^"]*Minecraft[^"]*"',result,re.M)
-        if not matches:
-            raise RuntimeError("Minecraft window not found: "+result[-1000:])
-        win=matches[-1]
-        info=subprocess.check_output(["xwininfo","-id",win],text=True)
-        get=lambda key:int(re.search(r"^\s*"+re.escape(key)+r":\s*(-?\d+)",info,re.M).group(1))
-        return int(win,16),get("Absolute upper-left X"),get("Absolute upper-left Y"),get("Width"),get("Height")
+        root=self.x.XDefaultRootWindow(self.d)
+        candidates=[]
+        def walk(win,depth):
+            if depth>8:
+                return
+            name=C.c_void_p()
+            if self.x.XFetchName(self.d,win,C.byref(name)) and name.value:
+                title=C.string_at(name).decode("utf-8",errors="replace")
+                self.x.XFree(name)
+                if "minecraft" in title.lower():
+                    r=C.c_ulong(); x=C.c_int(); y=C.c_int(); w=C.c_uint(); h=C.c_uint(); b=C.c_uint(); d=C.c_uint()
+                    if self.x.XGetGeometry(self.d,win,C.byref(r),C.byref(x),C.byref(y),C.byref(w),C.byref(h),C.byref(b),C.byref(d)):
+                        rx=C.c_int(); ry=C.c_int(); child=C.c_ulong()
+                        self.x.XTranslateCoordinates(self.d,win,root,0,0,C.byref(rx),C.byref(ry),C.byref(child))
+                        if w.value>=300 and h.value>=200:
+                            candidates.append((win,rx.value,ry.value,w.value,h.value))
+            r=C.c_ulong(); p=C.c_ulong(); children=C.POINTER(C.c_ulong)(); count=C.c_uint()
+            if self.x.XQueryTree(self.d,win,C.byref(r),C.byref(p),C.byref(children),C.byref(count)):
+                ids=[children[i] for i in range(count.value)]
+                if children:
+                    self.x.XFree(children)
+                for child in ids:
+                    walk(child,depth+1)
+        walk(root,0)
+        if not candidates:
+            raise RuntimeError("Minecraft window not found")
+        return max(candidates,key=lambda item:item[3]*item[4])
     def click(self,rx,ry):
         win,x,y,w,h=self.window()
         self.x.XSetInputFocus(self.d,win,2,0)

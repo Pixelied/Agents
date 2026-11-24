@@ -46,13 +46,12 @@ jobs:
       - name: Check virtual display availability
         run: |
           command -v Xvfb
-          command -v xwininfo
           ldconfig -p | grep 'libXtst.so.6'
       - name: Launch real Minecraft demo and test Fabric world initialization
         run: |
           Xvfb :99 -screen 0 1280x720x24 -ac >/tmp/vape-xvfb.log 2>&1 &
           export DISPLAY=:99
-          for i in $(seq 1 20); do xwininfo -root >/dev/null 2>&1 && break; sleep 1; done
+          sleep 2
           python -u projects/vape421-fabric-clean-build/minecraft_smoke.py
       - uses: actions/upload-artifact@v4
         if: always()
