@@ -1,0 +1,98 @@
+name: Vape 4.21 OpenGL 4.1 GUI smoke
+on:
+  push:
+    branches:
+      - project/vape421-fabric-clean-build-20261123
+    paths:
+      - '.github/workflows/vape421-gl41-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  minecraft-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Wait for the corrected build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for attempt in $(seq 1 80); do
+            if gh api repos/Pixelied/Agents/actions/runs/45315454547/artifacts --jq '.artifacts[].name' | grep -qx 'vape421-fabric-linux-x64'; then exit 0; fi
+            status=$(gh api repos/Pixelied/Agents/actions/runs/45315454547 --jq '.status')
+            if [ "$status" = completed ]; then echo "Corrected build ended without Linux artifact"; exit 1; fi
+            sleep 3
+          done
+          echo "Corrected artifact not produced"; exit 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: vape421-fabric-linux-x64
+          run-id: 45315454547
+          github-token: ${{ github.token }}
+          path: test-mod
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply resource-only GLSL 410 fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, re, zipfile
+          from pathlib import Path
+          jar=Path("test-mod/vape421-fabric-4.21-linux-x64.jar")
+          tmp=jar.with_suffix(".tmp")
+          shaders={"resources/shader/"+n for n in ("universal_vert.vert","universal_frag.frag","block_esp_vert.vert","block_esp_frag.frag")}
+          with zipfile.ZipFile(jar) as a, zipfile.ZipFile(tmp,"w") as b:
+              for info in a.infolist():
+                  data=a.read(info)
+                  if info.filename in shaders:
+                      s=data.decode("utf-8")
+                      assert s.startswith("#version 430 core")
+                      s=s.replace("#version 430 core","#version 410 core",1)
+                      s=re.sub(r"^precision highp float;\s*\n","",s,flags=re.M)
+                      kind="out" if info.filename.endswith(".vert") else "in"
+                      s=re.sub(r"^layout\(location\s*=\s*\d+\)\s+(?="+kind+r"\s)","",s,flags=re.M)
+                      data=s.encode("utf-8")
+                  elif info.filename=="fabric.mod.json":
+                      meta=json.loads(data)
+                      assert meta["version"]=="4.21-fabric.2"
+                      meta["version"]="4.21-fabric.3"
+                      data=(json.dumps(meta,indent=2)+"\n").encode()
+                  b.writestr(info,data)
+          with zipfile.ZipFile(jar) as a, zipfile.ZipFile(tmp) as b:
+              assert b.testzip() is None
+              assert {n for n in a.namelist() if a.read(n)!=b.read(n)} == shaders|{"fabric.mod.json"}
+          tmp.replace(jar)
+          p=Path("projects/vape421-fabric-clean-build/minecraft_smoke.py")
+          s=p.read_text()
+          s=s.replace('["version"] == "4.21-fabric.2"','["version"] == "4.21-fabric.3"')
+          s=s.replace('env["ALSOFT_DRIVERS"]="null"','env["ALSOFT_DRIVERS"]="null"\nenv["MESA_GL_VERSION_OVERRIDE"]="4.1"\nenv["MESA_GLSL_VERSION_OVERRIDE"]="410"')
+          s=s.replace('        print("PASS: actual original ClickGUI render callback fired after Right Shift",flush=True)','        print("PASS: actual original ClickGUI render callback fired after Right Shift",flush=True)\n        assert "version \'430\' is not supported" not in read_log()\n        assert "Failed to initialize modern renderer" not in read_log()\n        assert "4.1" in read_log(), "OpenGL 4.1 not reported"')
+          p.write_text(s)
+          PY
+      - name: Check virtual display availability
+        run: |
+          command -v Xvfb
+          ldconfig -p | grep 'libXtst.so.6'
+      - name: Launch real Minecraft demo and test Fabric world initialization
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 -ac >/tmp/vape-xvfb.log 2>&1 &
+          export DISPLAY=:99
+          sleep 2
+          python -u projects/vape421-fabric-clean-build/minecraft_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: minecraft-26.2-gl41-smoke-evidence
+          path: smoke-results/
+          if-no-files-found: warn
+          retention-days: 7
