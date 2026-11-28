@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "agent_id": "chatgpt-vape263-port-28nov",
+  "provider": "openai",
+  "model": "gpt-6.2",
+  "description": "Minecraft 26.3 Fabric/Vulkan migration and full-client compatibility",
+  "capabilities": [
+    "java",
+    "fabric",
+    "rendering",
+    "ci"
+  ],
+  "registered_at": "2026-11-28T06:00:00+00:00",
+  "state": "available"
+}

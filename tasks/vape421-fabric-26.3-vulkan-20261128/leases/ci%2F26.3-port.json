@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "task_id": "vape421-fabric-26.3-vulkan-20261128",
+  "scope": "ci/26.3-port",
+  "owner": "chatgpt-vape263-port-28nov",
+  "state": "active",
+  "intent": "Stack full 26.3 port on verified full-core 26.2 migration; update SDL3 and RenderPearl, then test both backends",
+  "claimed_at": "2026-11-28T06:00:00+00:00",
+  "heartbeat_at": "2026-11-28T06:00:00+00:00",
+  "expires_at": "2026-11-28T08:00:00+00:00",
+  "generation": 1
+}

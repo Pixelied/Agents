@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": "1.0",
+  "event_id": "8d91d671a06b4a7ba82b7d59b9d3d1aa",
+  "task_id": "vape421-fabric-26.3-vulkan-20261128",
+  "agent_id": "chatgpt-vape263-port-28nov",
+  "type": "task_created",
+  "message": "Starting 26.3 full-client migration from the previously verified 26.2 full-core branch. Current Maintenance 5 JAR is the behavior baseline; 26.3 SDL3/RenderPearl migration is a separate major effort.",
+  "data": {
+    "implementation_base": "a20d2f7ece95b268bf2a9b6c2500415602ecc288",
+    "stable_jar_sha256": "afbd52d42960bd6a1fffc7975145c0575a9bd6d3738aa01a1bd28c98553ebdd8",
+    "official_toolchain": {
+      "minecraft": "26.3",
+      "loader": "0.20.1",
+      "loom": "1.19-SNAPSHOT",
+      "gradle": "9.6",
+      "fabric_api": "0.167.0+26.3",
+      "java": "25"
+    }
+  },
+  "created_at": "2026-11-28T06:00:00+00:00"
+}
